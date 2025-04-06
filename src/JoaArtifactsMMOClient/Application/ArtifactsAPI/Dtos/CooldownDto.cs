@@ -1,0 +1,20 @@
+using System.Text.Json.Serialization;
+
+public record Cooldown
+{
+    [JsonPropertyName("total_seconds")]
+    int TotalSeconds;
+
+    [JsonPropertyName("remaining_seconds")]
+    int RemainingSeconds;
+
+    [JsonPropertyName("remaining_seconds")]
+    DateTime StartedAt;
+
+    [JsonPropertyName("expiration")]
+    DateTime Expiration;
+
+    [JsonPropertyName("reason")]
+    // Allowed values are "movement"
+    string Reason;
+}
