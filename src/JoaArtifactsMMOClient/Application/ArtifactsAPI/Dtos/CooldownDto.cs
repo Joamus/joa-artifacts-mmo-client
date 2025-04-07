@@ -8,7 +8,7 @@ public record Cooldown
     [JsonPropertyName("remaining_seconds")]
     int RemainingSeconds;
 
-    [JsonPropertyName("remaining_seconds")]
+    [JsonPropertyName("started_at")]
     DateTime StartedAt;
 
     [JsonPropertyName("expiration")]

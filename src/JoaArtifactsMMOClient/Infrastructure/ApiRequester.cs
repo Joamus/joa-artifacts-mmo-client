@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 
 namespace Infrastructure;
 
-public class ApiService
+public class ApiRequester
 {
     private readonly float _secondsBetweenRequests = 0.6f;
 
@@ -10,9 +10,9 @@ public class ApiService
 
     private readonly string _token;
 
-    private readonly HttpClient _httpClient;
+    private HttpClient _httpClient { get; set; }
 
-    public ApiService(string token)
+    public ApiRequester(string token)
     {
         _token = token;
         _lastRequest = DateTime.UtcNow;
@@ -30,8 +30,9 @@ public class ApiService
         double secondsDiff = (now - _lastRequest).TotalSeconds;
         if (secondsDiff < _secondsBetweenRequests)
         {
-            await System.Threading.Tasks.Task.Delay((int)(_secondsBetweenRequests * 1000));
+            await Task.Delay((int)(_secondsBetweenRequests * 1000));
         }
+        _lastRequest = DateTime.UtcNow;
     }
 
     public async Task<HttpResponseMessage> GetAsync(string requestUri)
@@ -40,13 +41,13 @@ public class ApiService
         return await _httpClient.GetAsync(requestUri);
     }
 
-    public async Task<HttpResponseMessage> PostAsync(string requestUri, HttpContent content)
+    public async Task<HttpResponseMessage> PostAsync(string requestUri, HttpContent? content)
     {
         await ThrottleRequest();
         return await _httpClient.PostAsync(requestUri, content);
     }
 
-    public async Task<HttpResponseMessage> PutAsync(string requestUri, HttpContent content)
+    public async Task<HttpResponseMessage> PutAsync(string requestUri, HttpContent? content)
     {
         await ThrottleRequest();
         return await _httpClient.PutAsync(requestUri, content);

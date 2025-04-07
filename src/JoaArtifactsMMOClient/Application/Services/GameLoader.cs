@@ -5,17 +5,13 @@ namespace Application;
 
 public class GameLoader
 {
-    private string _token { get; set; } = "";
-
     public GameLoader() { }
 
-    public async Task LoadApiToken()
+    public static async Task<string> LoadApiToken()
     {
-        using StreamReader reader = new("./token.txt");
+        using StreamReader reader = new("../../token.txt");
 
-        string text = await reader.ReadToEndAsync();
-
-        _token = text;
+        return await reader.ReadToEndAsync();
     }
 
     public async Task<int> Start()
@@ -35,7 +31,7 @@ public class GameLoader
         {
             //your code
 
-            await System.Threading.Tasks.Task.Delay(4500);
+            await Task.Delay(4500);
         }
     }
 }

@@ -4,8 +4,8 @@ using System.Text.Json.Serialization;
 
 public record ContentDto
 {
-    [JsonPropertyName("content_type")]
-    ContentType type;
+    [JsonPropertyName("type")]
+    ContentType Type;
 
     [JsonPropertyName("code")]
     string Code;
