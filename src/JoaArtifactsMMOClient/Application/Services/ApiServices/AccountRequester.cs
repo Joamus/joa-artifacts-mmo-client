@@ -17,24 +17,61 @@ public class AccountRequester
         _accountName = accountName;
     }
 
-    /**
-     * Errors to implement:
-     404: Map not found
-     486: Action in progress (not same as cooldown, hmm)
-     490: Char already at destination
-     498: Char not found
-     499: Cooldown
-    */
-    public async Task<GetCharactersResponse> GetCharacters()
+    public async Task<CharactersResponse> GetCharacters()
     {
         var response = await _apiService.PostAsync($"/accounts/{_accountName}/characters", null);
 
         var result = await response.Content.ReadAsStringAsync();
 
-        return JsonSerializer.Deserialize<GetCharactersResponse>(result)!;
+        return JsonSerializer.Deserialize<CharactersResponse>(result)!;
     }
 
-    // public async Task<GetCharactersResponse> GetAchievments()
+    public async Task<CharactersResponse> GetItems()
+    {
+        var response = await _apiService.PostAsync($"/items", null);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<CharactersResponse>(result)!;
+    }
+
+    public async Task<CharactersResponse> GetResources()
+    {
+        var response = await _apiService.PostAsync($"/resources", null);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<CharactersResponse>(result)!;
+    }
+
+    public async Task<CharactersResponse> GetNpcs()
+    {
+        var response = await _apiService.PostAsync($"/npcs", null);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<CharactersResponse>(result)!;
+    }
+
+    public async Task<CharactersResponse> GetMonsters()
+    {
+        var response = await _apiService.PostAsync($"/accounts/{_accountName}/characters", null);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<CharactersResponse>(result)!;
+    }
+
+    public async Task<CharactersResponse> GetMaps()
+    {
+        var response = await _apiService.PostAsync($"/maps", null);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<CharactersResponse>(result)!;
+    }
+
+    // public async Task<GetCharactersResponse> GetAchievements()
     // {
     //     var response = await _apiService.PostAsync($"/accounts/{_accountName}/achievments", null);
 

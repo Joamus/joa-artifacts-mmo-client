@@ -43,6 +43,14 @@ public class CharacterRequester
         return JsonSerializer.Deserialize<FightResponse>(result)!;
     }
 
+    public async Task<GenericCharacterResponse> Rest(PlayerCharacter character)
+    {
+        var response = await _apiService.PostAsync($"/my/{character.Name}/action/rest", null);
+
+        var result = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<GenericCharacterResponse>(result)!;
+    }
+
     public async Task<FightResponse> Gather(PlayerCharacter character)
     {
         var response = await _apiService.PostAsync($"/my/{character.Name}/action/gather", null);
