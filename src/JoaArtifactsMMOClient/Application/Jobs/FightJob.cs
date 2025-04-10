@@ -51,8 +51,8 @@ public class FightJob : CharacterJob
             }
             else if (result.Value is FightResponse)
             {
-                _amount++;
-                if (_amount >= _progressAmount)
+                _progressAmount++;
+                if (_amount <= _progressAmount)
                 {
                     _logger.LogInformation(
                         $"FightJob completed for {_playerCharacter._character.Name} - fought ${_code} (${_progressAmount}/${_amount})"

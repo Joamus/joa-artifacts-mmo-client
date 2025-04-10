@@ -67,7 +67,7 @@ public class GatherJob : CharacterJob
                 _progressAmount +=
                     response.Data.Details.Items.Find(item => item.Code == _code)?.Quantity ?? 0;
 
-                if (_amount >= _progressAmount)
+                if (_amount <= _progressAmount)
                 {
                     _logger.LogInformation(
                         $"GatherJob completed for {_playerCharacter._character.Name} - gathered ${_code} (${_progressAmount}/${_amount})"
