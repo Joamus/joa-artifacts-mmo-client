@@ -1,6 +1,11 @@
-﻿using Application;
+﻿using System.Text.Json;
+using Application;
+using Application.Services.ApiServices;
 using Infrastructure;
 using Microsoft.OpenApi.Models;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,13 +26,38 @@ builder
 builder.Services.AddCors();
 builder.Services.AddProblemDetails();
 
+//convert Enums to Strings (instead of Integer) globally
+JsonConvert.DefaultSettings = (
+    () =>
+    {
+        var settings = new JsonSerializerSettings
+        {
+            ContractResolver = new DefaultContractResolver
+            {
+                NamingStrategy = new SnakeCaseNamingStrategy(),
+            },
+        };
+
+        settings.Converters.Add(
+            new StringEnumConverter { NamingStrategy = new SnakeCaseNamingStrategy() }
+        );
+        return settings;
+    }
+);
+
 ServiceCollection collection = new ServiceCollection();
 
 string token = await GameLoader.LoadApiToken();
+string accountName = await GameLoader.LoadAccountName();
 
-ApiRequester apiService = new ApiRequester(token);
+ApiRequester apiRequester = new ApiRequester(token);
+AccountRequester accountRequester = new AccountRequester(apiRequester, accountName);
 
-collection.AddSingleton<ApiRequester>(apiService);
+collection.AddSingleton<ApiRequester>(apiRequester);
+
+GameState gameState = await GameState.LoadAll(accountRequester, apiRequester);
+
+collection.AddSingleton<GameState>(gameState);
 
 var app = builder.Build();
 
@@ -45,7 +75,7 @@ Task apiTask = Task.Run(async () =>
 });
 Task gameTask = Task.Run(async () =>
 {
-    GameLoader loader = new GameLoader();
+    GameLoader loader = new GameLoader(gameState);
 
     var _ = await loader.Start();
 });

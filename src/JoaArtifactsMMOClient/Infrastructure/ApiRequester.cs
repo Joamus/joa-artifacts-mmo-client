@@ -1,4 +1,6 @@
 using System.Net.Http.Headers;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Infrastructure;
 
@@ -9,6 +11,19 @@ public class ApiRequester
     private DateTime _lastRequest;
 
     private readonly string _token;
+
+    // Putting them here for global access
+    public static JsonSerializerOptions getJsonOptions() {
+        if (_jsonOptions is null) {
+            _jsonOptions = new JsonSerializerOptions {
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            };
+            _jsonOptions.Converters.Add(new JsonStringEnumConverter { });
+        }
+        
+        return _jsonOptions;
+    }
+    private static JsonSerializerOptions _jsonOptions;
 
     private HttpClient _httpClient { get; set; }
 
