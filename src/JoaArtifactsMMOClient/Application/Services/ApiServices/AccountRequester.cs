@@ -73,6 +73,18 @@ public class AccountRequester
         return JsonSerializer.Deserialize<MapsResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
+    public async Task<BankItemsResponse> GetBankItems(int pageNumber = 1)
+    {
+        var response = await _apiService.GetAsync($"/my/bank/items?page={pageNumber}");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<BankItemsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
     // public async Task<GetCharactersResponse> GetAchievements()
     // [EnumMember(Value = "monster")]
     // [JsonStringEnumMemberName("monster")]

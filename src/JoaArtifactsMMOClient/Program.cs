@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Application;
+using Application.Services;
 using Application.Services.ApiServices;
 using Infrastructure;
 using Microsoft.OpenApi.Models;
@@ -45,23 +46,14 @@ JsonConvert.DefaultSettings = (
     }
 );
 
-ServiceCollection collection = new ServiceCollection();
-
 string token = await GameLoader.LoadApiToken();
 string accountName = await GameLoader.LoadAccountName();
 
-ApiRequester apiRequester = new ApiRequester(token);
-AccountRequester accountRequester = new AccountRequester(apiRequester, accountName);
-
-collection.AddSingleton<ApiRequester>(apiRequester);
-
-GameState gameState = await GameState.LoadAll(accountRequester, apiRequester);
-
-collection.AddSingleton<GameState>(gameState);
+await SetupGameServiceProvider(token, accountName);
 
 var app = builder.Build();
 
-app.UseExceptionHandler();
+// app.UseExceptionHandler();
 
 app.UseSwagger();
 app.UseSwaggerUI(opt =>
@@ -75,9 +67,31 @@ Task apiTask = Task.Run(async () =>
 });
 Task gameTask = Task.Run(async () =>
 {
-    GameLoader loader = new GameLoader(gameState);
+    GameLoader loader = new GameLoader();
 
     var _ = await loader.Start();
 });
 
 await Task.WhenAny([apiTask, gameTask]);
+
+async Task SetupGameServiceProvider(string token, string accountName)
+{
+    ServiceCollection collection = new ServiceCollection();
+
+    ApiRequester apiRequester = new ApiRequester(token);
+    AccountRequester accountRequester = new AccountRequester(apiRequester, accountName);
+
+    _ = collection.AddSingleton(apiRequester);
+    _ = collection.AddSingleton(accountRequester);
+
+    GameState gameState = new GameState(accountRequester, apiRequester);
+
+    collection.AddSingleton(gameState);
+
+    var serviceProvider = collection.BuildServiceProvider();
+
+    GameServiceProvider.SetInstance(serviceProvider);
+
+    // var _gameState = GameServiceProvider.GetInstance().GetService<GameState>();
+    await gameState.LoadAll();
+}

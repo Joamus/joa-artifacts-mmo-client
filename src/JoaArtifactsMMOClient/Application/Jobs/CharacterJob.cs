@@ -1,4 +1,6 @@
 using Application.Character;
+using Application.Errors;
+using Application.Services;
 using OneOf;
 using OneOf.Types;
 
@@ -6,29 +8,36 @@ namespace Application.Jobs;
 
 public abstract class CharacterJob
 {
-    protected PlayerCharacter _playerCharacter { get; init; }
-    protected string _code { get; init; }
-    protected int _amount { get; set; }
+    public Guid Id { get; init; }
+    public PlayerCharacter _playerCharacter { get; init; }
 
-    protected int _progressAmount { get; set; } = 0;
-
-    protected GameState _gameState { get; init; }
+    public GameState _gameState { get; init; }
 
     protected ILogger<CharacterJob> _logger { get; init; }
 
-    protected CharacterJob(
-        PlayerCharacter playerCharacter,
-        string code,
-        int amount,
-        GameState gameState
-    )
+    protected bool _shouldInterrupt { get; set; }
+
+    public string? _code { get; init; }
+
+    protected CharacterJob(PlayerCharacter playerCharacter)
     {
+        Id = Guid.NewGuid();
         _playerCharacter = playerCharacter;
-        _code = code;
-        _amount = amount;
-        _gameState = gameState;
         _logger = LoggerFactory.Create(AppLogger.options).CreateLogger<CharacterJob>();
+        _gameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
     }
 
     public abstract Task<OneOf<JobError, None>> RunAsync();
+
+    public virtual void Interrrupt()
+    {
+        _shouldInterrupt = true;
+    }
+
+    public virtual Task<List<CharacterJob>> GetJobs()
+    {
+        List<CharacterJob> jobs = [this];
+
+        return Task.FromResult(jobs);
+    }
 }

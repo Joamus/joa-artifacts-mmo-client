@@ -30,13 +30,19 @@ public record ItemSchema
 
 public enum ItemType
 {
-    [EnumMember(Value = "consumable")]
     Consumable,
 
-    [EnumMember(Value = "weapon")]
     Weapon,
+    Shield,
+    BodyArmor,
+    LegArmor,
+    Ring,
+    Amulet,
+    Artifact,
+    Rune,
+    Bag,
+    Utility,
 
-    [EnumMember(Value = "resource")]
     Resource,
 }
 
@@ -45,11 +51,10 @@ public enum ItemSubType
     [EnumMember(Value = "")]
     None,
 
-    [EnumMember(Value = "food")]
     Food,
 
-    [EnumMember(Value = "mining")]
     Mining,
+    Woodcutting,
 }
 
 public record CraftDto

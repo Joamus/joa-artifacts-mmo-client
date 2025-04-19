@@ -1,14 +1,16 @@
 using Application.Jobs;
+using Application.Services;
+using Applicaton.Jobs;
 
 namespace Application;
 
 public class GameLoader
 {
-    GameState _gameState;
+    readonly GameState _gameState;
 
-    public GameLoader(GameState gameState)
+    public GameLoader()
     {
-        _gameState = gameState;
+        _gameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
     }
 
     public static async Task<string> LoadApiToken()
@@ -38,25 +40,54 @@ public class GameLoader
 
         while (running)
         {
-            foreach (var character in _gameState._characters)
+            foreach (var character in _gameState.Characters)
             {
-                if (
-                    character._character.CooldownExpiration != DateTime.MinValue
-                    && (character._character.CooldownExpiration - DateTime.UtcNow).TotalSeconds > 0
-                )
+                var now = DateTime.UtcNow.AddSeconds(-2);
+                var cooldownExpiresIn = character._character.CooldownExpiration - now;
+                if (cooldownExpiresIn.TotalSeconds > 0)
                 {
                     continue;
                 }
-                if (character.idle)
+                if (character.idle && character._jobs.Count == 0)
                 {
-                    if (character._character.Name == "Leonidas")
+                    // if (character._character.Name != "LumberMilly")
+                    // {
+                    // if (character._character.Name != "Ramsey")
+                    // // if (character._character.Name != "Beatrix")
+                    // // if (character._character.Name != "Leonidas")
+                    // {
+                    //     continue;
+                    // }
+                    switch (character._character.Name)
                     {
-                        character.QueueJob(new GatherJob(character, "gudgeon", 10, _gameState));
-                    }
-                    else
-                    {
-                        FightJob fightJob = new FightJob(character, "chicken", 10, _gameState);
-                        character.QueueJob(fightJob);
+                        case "Leonidas":
+                            character.QueueJob(new ObtainItem(character, "copper_dagger", 1));
+                            break;
+                        case "Ramsey":
+                            character.QueueJob(new ObtainItem(character, "wooden_shield", 1));
+                            break;
+                        case "NatPagle":
+                            FightMonster fightJob = new FightMonster(character, "green_slime", 10);
+                            character.QueueJob(fightJob);
+                            break;
+                        case "Beatrix":
+                            // character.QueueJob(new DepositUnneededItems(character));
+                            // character.QueueJob(new ObtainJob(character, "small_health_potion", 20));
+                            // character.QueueJob(new ObtainItem(character, "copper", 5));
+                            character.QueueJob(new ObtainItem(character, "copper_ring", 1));
+                            // character.QueueJob(new GatherJob(character, "sunflower", 90));
+                            break;
+                        case "LumberMilly":
+                            // character.QueueJob(new CookEverythingInInventory(character));
+                            // character.QueueJob(new DepositUnneededItems(character));
+                            // character.QueueJob(new ObtainItem(character, "cooked_gudgeon", 10));
+                            // character.QueueJob(new ObtainItem(character, "cooked_gudgeon", 10));
+                            character.QueueJob(new ObtainItem(character, "copper", 5));
+                            break;
+
+                        default:
+                            character.QueueJob(new FightMonster(character, "yellow_slime", 10));
+                            break;
                     }
                 }
 

@@ -34,11 +34,11 @@ public record CharacterSchema
 
     public int FishingMaxXp { get; set; }
 
-    public int WeaponCraftingLevel { get; set; }
+    public int WeaponcraftingLevel { get; set; }
 
-    public int WeaponCraftingXp { get; set; }
+    public int WeaponcraftingXp { get; set; }
 
-    public int WeaponCraftingMaxXp { get; set; }
+    public int WeaponcraftingMaxXp { get; set; }
 
     public int GearcraftingLevel { get; set; }
 
@@ -57,6 +57,11 @@ public record CharacterSchema
     public int AlchemyXp { get; set; }
 
     public int AlchemyMaxXp { get; set; }
+    public int JewelrycraftingLevel { get; set; }
+
+    public int JewelrycraftingXp { get; set; }
+
+    public int JewelrycraftingMaxXp { get; set; }
 
     public int Hp { get; set; }
 

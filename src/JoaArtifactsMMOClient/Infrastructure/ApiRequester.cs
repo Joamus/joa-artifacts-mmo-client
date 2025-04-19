@@ -13,16 +13,20 @@ public class ApiRequester
     private readonly string _token;
 
     // Putting them here for global access
-    public static JsonSerializerOptions getJsonOptions() {
-        if (_jsonOptions is null) {
-            _jsonOptions = new JsonSerializerOptions {
+    public static JsonSerializerOptions getJsonOptions()
+    {
+        if (_jsonOptions is null)
+        {
+            _jsonOptions = new JsonSerializerOptions
+            {
                 PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
             };
             _jsonOptions.Converters.Add(new JsonStringEnumConverter { });
         }
-        
+
         return _jsonOptions;
     }
+
     private static JsonSerializerOptions _jsonOptions;
 
     private HttpClient _httpClient { get; set; }
@@ -32,7 +36,11 @@ public class ApiRequester
         _token = token;
         _lastRequest = DateTime.UtcNow;
 
-        _httpClient = new HttpClient() { BaseAddress = new Uri("https://api.artifactsmmo.com") };
+        _httpClient = new HttpClient()
+        {
+            BaseAddress = new Uri("https://api.artifactsmmo.com"),
+            Timeout = TimeSpan.FromSeconds(10000),
+        };
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer",
             _token

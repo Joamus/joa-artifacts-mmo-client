@@ -9,7 +9,7 @@ public enum Skill
     //[EnumMember(Value = "weaponcrafting")]
     //[JsonStringEnumMemberName("weaponcrafting")]
     Weaponcrafting,
- 
+
     //[EnumMember(Value = "gearcrafting")]
     //[JsonStringEnumMemberName("gearcrafting")]
     Gearcrafting,

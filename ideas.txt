@@ -1,0 +1,66 @@
+# Delegators #
+
+There should be different "JobDelegators"/Orchestrators/Goals, which are essentially responsible for coming up with the jobs that a character needs to do.
+
+The game loop should essentially just check if the character is idle, and does not have a delegator. If it does have a delegator, it should ask it to assign a job to the character.
+I don't know yet exactly how it should be coded, but essentially a character should be able to come up with a sort of delegator, depending on a lot of variables.
+
+Our end product should be something like:
+
+If a character's skills are below the character's level, then we should prioritize to level them up.
+
+Skills that every character should have
+- Fishing
+- Cooking
+- Mining
+- Woodcutting
+- Possibly (Alchemy)
+
+These are all skills that should be fairly easy to level, because they just require gathering.
+
+A character should possibly be assigned multiple roles, with descending priority, e.g character A can be "gearcrafting", "gatherer", which prioritizes having gearcrafting, before anything else.
+
+So we essentially want to have functionality that looks at a character, and basically assigns them a job, which can make new jobs, or some kind of higher level job, that fits for the character.
+
+That can be just training their skills, as mentioned above, or crafting specific items.
+
+Let's say our character is our gearcrafter.
+
+When we want to assign a goal for him, we see that our characters are not well equipped, and we therefore want to start crafting items at our level, that they can use.
+If our character's gearcrafting is below his character level, we know that we cannot obtain the item, and instead we choose to level up gearcrafting until we can.
+
+Just to make it more complicated, the plan is that other characters can sort of make a global "order", to ask for an item, and another character can pick up the task, deposit the item in the bank, and notify
+the order creator. The notificatoin should trigger the order creator to go to the bank, and equip the item.
+
+If he can then craft items at his gearlevel, he should then find a character that needs an upgrade. If he can craft an upgrade, he should do that, and deposit in the bank, and notify them.
+He should also be able to make items for himself, that he just equip directly.
+
+For alchemists, they should check if other characters need potions, and do the same (deposit, and tell them to come pick it up and equip it)
+
+# Cooperative jobs - handled by orchestrators? #
+
+Items that require crafting can be very time consuming to make, because they often require a lot of materials, and therefore we would like for other characters to be able to chime in.
+
+ObtainJobs already can generate the total job list needed, so if we create an orchestrator called "ObtainOrchestrator" we could do something like:
+
+- The orchestrator is possibly created with a main character responsible, or possibly already a list of characters
+- Generate the total list of jobs required
+- Not sure if we should then find characters that can help afterwards or when constructing the job, but anyway.
+- We look through the list, starting at the beginning, and switch over the job type.
+-- If the job is a gathering job, we look through our possible candidates, and see who can do it. We should prioritize the highest skilled people, but we prefer people who are not crafters, of the item that
+we are trying to obtain, e.g if we are making a helmet, then maybe we shouldn't have the gearcrafter do it, if other people also can? Maybe doesn't matter
+- We have to be a bit clever here, because if we know that we have to gather 50 copper ores in this step, then it's not optimal to just divide the amount, because one character might be faster.
+We should instead have both characters just collect "infinitely", and when their progress is done, we interrupt the jobs, and give them the next ones.
+- It's the same if we make fight jobs for items.
+- Craft jobs and collect shoulds should not be shared, it's too much of a bother.
+- When a (possibly shared) gather job is done, we should interrupt the participants, and only then start the crafting job.
+- For simplicity's sake, we could just deposit all we gathered, and then try to assign craft jobs to all of our participants.
+
+It will make it a bit less optimal, because e.g our 3 gatheres are gonna deposit all of the copper ore, only for them to collect it from the bank again,
+and then go craft it. But it's easier if we would hypothetically assign the task of crafting to other people.
+You should maybe consider that the characters shouldn't all try to pick up the things at the same time, but a delay should be introduced. Or we should just break the rules of always using the job queue for a second,
+and just run the jobs directly in order, with a delay. Or just insert them as the highest priority job, and then run them from there. Just make sure nothing else is also running jobs on the characters.
+
+
+It's probably easiest of all participants are ordered to deposit all of the resource they gathered,
+- The order of operations is gonna be a bit tricky, because we should only do gather/fight jobs, until we ca

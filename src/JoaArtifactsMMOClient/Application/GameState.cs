@@ -1,6 +1,7 @@
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
+using Application.Services;
 using Application.Services.ApiServices;
 using Infrastructure;
 
@@ -12,37 +13,33 @@ public class GameState
     readonly ApiRequester _apiRequester;
 
     ILogger _logger { get; init; }
-    public List<PlayerCharacter> _characters { get; private set; }
-    public List<ItemSchema> _items { get; set; }
+    public List<PlayerCharacter> Characters { get; private set; }
+    public List<ItemSchema> Items { get; set; }
+    public Dictionary<string, ItemSchema> ItemsDict { get; set; }
 
-    public List<MapSchema> _maps { get; set; }
+    public Dictionary<string, List<ItemSchema>> CraftingLookupDict { get; set; }
 
-    public List<ResourceSchema> _resources { get; set; }
-    public List<NpcSchema> _npcs { get; set; }
-    public List<MonsterSchema> _monsters { get; set; }
+    public List<MapSchema> Maps { get; set; }
 
-    private GameState(AccountRequester accountRequester, ApiRequester apiRequester)
+    public List<ResourceSchema> Resources { get; set; }
+    public List<NpcSchema> Npcs { get; set; }
+    public List<MonsterSchema> Monsters { get; set; }
+
+    public GameState(AccountRequester accountRequester, ApiRequester apiRequester)
     {
         _accountRequester = accountRequester;
         _apiRequester = apiRequester;
         _logger = LoggerFactory.Create(AppLogger.options).CreateLogger<GameState>();
     }
 
-    public static async Task<GameState> LoadAll(
-        AccountRequester accountRequester,
-        ApiRequester apiRequester
-    )
+    public async Task LoadAll()
     {
-        var gameState = new GameState(accountRequester, apiRequester);
-
-        await gameState.LoadCharacters();
-        await gameState.LoadItems();
-        await gameState.LoadMaps();
-        await gameState.LoadResources();
-        await gameState.LoadMonsters();
-        await gameState.LoadNpcs();
-
-        return gameState;
+        await LoadCharacters();
+        await LoadItems();
+        await LoadMaps();
+        await LoadResources();
+        await LoadMonsters();
+        await LoadNpcs();
     }
 
     public async Task LoadCharacters()
@@ -54,10 +51,10 @@ public class GameState
 
         foreach (var characterSchema in result.Data)
         {
-            characters.Add(new PlayerCharacter(characterSchema, this, _apiRequester));
+            characters.Add(new PlayerCharacter(characterSchema));
         }
 
-        _characters = characters;
+        Characters = characters;
         _logger.LogInformation("Loading characters - DONE;");
     }
 
@@ -66,6 +63,9 @@ public class GameState
         _logger.LogInformation("Loading items...");
         bool doneLoading = false;
         List<ItemSchema> items = [];
+        Dictionary<string, ItemSchema> itemsDict = new();
+        Dictionary<string, List<ItemSchema>> craftingLookupDict = new();
+
         int pageNumber = 1;
 
         while (!doneLoading)
@@ -75,6 +75,24 @@ public class GameState
             foreach (var item in result.Data)
             {
                 items.Add(item);
+                itemsDict.Add(item.Code, item);
+
+                // if (!craftingLookupDict.ContainsKey(item.Code))
+                // {
+                //     craftingLookupDict.Add(item.Code, []);
+                // }
+
+                if (item.Craft is not null)
+                {
+                    foreach (var ingredient in item.Craft.Items)
+                    {
+                        if (!craftingLookupDict.ContainsKey(ingredient.Code))
+                        {
+                            craftingLookupDict.Add(ingredient.Code, []);
+                        }
+                        craftingLookupDict[ingredient.Code].Add(item);
+                    }
+                }
             }
 
             if (result.Data.Count == 0)
@@ -84,7 +102,10 @@ public class GameState
 
             pageNumber++;
         }
-        _items = items;
+        Items = items;
+        ItemsDict = itemsDict;
+        CraftingLookupDict = craftingLookupDict;
+
         _logger.LogInformation("Loading items - DONE;");
     }
 
@@ -111,7 +132,7 @@ public class GameState
 
             pageNumber++;
         }
-        _maps = maps;
+        Maps = maps;
         _logger.LogInformation("Loading maps - DONE;");
     }
 
@@ -139,7 +160,7 @@ public class GameState
             pageNumber++;
         }
 
-        _resources = resources;
+        Resources = resources;
         _logger.LogInformation("Loading resources - DONE;");
     }
 
@@ -166,7 +187,7 @@ public class GameState
 
             pageNumber++;
         }
-        _npcs = npcs;
+        Npcs = npcs;
         _logger.LogInformation("Loading NPCs - DONE;");
     }
 
@@ -193,7 +214,7 @@ public class GameState
 
             pageNumber++;
         }
-        _monsters = monsters;
+        Monsters = monsters;
         _logger.LogInformation("Loading monsters - DONE;");
     }
 }
