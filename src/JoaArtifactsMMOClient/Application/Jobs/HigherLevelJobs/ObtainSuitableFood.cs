@@ -15,16 +15,16 @@ public class ObtainSuitableFood : CharacterJob
 {
     private readonly int _amount;
 
-    public ObtainSuitableFood(PlayerCharacter playerCharacter, int amount)
-        : base(playerCharacter)
+    public ObtainSuitableFood(PlayerCharacter playerCharacter, GameState gameState, int amount)
+        : base(playerCharacter, gameState)
     {
         _amount = amount;
     }
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    public override async Task<OneOf<AppError, None>> RunAsync()
     {
         _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter._character.Name} - need to find {_amount} food"
+            $"{GetType().Name} run started - for {_playerCharacter.Character.Name} - need to find {_amount} food"
         );
         // Look in bank if we have any that is usable, just take the lowest level food, so we can clean out
         // If we have don't have enough, take uncooked food (if you can cook it), and cook it
@@ -38,11 +38,11 @@ public class ObtainSuitableFood : CharacterJob
 
         switch (result.Value)
         {
-            case JobError jobError:
+            case AppError jobError:
                 return jobError;
             case List<CharacterJob> jobs:
                 _logger.LogInformation(
-                    $"{GetType().Name} found {jobs.Count} jobs for {_playerCharacter._character.Name} - need to find {_amount} food"
+                    $"{GetType().Name} found {jobs.Count} jobs for {_playerCharacter.Character.Name} - need to find {_amount} food"
                 );
                 _playerCharacter.QueueJobsAfter(Id, jobs);
                 break;
@@ -51,7 +51,7 @@ public class ObtainSuitableFood : CharacterJob
         return new None();
     }
 
-    private async Task<OneOf<JobError, List<CharacterJob>>> GetJobsToObtainFood()
+    private async Task<OneOf<AppError, List<CharacterJob>>> GetJobsToObtainFood()
     {
         var accountRequester = GameServiceProvider.GetInstance().GetService<AccountRequester>()!;
 
@@ -59,7 +59,7 @@ public class ObtainSuitableFood : CharacterJob
 
         if (result is not BankItemsResponse bankItemsResponse)
         {
-            return new JobError("Failed to get bank items");
+            return new AppError("Failed to get bank items");
         }
 
         int amountFound = 0;
@@ -82,7 +82,7 @@ public class ObtainSuitableFood : CharacterJob
             // If item is null, then it has been deleted from the game or something
             if (
                 matchingItem.Subtype == "food"
-                && _playerCharacter._character.Level > matchingItem.Level
+                && _playerCharacter.Character.Level > matchingItem.Level
             )
             {
                 foodCandidates.Add(
@@ -91,17 +91,17 @@ public class ObtainSuitableFood : CharacterJob
             }
         }
 
-        CalculationService.SortFoodBasedOnHealValue(foodCandidates);
+        CalculationService.SortFoodBasedOnHealValue(foodCandidates, true);
 
         // Just in case we end up with a lot of ingredients in our inventory, we might as well try to cook them.
         // It's not really a perfect system, because it would be better to try to pick ingredients, but eh
-        jobs.Add(new CookEverythingInInventory(_playerCharacter));
+        jobs.Add(new CookEverythingInInventory(_playerCharacter, _gameState));
 
         foreach (var item in foodCandidates)
         {
             int amountToTake = Math.Min(_amount - amountFound, item.Quantity);
 
-            jobs.Add(new CollectItem(_playerCharacter, item.Item.Code, amountToTake));
+            jobs.Add(new CollectItem(_playerCharacter, _gameState, item.Item.Code, amountToTake));
 
             amountFound += Math.Min(_amount - amountFound, item.Quantity);
 
@@ -118,7 +118,7 @@ public class ObtainSuitableFood : CharacterJob
 
         var mostSuitableFood = GetMostSuitableFood();
 
-        jobs.Add(new ObtainItem(_playerCharacter, mostSuitableFood.Code, _amount));
+        jobs.Add(new ObtainItem(_playerCharacter, _gameState, mostSuitableFood.Code, _amount));
 
         return jobs;
     }
@@ -134,7 +134,7 @@ public class ObtainSuitableFood : CharacterJob
 
             // We don't really care about the level difference atm, because we just need to obtain the best available food
 
-            if (item.Level > _playerCharacter._character.Level)
+            if (item.Level > _playerCharacter.Character.Level)
             {
                 // Find out if you can craft it, if it's craftable. We should probably bias fishing, seeing as it's usually the fastest way to get food
                 // and also a good way for our characters to keep their level up in fishing
@@ -167,7 +167,7 @@ public class ObtainSuitableFood : CharacterJob
                     if (
                         itemInDict.Type == "resource"
                         && itemInDict.Subtype == "fishing"
-                        && itemInDict.Level <= _playerCharacter._character.FishingLevel
+                        && itemInDict.Level <= _playerCharacter.Character.FishingLevel
                     )
                     {
                         gatherableFood = food;

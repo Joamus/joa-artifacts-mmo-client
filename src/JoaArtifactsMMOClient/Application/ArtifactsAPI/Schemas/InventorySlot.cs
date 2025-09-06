@@ -5,7 +5,7 @@ namespace Application.ArtifactsApi.Schemas;
 public record InventorySlot
 {
     [JsonPropertyName("slot")]
-    public int Slot { get; set; }
+    public string Slot { get; set; } = "";
 
     [JsonPropertyName("code")]
     public string Code { get; set; } = "";

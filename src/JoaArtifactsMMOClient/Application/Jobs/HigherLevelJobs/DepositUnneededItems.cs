@@ -13,8 +13,8 @@ namespace Applicaton.Jobs;
 
 public class DepositUnneededItems : CharacterJob
 {
-    public DepositUnneededItems(PlayerCharacter playerCharacter)
-        : base(playerCharacter) { }
+    public DepositUnneededItems(PlayerCharacter playerCharacter, GameState gameState)
+        : base(playerCharacter, gameState) { }
 
     private static readonly List<string> _equipmentTypes =
     [
@@ -34,10 +34,10 @@ public class DepositUnneededItems : CharacterJob
     private static double MIN_FREE_INVENTORY_SPACES = 5;
     private static double MAX_FREE_INVENTORY_SPACES = 30;
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    public override async Task<OneOf<AppError, None>> RunAsync()
     {
         _logger.LogInformation(
-            $"{GetType().Name} run started for {_playerCharacter._character.Name}"
+            $"{GetType().Name} run started for {_playerCharacter.Character.Name}"
         );
 
         List<(string Code, int Quantity, ItemImportance Importance)> itemsToDeposit = [];
@@ -50,7 +50,7 @@ public class DepositUnneededItems : CharacterJob
 
         if (result is not BankItemsResponse bankItemsResponse)
         {
-            return new JobError("Failed to get bank items");
+            return new AppError("Failed to get bank items");
         }
 
         Dictionary<string, int> bankItems = new();
@@ -64,13 +64,13 @@ public class DepositUnneededItems : CharacterJob
         // e.g the character has raw chicken, but there is cooked chicken in the bank. They could then run over to the cooking station,
         // cook the chicken, and then come back.
 
-        foreach (var item in _playerCharacter._character.Inventory)
+        foreach (var item in _playerCharacter.Character.Inventory)
         {
             if (item.Code == "")
             {
                 continue;
             }
-            bool itemIsUsedForTask = item.Code == _playerCharacter._character.Task;
+            bool itemIsUsedForTask = item.Code == _playerCharacter.Character.Task;
 
             if (itemIsUsedForTask)
             {
@@ -90,8 +90,8 @@ public class DepositUnneededItems : CharacterJob
 
             if (
                 matchingItem.Subtype == "food"
-                && _playerCharacter._character.Level >= matchingItem.Level
-                && (_playerCharacter._character.Level - matchingItem.Level)
+                && _playerCharacter.Character.Level >= matchingItem.Level
+                && (_playerCharacter.Character.Level - matchingItem.Level)
                     <= PlayerCharacter.PREFERED_FOOD_LEVEL_DIFFERENCE
             )
             {
@@ -108,7 +108,7 @@ public class DepositUnneededItems : CharacterJob
                 continue;
             }
 
-            if (_playerCharacter._jobs.Find(job => job._code == item.Code) is not null)
+            if (_playerCharacter.Jobs.Find(job => job.Code == item.Code) is not null)
             {
                 itemsToDeposit.Add((item.Code, item.Quantity, Importance: ItemImportance.High));
                 continue;
@@ -143,9 +143,7 @@ public class DepositUnneededItems : CharacterJob
             // which often ends up taking up less space
         }
 
-        _logger.LogInformation(
-            $"{GetType().Name} completed for {_playerCharacter._character.Name}"
-        );
+        _logger.LogInformation($"{GetType().Name} completed for {_playerCharacter.Character.Name}");
 
         return new None();
     }

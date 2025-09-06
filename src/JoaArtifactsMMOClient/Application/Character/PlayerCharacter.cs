@@ -19,17 +19,17 @@ public class PlayerCharacter
     public static readonly int PREFERED_FOOD_LEVEL_DIFFERENCE = 5;
 
     // If on cooldown, but not expected, just wait 5 seconds
-    public CharacterSchema _character { get; private set; }
+    public CharacterSchema Character { get; private set; }
 
-    private CooldownSchema? _cooldown { get; set; } = null;
+    public CooldownSchema? Cooldown { get; private set; } = null;
 
     // Poor man's semaphor - make something sturdier
     private bool _busy { get; set; } = false;
 
     private const string MediaType = "application/json";
-    public List<CharacterJob> _jobs { get; private set; } = [];
+    public List<CharacterJob> Jobs { get; private set; } = [];
 
-    private CharacterJob? _currentJob;
+    public CharacterJob? CurrentJob { get; private set; }
 
     private readonly GameState _gameState;
 
@@ -37,7 +37,12 @@ public class PlayerCharacter
 
     public bool idle
     {
-        get { return _currentJob == null && _busy == false; }
+        get { return CurrentJob == null && _busy == false; }
+    }
+
+    public void SetBusy(bool busy)
+    {
+        _busy = true;
     }
 
     public void QueueJob(CharacterJob job, bool highestPriority = false)
@@ -45,11 +50,11 @@ public class PlayerCharacter
         _busy = true;
         if (highestPriority)
         {
-            _jobs.Insert(0, job);
+            Jobs.Insert(0, job);
         }
         else
         {
-            _jobs.Add(job);
+            Jobs.Add(job);
         }
         _busy = false;
     }
@@ -58,15 +63,15 @@ public class PlayerCharacter
     {
         _busy = true;
         // Handle if the job to insert before is the current job - move it back into the list.
-        var indexOf = _jobs.FindIndex(job => job.Id.Equals(jobId));
+        var indexOf = Jobs.FindIndex(job => job.Id.Equals(jobId));
 
         if (indexOf == -1)
         {
-            if (_currentJob is not null && _currentJob.Id.Equals(jobId))
+            if (CurrentJob is not null && CurrentJob.Id.Equals(jobId))
             {
-                _jobs.Insert(0, _currentJob);
+                Jobs.Insert(0, CurrentJob);
                 indexOf = 0;
-                _currentJob = null;
+                CurrentJob = null;
             }
             else
             {
@@ -86,18 +91,18 @@ public class PlayerCharacter
             insertAtIndex = insertAtIndex - 1;
         }
 
-        _jobs.InsertRange(insertAtIndex, jobs);
+        Jobs.InsertRange(insertAtIndex, jobs);
         _busy = false;
     }
 
     public void QueueJobsAfter(Guid jobId, List<CharacterJob> jobs)
     {
         _busy = true;
-        var indexOf = _jobs.FindIndex(job => job.Id.Equals(jobId));
+        var indexOf = Jobs.FindIndex(job => job.Id.Equals(jobId));
 
         if (indexOf == -1)
         {
-            if (_currentJob is not null && _currentJob.Id.Equals(jobId))
+            if (CurrentJob is not null && CurrentJob.Id.Equals(jobId))
             {
                 indexOf = 0;
             }
@@ -119,34 +124,38 @@ public class PlayerCharacter
             insertAtIndex = insertAtIndex + 1;
         }
 
-        _jobs.InsertRange(insertAtIndex, jobs);
+        Jobs.InsertRange(insertAtIndex, jobs);
         _busy = false;
     }
 
     public void ClearJobs()
     {
         _busy = true;
-        _jobs = [];
+        Jobs = [];
+        if (CurrentJob is not null)
+        {
+            CurrentJob.Interrrupt();
+        }
         _busy = false;
     }
 
-    public async Task<OneOf<JobError, None>> RunJob()
+    public async Task<OneOf<AppError, None>> RunJob()
     {
         _busy = true;
-        if (_currentJob is not null)
+        if (CurrentJob is not null)
         {
             _busy = false;
             return new None();
         }
 
-        if (_jobs.Count > 0)
+        if (Jobs.Count > 0)
         {
-            _currentJob = _jobs[0];
-            _jobs.RemoveAt(0);
+            CurrentJob = Jobs[0];
+            Jobs.RemoveAt(0);
 
-            var result = await _currentJob.RunAsync();
+            var result = await CurrentJob.RunAsync();
 
-            _currentJob = null;
+            CurrentJob = null;
 
             _busy = false;
             return result;
@@ -158,16 +167,16 @@ public class PlayerCharacter
 
     public PlayerCharacter(CharacterSchema characterSchema)
     {
-        _character = characterSchema;
+        Character = characterSchema;
         _gameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
         _apiRequester = GameServiceProvider.GetInstance().GetService<ApiRequester>()!;
     }
 
     public async Task WaitForCooldown()
     {
-        if (_cooldown is not null)
+        if (Cooldown is not null)
         {
-            double waitingTime = (_cooldown.Expiration - DateTime.UtcNow).TotalSeconds;
+            double waitingTime = (Cooldown.Expiration - DateTime.UtcNow).TotalSeconds;
             if (waitingTime > 0)
             {
                 await Task.Delay((int)((waitingTime + 2) * 1000));
@@ -178,15 +187,11 @@ public class PlayerCharacter
                 await Task.Delay(1 * 1000);
             }
         }
-        else
-        {
-            var x = 5;
-        }
     }
 
     public async Task Move(int x, int y)
     {
-        if (_character.X == x && _character.Y == y)
+        if (Character.X == x && Character.Y == y)
         {
             return;
         }
@@ -195,7 +200,7 @@ public class PlayerCharacter
         var _body = JsonSerializer.Serialize(new { x = x, y = y });
         StringContent body = new StringContent(_body, Encoding.UTF8, MediaType);
 
-        var response = await _apiRequester.PostAsync($"/my/{_character.Name}/action/move", body);
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/move", body);
 
         var content = await response.Content.ReadAsStringAsync();
 
@@ -208,11 +213,11 @@ public class PlayerCharacter
     }
 
     // Make proper error handling with response codes etc.
-    public async Task<OneOf<JobError, FightResponse>> Fight()
+    public async Task<OneOf<AppError, FightResponse>> Fight()
     {
         await PreTaskHandler();
 
-        var response = await _apiRequester.PostAsync($"/my/{_character.Name}/action/fight", null);
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/fight", null);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<FightResponse>(
@@ -227,13 +232,13 @@ public class PlayerCharacter
 
     public async Task Rest()
     {
-        if (_character.Hp == _character.MaxHp)
+        if (Character.Hp == Character.MaxHp)
         {
             return;
         }
         await PreTaskHandler();
 
-        var response = await _apiRequester.PostAsync($"/my/{_character.Name}/action/rest", null);
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/rest", null);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -243,12 +248,12 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
-    public async Task<OneOf<JobError, GatherResponse>> Gather()
+    public async Task<OneOf<AppError, GatherResponse>> Gather()
     {
         await PreTaskHandler();
 
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/gathering",
+            $"/my/{Character.Name}/action/gathering",
             null
         );
 
@@ -264,7 +269,7 @@ public class PlayerCharacter
         }
         else
         {
-            return new JobError($"Error occured while gathering content: {content}");
+            return new AppError($"Error occured while gathering content: {content}");
         }
     }
 
@@ -274,10 +279,7 @@ public class PlayerCharacter
 
         string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
-        var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/crafting",
-            body
-        );
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/crafting", body);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<FightResponse>(
@@ -295,7 +297,7 @@ public class PlayerCharacter
         string _body = JsonSerializer.Serialize(new { quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/bank/deposit/gold",
+            $"/my/{Character.Name}/action/bank/deposit/gold",
             body
         );
 
@@ -314,7 +316,7 @@ public class PlayerCharacter
         string _body = JsonSerializer.Serialize(new { quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/bank/withdraw/gold",
+            $"/my/{Character.Name}/action/bank/withdraw/gold",
             body
         );
 
@@ -333,7 +335,7 @@ public class PlayerCharacter
         string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/bank/deposit",
+            $"/my/{Character.Name}/action/bank/deposit",
             body
         );
 
@@ -345,14 +347,14 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
-    public async Task WithdrawBankItem(string itemCode, int quantity)
+    public async Task<OneOf<AppError, None>> WithdrawBankItem(string itemCode, int quantity)
     {
         await PreTaskHandler();
 
         string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/bank/withdraw",
+            $"/my/{Character.Name}/action/bank/withdraw",
             body
         );
 
@@ -360,8 +362,16 @@ public class PlayerCharacter
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
             content,
             ApiRequester.getJsonOptions()
-        )!;
-        PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+        );
+        if (result is null)
+        {
+            return new AppError($"Error occured while trying to withdraw item");
+        }
+        else
+        {
+            PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+            return new None();
+        }
     }
 
     public async Task UseItem(string itemCode, int quantity)
@@ -370,7 +380,7 @@ public class PlayerCharacter
 
         string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
-        var response = await _apiRequester.PostAsync($"/my/{_character.Name}/action/use", body);
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/use", body);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -393,7 +403,7 @@ public class PlayerCharacter
             }
         );
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
-        var response = await _apiRequester.PostAsync($"/my/{_character.Name}/action/equip", body);
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/equip", body);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -409,7 +419,7 @@ public class PlayerCharacter
 
         string _body = JsonSerializer.Serialize(new { slot, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
-        var response = await _apiRequester.PostAsync($"/my/{_character.Name}/action/equip", body);
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/equip", body);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -426,7 +436,7 @@ public class PlayerCharacter
         string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/recycling",
+            $"/my/{Character.Name}/action/recycling",
             body
         );
 
@@ -442,10 +452,7 @@ public class PlayerCharacter
     {
         await PreTaskHandler();
 
-        var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/task/new",
-            null
-        );
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/task/new", null);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -462,8 +469,25 @@ public class PlayerCharacter
         string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/task/trade",
+            $"/my/{Character.Name}/action/task/trade",
             body
+        );
+
+        var content = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
+            content,
+            ApiRequester.getJsonOptions()
+        )!;
+        PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+    }
+
+    public async Task TaskExchange()
+    {
+        await PreTaskHandler();
+
+        var response = await _apiRequester.PostAsync(
+            $"/my/{Character.Name}/action/task/exchange",
+            null
         );
 
         var content = await response.Content.ReadAsStringAsync();
@@ -479,7 +503,7 @@ public class PlayerCharacter
         await PreTaskHandler();
 
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/task/complete",
+            $"/my/{Character.Name}/action/task/complete",
             null
         );
 
@@ -496,7 +520,7 @@ public class PlayerCharacter
         await PreTaskHandler();
 
         var response = await _apiRequester.PostAsync(
-            $"/my/{_character.Name}/action/task/cancel",
+            $"/my/{Character.Name}/action/task/cancel",
             null
         );
 
@@ -514,7 +538,7 @@ public class PlayerCharacter
 
         string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
-        var response = await _apiRequester.PostAsync($"/my/{_character.Name}/action/delete", body);
+        var response = await _apiRequester.PostAsync($"/my/{Character.Name}/action/delete", body);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -533,15 +557,15 @@ public class PlayerCharacter
     {
         if (cooldown is not null)
         {
-            _cooldown = cooldown;
+            Cooldown = cooldown;
         }
         if (character is not null)
         {
-            _character = character;
+            Character = character;
         }
     }
 
-    public async Task<OneOf<JobError, None>> NavigateTo(string code, ContentType contentType)
+    public async Task<OneOf<AppError, None>> NavigateTo(string code, ContentType contentType)
     {
         // We don't know what it is, but it might be an item we wish to get
 
@@ -602,8 +626,8 @@ public class PlayerCharacter
             {
                 closestMap = map;
                 closestCost = CalculationService.CalculateDistanceToMap(
-                    _character.X,
-                    _character.Y,
+                    Character.X,
+                    Character.Y,
                     map.X,
                     map.Y
                 );
@@ -611,8 +635,8 @@ public class PlayerCharacter
             }
 
             int cost = CalculationService.CalculateDistanceToMap(
-                _character.X,
-                _character.Y,
+                Character.X,
+                Character.Y,
                 map.X,
                 map.Y
             );
@@ -633,7 +657,7 @@ public class PlayerCharacter
         if (closestMap is null)
         {
             // TODO: Better handling
-            return new JobError("Could not find closest map", JobStatus.NotFound);
+            return new AppError("Could not find closest map", ErrorStatus.NotFound);
         }
 
         await Move(closestMap.X, closestMap.Y);
@@ -643,14 +667,14 @@ public class PlayerCharacter
 
     public InventorySlot? GetItemFromInventory(string code)
     {
-        return _character.Inventory.FirstOrDefault(item => item.Code == code);
+        return Character.Inventory.FirstOrDefault(item => item.Code == code);
     }
 
     public List<ItemInInventory> GetItemsFromInventoryWithType(string type)
     {
         List<ItemInInventory> items = [];
 
-        foreach (var item in _character.Inventory)
+        foreach (var item in Character.Inventory)
         {
             var matchingItem = _gameState.Items.FirstOrDefault(_item => _item.Code == item.Code);
 
@@ -668,7 +692,7 @@ public class PlayerCharacter
     {
         List<ItemInInventory> items = [];
 
-        foreach (var item in _character.Inventory)
+        foreach (var item in Character.Inventory)
         {
             var matchingItem = _gameState.Items.FirstOrDefault(_item => _item.Code == item.Code);
 
@@ -685,7 +709,7 @@ public class PlayerCharacter
     public int GetInventorySpaceUsed()
     {
         int inventorySpaceUsed = 0;
-        foreach (var item in _character.Inventory)
+        foreach (var item in Character.Inventory)
         {
             inventorySpaceUsed += item.Quantity;
         }
@@ -697,6 +721,62 @@ public class PlayerCharacter
     {
         int inventorySpaceUsed = GetInventorySpaceUsed();
 
-        return _character.InventoryMaxItems - inventorySpaceUsed;
+        return Character.InventoryMaxItems - inventorySpaceUsed;
+    }
+
+    public OneOf<InventorySlot, AppError> GetItemSlot(string slot)
+    {
+        var prop = Character.GetType().GetProperty(slot);
+        if (prop is null || prop.PropertyType != typeof(string))
+        {
+            return new AppError($"Invalid slot {slot}");
+        }
+
+        string? value = (string?)prop.GetValue(this);
+
+        if (value is null)
+        {
+            return new AppError($"Invalid value in slot {slot} - {value}");
+        }
+        else if (value == "")
+        {
+            return new InventorySlot
+            {
+                Slot = slot,
+                Code = "",
+                Quantity = 1,
+            };
+        }
+
+        if (slot == "Utility1Slot")
+        {
+            int quantity = Character.Utility1SlotQuantity;
+            return new InventorySlot
+            {
+                Slot = slot,
+                Code = value,
+                Quantity = quantity,
+            };
+        }
+        else if (slot == "Utility2Slot")
+        {
+            int quantity = Character.Utility2SlotQuantity;
+
+            return new InventorySlot
+            {
+                Slot = slot,
+                Code = value,
+                Quantity = quantity,
+            };
+        }
+        else
+        {
+            return new InventorySlot
+            {
+                Slot = slot,
+                Code = value,
+                Quantity = 1,
+            };
+        }
     }
 }

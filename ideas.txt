@@ -64,3 +64,14 @@ and just run the jobs directly in order, with a delay. Or just insert them as th
 
 It's probably easiest of all participants are ordered to deposit all of the resource they gathered,
 - The order of operations is gonna be a bit tricky, because we should only do gather/fight jobs, until we ca
+
+
+# Thresholds #
+It would be nice for general "houskeeping", for characters to be scheduled to get supplies, which will mostly be potions and food.
+So if we have less than x healing potions in the bank, we make sure to stock up, and same with food. The potions to be stocked up should be the minimum ones or something like that.
+In general it will work better if we maybe get consumables that are the best we can, assuming that are characters are going to be equivalent level.
+So maybe taking the highest level character, and making supplies for them? Eventually everyone can use those.
+
+In general it seems like a good idea to equip characters with the best possible equipment, because it means they can kill harder mobs, and get more XP, even if takes them longer.
+A lot of enemies that are supposed to be around your level, will be too difficult unless you are equipped with the best gear possible.
+And if you end up having to outlevel the mobs to fight them, then they give less xp.

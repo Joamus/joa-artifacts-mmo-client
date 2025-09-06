@@ -14,16 +14,24 @@ namespace Application.Jobs;
 */
 public class CollectItem : CharacterJob
 {
+    private readonly bool _canTriggerObtain = false;
     private int _amount { get; set; }
 
-    public CollectItem(PlayerCharacter character, string code, int amount)
-        : base(character)
+    public CollectItem(
+        PlayerCharacter character,
+        GameState gameState,
+        string code,
+        int amount,
+        bool canTriggerObtain = true
+    )
+        : base(character, gameState)
     {
-        _code = code;
+        Code = code;
         _amount = amount;
+        _canTriggerObtain = canTriggerObtain;
     }
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    public override async Task<OneOf<AppError, None>> RunAsync()
     {
         var accountRequester = GameServiceProvider.GetInstance().GetService<AccountRequester>()!;
 
@@ -31,10 +39,10 @@ public class CollectItem : CharacterJob
 
         if (result is not BankItemsResponse bankItemsResponse)
         {
-            return new JobError("Failed to get bank items");
+            return new AppError("Failed to get bank items");
         }
 
-        var matchingItemInBank = bankItemsResponse.Data.FirstOrDefault(item => item.Code == _code);
+        var matchingItemInBank = bankItemsResponse.Data.FirstOrDefault(item => item.Code == Code);
 
         int foundQuantity = 0;
 
@@ -45,17 +53,35 @@ public class CollectItem : CharacterJob
 
         if (_playerCharacter.GetInventorySpaceLeft() < foundQuantity)
         {
-            _playerCharacter.QueueJobsBefore(Id, [new DepositUnneededItems(_playerCharacter)]);
+            _playerCharacter.QueueJobsBefore(
+                Id,
+                [new DepositUnneededItems(_playerCharacter, _gameState)]
+            );
             return new None();
         }
 
         if (foundQuantity > 0)
         {
             await _playerCharacter.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
-            await _playerCharacter.WithdrawBankItem(_code, foundQuantity);
-            return new None();
+            var withdrawResult = await _playerCharacter.WithdrawBankItem(Code, foundQuantity);
+            // There can be a clash
+            if (withdrawResult.Value is None _)
+            {
+                return new None();
+            }
         }
 
-        return new JobError("No items found", JobStatus.NotFound);
+        if (_canTriggerObtain)
+        {
+            _playerCharacter.QueueJobsAfter(
+                Id,
+                [new ObtainItem(_playerCharacter, _gameState, Code, _amount)]
+            );
+            return new None();
+        }
+        else
+        {
+            return new AppError("No items found", ErrorStatus.NotFound);
+        }
     }
 }

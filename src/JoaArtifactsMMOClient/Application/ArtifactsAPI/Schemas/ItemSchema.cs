@@ -61,12 +61,9 @@ public record CraftDto
 {
     public Skill Skill { get; set; }
 
-    [JsonPropertyName("level")]
     public int Level { get; set; }
 
-    [JsonPropertyName("items")]
     public List<DropSchema> Items { get; set; } = [];
 
-    [JsonPropertyName("quantity")]
     public int Quantity { get; set; }
 }

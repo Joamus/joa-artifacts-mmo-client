@@ -18,18 +18,21 @@ public class CraftItem : CharacterJob
 
     protected int _progressAmount { get; set; } = 0;
 
-    public CraftItem(PlayerCharacter playerCharacter, string code, int amount)
-        : base(playerCharacter)
+    public CraftItem(PlayerCharacter playerCharacter, GameState gameState, string code, int amount)
+        : base(playerCharacter, gameState)
     {
         _code = code;
         _amount = amount;
     }
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    public override async Task<OneOf<AppError, None>> RunAsync()
     {
         if (DepositUnneededItems.ShouldInitDepositItems(_playerCharacter))
         {
-            _playerCharacter.QueueJobsBefore(Id, [new DepositUnneededItems(_playerCharacter)]);
+            _playerCharacter.QueueJobsBefore(
+                Id,
+                [new DepositUnneededItems(_playerCharacter, _gameState)]
+            );
             return new None();
         }
 
@@ -37,7 +40,7 @@ public class CraftItem : CharacterJob
 
         if (matchingItem is null || matchingItem.Craft is null)
         {
-            return new JobError(
+            return new AppError(
                 $"Could not find craftable item with code {_code} - could not craft it"
             );
         }
@@ -48,46 +51,46 @@ public class CraftItem : CharacterJob
         switch (matchingItem.Craft.Skill)
         {
             case Artifacts.Schemas.Skill.Alchemy:
-                characterSkillLevel = _playerCharacter._character.AlchemyLevel;
+                characterSkillLevel = _playerCharacter.Character.AlchemyLevel;
                 craftingLocationCode = "alchemy";
                 break;
             case Artifacts.Schemas.Skill.Cooking:
-                characterSkillLevel = _playerCharacter._character.CookingLevel;
+                characterSkillLevel = _playerCharacter.Character.CookingLevel;
                 craftingLocationCode = "cooking";
                 break;
             case Artifacts.Schemas.Skill.Gearcrafting:
-                characterSkillLevel = _playerCharacter._character.GearcraftingLevel;
+                characterSkillLevel = _playerCharacter.Character.GearcraftingLevel;
                 craftingLocationCode = "gearcrafting";
                 break;
             case Artifacts.Schemas.Skill.Jewelrycrafting:
-                characterSkillLevel = _playerCharacter._character.JewelrycraftingLevel;
+                characterSkillLevel = _playerCharacter.Character.JewelrycraftingLevel;
                 craftingLocationCode = "jewelrycrafting";
                 break;
             case Artifacts.Schemas.Skill.Mining:
-                characterSkillLevel = _playerCharacter._character.MiningLevel;
+                characterSkillLevel = _playerCharacter.Character.MiningLevel;
                 craftingLocationCode = "mining";
                 break;
             case Artifacts.Schemas.Skill.Weaponcrafting:
-                characterSkillLevel = _playerCharacter._character.WeaponcraftingLevel;
+                characterSkillLevel = _playerCharacter.Character.WeaponcraftingLevel;
                 craftingLocationCode = "weaponcrafting";
                 break;
             case Artifacts.Schemas.Skill.Woodcutting:
-                characterSkillLevel = _playerCharacter._character.WoodcuttingLevel;
+                characterSkillLevel = _playerCharacter.Character.WoodcuttingLevel;
                 craftingLocationCode = "woodcutting";
                 break;
         }
 
         if (matchingItem.Craft.Level > characterSkillLevel)
         {
-            return new JobError(
+            return new AppError(
                 $"Could not craft item {_code} - current skill level is {characterSkillLevel}, required is {matchingItem.Craft.Level}",
-                JobStatus.InsufficientSkill
+                ErrorStatus.InsufficientSkill
             );
         }
 
         if (craftingLocationCode == "")
         {
-            return new JobError(
+            return new AppError(
                 $"Could not craft item {_code} - could not find workshop to go to - skill is {matchingItem.Craft.Skill}"
             );
         }

@@ -23,46 +23,50 @@ public class GatherResource : CharacterJob
         "woodcutting",
     ];
 
-    protected int _amount { get; set; }
+    protected int Amount { get; set; }
 
-    protected int _progressAmount { get; set; } = 0;
+    protected int ProgressAmount { get; set; } = 0;
 
-    private bool _allowUsingInventory { get; init; } = false;
+    private bool _allowUsingInventory { get; init; }
 
     public GatherResource(
         PlayerCharacter playerCharacter,
+        GameState gameState,
         string code,
         int amount,
         bool allowUsingInventory = false
     )
-        : base(playerCharacter)
+        : base(playerCharacter, gameState)
     {
-        _code = code;
-        _amount = amount;
+        Code = code;
+        Amount = amount;
         _allowUsingInventory = allowUsingInventory;
     }
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    public override async Task<OneOf<AppError, None>> RunAsync()
     {
         // In case of resuming a task
         _shouldInterrupt = false;
 
         if (_allowUsingInventory)
         {
-            int amountInInventory = _playerCharacter.GetItemFromInventory(_code)?.Quantity ?? 0;
+            int amountInInventory = _playerCharacter.GetItemFromInventory(Code)?.Quantity ?? 0;
 
-            _progressAmount = amountInInventory;
+            ProgressAmount = amountInInventory;
         }
 
         _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter._character.Name} - progress {_code} ({_progressAmount}/{_amount})"
+            $"{GetType().Name} run started - for {_playerCharacter.Character.Name} - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
-        while (_progressAmount < _amount)
+        while (ProgressAmount < Amount)
         {
             if (DepositUnneededItems.ShouldInitDepositItems(_playerCharacter))
             {
-                _playerCharacter.QueueJobsBefore(Id, [new DepositUnneededItems(_playerCharacter)]);
+                _playerCharacter.QueueJobsBefore(
+                    Id,
+                    [new DepositUnneededItems(_playerCharacter, _gameState)]
+                );
                 return new None();
             }
 
@@ -75,7 +79,7 @@ public class GatherResource : CharacterJob
 
             switch (result.Value)
             {
-                case JobError jobError:
+                case AppError jobError:
                     return jobError;
                 default:
                     // Just continue
@@ -84,29 +88,29 @@ public class GatherResource : CharacterJob
         }
 
         _logger.LogInformation(
-            $"{GetType().Name} completed for {_playerCharacter._character.Name} - progress {_code} ({_progressAmount}/{_amount})"
+            $"{GetType().Name} completed for {_playerCharacter.Character.Name} - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
         return new None();
     }
 
-    protected async Task<OneOf<JobError, None>> InnerJobAsync()
+    protected async Task<OneOf<AppError, None>> InnerJobAsync()
     {
         _logger.LogInformation(
-            $"GatherJob status for {_playerCharacter._character.Name} - gathering {_code} ({_progressAmount}/{_amount})"
+            $"GatherJob status for {_playerCharacter.Character.Name} - gathering {Code} ({ProgressAmount}/{Amount})"
         );
 
-        var matchingItem = _gameState.Items.Find(item => item.Code == _code);
+        var matchingItem = _gameState.Items.Find(item => item.Code == Code);
 
         if (matchingItem is null)
         {
-            return new JobError($"Could not find item with code {_code} - could not gather it");
+            return new AppError($"Could not find item with code {Code} - could not gather it");
         }
 
         if (matchingItem.Type != "resource" || !_allowedSubtypes.Contains(matchingItem.Subtype))
         {
-            return new JobError(
-                $"Item with code: {_code} - type: {matchingItem.Type} - sub type: {matchingItem.Type} is not a gatherable resource"
+            return new AppError(
+                $"Item with code: {Code} - type: {matchingItem.Type} - sub type: {matchingItem.Type} is not a gatherable resource"
             );
         }
 
@@ -115,41 +119,41 @@ public class GatherResource : CharacterJob
         switch (matchingItem.Subtype)
         {
             case "alchemy":
-                characterSkillLevel = _playerCharacter._character.AlchemyLevel;
+                characterSkillLevel = _playerCharacter.Character.AlchemyLevel;
                 break;
             case "fishing":
-                characterSkillLevel = _playerCharacter._character.CookingLevel;
+                characterSkillLevel = _playerCharacter.Character.CookingLevel;
                 break;
             case "mining":
-                characterSkillLevel = _playerCharacter._character.MiningLevel;
+                characterSkillLevel = _playerCharacter.Character.MiningLevel;
                 break;
             case "woodcutting":
-                characterSkillLevel = _playerCharacter._character.WoodcuttingLevel;
+                characterSkillLevel = _playerCharacter.Character.WoodcuttingLevel;
                 break;
         }
 
         if (matchingItem.Level > characterSkillLevel)
         {
-            return new JobError(
-                $"Could not gather item {_code} - current skill level is {characterSkillLevel}, required is {matchingItem.Level}",
-                JobStatus.InsufficientSkill
+            return new AppError(
+                $"Could not gather item {Code} - current skill level is {characterSkillLevel}, required is {matchingItem.Level}",
+                ErrorStatus.InsufficientSkill
             );
         }
 
-        await _playerCharacter.NavigateTo(_code, ContentType.Resource);
+        await _playerCharacter.NavigateTo(Code, ContentType.Resource);
 
         var result = await _playerCharacter.Gather();
 
         switch (result.Value)
         {
-            case JobError jobError:
+            case AppError jobError:
             {
                 return jobError;
             }
             case GatherResponse:
                 GatherResponse response = (GatherResponse)result.Value;
-                _progressAmount +=
-                    response.Data.Details.Items.Find(item => item.Code == _code)?.Quantity ?? 0;
+                ProgressAmount +=
+                    response.Data.Details.Items.Find(item => item.Code == Code)?.Quantity ?? 0;
                 break;
         }
         return new None();

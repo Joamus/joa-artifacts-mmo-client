@@ -7,17 +7,17 @@ namespace Application.Jobs;
 
 public class CompleteTask : CharacterJob
 {
-    public CompleteTask(PlayerCharacter playerCharacter)
-        : base(playerCharacter)
+    public CompleteTask(PlayerCharacter playerCharacter, GameState gameState)
+        : base(playerCharacter, gameState)
     {
-        _code = _playerCharacter._character.TaskType;
+        Code = _playerCharacter.Character.TaskType;
     }
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    public override async Task<OneOf<AppError, None>> RunAsync()
     {
         if (
-            _playerCharacter._character.Task == ""
-            || _playerCharacter._character.TaskProgress < _playerCharacter._character.TaskTotal
+            _playerCharacter.Character.Task == ""
+            || _playerCharacter.Character.TaskProgress < _playerCharacter.Character.TaskTotal
         )
         {
             // Cannot complete quest, ignore for now
@@ -25,15 +25,24 @@ public class CompleteTask : CharacterJob
         }
 
         _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter._character.Name} - task ${_code}"
+            $"{GetType().Name} run started - for {_playerCharacter.Character.Name} - task ${Code}"
         );
 
-        await _playerCharacter.NavigateTo(_code!, ArtifactsApi.Schemas.ContentType.TasksMaster);
+        await _playerCharacter.NavigateTo(Code!, ArtifactsApi.Schemas.ContentType.TasksMaster);
 
         await _playerCharacter.TaskComplete();
 
+        var taskCoins = _playerCharacter.Character.Inventory.FirstOrDefault(item =>
+            item.Code == "tasks_coin"
+        );
+
+        if (taskCoins is not null && taskCoins.Quantity >= 6)
+        {
+            await _playerCharacter.TaskExchange();
+        }
+
         _logger.LogInformation(
-            $"{GetType().Name} run complete - for {_playerCharacter._character.Name} - task ${_code}"
+            $"{GetType().Name} run complete - for {_playerCharacter.Character.Name} - task ${Code}"
         );
 
         return new None();

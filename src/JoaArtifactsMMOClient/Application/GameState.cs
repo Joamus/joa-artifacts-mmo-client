@@ -77,11 +77,6 @@ public class GameState
                 items.Add(item);
                 itemsDict.Add(item.Code, item);
 
-                // if (!craftingLookupDict.ContainsKey(item.Code))
-                // {
-                //     craftingLookupDict.Add(item.Code, []);
-                // }
-
                 if (item.Craft is not null)
                 {
                     foreach (var ingredient in item.Craft.Items)

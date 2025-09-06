@@ -10,15 +10,15 @@ namespace Application.Jobs;
 
 public class CookEverythingInInventory : CharacterJob
 {
-    public CookEverythingInInventory(PlayerCharacter playerCharacter)
-        : base(playerCharacter) { }
+    public CookEverythingInInventory(PlayerCharacter playerCharacter, GameState gameState)
+        : base(playerCharacter, gameState) { }
 
-    public override Task<OneOf<JobError, None>> RunAsync()
+    public override Task<OneOf<AppError, None>> RunAsync()
     {
         Dictionary<string, int> ingredientAmounts = new();
         Dictionary<string, ItemSchema> potentialFoodsToCook = new();
 
-        foreach (var item in _playerCharacter._character.Inventory)
+        foreach (var item in _playerCharacter.Character.Inventory)
         {
             bool isIngredient = _gameState.CraftingLookupDict.ContainsKey(item.Code);
 
@@ -31,7 +31,7 @@ public class CookEverythingInInventory : CharacterJob
                 foreach (var food in foods)
                 {
                     if (
-                        _playerCharacter._character.CookingLevel >= food.Level
+                        _playerCharacter.Character.CookingLevel >= food.Level
                         && food.Subtype == "food"
                     )
                     {
@@ -103,7 +103,14 @@ public class CookEverythingInInventory : CharacterJob
                     ingredientAmounts[ingredient.Code] -= ingredient.Quantity;
                 }
 
-                jobs.Add(new CraftItem(_playerCharacter, food.Code, amountThatCanBeCooked.Value));
+                jobs.Add(
+                    new CraftItem(
+                        _playerCharacter,
+                        _gameState,
+                        food.Code,
+                        amountThatCanBeCooked.Value
+                    )
+                );
             }
         }
 
@@ -112,6 +119,6 @@ public class CookEverythingInInventory : CharacterJob
             _playerCharacter.QueueJobsAfter(Id, jobs);
         }
 
-        return Task.FromResult<OneOf<JobError, None>>(new None());
+        return Task.FromResult<OneOf<AppError, None>>(new None());
     }
 }
