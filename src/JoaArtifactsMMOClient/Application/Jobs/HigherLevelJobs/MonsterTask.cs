@@ -10,31 +10,41 @@ namespace Application.Jobs;
 
 public class MonsterTask : CharacterJob
 {
-    public MonsterTask(PlayerCharacter playerCharacter, GameState gameState)
-        : base(playerCharacter, gameState) { }
+    public string? ItemCode { get; set; }
+    public int? ItemAmount { get; set; }
 
-    public override Task<OneOf<AppError, None>> RunAsync()
+    public MonsterTask(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        string? itemCode,
+        int? itemAmount
+    )
+        : base(playerCharacter, gameState)
     {
-        _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter.Character.Name}"
-        );
+        ItemCode = itemCode;
+        ItemAmount = itemAmount;
+    }
+
+    protected override Task<OneOf<AppError, None>> ExecuteAsync()
+    {
+        logger.LogInformation($"{GetType().Name} run started - for {Character.Schema.Name}");
 
         List<CharacterJob> jobs = [];
 
-        if (_playerCharacter.Character.TaskType == "")
+        if (Character.Schema.TaskType == "")
         {
             // Go pick up task - then we should continue
-            _playerCharacter.QueueJobsBefore(
+            Character.QueueJobsBefore(
                 Id,
-                [new AcceptNewTask(_playerCharacter, _gameState, TaskType.monsters)]
+                [new AcceptNewTask(Character, gameState, TaskType.monsters)]
             );
             return Task.FromResult<OneOf<AppError, None>>(new None());
         }
 
-        if (_playerCharacter.Character.TaskType == TaskType.monsters.ToString())
+        if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
-            var code = _playerCharacter.Character.Task;
-            MonsterSchema? monster = _gameState.Monsters.FirstOrDefault(monster =>
+            var code = Character.Schema.Task;
+            MonsterSchema? monster = gameState.Monsters.FirstOrDefault(monster =>
                 monster.Code == code!
             );
             if (monster is null)
@@ -43,7 +53,7 @@ public class MonsterTask : CharacterJob
                     new AppError($"Cannot find monster {code} to fight in task")
                 );
             }
-            var outcome = FightSimulator.CalculateFightOutcome(_playerCharacter.Character, monster);
+            var outcome = FightSimulator.CalculateFightOutcome(Character.Schema, monster);
 
             if (!outcome.ShouldFight)
             {
@@ -58,33 +68,33 @@ public class MonsterTask : CharacterJob
         {
             return Task.FromResult<OneOf<AppError, None>>(
                 new AppError(
-                    $"Cannot do a {GetType().Name}, because the current task is {_playerCharacter.Character.TaskType}"
+                    $"Cannot do a {GetType().Name}, because the current task is {Character.Schema.TaskType}"
                 )
             );
         }
 
-        int progressAmount = _playerCharacter.Character.TaskProgress;
-        int amount = _playerCharacter.Character.TaskTotal;
+        int progressAmount = Character.Schema.TaskProgress;
+        int amount = Character.Schema.TaskTotal;
 
         int remainingToKill = amount - progressAmount;
         if (remainingToKill > 0)
         {
             jobs.Add(
                 new FightMonster(
-                    _playerCharacter,
-                    _gameState,
-                    _playerCharacter.Character.Task,
+                    Character,
+                    gameState,
+                    Character.Schema.Task,
                     amount - progressAmount
                 )
             );
         }
 
-        jobs.Add(new CompleteTask(_playerCharacter, _gameState));
+        jobs.Add(new CompleteTask(Character, gameState, ItemCode, ItemAmount));
 
-        _playerCharacter.QueueJobsAfter(Id, jobs);
+        Character.QueueJobsAfter(Id, jobs);
 
-        _logger.LogInformation(
-            $"{GetType().Name} - found {jobs.Count} jobs to run, to complete task {Code} for {_playerCharacter.Character.Name}"
+        logger.LogInformation(
+            $"{GetType().Name} - found {jobs.Count} jobs to run, to complete task {Code} for {Character.Schema.Name}"
         );
 
         return Task.FromResult<OneOf<AppError, None>>(new None());

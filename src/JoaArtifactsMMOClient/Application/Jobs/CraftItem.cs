@@ -25,18 +25,15 @@ public class CraftItem : CharacterJob
         _amount = amount;
     }
 
-    public override async Task<OneOf<AppError, None>> RunAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        if (DepositUnneededItems.ShouldInitDepositItems(_playerCharacter))
+        if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
-            _playerCharacter.QueueJobsBefore(
-                Id,
-                [new DepositUnneededItems(_playerCharacter, _gameState)]
-            );
+            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
             return new None();
         }
 
-        var matchingItem = _gameState.Items.Find(item => item.Code == _code);
+        var matchingItem = gameState.Items.Find(item => item.Code == _code);
 
         if (matchingItem is null || matchingItem.Craft is null)
         {
@@ -51,31 +48,31 @@ public class CraftItem : CharacterJob
         switch (matchingItem.Craft.Skill)
         {
             case Artifacts.Schemas.Skill.Alchemy:
-                characterSkillLevel = _playerCharacter.Character.AlchemyLevel;
+                characterSkillLevel = Character.Schema.AlchemyLevel;
                 craftingLocationCode = "alchemy";
                 break;
             case Artifacts.Schemas.Skill.Cooking:
-                characterSkillLevel = _playerCharacter.Character.CookingLevel;
+                characterSkillLevel = Character.Schema.CookingLevel;
                 craftingLocationCode = "cooking";
                 break;
             case Artifacts.Schemas.Skill.Gearcrafting:
-                characterSkillLevel = _playerCharacter.Character.GearcraftingLevel;
+                characterSkillLevel = Character.Schema.GearcraftingLevel;
                 craftingLocationCode = "gearcrafting";
                 break;
             case Artifacts.Schemas.Skill.Jewelrycrafting:
-                characterSkillLevel = _playerCharacter.Character.JewelrycraftingLevel;
+                characterSkillLevel = Character.Schema.JewelrycraftingLevel;
                 craftingLocationCode = "jewelrycrafting";
                 break;
             case Artifacts.Schemas.Skill.Mining:
-                characterSkillLevel = _playerCharacter.Character.MiningLevel;
+                characterSkillLevel = Character.Schema.MiningLevel;
                 craftingLocationCode = "mining";
                 break;
             case Artifacts.Schemas.Skill.Weaponcrafting:
-                characterSkillLevel = _playerCharacter.Character.WeaponcraftingLevel;
+                characterSkillLevel = Character.Schema.WeaponcraftingLevel;
                 craftingLocationCode = "weaponcrafting";
                 break;
             case Artifacts.Schemas.Skill.Woodcutting:
-                characterSkillLevel = _playerCharacter.Character.WoodcuttingLevel;
+                characterSkillLevel = Character.Schema.WoodcuttingLevel;
                 craftingLocationCode = "woodcutting";
                 break;
         }
@@ -95,9 +92,9 @@ public class CraftItem : CharacterJob
             );
         }
 
-        await _playerCharacter.NavigateTo(craftingLocationCode, ContentType.Workshop);
+        await Character.NavigateTo(craftingLocationCode, ContentType.Workshop);
 
-        await _playerCharacter.Craft(_code, _amount);
+        await Character.Craft(_code, _amount);
 
         return new None();
     }

@@ -28,30 +28,31 @@ public class DoTaskUntilObtainedItem : CharacterJob
         Amount = amount;
     }
 
-    public override async Task<OneOf<AppError, None>> RunAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter.Character.Name}"
-        );
+        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] run started");
 
         // This job essentially just keeps queueing Monster/Item task jobs before it self, and then checking to see if the character has obtained the goal or not.
 
-        int amountInInventory = _playerCharacter.GetItemFromInventory(Code)?.Quantity ?? 0;
+        int amountInInventory = Character.GetItemFromInventory(Code)?.Quantity ?? 0;
 
         if (amountInInventory < Amount)
         {
             CharacterJob task =
                 Code == TaskType.monsters.ToString()
-                || _playerCharacter.Character.TaskType == TaskType.monsters.ToString()
-                    ? new MonsterTask(_playerCharacter, _gameState)
-                    : new ItemTask(_playerCharacter, _gameState);
+                || Character.Schema.TaskType == TaskType.monsters.ToString()
+                    ? new MonsterTask(Character, gameState, Code, Amount)
+                    : new ItemTask(Character, gameState, Code, Amount);
 
-            _playerCharacter.QueueJobsBefore(Id, [task]);
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] queueing another task - have {amountInInventory}/{Amount} currently"
+            );
+            Character.QueueJobsBefore(Id, [task]);
             return new None();
         }
 
-        _logger.LogInformation(
-            $"{GetType().Name} completed for for {_playerCharacter.Character.Name} - progress {Code} ({amountInInventory}/{Amount})"
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] completed - progress {Code} ({amountInInventory}/{Amount})"
         );
 
         return new None();

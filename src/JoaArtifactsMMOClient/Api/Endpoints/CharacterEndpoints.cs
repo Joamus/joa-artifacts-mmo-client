@@ -46,14 +46,35 @@ public static class CharacterEndpoints
             .Produces<OneOf<None, AppError>>();
 
         group
+            .MapPost("/{name}/job/train/fight", TrainFight)
+            .WithName(nameof(TrainRequest))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+        group
+            .MapPost("/{name}/job/train/{skill}", TrainSkill)
+            .WithName(nameof(TrainSkill))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+
+        group
             .MapPost("/{name}/job/clearAll", ClearAll)
             .WithName(nameof(ClearAll))
             .WithOpenApi()
             .Produces<OneOf<None, AppError>>();
 
         group
+            .MapPost("/{name}/interrupt", Interrupt)
+            .WithName(nameof(Interrupt))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+        group
             .MapPost("/{name}/suspend", Suspend)
             .WithName(nameof(Suspend))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+        group
+            .MapPost("/{name}/unsuspend", Unsuspend)
+            .WithName(nameof(Unsuspend))
             .WithOpenApi()
             .Produces<OneOf<None, AppError>>();
 
@@ -67,11 +88,10 @@ public static class CharacterEndpoints
         return TypedResults.Ok(gameState.Characters);
     }
 
-    // static async Task<IResult> Get(Guid? id, AppDbContext dbContext, HttpContext httpContext, AppAuthService authService)
     static async Task<IResult> Get([FromRoute] string name, [FromServices] GameState gameState)
     {
         var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
-            character.Character.Name == name
+            character.Schema.Name == name
         );
 
         if (matchingCharacter is null)
@@ -88,29 +108,7 @@ public static class CharacterEndpoints
         [FromServices] GameState gameState
     )
     {
-        var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
-            character.Character.Name == name
-        );
-
-        if (matchingCharacter is null)
-        {
-            return TypedResults.NotFound();
-        }
-
-        if (!string.IsNullOrEmpty(request.ItemCode))
-        {
-            matchingCharacter.QueueJob(
-                new FightMonster(matchingCharacter, request.Code, request.Amount, request.ItemCode)
-            );
-        }
-        else
-        {
-            matchingCharacter.QueueJob(
-                new FightMonster(matchingCharacter, request.Code, request.Amount)
-            );
-        }
-
-        return TypedResults.NoContent();
+        return await FightEndpoint.FightMonster(name, request, gameState);
     }
 
     static async Task<IResult> ObtainItem(
@@ -119,25 +117,7 @@ public static class CharacterEndpoints
         [FromServices] GameState gameState
     )
     {
-        var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
-            character.Character.Name == name
-        );
-
-        if (matchingCharacter is null)
-        {
-            return TypedResults.NotFound();
-        }
-
-        matchingCharacter.QueueJob(
-            new ObtainItem(
-                matchingCharacter,
-                request.Code,
-                request.Amount,
-                request.UseItemIfInInventory
-            )
-        );
-
-        return TypedResults.NoContent();
+        return await ObtainItemEndpoint.ObtainItem(name, request, gameState);
     }
 
     static async Task<IResult> Gather(
@@ -146,26 +126,31 @@ public static class CharacterEndpoints
         [FromServices] GameState gameState
     )
     {
-        var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
-            character.Character.Name == name
-        );
+        return await GatherEndpoint.Gather(name, request, gameState);
+    }
 
-        if (matchingCharacter is null)
-        {
-            return TypedResults.NotFound();
-        }
+    static async Task<IResult> TrainSkill(
+        [FromRoute] string name,
+        [FromBody] TrainSkillRequest request,
+        [FromServices] GameState gameState
+    )
+    {
+        return await TrainSkillEndpoint.TrainSkill(name, request, gameState);
+    }
 
-        matchingCharacter.QueueJob(
-            new GatherResource(matchingCharacter, request.Code, request.Amount)
-        );
-
-        return TypedResults.NoContent();
+    static async Task<IResult> TrainFight(
+        [FromRoute] string name,
+        [FromBody] TrainRequest request,
+        [FromServices] GameState gameState
+    )
+    {
+        return await TrainFightEndpoint.TrainFight(name, request, gameState);
     }
 
     static async Task<IResult> ClearAll([FromRoute] string name, [FromServices] GameState gameState)
     {
         var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
-            character.Character.Name == name
+            character.Schema.Name == name
         );
 
         if (matchingCharacter is null)
@@ -178,10 +163,13 @@ public static class CharacterEndpoints
         return TypedResults.NoContent();
     }
 
-    static async Task<IResult> Suspend([FromRoute] string name, [FromServices] GameState gameState)
+    static async Task<IResult> Interrupt(
+        [FromRoute] string name,
+        [FromServices] GameState gameState
+    )
     {
         var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
-            character.Character.Name == name
+            character.Schema.Name == name
         );
 
         if (matchingCharacter is null)
@@ -197,24 +185,45 @@ public static class CharacterEndpoints
 
         return TypedResults.NoContent();
     }
+
+    static async Task<IResult> Suspend([FromRoute] string name, [FromServices] GameState gameState)
+    {
+        var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
+            character.Schema.Name == name
+        );
+
+        if (matchingCharacter is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        // matchingCharacter.SetBusy(true);
+        matchingCharacter.Suspend();
+
+        return TypedResults.NoContent();
+    }
+
+    static async Task<IResult> Unsuspend(
+        [FromRoute] string name,
+        [FromServices] GameState gameState
+    )
+    {
+        var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
+            character.Schema.Name == name
+        );
+
+        if (matchingCharacter is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        matchingCharacter.Unsuspend();
+
+        return TypedResults.NoContent();
+    }
 }
 
-record FightRequest
+public record GenericActionRequest
 {
-    public string Code { get; set; }
-    public int Amount { get; set; }
-    public string ItemCode { get; set; }
-}
-
-record ObtainItemRequest
-{
-    public string Code { get; set; }
-    public int Amount { get; set; }
-    public bool UseItemIfInInventory { get; set; }
-}
-
-record GatherRequest
-{
-    public string Code { get; set; }
-    public int Amount { get; set; }
+    public bool Idle { get; set; } = false;
 }

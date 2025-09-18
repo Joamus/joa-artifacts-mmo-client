@@ -112,33 +112,33 @@ public record CharacterSchema
 
     public string? RuneSlot { get; set; }
 
-    public string ShieldSlot { get; set; }
+    public string ShieldSlot { get; set; } = "";
 
-    public string HelmetSlot { get; set; }
+    public string HelmetSlot { get; set; } = "";
 
-    public string BodyArmorSlot { get; set; }
+    public string BodyArmorSlot { get; set; } = "";
 
-    public string LegArmorSlot { get; set; }
+    public string LegArmorSlot { get; set; } = "";
 
-    public string BootsSlot { get; set; }
+    public string BootsSlot { get; set; } = "";
 
-    public string Ring1Slot { get; set; }
+    public string Ring1Slot { get; set; } = "";
 
-    public string Ring2Slot { get; set; }
+    public string Ring2Slot { get; set; } = "";
 
-    public string AmuletSlot { get; set; }
+    public string AmuletSlot { get; set; } = "";
 
-    public string Artifact1Slot { get; set; }
+    public string Artifact1Slot { get; set; } = "";
 
-    public string Artifact2Slot { get; set; }
+    public string Artifact2Slot { get; set; } = "";
 
-    public string Artifact3Slot { get; set; }
+    public string Artifact3Slot { get; set; } = "";
 
     public string Utility1Slot { get; set; } = "";
 
     public int Utility1SlotQuantity { get; set; }
 
-    public string Utility2Slot { get; set; }
+    public string Utility2Slot { get; set; } = "";
 
     public int Utility2SlotQuantity { get; set; }
 

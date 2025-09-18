@@ -1,3 +1,4 @@
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
 using Application.Errors;
 using OneOf;
@@ -21,9 +22,9 @@ public class DepositItems : CharacterJob
         _amount = amount;
     }
 
-    public override async Task<OneOf<AppError, None>> RunAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var itemInInventory = _playerCharacter.Character.Inventory.Find(item => item.Code == Code);
+        var itemInInventory = Character.Schema.Inventory.Find(item => item.Code == Code);
 
         if (itemInInventory is null)
         {
@@ -32,10 +33,18 @@ public class DepositItems : CharacterJob
             );
         }
 
-        await _playerCharacter.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
+        await Character.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
 
-        // TODO Handle that bank might be full
-        await _playerCharacter.DepositBankItem(Code, Math.Min(_amount, itemInInventory.Quantity));
+        // TODO: Handle that bank might be full
+        await Character.DepositBankItem(
+            [
+                new WithdrawOrDepositItemRequest
+                {
+                    Code = Code!,
+                    Quantity = Math.Min(_amount, itemInInventory.Quantity),
+                },
+            ]
+        );
 
         return new None();
     }

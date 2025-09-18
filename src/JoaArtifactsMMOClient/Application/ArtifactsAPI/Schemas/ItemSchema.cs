@@ -23,6 +23,8 @@ public record ItemSchema
 
     public List<SimpleEffectSchema> Effects { get; set; } = [];
 
+    public List<ItemCondition> Conditions { get; set; } = [];
+
     public CraftDto? Craft { get; set; }
 
     public bool Tradeable { get; set; }
@@ -66,4 +68,21 @@ public record CraftDto
     public List<DropSchema> Items { get; set; } = [];
 
     public int Quantity { get; set; }
+}
+
+public record ItemCondition
+{
+    public string Code { get; set; } = "";
+
+    public string Operator { get; set; } = "";
+
+    public int Value { get; set; }
+}
+
+public static class ItemConditionOperator
+{
+    public static readonly string GreaterThan = "gt";
+
+    // Haven't seen this one yet
+    public readonly static string LessThan = "lt";
 }

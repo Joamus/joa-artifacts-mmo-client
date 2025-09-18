@@ -2,6 +2,7 @@ using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
+using Application.Dtos;
 using Application.Errors;
 using Application.Jobs;
 using Application.Services;
@@ -15,57 +16,82 @@ namespace Application.Jobs;
 
 public class ObtainItem : CharacterJob
 {
-    private bool _useItemIfInInventory { get; set; } = false;
+    public bool AllowUsingMaterialsFromBank { get; set; } = false;
 
-    private bool _allowTakingFromBank { get; set; } = true;
+    public bool AllowFindingItemInBank { get; set; } = true;
+    public bool AllowUsingMaterialsFromInventory { get; set; } = true;
+
+    public bool CanTriggerTraining { get; set; } = false;
 
     private List<DropSchema> itemsInBank { get; set; } = [];
-    protected string _code { get; init; }
-    protected int _amount { get; init; }
+    protected int Amount { get; init; }
 
     protected int _progressAmount { get; set; } = 0;
 
     public ObtainItem(PlayerCharacter playerCharacter, GameState gameState, string code, int amount)
         : base(playerCharacter, gameState)
     {
-        _code = code;
-        _amount = amount;
+        Code = code;
+        Amount = amount;
     }
 
-    public ObtainItem(
-        PlayerCharacter playerCharacter,
-        GameState gameState,
-        string code,
-        int amount,
-        bool useItemIfInInventory,
-        bool allowTakingFromBank = true
-    )
-        : base(playerCharacter, gameState)
+    // public SetMaterialRules(bool allowMaterialsFromInventory, bool allowMaterialsFromBank)
+    // {
+
+    //     var job = new ObtainItem()
+
+    // }
+    // public SetFindingRules(bool allowFinishedItemFromInventory, bool allowFinishedItemFromBank)
+    // {
+
+    // }
+
+    // public static CreateForBank()
+    // {
+
+    // }
+
+    public void ForCharacter(PlayerCharacter recipient)
     {
-        _code = code;
-        _amount = amount;
-        _useItemIfInInventory = useItemIfInInventory;
-        _allowTakingFromBank = allowTakingFromBank;
+        onSuccessEndHook += () =>
+        {
+            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+
+            depositItemJob.onSuccessEndHook += () =>
+            {
+                recipient.QueueJob(new WithdrawItem(recipient, gameState, Code, Amount, false));
+                return Task.Run(() => { });
+            };
+
+            return Task.Run(() => { });
+        };
     }
 
-    public override async Task<OneOf<AppError, None>> RunAsync()
+    public void ForBank()
+    {
+        onSuccessEndHook += () =>
+        {
+            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+
+            return Task.Run(() => { });
+        };
+    }
+
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         // It's not very elegant that this job is pasted in multiple places, but a lot of jobs want to have their inventory be clean before they start, or in their InnerJob.
-        if (DepositUnneededItems.ShouldInitDepositItems(_playerCharacter))
+        if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
-            _playerCharacter.QueueJobsBefore(
-                Id,
-                [new DepositUnneededItems(_playerCharacter, _gameState)]
-            );
+            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
             return new None();
         }
 
         List<CharacterJob> jobs = [];
-        _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter.Character.Name} - progress {_code} ({_progressAmount}/{_amount})"
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
         );
 
-        if (_allowTakingFromBank)
+        if (AllowFindingItemInBank)
         {
             var accountRequester = GameServiceProvider
                 .GetInstance()
@@ -84,10 +110,21 @@ public class ObtainItem : CharacterJob
         // But if we have the ingredients in our inventory, then we should always use them (for now).
         // Having this variable will allow us to e.g craft multiple copper daggers, else we could only have 1 in our inventory
 
-        var result = await GetJobsRequired(jobs, _code, _amount, _useItemIfInInventory);
+        var result = await GetJobsRequired(
+            Character,
+            gameState,
+            AllowUsingMaterialsFromBank,
+            itemsInBank,
+            jobs,
+            Code,
+            Amount,
+            // AllowUsingMaterialsFromInventory
+            true,
+            CanTriggerTraining
+        );
 
-        _logger.LogInformation(
-            $"{GetType().Name} - found {jobs.Count} jobs to run, to obtain item {_code} for {_playerCharacter.Character.Name}"
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code}"
         );
 
         switch (result.Value)
@@ -96,7 +133,7 @@ public class ObtainItem : CharacterJob
                 return jobError;
         }
 
-        _playerCharacter.QueueJobsAfter(Id, jobs);
+        Character.QueueJobsAfter(Id, jobs);
 
         return new None();
     }
@@ -105,14 +142,19 @@ public class ObtainItem : CharacterJob
      * Get all the jobs required to obtain an item
      * We mutate a list to recursively add all the required jobs to the list
     */
-    public async Task<OneOf<AppError, None>> GetJobsRequired(
+    public static async Task<OneOf<AppError, None>> GetJobsRequired(
+        PlayerCharacter Character,
+        GameState gameState,
+        bool allowUsingItemFromBank,
+        List<DropSchema> itemsInBank,
         List<CharacterJob> jobs,
         string code,
         int amount,
-        bool useItemIfInInventory
+        bool allowUsingItemFromInventory = false,
+        bool canTriggerTraining = false
     )
     {
-        var matchingItem = _gameState.Items.Find(item => item.Code == code);
+        var matchingItem = gameState.Items.Find(item => item.Code == code);
 
         if (matchingItem is null)
         {
@@ -121,16 +163,16 @@ public class ObtainItem : CharacterJob
 
         // We have the item already, no need to get it again
 
-        int amountInInventory = useItemIfInInventory
-            ? (_playerCharacter.GetItemFromInventory(code)?.Quantity ?? 0)
+        int amountInInventory = allowUsingItemFromInventory
+            ? (Character.GetItemFromInventory(code)?.Quantity ?? 0)
             : 0;
 
-        if (useItemIfInInventory && amountInInventory >= amount)
+        if (allowUsingItemFromInventory && amountInInventory >= amount)
         {
             return new None();
         }
 
-        if (_allowTakingFromBank)
+        if (allowUsingItemFromBank)
         {
             var matchingItemInBank = itemsInBank.FirstOrDefault(item => item.Code == code);
             int amountInBank = matchingItemInBank?.Quantity ?? 0;
@@ -139,7 +181,7 @@ public class ObtainItem : CharacterJob
 
             if (amountToTakeFromBank > 0)
             {
-                jobs.Add(new CollectItem(_playerCharacter, _gameState, code, amountToTakeFromBank));
+                jobs.Add(new WithdrawItem(Character, gameState, code, amountToTakeFromBank));
 
                 amount -= amountToTakeFromBank;
             }
@@ -157,6 +199,10 @@ public class ObtainItem : CharacterJob
             foreach (var item in matchingItem.Craft.Items)
             {
                 var result = await GetJobsRequired(
+                    Character,
+                    gameState,
+                    allowUsingItemFromBank,
+                    itemsInBank,
                     jobs,
                     item.Code,
                     item.Quantity * requiredAmount,
@@ -169,27 +215,29 @@ public class ObtainItem : CharacterJob
                         return jobError;
                 }
             }
-            jobs.Add(new CraftItem(_playerCharacter, _gameState, code, requiredAmount));
+            jobs.Add(new CraftItem(Character, gameState, code, requiredAmount));
         }
         else
         {
-            List<ResourceSchema> resources = _gameState.Resources.FindAll(resource =>
+            List<ResourceSchema> resources = gameState.Resources.FindAll(resource =>
                 resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null
             );
 
             if (resources.Count > 0)
             {
-                jobs.Add(new GatherResource(_playerCharacter, _gameState, code, requiredAmount));
+                var gatherJob = new GatherResourceItem(Character, gameState, code, requiredAmount);
+                gatherJob.CanTriggerTraining = canTriggerTraining;
+
+                jobs.Add(gatherJob);
             }
             else
             {
                 if (matchingItem.Subtype == "task")
                 {
-                    CharacterJob? monsterTask = null;
                     // Pick up a task, or complete one you have
-                    if (_playerCharacter.Character.TaskType == "monsters")
+                    if (Character.Schema.TaskType == "monsters")
                     {
-                        var monster = _gameState.Monsters.Find(monster =>
+                        var monster = gameState.Monsters.Find(monster =>
                             monster.Drops.Find(drop => drop.Code == code) is not null
                         );
                         if (monster is null)
@@ -202,11 +250,13 @@ public class ObtainItem : CharacterJob
 
                         if (
                             FightSimulator
-                                .CalculateFightOutcome(_playerCharacter.Character, monster)
+                                .CalculateFightOutcome(Character.Schema, monster)
                                 .ShouldFight
                         )
                         {
-                            jobs.Add(new MonsterTask(_playerCharacter, _gameState));
+                            jobs.Add(
+                                new MonsterTask(Character, gameState, matchingItem.Code, amount)
+                            );
                         }
                         else
                         {
@@ -218,14 +268,55 @@ public class ObtainItem : CharacterJob
                     }
                     else
                     {
-                        jobs.Add(new ItemTask(_playerCharacter, _gameState));
+                        jobs.Add(
+                            new DoTaskUntilObtainedItem(
+                                Character,
+                                gameState,
+                                TaskType.items,
+                                matchingItem.Code,
+                                amount
+                            )
+                        );
+                        // jobs.Add(new ItemTask(Character, gameState, matchingItem.Code, amount));
                     }
+                }
+                else if (matchingItem.Subtype == "npc")
+                {
+                    var matchingNpcItem = gameState.NpcItemsDict.ContainsKey(matchingItem.Code)
+                        ? gameState.NpcItemsDict[matchingItem.Code]
+                        : null;
+
+                    if (matchingItem is null)
+                    {
+                        // something is wrong
+                        return new AppError(
+                            $"The item with code {code} is an NPC item, but cannot find it in NPC items list",
+                            ErrorStatus.NotFound
+                        );
+                    }
+
+                    return new AppError(
+                        $"Not implemented buying items to obtain",
+                        ErrorStatus.Undefined
+                    );
+
+                    /**
+                     * Look in our inventory, and see if we have the required gold/items
+                     * If yes, then buy the item
+                     * If no, look in our bank
+                     * If yes, go to the bank, withdraw, and then buy
+                     * If no, return error here - we cannot get it - or even better:
+                     * We queue a job for obtaining the item needed, and then after that queue a buy job for the item.
+                     * Maybe a buy job can have a parameter, which allows obtaining the mats?
+                     * Remember gold is a material in this case, but handle it specially. Can be withdrawn from bank, else just
+                     * grind gold from the most suitable monster (closest to level that we can beat)
+                    */
                 }
                 else
                 {
                     List<MonsterSchema> suitableMonsters = [];
 
-                    var monstersThatDropTheItem = _gameState.Monsters.FindAll(monster =>
+                    var monstersThatDropTheItem = gameState.Monsters.FindAll(monster =>
                         monster.Drops.Find(drop => drop.Code == code) is not null
                     );
 
@@ -248,34 +339,51 @@ public class ObtainItem : CharacterJob
                         }
                     );
 
+                    MonsterSchema? lowestLevelMonster = null;
+
                     foreach (var monster in monstersThatDropTheItem)
                     {
                         if (
                             FightSimulator
-                                .CalculateFightOutcome(_playerCharacter.Character, monster)
+                                .CalculateFightOutcome(Character.Schema, monster)
                                 .ShouldFight
                         )
                         {
-                            jobs.Add(
-                                new FightMonster(
-                                    _playerCharacter,
-                                    _gameState,
-                                    monster.Code,
-                                    requiredAmount,
-                                    code
-                                )
+                            var job = new FightMonster(
+                                Character,
+                                gameState,
+                                monster.Code,
+                                requiredAmount,
+                                code
                             );
+
+                            job.AllowUsingMaterialsFromInventory = true;
+                            jobs.Add(job);
+
                             return new None();
+                        }
+                        else
+                        {
+                            if (
+                                lowestLevelMonster is null
+                                || monster.Level < lowestLevelMonster.Level
+                            )
+                            {
+                                lowestLevelMonster = monster;
+                            }
                         }
                     }
 
-                    if (monstersThatDropTheItem is null)
+                    if (canTriggerTraining)
                     {
-                        return new AppError(
-                            $"Cannot fight any monsters that drop item {code} - {_playerCharacter.Character.Name} would lose",
-                            ErrorStatus.InsufficientSkill
-                        );
+                        // TODO: Trigger levelling up the character until they can?
+                        // return jobs.Add(new Train)
                     }
+
+                    return new AppError(
+                        $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose",
+                        ErrorStatus.InsufficientSkill
+                    );
                 }
             }
         }

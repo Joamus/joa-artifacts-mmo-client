@@ -7,42 +7,108 @@ namespace Application.Jobs;
 
 public class CompleteTask : CharacterJob
 {
-    public CompleteTask(PlayerCharacter playerCharacter, GameState gameState)
+    public static readonly int PRICE_OF_EXCHANGE = 6;
+    public string? ItemCode { get; init; }
+    public int? ItemAmount { get; init; }
+
+    public CompleteTask(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        string? itemCode,
+        int? itemAmount
+    )
         : base(playerCharacter, gameState)
     {
-        Code = _playerCharacter.Character.TaskType;
+        Code = Character.Schema.TaskType;
+        ItemCode = itemCode;
+        ItemAmount = itemAmount;
     }
 
-    public override async Task<OneOf<AppError, None>> RunAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         if (
-            _playerCharacter.Character.Task == ""
-            || _playerCharacter.Character.TaskProgress < _playerCharacter.Character.TaskTotal
+            Character.Schema.Task == ""
+            || Character.Schema.TaskProgress < Character.Schema.TaskTotal
         )
         {
             // Cannot complete quest, ignore for now
             return new None();
         }
 
-        _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter.Character.Name} - task ${Code}"
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] run started - task {Code}"
         );
 
-        await _playerCharacter.NavigateTo(Code!, ArtifactsApi.Schemas.ContentType.TasksMaster);
+        var matchingItem = ItemCode is not null
+            ? gameState.NpcItemsDict.GetValueOrNull(ItemCode)
+            : null;
 
-        await _playerCharacter.TaskComplete();
+        var taskCoinsAmount =
+            Character.Schema.Inventory.FirstOrDefault(item => item.Code == "tasks_coin")?.Quantity
+            ?? 0;
 
-        var taskCoins = _playerCharacter.Character.Inventory.FirstOrDefault(item =>
-            item.Code == "tasks_coin"
-        );
+        await Character.NavigateTo(Code!, ArtifactsApi.Schemas.ContentType.TasksMaster);
 
-        if (taskCoins is not null && taskCoins.Quantity >= 6)
+        await Character.TaskComplete();
+
+        if (matchingItem is not null)
         {
-            await _playerCharacter.TaskExchange();
+            if (ItemAmount is null)
+            {
+                return new AppError($"ItemAmount should not be null if ItemCode is not null");
+            }
+
+            int itemAmount = (int)ItemAmount;
+
+            if (
+                matchingItem.Currency == "tasks_coins"
+                && matchingItem.BuyPrice * ItemAmount >= taskCoinsAmount
+            )
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] buying item \"{ItemCode}\" for {matchingItem.BuyPrice} per item (total: {matchingItem.BuyPrice * ItemAmount}) from \"tasks_master\" - have {taskCoinsAmount} total tasks_coins - for {Character.Schema.Name} - task ${Code}"
+                );
+                await Character.NavigateTo(Code!, ArtifactsApi.Schemas.ContentType.TasksMaster);
+                await Character.NpcBuyItem(matchingItem.Code, itemAmount);
+            }
+        }
+        else
+        {
+            var taskCoins = Character.Schema.Inventory.FirstOrDefault(item =>
+                item.Code == "tasks_coin"
+            );
+
+            if (taskCoinsAmount >= PRICE_OF_EXCHANGE)
+            {
+                int amountOfItemNow = Character.GetItemFromInventory(ItemCode)?.Quantity ?? 0;
+
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coins\" for a random reward, to get {ItemCode} - task ${Code}"
+                );
+
+                var result = await Character.TaskExchange();
+
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] rewards were gold: {result.Data.Rewards.Gold} and items: {result.Data.Rewards.Items} - task ${Code}"
+                );
+
+                var itemAsReward = result.Data.Rewards.Items.Find(item => item.Code == ItemCode);
+
+                if (itemAsReward?.Quantity >= ItemAmount)
+                {
+                    logger.LogInformation(
+                        $"{GetType().Name}: [{Character.Schema.Name}] found {itemAsReward?.Quantity} of the items we needed, out of {ItemAmount} - task ${Code}"
+                    );
+                }
+
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coins\" for a random reward, to get {ItemCode} - task ${Code}"
+                );
+            }
         }
 
-        _logger.LogInformation(
-            $"{GetType().Name} run complete - for {_playerCharacter.Character.Name} - task ${Code}"
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] run complete - task {Code}"
         );
 
         return new None();

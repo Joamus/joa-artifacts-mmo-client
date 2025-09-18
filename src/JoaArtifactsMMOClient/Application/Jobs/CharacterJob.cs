@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Application.Character;
 using Application.Errors;
 using Application.Services;
@@ -9,35 +10,59 @@ namespace Application.Jobs;
 
 public abstract class CharacterJob
 {
-    public Guid Id { get; init; }
+    public Guid Id { get; init; } = Guid.NewGuid();
+
+    public CharacterJob? ParentJob { get; private set; }
 
     [JsonIgnore]
-    public PlayerCharacter _playerCharacter { get; init; }
+    public PlayerCharacter Character { get; set; }
 
     [JsonIgnore]
-    protected GameState _gameState { get; init; }
+    public GameState gameState { get; set; }
 
     [JsonIgnore]
-    protected ILogger<CharacterJob> _logger { get; init; }
+    protected ILogger<CharacterJob> logger { get; init; } =
+        LoggerFactory.Create(AppLogger.options).CreateLogger<CharacterJob>();
 
-    protected bool _shouldInterrupt { get; set; }
+    [JsonIgnore]
+    protected bool ShouldInterrupt { get; set; }
 
-    public string? Code { get; init; }
+    public string Code { get; init; } = "";
+
+    public delegate Task OnSuccessEndHook();
+
+    public OnSuccessEndHook onSuccessEndHook = () =>
+    {
+        return Task.Run(() => { });
+    };
 
     protected CharacterJob(PlayerCharacter playerCharacter, GameState gameState)
     {
-        Id = Guid.NewGuid();
-        _playerCharacter = playerCharacter;
-        _logger = LoggerFactory.Create(AppLogger.options).CreateLogger<CharacterJob>();
-        _gameState = gameState;
-        // _gameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
+        Character = playerCharacter;
+        this.gameState = gameState;
     }
 
-    public abstract Task<OneOf<AppError, None>> RunAsync();
+    protected abstract Task<OneOf<AppError, None>> ExecuteAsync();
+
+    /**
+    * This function is how the job is started. It's responsible for calling ExecuteAsync, and other hooks
+    */
+    public async Task<OneOf<AppError, None>> StartJobAsync()
+    {
+        var result = await ExecuteAsync();
+
+        switch (result.Value)
+        {
+            case AppError appError:
+                return appError;
+        }
+        await onSuccessEndHook.Invoke();
+        return new None();
+    }
 
     public virtual void Interrrupt()
     {
-        _shouldInterrupt = true;
+        ShouldInterrupt = true;
     }
 
     public virtual Task<List<CharacterJob>> GetJobs()

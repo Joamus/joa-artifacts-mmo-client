@@ -13,27 +13,24 @@ public class CookEverythingInInventory : CharacterJob
     public CookEverythingInInventory(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
-    public override Task<OneOf<AppError, None>> RunAsync()
+    protected override Task<OneOf<AppError, None>> ExecuteAsync()
     {
         Dictionary<string, int> ingredientAmounts = new();
         Dictionary<string, ItemSchema> potentialFoodsToCook = new();
 
-        foreach (var item in _playerCharacter.Character.Inventory)
+        foreach (var item in Character.Schema.Inventory)
         {
-            bool isIngredient = _gameState.CraftingLookupDict.ContainsKey(item.Code);
+            bool isIngredient = gameState.CraftingLookupDict.ContainsKey(item.Code);
 
             if (isIngredient)
             {
                 ingredientAmounts.Add(item.Code, item.Quantity);
 
-                var foods = _gameState.CraftingLookupDict[item.Code];
+                var foods = gameState.CraftingLookupDict[item.Code];
 
                 foreach (var food in foods)
                 {
-                    if (
-                        _playerCharacter.Character.CookingLevel >= food.Level
-                        && food.Subtype == "food"
-                    )
+                    if (Character.Schema.CookingLevel >= food.Level && food.Subtype == "food")
                     {
                         potentialFoodsToCook.Add(food.Code, food);
                     }
@@ -48,7 +45,7 @@ public class CookEverythingInInventory : CharacterJob
             foodsToCook.Add(food.Value);
         }
 
-        CalculationService.SortFoodBasedOnHealValue(foodsToCook);
+        CalculationService.SortItemsBasedOnEffect(foodsToCook, "heal");
 
         List<CharacterJob> jobs = [];
 
@@ -104,19 +101,14 @@ public class CookEverythingInInventory : CharacterJob
                 }
 
                 jobs.Add(
-                    new CraftItem(
-                        _playerCharacter,
-                        _gameState,
-                        food.Code,
-                        amountThatCanBeCooked.Value
-                    )
+                    new CraftItem(Character, gameState, food.Code, amountThatCanBeCooked.Value)
                 );
             }
         }
 
         if (jobs.Count > 0)
         {
-            _playerCharacter.QueueJobsAfter(Id, jobs);
+            Character.QueueJobsAfter(Id, jobs);
         }
 
         return Task.FromResult<OneOf<AppError, None>>(new None());

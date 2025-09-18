@@ -1,3 +1,4 @@
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
@@ -12,12 +13,12 @@ namespace Application.Jobs;
 /*
  * Looks in the bank, or possibly has another player deliver item to bank maybe?
 */
-public class CollectItem : CharacterJob
+public class WithdrawItem : CharacterJob
 {
     private readonly bool _canTriggerObtain = false;
     private int _amount { get; set; }
 
-    public CollectItem(
+    public WithdrawItem(
         PlayerCharacter character,
         GameState gameState,
         string code,
@@ -31,7 +32,7 @@ public class CollectItem : CharacterJob
         _canTriggerObtain = canTriggerObtain;
     }
 
-    public override async Task<OneOf<AppError, None>> RunAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         var accountRequester = GameServiceProvider.GetInstance().GetService<AccountRequester>()!;
 
@@ -51,21 +52,20 @@ public class CollectItem : CharacterJob
             foundQuantity = Math.Min(_amount, matchingItemInBank.Quantity);
         }
 
-        if (_playerCharacter.GetInventorySpaceLeft() < foundQuantity)
+        if (Character.GetInventorySpaceLeft() < foundQuantity)
         {
-            _playerCharacter.QueueJobsBefore(
-                Id,
-                [new DepositUnneededItems(_playerCharacter, _gameState)]
-            );
+            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
             return new None();
         }
 
         if (foundQuantity > 0)
         {
-            await _playerCharacter.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
-            var withdrawResult = await _playerCharacter.WithdrawBankItem(Code, foundQuantity);
+            await Character.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
+            var withdrawResult = await Character.WithdrawBankItem(
+                [new WithdrawOrDepositItemRequest { Code = Code!, Quantity = foundQuantity }]
+            );
             // There can be a clash
-            if (withdrawResult.Value is None _)
+            if (withdrawResult.Value is None)
             {
                 return new None();
             }
@@ -73,10 +73,7 @@ public class CollectItem : CharacterJob
 
         if (_canTriggerObtain)
         {
-            _playerCharacter.QueueJobsAfter(
-                Id,
-                [new ObtainItem(_playerCharacter, _gameState, Code, _amount)]
-            );
+            Character.QueueJobsAfter(Id, [new ObtainItem(Character, gameState, Code, _amount)]);
             return new None();
         }
         else
