@@ -24,7 +24,7 @@ public class PlayerActionService
 
     private readonly ILogger<PlayerActionService> Logger;
 
-    private readonly PlayerCharacter PlayerCharacter;
+    private readonly PlayerCharacter Character;
 
     public PlayerActionService(
         ILogger<PlayerActionService> logger,
@@ -34,7 +34,7 @@ public class PlayerActionService
     {
         Logger = logger;
         GameState = gameState;
-        PlayerCharacter = character;
+        Character = character;
     }
 
     public async Task<OneOf<AppError, None>> NavigateTo(string code, ContentType contentType)
@@ -98,8 +98,8 @@ public class PlayerActionService
             {
                 closestMap = map;
                 closestCost = CalculationService.CalculateDistanceToMap(
-                    PlayerCharacter.Schema.X,
-                    PlayerCharacter.Schema.Y,
+                    Character.Schema.X,
+                    Character.Schema.Y,
                     map.X,
                     map.Y
                 );
@@ -107,8 +107,8 @@ public class PlayerActionService
             }
 
             int cost = CalculationService.CalculateDistanceToMap(
-                PlayerCharacter.Schema.X,
-                PlayerCharacter.Schema.Y,
+                Character.Schema.X,
+                Character.Schema.Y,
                 map.X,
                 map.Y
             );
@@ -132,14 +132,14 @@ public class PlayerActionService
             return new AppError("Could not find closest map", ErrorStatus.NotFound);
         }
 
-        await PlayerCharacter.Move(closestMap.X, closestMap.Y);
+        await Character.Move(closestMap.X, closestMap.Y);
 
         return new None();
     }
 
     public async Task<OneOf<AppError, None>> SmartItemEquip(string code, int quantity = 1)
     {
-        var item = PlayerCharacter.GetItemFromInventory(code);
+        var item = Character.GetItemFromInventory(code);
 
         if (item is null)
         {
@@ -203,7 +203,7 @@ public class PlayerActionService
         }
         else
         {
-            itemSlot = PlayerCharacter.GetEquipmentSlot(
+            itemSlot = Character.GetEquipmentSlot(
                 (matchingItem.Type + "_slot").FromSnakeToPascalCase()
             );
         }
@@ -226,7 +226,7 @@ public class PlayerActionService
 
                         int amountToEquip = Math.Min(amountThatCanBeAdded, quantity);
 
-                        await PlayerCharacter.EquipItem(code, equipmentSlot.Slot, amountToEquip);
+                        await Character.EquipItem(code, equipmentSlot.Slot, amountToEquip);
 
                         return new None();
                     }
@@ -235,7 +235,7 @@ public class PlayerActionService
                 }
 
                 // TODO FIX
-                await PlayerCharacter.EquipItem(
+                await Character.EquipItem(
                     code,
                     equipmentSlot.Slot.FromPascalToSnakeCase(),
                     quantity
@@ -249,111 +249,220 @@ public class PlayerActionService
         return new None();
     }
 
-    public async Task<OneOf<AppError, None>> EquipBestFightEquipment(MonsterSchema monster)
+    // public OneOf<AppError, List<EquipmentSlot>> FindBestFightEquipment(MonsterSchema monster)
+    // {
+    //     // ItemSchema? bestItemCandidate = GameState.ItemsDict.GetValueOrNull(
+    //     //     PlayerCharacter.Schema.WeaponSlot
+    //     // );
+
+    //     // if (bestItemCandidate is null)
+    //     // {
+    //     //     return new AppError(
+    //     //         $"Currently best weapon with code \"{PlayerCharacter.Schema.WeaponSlot}\" is null"
+    //     //     );
+    //     // }
+
+    //     // string initialItemCode = bestItemCandidate.Code;
+
+    //     // For now, we only check if we have better weapons
+    //     //
+    //     List<(string, string)> equipmentTypes =
+    //     [
+    //         ("weapon", "WeaponSlot"),
+    //         ("body_armor", "BodyArmorSlot"),
+    //         ("leg_armor", "LegArmorSlot"),
+    //         ("helmet", "HelmetSlot"),
+    //         ("boots", "BootsSlot"),
+    //         ("ring", "Ring1Slot"),
+    //         ("ring", "Ring2Slot"),
+    //         ("amulet", "AmuletSlot"),
+    //         ("shield", "ShieldSlot"),
+    //     ];
+
+    //     List<EquipmentSlot> itemsToEquip = [];
+
+    //     /*
+    //       This might not be the most optimal, but basically we go through each item type one by one, and find the best fit for every item to equip.
+    //       There are definitely cases we don't handle super well by doing this, because the characer might have a fire weapon, that will be better
+    //       with a specific armor set, because it gives more fire damage, but we will never consider that scenario, because the fire weapon might be
+    //       disqualified in the "weapon" round, because it's not the best item.
+
+    //       We will need a recursive function that calculates all combinations, but for now, this will be good enough to ensure that the characters
+    //       put on their equipment before fighting, if they have any in their inventory, and in general will use decent equipment.
+    //     */
+    //     var bestSchemaCandiate = Character.Schema with
+    //     { };
+    //     var bestFightResult = FightSimulator.CalculateFightOutcome(bestSchemaCandiate, monster);
+
+    //     int bestItemAmount = 1;
+
+    //     foreach (var (equipmentType, equipmentSlot) in equipmentTypes)
+    //     {
+    //         var items = Character.GetItemsFromInventoryWithType(equipmentType);
+
+    //         if (items.Count == 0)
+    //         {
+    //             continue;
+    //         }
+
+    //         // var equippedItem = PlayerCharacter.GetEquipmentSlot(equipmentSlot);
+    //         EquipmentSlot? equippedItem = null;
+
+    //         switch (Character.GetEquipmentSlot(equipmentSlot).Value)
+    //         {
+    //             case AppError error:
+    //                 return error;
+    //             case EquipmentSlot slot:
+    //                 equippedItem = slot;
+    //                 break;
+    //         }
+
+    //         ItemSchema? bestItemCandidate = GameState.ItemsDict.GetValueOrNull(equippedItem!.Code);
+
+    //         if (bestItemCandidate is null)
+    //         {
+    //             return new AppError(
+    //                 $"Currently best weapon with code \"{Character.Schema.WeaponSlot}\" is null"
+    //             );
+    //         }
+
+    //         string initialItemCode = bestItemCandidate.Code;
+
+    //         foreach (var item in items)
+    //         {
+    //             ItemSchema? itemSchema = GameState.ItemsDict.GetValueOrNull(item.Item.Code);
+
+    //             if (itemSchema is null)
+    //             {
+    //                 return new AppError(
+    //                     $"Current weapon with code \"{item.Item.Code}\" is null - should never happen"
+    //                 );
+    //             }
+
+    //             if (!ItemService.CanUseItem(itemSchema, Character.Schema.Level))
+    //             {
+    //                 continue;
+    //             }
+
+    //             var characterSchema = bestSchemaCandiate with { };
+
+    //             characterSchema = SimulateItemEquip(
+    //                 characterSchema,
+    //                 bestItemCandidate,
+    //                 itemSchema,
+    //                 equipmentSlot,
+    //                 1
+    //             );
+
+    //             var fightOutcome = FightSimulator.CalculateFightOutcome(characterSchema, monster);
+
+    //             if (
+    //                 fightOutcome.Result == FightResult.Win
+    //                 && (
+    //                     bestFightResult.Result != FightResult.Win
+    //                     || fightOutcome.PlayerHp > bestFightResult.PlayerHp
+    //                 )
+    //             )
+    //             {
+    //                 bestFightResult = fightOutcome;
+    //                 bestItemCandidate = item.Item;
+    //                 bestSchemaCandiate = characterSchema;
+    //                 bestItemAmount = item.Item.Subtype == "utility" ? item.Quantity : 1;
+    //             }
+    //         }
+
+    //         if (initialItemCode != bestItemCandidate.Code)
+    //         {
+    //             string snakeCaseSlot = equipmentSlot.FromPascalToSnakeCase();
+
+    //             Logger.LogInformation(
+    //                 $"FindBestFightEquipment: Should swap \"{initialItemCode}\" -> \"{bestItemCandidate.Code}\" in slot \"{snakeCaseSlot}\" for {Character.Schema.Name} when fighting \"{monster.Code}\""
+    //             );
+
+    //             itemsToEquip.Add(
+    //                 new EquipmentSlot
+    //                 {
+    //                     Code = bestItemCandidate.Code,
+    //                     Slot = snakeCaseSlot,
+    //                     Quantity = bestItemAmount,
+    //                 }
+    //             );
+    //         }
+    //     }
+
+    //     return itemsToEquip;
+    // }
+
+    public async Task<None> EquipBestFightEquipment(MonsterSchema monster)
     {
-        // Save a FightResult with the current equipment
-        // Copy the current character schema into a variabe
-        // Loop through all equipable items in inventory, and calculate the character schema stats, equipping this item
-        // If the result is better than the last one, replace the character schema outside of the loop with this one, write down in a list to equip it, else use the last one.
-        // At the end, equip all of the items that are in the list
-        //
+        var result = FightSimulator.FindBestFightEquipment(Character, GameState, monster);
 
-        if (PlayerCharacter.Schema.WeaponSlot is null)
+        foreach (var item in result.Item3)
         {
-            return new AppError($"Weapon slot was null - should never happen");
-        }
-
-        ItemSchema? bestWeaponCandidate = GameState.ItemsDict.GetValueOrNull(
-            PlayerCharacter.Schema.WeaponSlot
-        );
-
-        if (bestWeaponCandidate is null)
-        {
-            return new AppError(
-                $"Currently best weapon with code \"{PlayerCharacter.Schema.WeaponSlot}\" is null"
-            );
-        }
-
-        string initialWeaponCode = bestWeaponCandidate.Code;
-
-        // For now, we only check if we have better weapons
-
-        var weapons = PlayerCharacter.GetItemsFromInventoryWithType("weapon");
-
-        var bestSchemaCandiate = PlayerCharacter.Schema with { };
-
-        var bestFightResult = FightSimulator.CalculateFightOutcome(bestSchemaCandiate, monster);
-
-        foreach (var weapon in weapons)
-        {
-            ItemSchema? weaponSchema = GameState.ItemsDict.GetValueOrNull(weapon.Item.Code);
-
-            if (weaponSchema is null)
-            {
-                return new AppError(
-                    $"Current weapon with code \"{weapon.Item.Code}\" is null - should never happen"
-                );
-            }
-
-            if (!ItemService.CanUseItem(weaponSchema, PlayerCharacter.Schema.Level))
-            {
-                continue;
-            }
-
-            var characterSchema = bestSchemaCandiate with { };
-
-            // Subtract the existing effects from the PlayerSchema - then we apply the ones from our hypothetical weapon
-            foreach (var effect in bestWeaponCandidate!.Effects)
-            {
-                var matchingProperty = PlayerCharacter
-                    .Schema.GetType()
-                    .GetProperty(effect.Code.FromSnakeToPascalCase());
-
-                if (matchingProperty is not null)
-                {
-                    int currentValue = (int)matchingProperty.GetValue(characterSchema)!;
-                    matchingProperty.SetValue(characterSchema, currentValue - effect.Value);
-                }
-            }
-
-            foreach (var effect in weaponSchema.Effects)
-            {
-                var matchingProperty = PlayerCharacter
-                    .Schema.GetType()
-                    .GetProperty(effect.Code.FromSnakeToPascalCase());
-
-                if (matchingProperty is not null)
-                {
-                    int currentValue = (int)matchingProperty.GetValue(characterSchema)!;
-                    matchingProperty.SetValue(characterSchema, currentValue + effect.Value);
-                }
-            }
-
-            var fightOutcome = FightSimulator.CalculateFightOutcome(characterSchema, monster);
-
-            if (
-                fightOutcome.Result == FightResult.Win
-                && (
-                    bestFightResult.Result != FightResult.Win
-                    || fightOutcome.PlayerHp > bestFightResult.PlayerHp
-                )
-            )
-            {
-                bestFightResult = fightOutcome;
-                bestWeaponCandidate = weapon.Item;
-                bestSchemaCandiate = characterSchema;
-            }
-        }
-
-        if (initialWeaponCode != bestWeaponCandidate.Code)
-        {
-            Logger.LogInformation(
-                $"EquipBestFightEquipment: Swapping \"{initialWeaponCode}\" -> \"{bestWeaponCandidate.Code}\" for {PlayerCharacter.Schema.Name} when fighting \"{monster.Code}\""
-            );
-            await PlayerCharacter.SmartItemEquip(bestWeaponCandidate.Code);
+            await Character.EquipItem(item.Code, item.Slot, item.Quantity);
         }
 
         return new None();
+    }
+
+    public static CharacterSchema SimulateItemEquip(
+        CharacterSchema characterSchema,
+        ItemSchema? currentItem,
+        ItemSchema newItem,
+        string itemSlot,
+        int? amount
+    )
+    {
+        var type = characterSchema.GetType();
+
+        ItemSchema? equippedItem = currentItem;
+
+        var schemaWithNewItem = characterSchema with { };
+
+        if (equippedItem is not null)
+        {
+            foreach (var effect in equippedItem!.Effects)
+            {
+                var matchingProperty = type.GetProperty(effect.Code.FromSnakeToPascalCase());
+
+                if (matchingProperty is not null)
+                {
+                    int currentValue = (int)matchingProperty.GetValue(schemaWithNewItem)!;
+                    matchingProperty.SetValue(schemaWithNewItem, currentValue - effect.Value);
+                }
+            }
+        }
+
+        foreach (var effect in newItem.Effects)
+        {
+            var matchingProperty = type.GetProperty(effect.Code.FromSnakeToPascalCase());
+
+            if (matchingProperty is not null)
+            {
+                int currentValue = (int)matchingProperty.GetValue(schemaWithNewItem)!;
+                matchingProperty.SetValue(schemaWithNewItem, currentValue + effect.Value);
+            }
+        }
+
+        /**
+        * Change the equipped item in the schema, both for good measure, so we can read the schema to see which items we have equipped,
+        * but also so items like potions and runes will be simulated correctly, because the effects are not stat boosts, but need to be "calculated".
+        * TODO: Should probably find a better way to do this, than to use reflection, for performance reasons
+        */
+        type.GetProperty(itemSlot)!.SetValue(schemaWithNewItem, newItem.Code);
+
+        // For utility items
+        if (amount is not null && newItem.Type == "utility")
+        {
+            type.GetProperty(itemSlot + "_quantity")!.SetValue(schemaWithNewItem, amount);
+        }
+
+        if (schemaWithNewItem.MaxHp < schemaWithNewItem.Hp)
+        {
+            schemaWithNewItem.MaxHp = schemaWithNewItem.Hp;
+        }
+
+        return schemaWithNewItem;
     }
 
     public async Task<OneOf<AppError, None>> EquipBestGatheringEquipment(string skill)
@@ -372,7 +481,7 @@ public class PlayerActionService
             return new AppError($"Skill \"{skill}\" is not a valid gathering skill");
         }
 
-        foreach (var item in PlayerCharacter.Schema.Inventory)
+        foreach (var item in Character.Schema.Inventory)
         {
             var matchingItemInInventory = GameState.ItemsDict.ContainsKey(item.Code)
                 ? GameState.ItemsDict[item.Code]
@@ -404,14 +513,14 @@ public class PlayerActionService
                 // lowest bonus, if the ring we are evaluating has higher than any of the other.
                 if (itemSlotsTheItemFits.Count() > 0)
                 {
-                    var equippedItem = PlayerCharacter.GetEquipmentSlot(itemSlotsTheItemFits[0]);
+                    var equippedItem = Character.GetEquipmentSlot(itemSlotsTheItemFits[0]);
 
                     switch (equippedItem.Value)
                     {
                         case EquipmentSlot equipmentSlot:
                             if (equipmentSlot.Code == "")
                             {
-                                await PlayerCharacter.SmartItemEquip(matchingItemInInventory.Code);
+                                await Character.SmartItemEquip(matchingItemInInventory.Code);
                             }
                             else
                             {
@@ -435,12 +544,10 @@ public class PlayerActionService
                                 if (equippedItemValue > itemInInventoryEffect.Value)
                                 {
                                     Logger.LogInformation(
-                                        $"EquipBestGatheringEquipment: Equipping \"{item.Code}\" instead of \"{equipmentSlot.Code}\" for {PlayerCharacter.Schema.Name} for \"{skill}\""
+                                        $"EquipBestGatheringEquipment: Equipping \"{item.Code}\" instead of \"{equipmentSlot.Code}\" for {Character.Schema.Name} for \"{skill}\""
                                     );
 
-                                    await PlayerCharacter.SmartItemEquip(
-                                        matchingItemInInventory.Code
-                                    );
+                                    await Character.SmartItemEquip(matchingItemInInventory.Code);
                                 }
                             }
                             break;
@@ -466,7 +573,7 @@ public class PlayerActionService
 
         foreach (var slot in itemSlotCodes)
         {
-            var thisSlot = PlayerCharacter.GetEquipmentSlot(slot);
+            var thisSlot = Character.GetEquipmentSlot(slot);
 
             switch (thisSlot.Value)
             {

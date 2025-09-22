@@ -46,13 +46,31 @@ public static class CharacterEndpoints
             .Produces<OneOf<None, AppError>>();
 
         group
-            .MapPost("/{name}/job/train/fight", TrainFight)
+            .MapPost("/{name}/job/gatherMaterialsForCraftItem", GatherMaterialsForCraftItem)
+            .WithName(nameof(GatherMaterialsForCraftItem))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+
+        group
+            .MapPost("/{name}/train/fight", TrainFight)
             .WithName(nameof(TrainRequest))
             .WithOpenApi()
             .Produces<OneOf<None, AppError>>();
+
         group
-            .MapPost("/{name}/job/train/{skill}", TrainSkill)
+            .MapPost("/{name}/train/skill", TrainSkill)
             .WithName(nameof(TrainSkill))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+        group
+            .MapPost("/{name}/task/item", ItemTask)
+            .WithName(nameof(ItemTask))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+
+        group
+            .MapPost("/{name}/task/monster", MonsterTask)
+            .WithName(nameof(MonsterTask))
             .WithOpenApi()
             .Produces<OneOf<None, AppError>>();
 
@@ -108,7 +126,7 @@ public static class CharacterEndpoints
         [FromServices] GameState gameState
     )
     {
-        return await FightEndpoint.FightMonster(name, request, gameState);
+        return await FightEndpoint.ProcessAsync(name, request, gameState);
     }
 
     static async Task<IResult> ObtainItem(
@@ -117,7 +135,7 @@ public static class CharacterEndpoints
         [FromServices] GameState gameState
     )
     {
-        return await ObtainItemEndpoint.ObtainItem(name, request, gameState);
+        return await ObtainItemEndpoint.ProcessAsync(name, request, gameState);
     }
 
     static async Task<IResult> Gather(
@@ -126,7 +144,16 @@ public static class CharacterEndpoints
         [FromServices] GameState gameState
     )
     {
-        return await GatherEndpoint.Gather(name, request, gameState);
+        return await GatherEndpoint.ProcessAsync(name, request, gameState);
+    }
+
+    static async Task<IResult> GatherMaterialsForCraftItem(
+        [FromRoute] string name,
+        [FromBody] GatherMaterialsForCraftItemEndpointRequest request,
+        [FromServices] GameState gameState
+    )
+    {
+        return await GatherMaterialsForCraftItemEndpoint.ProcessAsync(name, request, gameState);
     }
 
     static async Task<IResult> TrainSkill(
@@ -135,7 +162,7 @@ public static class CharacterEndpoints
         [FromServices] GameState gameState
     )
     {
-        return await TrainSkillEndpoint.TrainSkill(name, request, gameState);
+        return await TrainSkillEndpoint.ProcessAsync(name, request, gameState);
     }
 
     static async Task<IResult> TrainFight(
@@ -144,7 +171,25 @@ public static class CharacterEndpoints
         [FromServices] GameState gameState
     )
     {
-        return await TrainFightEndpoint.TrainFight(name, request, gameState);
+        return await TrainFightEndpoint.ProcessAsync(name, request, gameState);
+    }
+
+    static async Task<IResult> ItemTask(
+        [FromRoute] string name,
+        [FromBody] ItemTaskRequest request,
+        [FromServices] GameState gameState
+    )
+    {
+        return await ItemTaskEndpoint.ProcessAsync(name, request, gameState);
+    }
+
+    static async Task<IResult> MonsterTask(
+        [FromRoute] string name,
+        [FromBody] MonsterTaskRequest request,
+        [FromServices] GameState gameState
+    )
+    {
+        return await MonsterTaskEndpoint.ProcessAsync(name, request, gameState);
     }
 
     static async Task<IResult> ClearAll([FromRoute] string name, [FromServices] GameState gameState)

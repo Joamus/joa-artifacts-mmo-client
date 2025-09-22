@@ -46,6 +46,9 @@ public class PlayerCharacter
     [JsonIgnore]
     public PlayerActionService PlayerActionService { get; init; }
 
+    [JsonIgnore]
+    public ILogger Logger { get; init; }
+
     public bool Idle
     {
         get { return CurrentJob is null && Busy == false && Suspended == false; }
@@ -53,14 +56,9 @@ public class PlayerCharacter
 
     public bool Suspended { get; private set; }
 
-    public void SetBusy(bool busy)
+    public void Suspend(bool interrupt = true)
     {
-        Busy = true;
-    }
-
-    public void Suspend()
-    {
-        if (CurrentJob is not null)
+        if (CurrentJob is not null && interrupt)
         {
             CurrentJob.Interrrupt();
         }
@@ -185,6 +183,8 @@ public class PlayerCharacter
             return new None();
         }
 
+        Logger.LogInformation($"{GetType().Name}: [{Schema.Name}] run job start");
+
         CharacterJob? nextJob = null;
 
         if (Jobs.Count > 0)
@@ -213,12 +213,39 @@ public class PlayerCharacter
 
         if (CurrentJob is not null)
         {
-            var result = await CurrentJob.StartJobAsync();
+            OneOf<AppError, None>? result = null;
+            try
+            {
+                result = await CurrentJob.StartJobAsync();
+
+                switch (result.Value.Value)
+                {
+                    case AppError appError:
+                        Logger.LogError(
+                            $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()}"
+                        );
+                        Logger.LogError(appError.Message);
+                        break;
+                    case None:
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(
+                    $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - threw exception: {e.Message}"
+                );
+            }
+
+            if (result is not null)
+            {
+                Logger.LogInformation($"{GetType().Name}: [{Schema.Name}] run job completed");
+            }
 
             CurrentJob = null;
 
             Busy = false;
-            return result;
+            return result ?? new None();
         }
 
         return new None();
@@ -229,6 +256,8 @@ public class PlayerCharacter
         Schema = characterSchema;
         GameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
         ApiRequester = GameServiceProvider.GetInstance().GetService<ApiRequester>()!;
+        Logger = LoggerFactory.Create(AppLogger.options).CreateLogger<PlayerCharacter>();
+
         PlayerActionService = new PlayerActionService(
             LoggerFactory.Create(AppLogger.options).CreateLogger<PlayerActionService>(),
             GameState,

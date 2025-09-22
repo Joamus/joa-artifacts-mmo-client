@@ -1,5 +1,6 @@
 using System.Reflection.Metadata.Ecma335;
 using System.Security.Permissions;
+using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
@@ -28,9 +29,9 @@ public class GatherResourceItem : CharacterJob
 
     protected int ProgressAmount { get; set; } = 0;
 
-    private bool AllowUsingInventory { get; init; }
+    public bool AllowUsingInventory { get; set; } = false;
 
-    public bool CanTriggerTraining { get; set; }
+    public bool CanTriggerTraining { get; set; } = true;
 
     public GatherResourceItem(
         PlayerCharacter playerCharacter,
@@ -44,6 +45,21 @@ public class GatherResourceItem : CharacterJob
         Code = code;
         Amount = amount;
         AllowUsingInventory = allowUsingInventory;
+    }
+
+    public void ForBank()
+    {
+        onSuccessEndHook += () =>
+        {
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
+            );
+            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+
+            Character.QueueJob(depositItemJob, true);
+
+            return Task.Run(() => { });
+        };
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -71,11 +87,13 @@ public class GatherResourceItem : CharacterJob
             if (DepositUnneededItems.ShouldInitDepositItems(Character))
             {
                 Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+                Status = JobStatus.Suspend;
                 return new None();
             }
 
             if (ShouldInterrupt)
             {
+                Status = JobStatus.Suspend;
                 return new None();
             }
 
@@ -93,6 +111,7 @@ public class GatherResourceItem : CharacterJob
             switch (result.Value)
             {
                 case AppError jobError:
+                    Status = JobStatus.Failed;
                     return jobError;
                 default:
                     // Just continue
@@ -140,10 +159,30 @@ public class GatherResourceItem : CharacterJob
 
         if (matchingItem.Level > characterSkillLevel)
         {
-            return new AppError(
-                $"Could not gather item {Code} - current skill level is {characterSkillLevel}, required is {matchingItem.Level}",
-                ErrorStatus.InsufficientSkill
-            );
+            if (CanTriggerTraining)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] has too low gathering skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype} - training until they can craft the item"
+                );
+                Skill skill = TrainSkill.GetSkillFromName(matchingItem.Subtype);
+
+                Character.QueueJobsBefore(
+                    Id,
+                    [new TrainSkill(Character, gameState, skill, matchingItem.Level)]
+                );
+                Status = JobStatus.Suspend;
+                return new None();
+            }
+            else
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype} - training until they can gather the item"
+                );
+                return new AppError(
+                    $"Could not gather item {Code} - current skill level is {characterSkillLevel}, required is {matchingItem.Level}",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
         }
 
         await Character.NavigateTo(Code, ContentType.Resource);

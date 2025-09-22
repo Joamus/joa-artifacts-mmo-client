@@ -48,6 +48,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
                 $"{GetType().Name}: [{Character.Schema.Name}] queueing another task - have {amountInInventory}/{Amount} currently"
             );
             Character.QueueJobsBefore(Id, [task]);
+            Status = JobStatus.Suspend;
             return new None();
         }
 

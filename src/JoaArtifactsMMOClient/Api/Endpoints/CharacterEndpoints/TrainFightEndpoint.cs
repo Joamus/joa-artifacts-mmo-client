@@ -6,7 +6,7 @@ namespace Api.Endpoints;
 
 public static class TrainFightEndpoint
 {
-    public static async Task<IResult> TrainFight(
+    public static async Task<IResult> ProcessAsync(
         string name,
         TrainRequest request,
         GameState gameState
@@ -21,7 +21,7 @@ public static class TrainFightEndpoint
             return TypedResults.NotFound();
         }
 
-        matchingCharacter.Suspend();
+        matchingCharacter.Suspend(false);
 
         // if (!string.IsNullOrEmpty(request.ItemCode))
         // {

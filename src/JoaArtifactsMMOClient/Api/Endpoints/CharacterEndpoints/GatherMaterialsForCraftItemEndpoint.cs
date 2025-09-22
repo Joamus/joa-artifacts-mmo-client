@@ -3,11 +3,11 @@ using Application.Jobs;
 
 namespace Api.Endpoints;
 
-public static class ObtainItemEndpoint
+public static class GatherMaterialsForCraftItemEndpoint
 {
     public static async Task<IResult> ProcessAsync(
         string name,
-        ObtainItemRequest request,
+        GatherMaterialsForCraftItemEndpointRequest request,
         GameState gameState
     )
     {
@@ -24,28 +24,32 @@ public static class ObtainItemEndpoint
 
         for (int i = 0; i < request.Repeat; i++)
         {
-            var job = new ObtainItem(matchingCharacter, gameState, request.Code, request.Amount);
-            // job.AllowUsingMaterialsFromInventory = request.AllowUsingMaterialsFromInventory;
+            var job = new GatherMaterialsForItem(
+                matchingCharacter,
+                gameState,
+                request.Code,
+                request.Amount
+            );
             job.AllowUsingMaterialsFromBank = request.AllowUsingMaterialsFromBank;
 
             if (request.ForBank)
             {
                 job.ForBank();
             }
-            else if (!string.IsNullOrEmpty(request.ForCharacter))
+            else if (!string.IsNullOrEmpty(request.CraftBy))
             {
                 var recipientCharacter = gameState.Characters.FirstOrDefault(character =>
-                    character.Schema.Name == request.ForCharacter
+                    character.Schema.Name == request.CraftBy
                 );
 
                 if (recipientCharacter is null)
                 {
                     return TypedResults.NotFound(
-                        $"Recipient character \"{request.ForCharacter}\" not found"
+                        $"Recipient character \"{request.CraftBy}\" not found"
                     );
                 }
 
-                job.ForCharacter(recipientCharacter);
+                job.Character = recipientCharacter;
             }
 
             if (request.Idle)
@@ -62,15 +66,13 @@ public static class ObtainItemEndpoint
     }
 }
 
-public record ObtainItemRequest : GenericActionRequest
+public record GatherMaterialsForCraftItemEndpointRequest : GenericActionRequest
 {
     public required string Code { get; set; }
     public int Amount { get; set; } = 1;
     public int Repeat { get; set; } = 1;
     public required bool AllowUsingMaterialsFromBank { get; set; } = true;
 
-    // public required bool AllowUsingMaterialsFromInventory { get; set; } = true;
-    //
     public bool ForBank { get; set; } = true;
-    public string? ForCharacter { get; set; } = null;
+    public string? CraftBy { get; set; } = null;
 }

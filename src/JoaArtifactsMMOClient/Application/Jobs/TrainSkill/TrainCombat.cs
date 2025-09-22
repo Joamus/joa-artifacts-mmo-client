@@ -1,0 +1,103 @@
+using Application.ArtifactsApi.Schemas;
+using Application.Character;
+using Application.Errors;
+using Applicaton.Services.FightSimulator;
+using OneOf;
+using OneOf.Types;
+
+namespace Application.Jobs;
+
+public class TrainCombat : CharacterJob
+{
+    public static readonly int AMOUNT_TO_KILL = 20;
+    public int UntilLevel { get; init; }
+
+    public TrainCombat(PlayerCharacter character, GameState gameState, int UntilLevel)
+        : base(character, gameState) { }
+
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
+    {
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] run started - training combat until level {UntilLevel}"
+        );
+        int playerLevel = Character.Schema.Level;
+
+        if (playerLevel < UntilLevel)
+        {
+            var result = await GetJobRequired(playerLevel);
+
+            switch (result.Value)
+            {
+                case CharacterJob job:
+                    Character.QueueJobsBefore(Id, [job]);
+                    Status = JobStatus.Suspend;
+                    break;
+                case AppError error:
+                    return error;
+            }
+        }
+
+        return new None();
+    }
+
+    public async Task<OneOf<AppError, CharacterJob>> GetJobRequired(int playerLevel)
+    {
+        OutcomeCandidate? bestMonsterCandidate = null;
+
+        foreach (var monster in gameState.Monsters)
+        {
+            // Our character might be able to punch above their weight
+            if (playerLevel - monster.Level <= 10 || playerLevel < monster.Level + 5)
+            {
+                continue;
+            }
+
+            int LevelDifference = playerLevel - monster.Level;
+
+            var outcome = FightSimulator.CalculateFightOutcome(Character.Schema, monster, true);
+
+            var candidate = new OutcomeCandidate
+            {
+                FightOutcome = outcome,
+                MonsterCode = monster.Code,
+                LevelDifference = LevelDifference,
+            };
+
+            if (outcome.ShouldFight)
+            {
+                if (bestMonsterCandidate is null)
+                {
+                    bestMonsterCandidate = candidate;
+                    continue;
+                }
+
+                // We always want to prioritize fighting monsters as close to the character's level as possible, to avoid an XP penalty.
+
+                if (candidate.LevelDifference < bestMonsterCandidate.LevelDifference)
+                {
+                    if (
+                        candidate.FightOutcome.TotalTurns
+                        <= bestMonsterCandidate.FightOutcome.TotalTurns
+                    )
+                    {
+                        bestMonsterCandidate = candidate;
+                    }
+                }
+            }
+        }
+
+        return new FightMonster(
+            Character,
+            gameState,
+            bestMonsterCandidate!.MonsterCode,
+            AMOUNT_TO_KILL
+        );
+    }
+}
+
+record OutcomeCandidate
+{
+    public required FightOutcome FightOutcome;
+    public required string MonsterCode;
+    public required int LevelDifference;
+}

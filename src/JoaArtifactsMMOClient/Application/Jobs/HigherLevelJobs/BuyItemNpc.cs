@@ -9,9 +9,9 @@ namespace Application.Jobs;
 
 public class BuyItemNpc : CharacterJob
 {
-    readonly bool allowObtainingCurrency = false;
-    readonly bool useInventory = false;
-    readonly bool useBank = false;
+    public bool AllowObtainingCurrency { get; set; } = false;
+    public bool UseInventory { get; set; } = false;
+    public bool UseBank { get; set; } = false;
     readonly int amount;
 
     // public BuyItemNpc(PlayerCharacter playerCharacter, GameState gameState)
@@ -28,7 +28,7 @@ public class BuyItemNpc : CharacterJob
     )
         : base(playerCharacter, gameState)
     {
-        this.allowObtainingCurrency = allowObtainingCurrency;
+        AllowObtainingCurrency = allowObtainingCurrency;
         Code = code;
         this.amount = amount;
     }
@@ -57,7 +57,7 @@ public class BuyItemNpc : CharacterJob
 
         int amountLeft = amount * itemToBuy.BuyPrice ?? 0;
 
-        if (useBank)
+        if (UseBank)
         {
             if (isGold)
             {
@@ -84,7 +84,7 @@ public class BuyItemNpc : CharacterJob
             }
         }
 
-        if (amountLeft > 0 && useInventory && !isGold)
+        if (amountLeft > 0 && UseInventory && !isGold)
         {
             var itemInInventory = Character.GetItemFromInventory(matchingCurrency.Code);
 
@@ -100,7 +100,7 @@ public class BuyItemNpc : CharacterJob
         }
 
         // Only do this if we still need materials.
-        if (amountLeft > 0 && allowObtainingCurrency)
+        if (amountLeft > 0 && AllowObtainingCurrency)
         {
             if (itemToBuy.Currency == "gold")
             {
@@ -111,6 +111,8 @@ public class BuyItemNpc : CharacterJob
                 jobs.Add(new ObtainItem(Character, gameState, matchingCurrency.Code, amountLeft));
 
                 Character.QueueJobsBefore(Id, jobs);
+                Status = JobStatus.Suspend;
+                return new None();
             }
         }
 

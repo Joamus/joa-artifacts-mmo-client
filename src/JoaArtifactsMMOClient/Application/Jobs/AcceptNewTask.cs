@@ -30,7 +30,7 @@ public class AcceptNewTask : CharacterJob
 
         if (Character.Schema.Task != "")
         {
-            return new AppError($"Character already has a task ${Character.Schema.Task}");
+            return new AppError($"Character already has a task {Character.Schema.Task}");
         }
 
         await Character.NavigateTo("monsters", ContentType.TasksMaster);

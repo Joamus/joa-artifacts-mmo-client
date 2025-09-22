@@ -1,3 +1,5 @@
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using Api.Endpoints;
 using Application;
 using Application.Artifacts.Schemas;
@@ -7,7 +9,7 @@ namespace Api.Endpoints;
 
 public static class TrainSkillEndpoint
 {
-    public static async Task<IResult> TrainSkill(
+    public static async Task<IResult> ProcessAsync(
         string name,
         TrainSkillRequest request,
         GameState gameState
@@ -22,7 +24,7 @@ public static class TrainSkillEndpoint
             return TypedResults.NotFound();
         }
 
-        matchingCharacter.Suspend();
+        matchingCharacter.Suspend(false);
 
         var until =
             request.RelativeLevel > 0
@@ -66,11 +68,12 @@ public static class TrainSkillEndpoint
 
 public record TrainSkillRequest : TrainRequest
 {
+    [JsonPropertyName("Skill")]
     public required Skill Skill { get; set; }
 }
 
 public record TrainRequest : GenericActionRequest
 {
-    public int UntilLevel { get; set; }
-    public int RelativeLevel { get; set; }
+    public int UntilLevel { get; set; } = 0;
+    public int RelativeLevel { get; set; } = 0;
 }

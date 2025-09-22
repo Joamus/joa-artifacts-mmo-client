@@ -11,6 +11,7 @@ namespace Application.Jobs;
 public abstract class CharacterJob
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+    public JobStatus Status = JobStatus.New;
 
     public CharacterJob? ParentJob { get; private set; }
 
@@ -54,9 +55,23 @@ public abstract class CharacterJob
         switch (result.Value)
         {
             case AppError appError:
+                Status = JobStatus.Failed;
                 return appError;
         }
-        await onSuccessEndHook.Invoke();
+
+        /**
+         * No need to explictly set it in each ExecuteAsync job, we assume a job is completed unless it
+         * was suspended or failed
+         */
+        if (Status == JobStatus.New)
+        {
+            Status = JobStatus.Completed;
+        }
+
+        if (Status == JobStatus.Completed)
+        {
+            await onSuccessEndHook.Invoke();
+        }
         return new None();
     }
 
@@ -73,15 +88,10 @@ public abstract class CharacterJob
     }
 }
 
-enum JobPriority
-{
-    /** Jobs that are "idle" just mean that they are jobs the characters take up when not doing anything better. This possibly includes leveling up low level skills, maybe gearing up etc. */
-    Idle = 0,
-    Low = 1,
-    High = 2,
-}
-
 public enum JobStatus
 {
+    New,
+    Completed,
     Suspend,
+    Failed,
 }

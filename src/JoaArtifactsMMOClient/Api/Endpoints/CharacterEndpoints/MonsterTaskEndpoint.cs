@@ -3,11 +3,11 @@ using Application.Jobs;
 
 namespace Api.Endpoints;
 
-public static class GatherEndpoint
+public static class MonsterTaskEndpoint
 {
     public static async Task<IResult> ProcessAsync(
         string name,
-        GatherRequest request,
+        MonsterTaskRequest request,
         GameState gameState
     )
     {
@@ -23,11 +23,11 @@ public static class GatherEndpoint
 
         for (int i = 0; i < request.Repeat; i++)
         {
-            var job = new GatherResourceItem(
+            var job = new MonsterTask(
                 matchingCharacter,
                 gameState,
-                request.Code,
-                request.Amount
+                request.ItemCode,
+                request.ItemAmount
             );
 
             if (request.ForBank)
@@ -44,11 +44,11 @@ public static class GatherEndpoint
     }
 }
 
-public record GatherRequest : GenericActionRequest
+public record MonsterTaskRequest : GenericActionRequest
 {
-    public required string Code { get; set; }
-    public required int Amount { get; set; } = 1;
     public int Repeat { get; set; } = 1;
 
     public bool ForBank { get; set; } = true;
+    public string? ItemCode { get; set; }
+    public int? ItemAmount { get; set; }
 }

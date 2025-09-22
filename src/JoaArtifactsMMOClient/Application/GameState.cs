@@ -86,7 +86,7 @@ public class GameState
 
                 if (item.Type == "utility")
                 {
-                    UtilityItemsDict.Add(item.Code, item);
+                    utilityItemsDict.Add(item.Code, item);
                 }
 
                 if (item.Craft is not null)

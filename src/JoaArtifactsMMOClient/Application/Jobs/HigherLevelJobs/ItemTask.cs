@@ -13,6 +13,8 @@ public class ItemTask : CharacterJob
     public string? ItemCode { get; set; }
     public int? ItemAmount { get; set; }
 
+    public bool CanTriggerTraining { get; set; }
+
     public ItemTask(
         PlayerCharacter playerCharacter,
         GameState gameState,
@@ -23,6 +25,42 @@ public class ItemTask : CharacterJob
     {
         ItemCode = itemCode;
         ItemAmount = itemAmount;
+    }
+
+    public void ForBank()
+    {
+        onSuccessEndHook += () =>
+        {
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: running"
+            );
+
+            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coins")?.Quantity ?? 0;
+
+            if (taskCoinsAmount > 0)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositing them"
+                );
+                Character.QueueJob(
+                    new DepositItems(Character, gameState, "tasks_coins", taskCoinsAmount),
+                    true
+                );
+            }
+
+            if (ItemCode is not null && ItemAmount is not null)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositing them"
+                );
+                Character.QueueJob(
+                    new DepositItems(Character, gameState, ItemCode, (int)ItemAmount),
+                    true
+                );
+            }
+
+            return Task.Run(() => { });
+        };
     }
 
     protected override Task<OneOf<AppError, None>> ExecuteAsync()
@@ -38,6 +76,7 @@ public class ItemTask : CharacterJob
                 Id,
                 [new AcceptNewTask(Character, gameState, TaskType.items)]
             );
+            Status = JobStatus.Suspend;
             return Task.FromResult<OneOf<AppError, None>>(new None());
         }
 
@@ -65,12 +104,22 @@ public class ItemTask : CharacterJob
                 amount - progressAmount
             );
 
+            job.CanTriggerTraining = CanTriggerTraining;
+
             jobs.Add(job);
         }
 
         jobs.Add(new CompleteTask(Character, gameState, ItemCode, ItemAmount));
 
-        Character.QueueJobsAfter(Id, jobs);
+        if (jobs.Count > 0)
+        {
+            jobs.Last()!.onSuccessEndHook += onSuccessEndHook;
+
+            Character.QueueJobsAfter(Id, jobs);
+        }
+
+        // Reset it
+        onSuccessEndHook = () => Task.Run(() => { });
 
         logger.LogInformation(
             $"{GetType().Name}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"

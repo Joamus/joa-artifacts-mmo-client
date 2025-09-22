@@ -44,7 +44,7 @@ public class FightMonster : CharacterJob
         GameState gameState,
         string monsterCode,
         int amount,
-        string? itemCode
+        string itemCode
     )
         : base(playerCharacter, gameState)
     {
@@ -83,6 +83,9 @@ public class FightMonster : CharacterJob
                 return jobError;
         }
 
+        int initialAmount =
+            Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
+
         await Character.PlayerActionService.EquipBestFightEquipment(matchingMonster);
 
         while (Amount > ProgressAmount)
@@ -98,23 +101,29 @@ public class FightMonster : CharacterJob
             {
                 case AppError jobError:
                     return jobError;
-                case JobStatus jobStatus:
-                    switch (jobStatus)
-                    {
-                        case JobStatus.Suspend:
-                            return new None();
-                        default:
-                            throw new Exception("Unhandled case");
-                    }
                 default:
                     // Just continue
                     break;
             }
-            if (Mode == JobMode.Gather && AllowUsingMaterialsFromInventory)
-            {
-                int amountInInventory = Character.GetItemFromInventory(ItemCode)?.Quantity ?? 0;
 
-                ProgressAmount = amountInInventory;
+            if (Status == JobStatus.Suspend)
+            {
+                // Queued other jobs before this job
+                return new None();
+            }
+
+            if (Mode == JobMode.Gather)
+            {
+                int amountInInventory = Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0;
+
+                if (AllowUsingMaterialsFromInventory)
+                {
+                    ProgressAmount = amountInInventory;
+                }
+                else
+                {
+                    ProgressAmount = amountInInventory - initialAmount;
+                }
             }
         }
 
@@ -125,7 +134,7 @@ public class FightMonster : CharacterJob
         return new None();
     }
 
-    protected async Task<OneOf<AppError, None, JobStatus>> InnerJobAsync()
+    protected async Task<OneOf<AppError, None>> InnerJobAsync()
     {
         logger.LogInformation(
             $"{GetType().Name}: [{Character.Schema.Name}] status for {Character.Schema.Name} - fighting {Code} ({ProgressAmount}/{Amount})"
@@ -134,7 +143,8 @@ public class FightMonster : CharacterJob
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
             Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
-            return JobStatus.Suspend;
+            Status = JobStatus.Suspend;
+            return new None();
         }
 
         // Every time the fight routine starts, we just want to make sure he has some food.
@@ -152,23 +162,20 @@ public class FightMonster : CharacterJob
                     ),
                 ]
             );
-            return JobStatus.Suspend;
+            Status = JobStatus.Suspend;
+            return new None();
         }
 
-        await EquipPotionsIfNeeded();
+        var hasPotionsEquipped = await EquipPotionsIfNeeded();
 
-        if (ShouldObtainPotions())
+        if (!hasPotionsEquipped && IsThereAPotionToObtain())
         {
             Character.QueueJobsBefore(
                 Id,
-                [
-                    new ObtainSuitablePotions(
-                        Character,
-                        gameState,
-                        PlayerCharacter.AMOUNT_OF_POTIONS_TO_KEEP
-                    ),
-                ]
+                [new ObtainSuitablePotions(Character, gameState, GetPotionsToObtain(Character))]
             );
+            Status = JobStatus.Suspend;
+            return new None();
         }
 
         if (Character.Schema.Hp != Character.Schema.MaxHp)
@@ -326,7 +333,11 @@ public class FightMonster : CharacterJob
 
     public OneOf<AppError, None> IsPossible(MonsterSchema monster)
     {
-        var fightSimulation = FightSimulator.CalculateFightOutcome(Character.Schema, monster, true);
+        var fightSimulation = FightSimulator.CalculateFightOutcomeWithBestEquipment(
+            Character,
+            monster,
+            gameState
+        );
 
         if (fightSimulation.ShouldFight)
         {
@@ -335,7 +346,7 @@ public class FightMonster : CharacterJob
         else
         {
             return new AppError(
-                $"Should not fight ${Code} - outcome: {fightSimulation.Result} - remaining HP would be {fightSimulation.PlayerHp}",
+                $"Should not fight {Code} - outcome: {fightSimulation.Result} - remaining HP would be {fightSimulation.PlayerHp}",
                 ErrorStatus.InsufficientSkill
             );
         }
@@ -453,7 +464,7 @@ public class FightMonster : CharacterJob
         return true;
     }
 
-    public bool ShouldObtainPotions()
+    public bool IsThereAPotionToObtain()
     {
         ItemSchema? potionSuitableForLevel = ObtainSuitablePotions.GetMostSuitablePotion(
             Character,
@@ -461,6 +472,115 @@ public class FightMonster : CharacterJob
         );
 
         return potionSuitableForLevel is not null;
+    }
+
+    // public static SimulateFightoutcomesSwapEquipment()
+    // {
+    // Save a FightResult with the current equipment
+    // Copy the current character schema into a variabe
+    // Loop through all equipable items in inventory, and calculate the character schema stats, equipping this item
+    // If the result is better than the last one, replace the character schema outside of the loop with this one, write down in a list to equip it, else use the last one.
+    // At the end, equip all of the items that are in the list
+    //
+    //     if (PlayerCharacter.Schema.WeaponSlot is null)
+    //     {
+    //         return new AppError($"Weapon slot was null - should never happen");
+    //     }
+
+    //     ItemSchema? bestWeaponCandidate = GameState.ItemsDict.GetValueOrNull(
+    //         PlayerCharacter.Schema.WeaponSlot
+    //     );
+
+    //     if (bestWeaponCandidate is null)
+    //     {
+    //         return new AppError(
+    //             $"Currently best weapon with code \"{PlayerCharacter.Schema.WeaponSlot}\" is null"
+    //         );
+    //     }
+
+    //     string initialWeaponCode = bestWeaponCandidate.Code;
+
+    //     // For now, we only check if we have better weapons
+
+    //     var weapons = PlayerCharacter.GetItemsFromInventoryWithType("weapon");
+
+    //     var bestSchemaCandiate = PlayerCharacter.Schema with { };
+
+    //     var bestFightResult = FightSimulator.CalculateFightOutcome(bestSchemaCandiate, monster);
+
+    //     foreach (var weapon in weapons)
+    //     {
+    //         ItemSchema? weaponSchema = GameState.ItemsDict.GetValueOrNull(weapon.Item.Code);
+
+    //         if (weaponSchema is null)
+    //         {
+    //             return new AppError(
+    //                 $"Current weapon with code \"{weapon.Item.Code}\" is null - should never happen"
+    //             );
+    //         }
+
+    //         if (!ItemService.CanUseItem(weaponSchema, PlayerCharacter.Schema.Level))
+    //         {
+    //             continue;
+    //         }
+
+    //         var characterSchema = bestSchemaCandiate with { };
+
+    //         // Subtract the existing effects from the PlayerSchema - then we apply the ones from our hypothetical weapon
+    //         foreach (var effect in bestWeaponCandidate!.Effects)
+    //         {
+    //             var matchingProperty = PlayerCharacter
+    //                 .Schema.GetType()
+    //                 .GetProperty(effect.Code.FromSnakeToPascalCase());
+
+    //             if (matchingProperty is not null)
+    //             {
+    //                 int currentValue = (int)matchingProperty.GetValue(characterSchema)!;
+    //                 matchingProperty.SetValue(characterSchema, currentValue - effect.Value);
+    //             }
+    //         }
+
+    //         foreach (var effect in weaponSchema.Effects)
+    //         {
+    //             var matchingProperty = PlayerCharacter
+    //                 .Schema.GetType()
+    //                 .GetProperty(effect.Code.FromSnakeToPascalCase());
+
+    //             if (matchingProperty is not null)
+    //             {
+    //                 int currentValue = (int)matchingProperty.GetValue(characterSchema)!;
+    //                 matchingProperty.SetValue(characterSchema, currentValue + effect.Value);
+    //             }
+    //         }
+
+    //         var fightOutcome = FightSimulator.CalculateFightOutcome(characterSchema, monster);
+
+    //         if (
+    //             fightOutcome.Result == FightResult.Win
+    //             && (
+    //                 bestFightResult.Result != FightResult.Win
+    //                 || fightOutcome.PlayerHp > bestFightResult.PlayerHp
+    //             )
+    //         )
+    //         {
+    //             bestFightResult = fightOutcome;
+    //             bestWeaponCandidate = weapon.Item;
+    //             bestSchemaCandiate = characterSchema;
+    //         }
+    //     }
+    // }
+
+    public static int GetFoodToObtain(PlayerCharacter character)
+    {
+        return character.GetInventorySpaceLeft() / 4;
+    }
+
+    public static int GetPotionsToObtain(PlayerCharacter character)
+    {
+        // We want to ensure that we don't fill our inventory
+        int inventorySpaceLeft = character.GetInventorySpaceLeft();
+
+        return inventorySpaceLeft / 5;
     }
 }
 

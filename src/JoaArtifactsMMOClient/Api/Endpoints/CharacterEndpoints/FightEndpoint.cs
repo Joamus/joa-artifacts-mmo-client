@@ -6,7 +6,7 @@ namespace Api.Endpoints;
 
 public static class FightEndpoint
 {
-    public static async Task<IResult> FightMonster(
+    public static async Task<IResult> ProcessAsync(
         string name,
         FightRequest request,
         GameState gameState
@@ -21,7 +21,7 @@ public static class FightEndpoint
             return TypedResults.NotFound();
         }
 
-        matchingCharacter.Suspend();
+        matchingCharacter.Suspend(false);
 
         if (!string.IsNullOrEmpty(request.ItemCode))
         {

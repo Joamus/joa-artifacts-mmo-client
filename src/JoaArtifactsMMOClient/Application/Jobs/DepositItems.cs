@@ -29,7 +29,7 @@ public class DepositItems : CharacterJob
         if (itemInInventory is null)
         {
             return new AppError(
-                $"Could not deposit item(s) with code {Code} and amount ${_amount} - could not find it in inventory"
+                $"Could not deposit item(s) with code {Code} and amount {_amount} - could not find it in inventory"
             );
         }
 

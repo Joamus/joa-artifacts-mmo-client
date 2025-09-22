@@ -5,6 +5,7 @@ using Application.Errors;
 using Application.Services;
 using Application.Services.ApiServices;
 using Applicaton.Jobs;
+using Microsoft.AspNetCore.SignalR;
 using OneOf;
 using OneOf.Types;
 
@@ -15,7 +16,7 @@ namespace Application.Jobs;
 */
 public class WithdrawItem : CharacterJob
 {
-    private readonly bool _canTriggerObtain = false;
+    public bool CanTriggerObtain { get; set; }
     private int _amount { get; set; }
 
     public WithdrawItem(
@@ -29,7 +30,7 @@ public class WithdrawItem : CharacterJob
     {
         Code = code;
         _amount = amount;
-        _canTriggerObtain = canTriggerObtain;
+        CanTriggerObtain = canTriggerObtain;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -55,6 +56,7 @@ public class WithdrawItem : CharacterJob
         if (Character.GetInventorySpaceLeft() < foundQuantity)
         {
             Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            Status = JobStatus.Suspend;
             return new None();
         }
 
@@ -71,7 +73,7 @@ public class WithdrawItem : CharacterJob
             }
         }
 
-        if (_canTriggerObtain)
+        if (CanTriggerObtain)
         {
             Character.QueueJobsAfter(Id, [new ObtainItem(Character, gameState, Code, _amount)]);
             return new None();

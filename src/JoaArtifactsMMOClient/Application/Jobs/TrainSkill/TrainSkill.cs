@@ -5,6 +5,7 @@ using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
 using Applicaton.Services.FightSimulator;
+using Microsoft.Extensions.ObjectPool;
 using OneOf;
 using OneOf.Types;
 
@@ -21,7 +22,7 @@ public class TrainSkill : CharacterJob
     [
         "weaponcrafting",
         "gearcrafting",
-        "jewelcrafting",
+        "jewelrycrafting",
         "cooking",
         "alchemy",
     ];
@@ -33,6 +34,10 @@ public class TrainSkill : CharacterJob
     private string skillName { get; set; }
     public int UntilLevel { get; init; }
 
+    private static ILogger<TrainSkill> staticLogger = LoggerFactory
+        .Create(AppLogger.options)
+        .CreateLogger<TrainSkill>();
+
     public TrainSkill(PlayerCharacter character, GameState gameState, Skill skill, int untilLevel)
         : base(character, gameState)
     {
@@ -43,6 +48,9 @@ public class TrainSkill : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] run started - training {skillName} until level {UntilLevel}"
+        );
         int skillLevel = GetSkillLevel(skillName);
 
         SkillKind skillKind = GatheringSkills.Contains(skillName)
@@ -57,6 +65,7 @@ public class TrainSkill : CharacterJob
             {
                 case CharacterJob job:
                     Character.QueueJobsBefore(Id, [job]);
+                    Status = JobStatus.Suspend;
                     break;
                 case AppError error:
                     return error;
@@ -72,17 +81,6 @@ public class TrainSkill : CharacterJob
         int skillLevel
     )
     {
-        if (Skill == Skill.Cooking)
-        {
-            // Take a shortcut and just queue ObtainSuitableFood
-            // They will also level fishing a bit. It's the easiest way to level cooking
-            return new ObtainSuitableFood(
-                Character,
-                gameState,
-                PlayerCharacter.AMOUNT_OF_FOOD_TO_KEEP
-            );
-        }
-
         // We want to find the the thing that we can gather/craft that is closest to us in skill
 
         switch (skillKind)
@@ -109,13 +107,18 @@ public class TrainSkill : CharacterJob
                     );
                 }
 
-                return new GatherResourceItem(
+                var gatherJob = new GatherResourceItem(
                     Character,
                     gameState,
                     bestResource.Code,
                     AMOUNT_TO_GATHER_PER_JOB,
                     false
                 );
+
+                // We don't want to keep the items in our inventory forever - just craft them and deposit.
+                gatherJob.ForBank();
+
+                return gatherJob;
             case SkillKind.Crafting:
                 // We have to consider the amount of materials needed, and prioritize not having materials that require task items, etc.
 
@@ -129,7 +132,8 @@ public class TrainSkill : CharacterJob
                         item.Craft is not null
                         && GetSkillName(item.Craft.Skill) == skillName
                         && item.Level <= skillLevel
-                        && (skillLevel - item.Level) < LEVEL_DIFF_FOR_NO_XP
+                        && (skillLevel - item.Craft.Level) < LEVEL_DIFF_FOR_NO_XP
+                    // && ()
                     )
                     {
                         if (bestItemToCraft is null || bestItemToCraft.Level < item.Level)
@@ -137,15 +141,15 @@ public class TrainSkill : CharacterJob
                             // Jobs is mutated in the method
                             List<CharacterJob> jobs = [];
 
-                            await ObtainItem.GetJobsRequired(
-                                Character,
-                                gameState,
-                                true,
-                                [],
-                                jobs,
-                                item.Code,
-                                1
-                            );
+                            // await ObtainItem.GetJobsRequired(
+                            //     Character,
+                            //     gameState,
+                            //     true,
+                            //     [],
+                            //     jobs,
+                            //     item.Code,
+                            //     1
+                            // );
 
                             // Dumb implementation - we only want jobs where we can craft everything
                             if (
@@ -162,38 +166,57 @@ public class TrainSkill : CharacterJob
                     }
                 }
 
+                var bankItemsResponse = await gameState.AccountRequester.GetBankItems();
+
+                if (bankItemsResponse is null)
+                {
+                    return new AppError("Failed to get bank items");
+                }
+
+                // The difference in skill level is essentially a cost, because we get less XP.
                 itemToCraftCandidates.Sort(
                     (a, b) =>
                     {
-                        int aScore = 0;
-
-                        bool aNeedsTaskMaterials =
-                            a.Craft?.Items.Find(item =>
-                                gameState.ItemsDict.GetValueOrNull(item.Code)?.Subtype == "task"
+                        var resultA = (
+                            GetInconvenienceCostCraftItem(
+                                a,
+                                gameState,
+                                bankItemsResponse.Data,
+                                Character
                             )
-                                is not null;
+                        // + skillLevel
+                        // - a.Craft!.Level
+                        );
 
-                        aScore += aNeedsTaskMaterials ? 1 : 0;
+                        if (!resultA.Item1)
+                        {
+                            return 1;
+                        }
 
-                        bool aNeedsMonsterDropMaterials =
-                            a.Craft?.Items.Find(item =>
-                                gameState.ItemsDict.GetValueOrNull(item.Code)?.Subtype == "mob"
-                            )
-                                is not null;
+                        int resultAScore = resultA.Item2 + skillLevel - a.Craft!.Level;
 
-                        aScore += aNeedsMonsterDropMaterials ? 1 : 0;
+                        var resultB = GetInconvenienceCostCraftItem(
+                            b,
+                            gameState,
+                            bankItemsResponse.Data,
+                            Character
+                        );
 
-                        bool bNeedsTaskMaterials =
-                            b.Craft?.Items.Find(item =>
-                                gameState.ItemsDict.GetValueOrNull(item.Code)?.Subtype == "task"
-                            )
-                                is not null;
+                        int resultBScore = resultB.Item2 + skillLevel - b.Craft!.Level;
 
-                        return aNeedsTaskMaterials.CompareTo(bNeedsTaskMaterials);
+                        if (!resultB.Item1)
+                        {
+                            return 0;
+                        }
+
+                        return resultAScore.CompareTo(resultBScore);
                     }
                 );
 
-                // foreach (var candiate in itemToCraftCandidates) { }
+                bestItemToCraft =
+                    itemToCraftCandidates.FirstOrDefault(candidate =>
+                        skillLevel - candidate.Craft!.Level < 5 // there are basically always new items to craft every 5 levels
+                    ) ?? itemToCraftCandidates.ElementAtOrDefault(0);
 
                 if (bestItemToCraft is null)
                 {
@@ -214,12 +237,34 @@ public class TrainSkill : CharacterJob
                     );
                 }
 
-                return new ObtainItem(
+                // Weapon, gear, and jewel crafting often requires a lot of raw materials, which fill up the inventory faster.
+                // Cooking and alchemy rarely do, so we can cook/make potions in bigger batches.
+                int craftingAmount = 1;
+
+                if (Skill == Skill.Alchemy || Skill == Skill.Cooking)
+                {
+                    craftingAmount = 20;
+                }
+
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skillName} until level {UntilLevel}"
+                );
+
+                var obtainItemJob = new ObtainItem(
                     Character,
                     gameState,
                     bestItemToCraft.Code,
-                    1 // Craft 1 at a time, can take a lot of mats
+                    craftingAmount
                 );
+
+                obtainItemJob.AllowFindingItemInBank = false;
+                obtainItemJob.AllowUsingMaterialsFromBank = true;
+                obtainItemJob.AllowUsingMaterialsFromInventory = true;
+                // obtainItemJob.CanTriggerTraining = true;
+                // We don't want to keep the items in our inventory forever - just craft them and deposit.
+                obtainItemJob.ForBank();
+
+                return obtainItemJob;
         }
 
         return new AppError($"Could not find a way to train skill \"{skillName}\" to {skillLevel}");
@@ -236,7 +281,7 @@ public class TrainSkill : CharacterJob
         return value;
     }
 
-    public static int GetInconvenienceCostCraftItem(
+    public static (bool, int) GetInconvenienceCostCraftItem(
         ItemSchema item,
         GameState gameState,
         List<DropSchema> bankItems,
@@ -244,6 +289,7 @@ public class TrainSkill : CharacterJob
     )
     {
         int score = 0;
+        bool canObtain = true;
 
         if (item.Craft?.Items is not null)
         {
@@ -253,7 +299,7 @@ public class TrainSkill : CharacterJob
                     bankItems.Find(bankItem =>
                         bankItem.Code == _item.Code && bankItem.Quantity >= _item.Quantity
                     )
-                        is null;
+                        is not null;
 
                 if (matchInBank)
                 {
@@ -272,25 +318,41 @@ public class TrainSkill : CharacterJob
                         monster.Drops.Find(drop => drop.Code == _item.Code) is not null
                     );
 
+                    MonsterSchema? monsterWeCanFight = null;
+                    FightOutcome? monsterWeCanFightOutcome = null;
+
                     foreach (var monster in monstersThatDropTheItem)
                     {
-                        var fightOutcome = FightSimulator.CalculateFightOutcome(
-                            Character.Schema,
-                            monster
+                        var fightOutcome = FightSimulator.CalculateFightOutcomeWithBestEquipment(
+                            Character,
+                            monster,
+                            gameState
                         );
 
-                        if (fightOutcome.ShouldFight)
+                        if (
+                            fightOutcome!.ShouldFight
+                            && (
+                                monsterWeCanFightOutcome?.TotalTurns is null
+                                || monsterWeCanFightOutcome.TotalTurns > fightOutcome.TotalTurns
+                            )
+                        )
                         {
-                            score += 1;
+                            monsterWeCanFight = monster;
+                            monsterWeCanFightOutcome = fightOutcome;
+                            break;
                         }
                     }
 
-                    score += 100;
+                    if (monsterWeCanFight is not null)
+                    {
+                        score +=
+                            1 + (int)Math.Round((float)monsterWeCanFightOutcome!.TotalTurns / 10);
+                    }
                 }
             }
         }
 
-        return score;
+        return (canObtain, score);
     }
 
     public static string GetSkillName(Skill skill)
@@ -302,7 +364,7 @@ public class TrainSkill : CharacterJob
             case Skill.Gearcrafting:
                 return "gearcrafting";
             case Skill.Jewelrycrafting:
-                return "jewelcrafting";
+                return "jewelrycrafting";
             case Skill.Cooking:
                 return "cooking";
             case Skill.Woodcutting:
@@ -313,6 +375,31 @@ public class TrainSkill : CharacterJob
                 return "alchemy";
             case Skill.Fishing:
                 return "fishing";
+        }
+
+        throw new Exception($"Could not find skill - input: \"{skill}\"");
+    }
+
+    public static Skill GetSkillFromName(string skill)
+    {
+        switch (skill)
+        {
+            case "weaponcrafting":
+                return Skill.Weaponcrafting;
+            case "gearcrafting":
+                return Skill.Gearcrafting;
+            case "jewelrycrafting":
+                return Skill.Jewelrycrafting;
+            case "cooking":
+                return Skill.Cooking;
+            case "woodcutting":
+                return Skill.Woodcutting;
+            case "mining":
+                return Skill.Mining;
+            case "alchemy":
+                return Skill.Alchemy;
+            case "fishing":
+                return Skill.Fishing;
         }
 
         throw new Exception($"Could not find skill - input: \"{skill}\"");

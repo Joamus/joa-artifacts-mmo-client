@@ -62,7 +62,7 @@ You should maybe consider that the characters shouldn't all try to pick up the t
 and just run the jobs directly in order, with a delay. Or just insert them as the highest priority job, and then run them from there. Just make sure nothing else is also running jobs on the characters.
 
 
-It's probably easiest of all participants are ordered to deposit all of the resource they gathered,
+It's probably easiest if all participants are ordered to deposit all of the resource they gathered,
 - The order of operations is gonna be a bit tricky, because we should only do gather/fight jobs, until we ca
 
 

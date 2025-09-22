@@ -13,32 +13,53 @@ namespace Application.Jobs;
 
 public class CraftItem : CharacterJob
 {
-    protected string _code { get; init; }
-    protected int _amount { get; set; }
+    public int Amount { get; private set; }
 
-    protected int _progressAmount { get; set; } = 0;
+    protected int progressAmount { get; set; } = 0;
+
+    public bool CanTriggerTraining { get; set; } = true;
 
     public CraftItem(PlayerCharacter playerCharacter, GameState gameState, string code, int amount)
         : base(playerCharacter, gameState)
     {
-        _code = code;
-        _amount = amount;
+        Code = code;
+        Amount = amount;
+    }
+
+    public void ForBank()
+    {
+        onSuccessEndHook += () =>
+        {
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
+            );
+            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+
+            Character.QueueJob(depositItemJob, true);
+
+            return Task.Run(() => { });
+        };
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({progressAmount}/{Amount})"
+        );
+
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
             Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            Status = JobStatus.Suspend;
             return new None();
         }
 
-        var matchingItem = gameState.Items.Find(item => item.Code == _code);
+        var matchingItem = gameState.Items.Find(item => item.Code == Code);
 
         if (matchingItem is null || matchingItem.Craft is null)
         {
             return new AppError(
-                $"Could not find craftable item with code {_code} - could not craft it"
+                $"Could not find craftable item with code {Code} - could not craft it"
             );
         }
 
@@ -79,22 +100,44 @@ public class CraftItem : CharacterJob
 
         if (matchingItem.Craft.Level > characterSkillLevel)
         {
-            return new AppError(
-                $"Could not craft item {_code} - current skill level is {characterSkillLevel}, required is {matchingItem.Craft.Level}",
-                ErrorStatus.InsufficientSkill
-            );
+            if (CanTriggerTraining)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Craft.Level}) in {craftingLocationCode} - training until they can craft the item"
+                );
+                Character.QueueJobsBefore(
+                    Id,
+                    [
+                        new TrainSkill(
+                            Character,
+                            gameState,
+                            matchingItem.Craft.Skill,
+                            matchingItem.Craft.Level
+                        ),
+                    ]
+                );
+                Status = JobStatus.Suspend;
+                return new None();
+            }
+            else
+            {
+                return new AppError(
+                    $"Could not craft item {Code} - current skill level is {characterSkillLevel}, required is {matchingItem.Craft.Level}",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
         }
 
         if (craftingLocationCode == "")
         {
             return new AppError(
-                $"Could not craft item {_code} - could not find workshop to go to - skill is {matchingItem.Craft.Skill}"
+                $"Could not craft item {Code} - could not find workshop to go to - skill is {matchingItem.Craft.Skill}"
             );
         }
 
         await Character.NavigateTo(craftingLocationCode, ContentType.Workshop);
 
-        await Character.Craft(_code, _amount);
+        await Character.Craft(Code, Amount);
 
         return new None();
     }

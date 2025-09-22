@@ -21,7 +21,7 @@ public class ObtainItem : CharacterJob
     public bool AllowFindingItemInBank { get; set; } = true;
     public bool AllowUsingMaterialsFromInventory { get; set; } = true;
 
-    public bool CanTriggerTraining { get; set; } = false;
+    public bool CanTriggerTraining { get; set; } = true;
 
     private List<DropSchema> itemsInBank { get; set; } = [];
     protected int Amount { get; init; }
@@ -35,33 +35,35 @@ public class ObtainItem : CharacterJob
         Amount = amount;
     }
 
-    // public SetMaterialRules(bool allowMaterialsFromInventory, bool allowMaterialsFromBank)
-    // {
-
-    //     var job = new ObtainItem()
-
-    // }
-    // public SetFindingRules(bool allowFinishedItemFromInventory, bool allowFinishedItemFromBank)
-    // {
-
-    // }
-
-    // public static CreateForBank()
-    // {
-
-    // }
-
     public void ForCharacter(PlayerCharacter recipient)
     {
-        onSuccessEndHook += () =>
+        if (recipient.Schema.Name == Character.Schema.Name)
         {
+            // it's a-me, no reason to deposit etc.
+            return;
+        }
+
+        onSuccessEndHook = () =>
+        {
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to deposit {Amount} x {Code} to the bank"
+            );
+
             var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
 
-            depositItemJob.onSuccessEndHook += () =>
+            depositItemJob.onSuccessEndHook = () =>
             {
-                recipient.QueueJob(new WithdrawItem(recipient, gameState, Code, Amount, false));
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to withdraw {Amount} x {Code} from the bank"
+                );
+                recipient.QueueJob(
+                    new WithdrawItem(recipient, gameState, Code, Amount, false),
+                    true
+                );
                 return Task.Run(() => { });
             };
+
+            Character.QueueJob(depositItemJob, true);
 
             return Task.Run(() => { });
         };
@@ -69,9 +71,14 @@ public class ObtainItem : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook += () =>
+        onSuccessEndHook = () =>
         {
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
+            );
+
             var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+            Character.QueueJob(depositItemJob, true);
 
             return Task.Run(() => { });
         };
@@ -83,6 +90,7 @@ public class ObtainItem : CharacterJob
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
             Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            Status = JobStatus.Suspend;
             return new None();
         }
 
@@ -118,8 +126,7 @@ public class ObtainItem : CharacterJob
             jobs,
             Code,
             Amount,
-            // AllowUsingMaterialsFromInventory
-            true,
+            AllowUsingMaterialsFromInventory,
             CanTriggerTraining
         );
 
@@ -133,7 +140,21 @@ public class ObtainItem : CharacterJob
                 return jobError;
         }
 
-        Character.QueueJobsAfter(Id, jobs);
+        /**
+        * The onSuccessEndHook is a bit funky for ObtainItems, because actually don't want it to run when the ObtainItem job ends,
+        * because the job doesn't do anything, but just queues other jobs. So we want it to run, when the last job in the list is done,
+        * usually when the last item is crafted
+        */
+
+        if (jobs.Count > 0)
+        {
+            jobs.Last()!.onSuccessEndHook += onSuccessEndHook;
+
+            Character.QueueJobsAfter(Id, jobs);
+        }
+
+        // Reset it
+        onSuccessEndHook = () => Task.Run(() => { });
 
         return new None();
     }
@@ -154,6 +175,8 @@ public class ObtainItem : CharacterJob
         bool canTriggerTraining = false
     )
     {
+        bool firstIteration = jobs.Count() == 0;
+
         var matchingItem = gameState.Items.Find(item => item.Code == code);
 
         if (matchingItem is null)
@@ -167,12 +190,12 @@ public class ObtainItem : CharacterJob
             ? (Character.GetItemFromInventory(code)?.Quantity ?? 0)
             : 0;
 
-        if (allowUsingItemFromInventory && amountInInventory >= amount)
+        if (!firstIteration && allowUsingItemFromInventory && amountInInventory >= amount)
         {
             return new None();
         }
 
-        if (allowUsingItemFromBank)
+        if (!firstIteration && allowUsingItemFromBank)
         {
             var matchingItemInBank = itemsInBank.FirstOrDefault(item => item.Code == code);
             int amountInBank = matchingItemInBank?.Quantity ?? 0;
@@ -215,7 +238,10 @@ public class ObtainItem : CharacterJob
                         return jobError;
                 }
             }
-            jobs.Add(new CraftItem(Character, gameState, code, requiredAmount));
+            var craftItemJob = new CraftItem(Character, gameState, code, requiredAmount);
+            craftItemJob.CanTriggerTraining = canTriggerTraining;
+
+            jobs.Add(craftItemJob);
         }
         else
         {
@@ -261,7 +287,7 @@ public class ObtainItem : CharacterJob
                         else
                         {
                             return new AppError(
-                                $"You cannot obtain item with code {code}, because you need to complete your mosnter task, and you cannot beat the monster",
+                                $"You cannot obtain item with code {code}, because you need to complete your monster task, and you cannot beat the monster",
                                 ErrorStatus.InsufficientSkill
                             );
                         }
@@ -345,7 +371,11 @@ public class ObtainItem : CharacterJob
                     {
                         if (
                             FightSimulator
-                                .CalculateFightOutcome(Character.Schema, monster)
+                                .CalculateFightOutcomeWithBestEquipment(
+                                    Character,
+                                    monster,
+                                    gameState
+                                )
                                 .ShouldFight
                         )
                         {
@@ -357,7 +387,7 @@ public class ObtainItem : CharacterJob
                                 code
                             );
 
-                            job.AllowUsingMaterialsFromInventory = true;
+                            // job.AllowUsingMaterialsFromInventory = true;
                             jobs.Add(job);
 
                             return new None();

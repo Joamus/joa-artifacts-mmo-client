@@ -25,6 +25,42 @@ public class MonsterTask : CharacterJob
         ItemAmount = itemAmount;
     }
 
+    public void ForBank()
+    {
+        onSuccessEndHook += () =>
+        {
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: running"
+            );
+
+            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coins")?.Quantity ?? 0;
+
+            if (taskCoinsAmount > 0)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositting them"
+                );
+                Character.QueueJob(
+                    new DepositItems(Character, gameState, "tasks_coins", taskCoinsAmount),
+                    true
+                );
+            }
+
+            if (ItemCode is not null && ItemAmount is not null)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositting them"
+                );
+                Character.QueueJob(
+                    new DepositItems(Character, gameState, ItemCode, (int)ItemAmount),
+                    true
+                );
+            }
+
+            return Task.Run(() => { });
+        };
+    }
+
     protected override Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation($"{GetType().Name} run started - for {Character.Schema.Name}");
@@ -38,6 +74,7 @@ public class MonsterTask : CharacterJob
                 Id,
                 [new AcceptNewTask(Character, gameState, TaskType.monsters)]
             );
+            Status = JobStatus.Suspend;
             return Task.FromResult<OneOf<AppError, None>>(new None());
         }
 
@@ -49,11 +86,16 @@ public class MonsterTask : CharacterJob
             );
             if (monster is null)
             {
+                Status = JobStatus.Failed;
                 return Task.FromResult<OneOf<AppError, None>>(
                     new AppError($"Cannot find monster {code} to fight in task")
                 );
             }
-            var outcome = FightSimulator.CalculateFightOutcome(Character.Schema, monster);
+            var outcome = FightSimulator.CalculateFightOutcomeWithBestEquipment(
+                Character,
+                monster,
+                gameState
+            );
 
             if (!outcome.ShouldFight)
             {
@@ -91,10 +133,18 @@ public class MonsterTask : CharacterJob
 
         jobs.Add(new CompleteTask(Character, gameState, ItemCode, ItemAmount));
 
-        Character.QueueJobsAfter(Id, jobs);
+        if (jobs.Count > 0)
+        {
+            jobs.Last()!.onSuccessEndHook += onSuccessEndHook;
+
+            Character.QueueJobsAfter(Id, jobs);
+        }
+
+        // Reset it
+        onSuccessEndHook = () => Task.Run(() => { });
 
         logger.LogInformation(
-            $"{GetType().Name} - found {jobs.Count} jobs to run, to complete task {Code} for {Character.Schema.Name}"
+            $"{GetType().Name}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"
         );
 
         return Task.FromResult<OneOf<AppError, None>>(new None());
