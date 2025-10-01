@@ -32,26 +32,41 @@ public class TrainSkill : CharacterJob
     public Skill Skill { get; init; }
 
     private string skillName { get; set; }
-    public int UntilLevel { get; init; }
+    public int UntilLevel { get; private set; }
+
+    public bool RelativeLevel { get; init; }
 
     private static ILogger<TrainSkill> staticLogger = LoggerFactory
         .Create(AppLogger.options)
         .CreateLogger<TrainSkill>();
 
-    public TrainSkill(PlayerCharacter character, GameState gameState, Skill skill, int untilLevel)
+    public TrainSkill(
+        PlayerCharacter character,
+        GameState gameState,
+        Skill skill,
+        int untilLevel,
+        bool relativeLevel = false
+    )
         : base(character, gameState)
     {
         Skill = skill;
         UntilLevel = untilLevel;
+        RelativeLevel = relativeLevel;
         skillName = GetSkillName(Skill);
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
+        int skillLevel = GetSkillLevel(skillName);
+
+        if (RelativeLevel)
+        {
+            UntilLevel = skillLevel + UntilLevel;
+        }
+
         logger.LogInformation(
             $"{GetType().Name}: [{Character.Schema.Name}] run started - training {skillName} until level {UntilLevel}"
         );
-        int skillLevel = GetSkillLevel(skillName);
 
         SkillKind skillKind = GatheringSkills.Contains(skillName)
             ? SkillKind.Gathering

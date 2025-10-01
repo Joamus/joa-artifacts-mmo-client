@@ -1,8 +1,7 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 using Application.Character;
 using Application.Errors;
-using Application.Services;
-using Newtonsoft.Json;
 using OneOf;
 using OneOf.Types;
 
@@ -36,6 +35,19 @@ public abstract class CharacterJob
     {
         return Task.Run(() => { });
     };
+
+    public virtual CharacterJob Clone()
+    {
+        return (CharacterJob)MemberwiseClone();
+    }
+
+    public T SetParent<T>(CharacterJob parentJob)
+        where T : CharacterJob
+    {
+        ParentJob = parentJob;
+
+        return (T)this;
+    }
 
     protected CharacterJob(PlayerCharacter playerCharacter, GameState gameState)
     {

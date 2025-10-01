@@ -168,7 +168,7 @@ public class FightMonster : CharacterJob
 
         var hasPotionsEquipped = await EquipPotionsIfNeeded();
 
-        if (!hasPotionsEquipped && IsThereAPotionToObtain())
+        if (hasPotionsEquipped && IsThereAPotionToObtain())
         {
             Character.QueueJobsBefore(
                 Id,
@@ -473,102 +473,6 @@ public class FightMonster : CharacterJob
 
         return potionSuitableForLevel is not null;
     }
-
-    // public static SimulateFightoutcomesSwapEquipment()
-    // {
-    // Save a FightResult with the current equipment
-    // Copy the current character schema into a variabe
-    // Loop through all equipable items in inventory, and calculate the character schema stats, equipping this item
-    // If the result is better than the last one, replace the character schema outside of the loop with this one, write down in a list to equip it, else use the last one.
-    // At the end, equip all of the items that are in the list
-    //
-    //     if (PlayerCharacter.Schema.WeaponSlot is null)
-    //     {
-    //         return new AppError($"Weapon slot was null - should never happen");
-    //     }
-
-    //     ItemSchema? bestWeaponCandidate = GameState.ItemsDict.GetValueOrNull(
-    //         PlayerCharacter.Schema.WeaponSlot
-    //     );
-
-    //     if (bestWeaponCandidate is null)
-    //     {
-    //         return new AppError(
-    //             $"Currently best weapon with code \"{PlayerCharacter.Schema.WeaponSlot}\" is null"
-    //         );
-    //     }
-
-    //     string initialWeaponCode = bestWeaponCandidate.Code;
-
-    //     // For now, we only check if we have better weapons
-
-    //     var weapons = PlayerCharacter.GetItemsFromInventoryWithType("weapon");
-
-    //     var bestSchemaCandiate = PlayerCharacter.Schema with { };
-
-    //     var bestFightResult = FightSimulator.CalculateFightOutcome(bestSchemaCandiate, monster);
-
-    //     foreach (var weapon in weapons)
-    //     {
-    //         ItemSchema? weaponSchema = GameState.ItemsDict.GetValueOrNull(weapon.Item.Code);
-
-    //         if (weaponSchema is null)
-    //         {
-    //             return new AppError(
-    //                 $"Current weapon with code \"{weapon.Item.Code}\" is null - should never happen"
-    //             );
-    //         }
-
-    //         if (!ItemService.CanUseItem(weaponSchema, PlayerCharacter.Schema.Level))
-    //         {
-    //             continue;
-    //         }
-
-    //         var characterSchema = bestSchemaCandiate with { };
-
-    //         // Subtract the existing effects from the PlayerSchema - then we apply the ones from our hypothetical weapon
-    //         foreach (var effect in bestWeaponCandidate!.Effects)
-    //         {
-    //             var matchingProperty = PlayerCharacter
-    //                 .Schema.GetType()
-    //                 .GetProperty(effect.Code.FromSnakeToPascalCase());
-
-    //             if (matchingProperty is not null)
-    //             {
-    //                 int currentValue = (int)matchingProperty.GetValue(characterSchema)!;
-    //                 matchingProperty.SetValue(characterSchema, currentValue - effect.Value);
-    //             }
-    //         }
-
-    //         foreach (var effect in weaponSchema.Effects)
-    //         {
-    //             var matchingProperty = PlayerCharacter
-    //                 .Schema.GetType()
-    //                 .GetProperty(effect.Code.FromSnakeToPascalCase());
-
-    //             if (matchingProperty is not null)
-    //             {
-    //                 int currentValue = (int)matchingProperty.GetValue(characterSchema)!;
-    //                 matchingProperty.SetValue(characterSchema, currentValue + effect.Value);
-    //             }
-    //         }
-
-    //         var fightOutcome = FightSimulator.CalculateFightOutcome(characterSchema, monster);
-
-    //         if (
-    //             fightOutcome.Result == FightResult.Win
-    //             && (
-    //                 bestFightResult.Result != FightResult.Win
-    //                 || fightOutcome.PlayerHp > bestFightResult.PlayerHp
-    //             )
-    //         )
-    //         {
-    //             bestFightResult = fightOutcome;
-    //             bestWeaponCandidate = weapon.Item;
-    //             bestSchemaCandiate = characterSchema;
-    //         }
-    //     }
-    // }
 
     public static int GetFoodToObtain(PlayerCharacter character)
     {

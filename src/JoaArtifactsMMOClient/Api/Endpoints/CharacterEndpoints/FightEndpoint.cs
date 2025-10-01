@@ -23,25 +23,33 @@ public static class FightEndpoint
 
         matchingCharacter.Suspend(false);
 
-        if (!string.IsNullOrEmpty(request.ItemCode))
+        for (int i = 0; i < request.Repeat; i++)
         {
-            var job = new FightMonster(
-                matchingCharacter,
-                gameState,
-                request.Code,
-                request.Amount,
-                request.ItemCode
-            );
+            FightMonster? job = null;
 
-            job.AllowUsingMaterialsFromInventory = request.AllowUsingMaterialsFromInventory;
+            if (!string.IsNullOrEmpty(request.ItemCode))
+            {
+                job = new FightMonster(
+                    matchingCharacter,
+                    gameState,
+                    request.Code,
+                    request.Amount,
+                    request.ItemCode
+                );
 
+                job.AllowUsingMaterialsFromInventory = request.AllowUsingMaterialsFromInventory;
+            }
+            else
+            {
+                job = new FightMonster(matchingCharacter, gameState, request.Code, request.Amount);
+            }
+
+            if (request.Idle)
+            {
+                matchingCharacter.SetIdleJob(job);
+                break;
+            }
             matchingCharacter.QueueJob(job);
-        }
-        else
-        {
-            matchingCharacter.QueueJob(
-                new FightMonster(matchingCharacter, gameState, request.Code, request.Amount)
-            );
         }
 
         matchingCharacter.Unsuspend();
@@ -53,6 +61,7 @@ public static class FightEndpoint
 public record FightRequest : GenericActionRequest
 {
     public required string Code { get; set; }
+    public int Repeat { get; set; } = 1;
     public required int Amount { get; set; }
     public string? ItemCode { get; set; }
     public required bool AllowUsingMaterialsFromInventory { get; set; } = false;

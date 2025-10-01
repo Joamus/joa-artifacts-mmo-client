@@ -49,7 +49,12 @@ public class ObtainItem : CharacterJob
                 $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to deposit {Amount} x {Code} to the bank"
             );
 
-            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+            var depositItemJob = new DepositItems(
+                Character,
+                gameState,
+                Code,
+                Amount
+            ).SetParent<DepositItems>(this);
 
             depositItemJob.onSuccessEndHook = () =>
             {
@@ -150,6 +155,11 @@ public class ObtainItem : CharacterJob
         {
             jobs.Last()!.onSuccessEndHook += onSuccessEndHook;
 
+            foreach (var job in jobs)
+            {
+                job.SetParent<CharacterJob>(this);
+            }
+
             Character.QueueJobsAfter(Id, jobs);
         }
 
@@ -186,9 +196,10 @@ public class ObtainItem : CharacterJob
 
         // We have the item already, no need to get it again
 
-        int amountInInventory = allowUsingItemFromInventory
-            ? (Character.GetItemFromInventory(code)?.Quantity ?? 0)
-            : 0;
+        int amountInInventory =
+            !firstIteration && allowUsingItemFromInventory
+                ? (Character.GetItemFromInventory(code)?.Quantity ?? 0)
+                : 0;
 
         if (!firstIteration && allowUsingItemFromInventory && amountInInventory >= amount)
         {

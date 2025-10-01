@@ -17,9 +17,13 @@ namespace Application.Character;
 
 public class PlayerCharacter
 {
+    [JsonIgnore]
     public static readonly int AMOUNT_OF_FOOD_TO_KEEP = 20;
+
+    [JsonIgnore]
     public static readonly int AMOUNT_OF_POTIONS_TO_KEEP = 20;
 
+    [JsonIgnore]
     public static readonly int PREFERED_FOOD_LEVEL_DIFFERENCE = 5;
 
     // If on cooldown, but not expected, just wait 5 seconds
@@ -30,6 +34,7 @@ public class PlayerCharacter
     // Poor man's semaphor - make something sturdier
     private bool Busy { get; set; } = false;
 
+    [JsonIgnore]
     private const string MediaType = "application/json";
     public List<CharacterJob> Jobs { get; private set; } = [];
 
@@ -194,12 +199,7 @@ public class PlayerCharacter
         }
         else if (IdleJob is not null)
         {
-            IdleJob.Character = null!;
-            var clonedIdleJob = JsonSerializer.Deserialize<CharacterJob>(
-                JsonSerializer.Serialize(IdleJob)
-            )!;
-
-            IdleJob.Character = this;
+            var clonedIdleJob = IdleJob.Clone();
 
             // This is mess, but we want the job to have a reference to this character,
             // and not a clone. It's only the rest of the job we want to clone, in case the job
@@ -216,6 +216,9 @@ public class PlayerCharacter
             OneOf<AppError, None>? result = null;
             try
             {
+                // If the job was suspended before, we set it to "New" now, because it shouldn't be suspend anymore.
+                // In the future, we might invent a JobStatus.Resumed state or something, if we want to keep track of if a job was continued.
+                CurrentJob.Status = JobStatus.New;
                 result = await CurrentJob.StartJobAsync();
 
                 switch (result.Value.Value)
@@ -534,7 +537,7 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
-    public async Task Recycle(string itemCode, int quantity)
+    public async Task<RecycleResponse> Recycle(string itemCode, int quantity)
     {
         await PreTaskHandler();
 
@@ -543,11 +546,13 @@ public class PlayerCharacter
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/recycling", body);
 
         var content = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
+        var result = JsonSerializer.Deserialize<RecycleResponse>(
             content,
             ApiRequester.getJsonOptions()
         )!;
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+
+        return result;
     }
 
     public async Task TaskNew()

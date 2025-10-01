@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Endpoints;
 using Application;
@@ -57,8 +58,8 @@ JsonConvert.DefaultSettings = (
     }
 );
 
-string token = await GameLoader.LoadApiToken();
-string accountName = await GameLoader.LoadAccountName();
+string token = builder.Configuration["ApiToken"]!;
+string accountName = builder.Configuration["AccountName"]!;
 
 GameState? gameState = SetupGameServiceProvider(builder.Services, token, accountName);
 

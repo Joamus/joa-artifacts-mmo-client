@@ -114,7 +114,12 @@ public class GatherMaterialsForItem : CharacterJob
         foreach (var material in materials)
         {
             // This could be a bit more efficient, if all of the queueing would only happen at once, the deposits should happen sequentially anyway
-            var job = new DepositItems(Character, gameState, material.Code, material.Quantity);
+            var job = new DepositItems(
+                Character,
+                gameState,
+                material.Code,
+                material.Quantity
+            ).SetParent<DepositItems>(this);
 
             if (crafter is not null)
             {

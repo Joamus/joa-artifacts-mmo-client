@@ -1,10 +1,6 @@
-using System.Diagnostics;
-using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
-using Application.Jobs;
-using Application.Services;
 using Applicaton.Jobs;
 using OneOf;
 using OneOf.Types;

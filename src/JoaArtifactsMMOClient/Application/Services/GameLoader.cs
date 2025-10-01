@@ -13,18 +13,16 @@ public class GameLoader
         _gameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
     }
 
-    public static async Task<string> LoadApiToken()
+    public static string LoadApiToken()
     {
-        using StreamReader reader = new("../../token.txt");
-
-        return await reader.ReadToEndAsync();
+        return Environment.GetEnvironmentVariable("TOKEN")
+            ?? throw new Exception("No env variable \"TOKEN\" found");
     }
 
-    public static async Task<string> LoadAccountName()
+    public static string LoadAccountName()
     {
-        using StreamReader reader = new("../../account.txt");
-
-        return await reader.ReadToEndAsync();
+        return Environment.GetEnvironmentVariable("ACCOUNT")
+            ?? throw new Exception("No env variable \"ACCOUNT\" found");
     }
 
     public async Task<int> Start()

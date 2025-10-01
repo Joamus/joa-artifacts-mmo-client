@@ -74,7 +74,13 @@ public class ItemTask : CharacterJob
             // Go pick up task - then we should continue
             Character.QueueJobsBefore(
                 Id,
-                [new AcceptNewTask(Character, gameState, TaskType.items)]
+                [
+                    new AcceptNewTask(
+                        Character,
+                        gameState,
+                        TaskType.items
+                    ).SetParent<AcceptNewTask>(this),
+                ]
             );
             Status = JobStatus.Suspend;
             return Task.FromResult<OneOf<AppError, None>>(new None());
@@ -109,7 +115,11 @@ public class ItemTask : CharacterJob
             jobs.Add(job);
         }
 
-        jobs.Add(new CompleteTask(Character, gameState, ItemCode, ItemAmount));
+        jobs.Add(
+            new CompleteTask(Character, gameState, ItemCode, ItemAmount).SetParent<CompleteTask>(
+                this
+            )
+        );
 
         if (jobs.Count > 0)
         {

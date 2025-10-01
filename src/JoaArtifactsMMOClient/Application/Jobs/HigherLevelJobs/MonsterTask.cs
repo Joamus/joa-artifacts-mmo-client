@@ -41,7 +41,12 @@ public class MonsterTask : CharacterJob
                     $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositting them"
                 );
                 Character.QueueJob(
-                    new DepositItems(Character, gameState, "tasks_coins", taskCoinsAmount),
+                    new DepositItems(
+                        Character,
+                        gameState,
+                        "tasks_coins",
+                        taskCoinsAmount
+                    ).SetParent<DepositItems>(this),
                     true
                 );
             }
@@ -52,7 +57,12 @@ public class MonsterTask : CharacterJob
                     $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositting them"
                 );
                 Character.QueueJob(
-                    new DepositItems(Character, gameState, ItemCode, (int)ItemAmount),
+                    new DepositItems(
+                        Character,
+                        gameState,
+                        ItemCode,
+                        (int)ItemAmount
+                    ).SetParent<DepositItems>(this),
                     true
                 );
             }
@@ -72,7 +82,13 @@ public class MonsterTask : CharacterJob
             // Go pick up task - then we should continue
             Character.QueueJobsBefore(
                 Id,
-                [new AcceptNewTask(Character, gameState, TaskType.monsters)]
+                [
+                    new AcceptNewTask(
+                        Character,
+                        gameState,
+                        TaskType.monsters
+                    ).SetParent<AcceptNewTask>(this),
+                ]
             );
             Status = JobStatus.Suspend;
             return Task.FromResult<OneOf<AppError, None>>(new None());
@@ -127,11 +143,15 @@ public class MonsterTask : CharacterJob
                     gameState,
                     Character.Schema.Task,
                     amount - progressAmount
-                )
+                ).SetParent<FightMonster>(this)
             );
         }
 
-        jobs.Add(new CompleteTask(Character, gameState, ItemCode, ItemAmount));
+        jobs.Add(
+            new CompleteTask(Character, gameState, ItemCode, ItemAmount).SetParent<CompleteTask>(
+                this
+            )
+        );
 
         if (jobs.Count > 0)
         {
