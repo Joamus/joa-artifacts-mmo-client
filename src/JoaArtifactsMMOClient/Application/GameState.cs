@@ -9,25 +9,30 @@ namespace Application;
 
 public class GameState
 {
-    readonly AccountRequester _accountRequester;
+    public AccountRequester AccountRequester { get; init; }
     readonly ApiRequester _apiRequester;
 
     ILogger _logger { get; init; }
-    public List<PlayerCharacter> Characters { get; private set; }
-    public List<ItemSchema> Items { get; set; }
-    public Dictionary<string, ItemSchema> ItemsDict { get; set; }
+    public List<PlayerCharacter> Characters { get; private set; } = [];
+    public List<ItemSchema> Items { get; set; } = [];
+    public Dictionary<string, ItemSchema> ItemsDict { get; set; } = [];
 
-    public Dictionary<string, List<ItemSchema>> CraftingLookupDict { get; set; }
+    public Dictionary<string, ItemSchema> UtilityItemsDict { get; set; } = [];
 
-    public List<MapSchema> Maps { get; set; }
+    public Dictionary<string, List<ItemSchema>> CraftingLookupDict { get; set; } = [];
 
-    public List<ResourceSchema> Resources { get; set; }
-    public List<NpcSchema> Npcs { get; set; }
-    public List<MonsterSchema> Monsters { get; set; }
+    public List<NpcItemSchema> NpcItems { get; set; } = [];
+    public Dictionary<string, NpcItemSchema> NpcItemsDict { get; set; } = [];
+
+    public List<MapSchema> Maps { get; set; } = [];
+
+    public List<ResourceSchema> Resources { get; set; } = [];
+    public List<NpcSchema> Npcs { get; set; } = [];
+    public List<MonsterSchema> Monsters { get; set; } = [];
 
     public GameState(AccountRequester accountRequester, ApiRequester apiRequester)
     {
-        _accountRequester = accountRequester;
+        AccountRequester = accountRequester;
         _apiRequester = apiRequester;
         _logger = LoggerFactory.Create(AppLogger.options).CreateLogger<GameState>();
     }
@@ -36,6 +41,7 @@ public class GameState
     {
         await LoadCharacters();
         await LoadItems();
+        await LoadNpcItems();
         await LoadMaps();
         await LoadResources();
         await LoadMonsters();
@@ -45,7 +51,7 @@ public class GameState
     public async Task LoadCharacters()
     {
         _logger.LogInformation("Loading characters...");
-        var result = await _accountRequester.GetCharacters();
+        var result = await AccountRequester.GetCharacters();
 
         List<PlayerCharacter> characters = [];
 
@@ -64,23 +70,24 @@ public class GameState
         bool doneLoading = false;
         List<ItemSchema> items = [];
         Dictionary<string, ItemSchema> itemsDict = new();
+        Dictionary<string, ItemSchema> utilityItemsDict = new();
         Dictionary<string, List<ItemSchema>> craftingLookupDict = new();
 
         int pageNumber = 1;
 
         while (!doneLoading)
         {
-            var result = await _accountRequester.GetItems(pageNumber);
+            var result = await AccountRequester.GetItems(pageNumber);
 
             foreach (var item in result.Data)
             {
                 items.Add(item);
                 itemsDict.Add(item.Code, item);
 
-                // if (!craftingLookupDict.ContainsKey(item.Code))
-                // {
-                //     craftingLookupDict.Add(item.Code, []);
-                // }
+                if (item.Type == "utility")
+                {
+                    utilityItemsDict.Add(item.Code, item);
+                }
 
                 if (item.Craft is not null)
                 {
@@ -104,9 +111,43 @@ public class GameState
         }
         Items = items;
         ItemsDict = itemsDict;
+        UtilityItemsDict = utilityItemsDict;
         CraftingLookupDict = craftingLookupDict;
 
         _logger.LogInformation("Loading items - DONE;");
+    }
+
+    public async Task LoadNpcItems()
+    {
+        _logger.LogInformation("Loading NPC items...");
+        bool doneLoading = false;
+        List<NpcItemSchema> items = [];
+        Dictionary<string, NpcItemSchema> itemsDict = new();
+        Dictionary<string, List<NpcItemSchema>> craftingLookupDict = new();
+
+        int pageNumber = 1;
+
+        while (!doneLoading)
+        {
+            var result = await AccountRequester.GetNpcItems(pageNumber);
+
+            foreach (var item in result.Data)
+            {
+                items.Add(item);
+                itemsDict.Add(item.Code, item);
+            }
+
+            if (result.Data.Count == 0)
+            {
+                doneLoading = true;
+            }
+
+            pageNumber++;
+        }
+        NpcItems = items;
+        NpcItemsDict = itemsDict;
+
+        _logger.LogInformation("Loading NPC items - DONE;");
     }
 
     public async Task LoadMaps()
@@ -118,7 +159,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await _accountRequester.GetMaps(pageNumber);
+            var result = await AccountRequester.GetMaps(pageNumber);
 
             foreach (var map in result.Data)
             {
@@ -145,7 +186,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await _accountRequester.GetResources(pageNumber);
+            var result = await AccountRequester.GetResources(pageNumber);
 
             foreach (var resource in result.Data)
             {
@@ -173,7 +214,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await _accountRequester.GetNpcs(pageNumber);
+            var result = await AccountRequester.GetNpcs(pageNumber);
 
             foreach (var npc in result.Data)
             {
@@ -200,7 +241,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await _accountRequester.GetMonsters(pageNumber);
+            var result = await AccountRequester.GetMonsters(pageNumber);
 
             foreach (var monster in result.Data)
             {

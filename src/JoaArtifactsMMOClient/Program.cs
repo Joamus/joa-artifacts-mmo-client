@@ -1,4 +1,7 @@
-﻿using System.Text.Json;
+﻿using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Api.Endpoints;
 using Application;
 using Application.Services;
 using Application.Services.ApiServices;
@@ -27,6 +30,15 @@ builder
 builder.Services.AddCors();
 builder.Services.AddProblemDetails();
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 //convert Enums to Strings (instead of Integer) globally
 JsonConvert.DefaultSettings = (
     () =>
@@ -46,14 +58,18 @@ JsonConvert.DefaultSettings = (
     }
 );
 
-string token = await GameLoader.LoadApiToken();
-string accountName = await GameLoader.LoadAccountName();
+string token = builder.Configuration["ApiToken"]!;
+string accountName = builder.Configuration["AccountName"]!;
 
-await SetupGameServiceProvider(token, accountName);
+GameState? gameState = SetupGameServiceProvider(builder.Services, token, accountName);
 
 var app = builder.Build();
 
-// app.UseExceptionHandler();
+GameServiceProvider.SetInstance(app.Services);
+
+app.UseExceptionHandler();
+
+app.AddCharacterEndpoints();
 
 app.UseSwagger();
 app.UseSwaggerUI(opt =>
@@ -61,37 +77,32 @@ app.UseSwaggerUI(opt =>
     opt.SwaggerEndpoint("/swagger/v1/swagger.json", "Joas Artifacts MMO Client");
 });
 
-Task apiTask = Task.Run(async () =>
+GameLoader loader = new GameLoader();
+
+await gameState.LoadAll();
+
+_ = app.RunAsync();
+
+await loader.Start();
+
+// await Task.WhenAny([loader.Start(), app.RunAsync()]);
+
+
+// var _ = await loader.Start();
+
+// await app.RunAsync();
+
+GameState SetupGameServiceProvider(IServiceCollection collection, string token, string accountName)
 {
-    await app.RunAsync();
-});
-Task gameTask = Task.Run(async () =>
-{
-    GameLoader loader = new GameLoader();
-
-    var _ = await loader.Start();
-});
-
-await Task.WhenAny([apiTask, gameTask]);
-
-async Task SetupGameServiceProvider(string token, string accountName)
-{
-    ServiceCollection collection = new ServiceCollection();
-
     ApiRequester apiRequester = new ApiRequester(token);
     AccountRequester accountRequester = new AccountRequester(apiRequester, accountName);
 
-    _ = collection.AddSingleton(apiRequester);
-    _ = collection.AddSingleton(accountRequester);
+    collection.AddSingleton(apiRequester);
+    collection.AddSingleton(accountRequester);
 
-    GameState gameState = new GameState(accountRequester, apiRequester);
+    gameState = new GameState(accountRequester, apiRequester);
 
     collection.AddSingleton(gameState);
 
-    var serviceProvider = collection.BuildServiceProvider();
-
-    GameServiceProvider.SetInstance(serviceProvider);
-
-    // var _gameState = GameServiceProvider.GetInstance().GetService<GameState>();
-    await gameState.LoadAll();
+    return gameState;
 }

@@ -1,6 +1,7 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 using Application.Character;
 using Application.Errors;
-using Application.Services;
 using OneOf;
 using OneOf.Types;
 
@@ -8,30 +9,87 @@ namespace Application.Jobs;
 
 public abstract class CharacterJob
 {
-    public Guid Id { get; init; }
-    public PlayerCharacter _playerCharacter { get; init; }
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public JobStatus Status = JobStatus.New;
 
-    public GameState _gameState { get; init; }
+    public CharacterJob? ParentJob { get; private set; }
 
-    protected ILogger<CharacterJob> _logger { get; init; }
+    [JsonIgnore]
+    public PlayerCharacter Character { get; set; }
 
-    protected bool _shouldInterrupt { get; set; }
+    [JsonIgnore]
+    public GameState gameState { get; set; }
 
-    public string? _code { get; init; }
+    [JsonIgnore]
+    protected ILogger<CharacterJob> logger { get; init; } =
+        LoggerFactory.Create(AppLogger.options).CreateLogger<CharacterJob>();
 
-    protected CharacterJob(PlayerCharacter playerCharacter)
+    [JsonIgnore]
+    protected bool ShouldInterrupt { get; set; }
+
+    public string Code { get; init; } = "";
+
+    public delegate Task OnSuccessEndHook();
+
+    public OnSuccessEndHook onSuccessEndHook = () =>
     {
-        Id = Guid.NewGuid();
-        _playerCharacter = playerCharacter;
-        _logger = LoggerFactory.Create(AppLogger.options).CreateLogger<CharacterJob>();
-        _gameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
+        return Task.Run(() => { });
+    };
+
+    public virtual CharacterJob Clone()
+    {
+        return (CharacterJob)MemberwiseClone();
     }
 
-    public abstract Task<OneOf<JobError, None>> RunAsync();
+    public T SetParent<T>(CharacterJob parentJob)
+        where T : CharacterJob
+    {
+        ParentJob = parentJob;
+
+        return (T)this;
+    }
+
+    protected CharacterJob(PlayerCharacter playerCharacter, GameState gameState)
+    {
+        Character = playerCharacter;
+        this.gameState = gameState;
+    }
+
+    protected abstract Task<OneOf<AppError, None>> ExecuteAsync();
+
+    /**
+    * This function is how the job is started. It's responsible for calling ExecuteAsync, and other hooks
+    */
+    public async Task<OneOf<AppError, None>> StartJobAsync()
+    {
+        var result = await ExecuteAsync();
+
+        switch (result.Value)
+        {
+            case AppError appError:
+                Status = JobStatus.Failed;
+                return appError;
+        }
+
+        /**
+         * No need to explictly set it in each ExecuteAsync job, we assume a job is completed unless it
+         * was suspended or failed
+         */
+        if (Status == JobStatus.New)
+        {
+            Status = JobStatus.Completed;
+        }
+
+        if (Status == JobStatus.Completed)
+        {
+            await onSuccessEndHook.Invoke();
+        }
+        return new None();
+    }
 
     public virtual void Interrrupt()
     {
-        _shouldInterrupt = true;
+        ShouldInterrupt = true;
     }
 
     public virtual Task<List<CharacterJob>> GetJobs()
@@ -40,4 +98,12 @@ public abstract class CharacterJob
 
         return Task.FromResult(jobs);
     }
+}
+
+public enum JobStatus
+{
+    New,
+    Completed,
+    Suspend,
+    Failed,
 }

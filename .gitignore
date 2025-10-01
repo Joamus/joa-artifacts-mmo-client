@@ -1,7 +1,5 @@
-// temp
-token.txt
-account.txt
-
+*.env
+appSettings.Local.json
 .vscode
 
 ## A streamlined .gitignore for modern .NET projects

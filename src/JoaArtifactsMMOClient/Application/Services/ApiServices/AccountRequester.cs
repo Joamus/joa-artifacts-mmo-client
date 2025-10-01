@@ -85,6 +85,27 @@ public class AccountRequester
         )!;
     }
 
+    public async Task<BankDetailsResponse> GetBankDetails()
+    {
+        var response = await _apiService.GetAsync($"/my/bank");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<BankDetailsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
+    public async Task<NpcItemsResponse> GetNpcItems(int pageNumber = 1)
+    {
+        var response = await _apiService.GetAsync($"/npcs/items?page={pageNumber}");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<NpcItemsResponse>(result, ApiRequester.getJsonOptions())!;
+    }
+
     // public async Task<GetCharactersResponse> GetAchievements()
     // [EnumMember(Value = "monster")]
     // [JsonStringEnumMemberName("monster")]

@@ -1,23 +1,23 @@
 namespace Application.Errors;
 
-public class JobError
+public class AppError
 {
     public string Message { get; private set; }
 
-    public JobStatus Status { get; init; }
+    public ErrorStatus Status { get; init; }
 
-    public static readonly ILogger<JobError> _logger = LoggerFactory
+    public static readonly ILogger<AppError> _logger = LoggerFactory
         .Create(AppLogger.options)
-        .CreateLogger<JobError>();
+        .CreateLogger<AppError>();
 
-    public JobError(string message)
+    public AppError(string message)
     {
         Message = message;
-        Status = JobStatus.Undefined;
+        Status = ErrorStatus.Undefined;
         _logger.LogDebug($"JobError: {message}");
     }
 
-    public JobError(string message, JobStatus status)
+    public AppError(string message, ErrorStatus status)
     {
         Message = message;
         Status = status;
@@ -25,7 +25,7 @@ public class JobError
     }
 }
 
-public enum JobStatus
+public enum ErrorStatus
 {
     Undefined,
     NotFound,

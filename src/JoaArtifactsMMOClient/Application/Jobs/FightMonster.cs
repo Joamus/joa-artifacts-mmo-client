@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection.Metadata.Ecma335;
+using System.Runtime.InteropServices;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
@@ -16,188 +17,209 @@ namespace Application.Jobs;
 public class FightMonster : CharacterJob
 {
     private static readonly float EAT_FOOD_HP_THRESHOLD = 0.20f;
-    string? _itemCode { get; init; }
+    string? ItemCode { get; init; }
 
-    int? _itemAmount { get; set; }
+    protected int? Amount { get; set; }
 
-    protected int _amount { get; set; }
+    public bool AllowUsingMaterialsFromInventory = false;
 
-    protected int _progressAmount { get; set; } = 0;
+    JobMode Mode { get; set; } = JobMode.Kill;
 
-    public FightMonster(PlayerCharacter playerCharacter, string code, int amount)
-        : base(playerCharacter)
+    protected int ProgressAmount { get; set; } = 0;
+
+    public FightMonster(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        string code,
+        int amount
+    )
+        : base(playerCharacter, gameState)
     {
-        _code = code;
-        _amount = amount;
+        Code = code;
+        Amount = amount;
     }
 
     public FightMonster(
         PlayerCharacter playerCharacter,
-        string code,
+        GameState gameState,
+        string monsterCode,
         int amount,
-        string itemCode,
-        int itemAmount
+        string itemCode
     )
-        : base(playerCharacter)
+        : base(playerCharacter, gameState)
     {
-        _code = code;
-        _amount = amount;
-        _itemCode = itemCode;
-        _itemAmount = itemAmount;
+        Code = monsterCode;
+        Amount = amount; // Amount here is item amount
+        ItemCode = itemCode;
+        Mode = JobMode.Gather;
     }
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         // In case of resuming a task
-        _shouldInterrupt = false;
+        ShouldInterrupt = false;
 
-        _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter._character.Name} - progress {_code} ({_progressAmount}/{_amount})"
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
-        MonsterSchema? matchingMonster = _gameState.Monsters.Find(monster => monster.Code == _code);
+        if (Mode == JobMode.Gather && ItemCode is null)
+        {
+            return new AppError($"ItemCode cannot be null when JobMode == Gather");
+        }
+
+        MonsterSchema? matchingMonster = gameState.Monsters.Find(monster => monster.Code == Code);
 
         if (matchingMonster is null)
         {
-            return new JobError($"Monster with code {_code} could not be found");
+            return new AppError($"Monster with code {Code} could not be found");
         }
 
         var isPossibleResult = IsPossible(matchingMonster);
 
         switch (isPossibleResult.Value)
         {
-            case JobError jobError:
+            case AppError jobError:
                 return jobError;
         }
 
-        bool isDone = false;
+        int initialAmount =
+            Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
 
-        List<ItemInInventory> foodInInventory = _playerCharacter.GetItemsFromInventoryWithType(
-            "consumable"
-        );
+        await Character.PlayerActionService.EquipBestFightEquipment(matchingMonster);
 
-        int amountOfSuitableFood = 0;
-
-        foreach (var food in foodInInventory)
+        while (Amount > ProgressAmount)
         {
-            bool isUsuable = _playerCharacter._character.Level >= food.Item.Level;
-
-            if (isUsuable)
-            {
-                amountOfSuitableFood += food.Quantity;
-            }
-        }
-
-        if (amountOfSuitableFood < PlayerCharacter.AMOUNT_OF_FOOD_TO_KEEP)
-        {
-            _playerCharacter.QueueJobsBefore(
-                Id,
-                [new ObtainSuitableFood(_playerCharacter, PlayerCharacter.AMOUNT_OF_FOOD_TO_KEEP)]
-            );
-            return new None();
-            // TODO: Make an ObtainSuitableFood job here, queue it before the current job, and then return
-        }
-        // if ()
-
-        while (!isDone)
-        {
-            if (_shouldInterrupt)
+            if (ShouldInterrupt)
             {
                 return new None();
-            }
-
-            if (DepositUnneededItems.ShouldInitDepositItems(_playerCharacter))
-            {
-                _playerCharacter.QueueJobsBefore(Id, [new DepositUnneededItems(_playerCharacter)]);
-                return new None();
-            }
-
-            if (_itemCode is not null && _itemAmount is not null)
-            {
-                int amountInInventory =
-                    _playerCharacter.GetItemFromInventory(_itemCode)?.Quantity ?? 0;
-
-                isDone = amountInInventory >= _itemAmount;
-            }
-            else
-            {
-                isDone = _progressAmount >= _amount;
             }
 
             var result = await InnerJobAsync();
 
             switch (result.Value)
             {
-                case JobError jobError:
+                case AppError jobError:
                     return jobError;
                 default:
                     // Just continue
                     break;
             }
+
+            if (Status == JobStatus.Suspend)
+            {
+                // Queued other jobs before this job
+                return new None();
+            }
+
+            if (Mode == JobMode.Gather)
+            {
+                int amountInInventory = Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0;
+
+                if (AllowUsingMaterialsFromInventory)
+                {
+                    ProgressAmount = amountInInventory;
+                }
+                else
+                {
+                    ProgressAmount = amountInInventory - initialAmount;
+                }
+            }
         }
 
-        _logger.LogInformation(
-            $"{GetType().Name} completed for {_playerCharacter._character.Name} - progress {_code} ({_progressAmount}/{_amount})"
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] completed - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
         return new None();
     }
 
-    protected async Task<OneOf<JobError, None>> InnerJobAsync()
+    protected async Task<OneOf<AppError, None>> InnerJobAsync()
     {
-        _logger.LogInformation(
-            $"FightJob status for {_playerCharacter._character.Name} - fighting {_code} ({_progressAmount}/{_amount})"
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] status for {Character.Schema.Name} - fighting {Code} ({ProgressAmount}/{Amount})"
         );
 
-        if (_playerCharacter._character.Hp != _playerCharacter._character.MaxHp)
+        if (DepositUnneededItems.ShouldInitDepositItems(Character))
+        {
+            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
+        // Every time the fight routine starts, we just want to make sure he has some food.
+        // If he runs out, we want him to gather enough to fight for some time.
+
+        if (GetSuitableFoodFromInventory() == 0)
+        {
+            Character.QueueJobsBefore(
+                Id,
+                [
+                    new ObtainSuitableFood(
+                        Character,
+                        gameState,
+                        PlayerCharacter.AMOUNT_OF_FOOD_TO_KEEP
+                    ),
+                ]
+            );
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
+        var hasPotionsEquipped = await EquipPotionsIfNeeded();
+
+        if (hasPotionsEquipped && IsThereAPotionToObtain())
+        {
+            Character.QueueJobsBefore(
+                Id,
+                [new ObtainSuitablePotions(Character, gameState, GetPotionsToObtain(Character))]
+            );
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
+        if (Character.Schema.Hp != Character.Schema.MaxHp)
         {
             var bestFoodCandidate = GetFoodToEat();
 
             if (bestFoodCandidate is not null)
             {
-                await _playerCharacter.UseItem(bestFoodCandidate.Code, bestFoodCandidate.Quantity);
+                await Character.UseItem(bestFoodCandidate.Code, bestFoodCandidate.Quantity);
 
-                if (_playerCharacter._character.Hp != _playerCharacter._character.MaxHp)
+                if (Character.Schema.Hp != Character.Schema.MaxHp)
                 {
-                    await _playerCharacter.Rest();
+                    await Character.Rest();
                 }
             }
             else
             {
-                await _playerCharacter.Rest();
+                await Character.Rest();
             }
         }
 
-        await _playerCharacter.NavigateTo(_code, ContentType.Monster);
+        await Character.NavigateTo(Code, ContentType.Monster);
 
-        var result = await _playerCharacter.Fight();
+        var result = await Character.Fight();
 
-        if (result.Value is JobError)
+        if (result.Value is AppError)
         {
-            return (JobError)result.Value;
+            return (AppError)result.Value;
         }
         else if (result.Value is FightResponse)
         {
-            _progressAmount++;
+            if (Mode == JobMode.Kill)
+            {
+                ProgressAmount++;
+            }
         }
 
         return new None();
     }
 
-    private void EquipBestItems()
-    {
-        // If you don't have an item in x slot, then equip it - at some point we should possibly take into consideration to not waste e.g earth dmg pots, if you do no earth dmg
-        // You can equip up to 100 utility items per slot, which is nice
-
-        // V2 should include figuring out if the character has better items in their inventory for fighting a particular monster
-        // it should run through different combinations, considering the equipment the character has in the inventory, and see if the outcome is better.
-        // Maybe it could be performant by caching it in the RunAsync, so we don't consider it every time we fight the mob
-    }
-
     private FoodCandidate? GetFoodToEat()
     {
-        var relevantFoodItems = _gameState.Items.FindAll(item =>
-            item.Type == "consumable" && item.Level <= _playerCharacter._character.Level
+        var relevantFoodItems = gameState.Items.FindAll(item =>
+            item.Type == "consumable" && item.Level <= Character.Schema.Level
         );
         Dictionary<string, ItemSchema> relevantFoodItemsDict = new();
 
@@ -208,7 +230,7 @@ public class FightMonster : CharacterJob
 
         List<ItemInInventory> foodInInventory = [];
 
-        foreach (var item in _playerCharacter._character.Inventory)
+        foreach (var item in Character.Schema.Inventory)
         {
             var existsInDict = relevantFoodItemsDict.ContainsKey(item.Code);
             if (existsInDict)
@@ -223,82 +245,98 @@ public class FightMonster : CharacterJob
             }
         }
 
-        CalculationService.SortFoodBasedOnHealValue(foodInInventory);
+        // We want to eat the worst food first, so we clear up our inventory, assuming that we usually have more bad food than good food
+        CalculationService.SortItemsBasedOnEffect(foodInInventory, "heal", true);
 
-        FoodCandidate? bestFoodCandidate = null;
+        // Basically take the last one we looped through
+        FoodCandidate? candidate = null;
 
         foreach (var food in foodInInventory)
         {
-            var hpToHeal = _playerCharacter._character.MaxHp - _playerCharacter._character.Hp;
+            var hpToHeal = Character.Schema.MaxHp - Character.Schema.Hp;
 
-            var healValue = food.Item.Effects.Find(effect => effect.Code == "heal")?.Value ?? 0;
+            var foodHealValue = food.Item.Effects.Find(effect => effect.Code == "heal")?.Value ?? 0;
 
             for (int i = 1; i <= food.Quantity; i++)
             {
-                var currentHpHealed = healValue * i;
+                var foodHealWithQuantity = foodHealValue * i;
 
-                bool isBestCandidate = false;
+                // E.g we are going to consume a cooked gudgeon for 75 HP, but we don't even need to recover 32 HP
+                // then it's a waste, and we would rather rest
 
-                if (currentHpHealed == hpToHeal)
+                if (i == 1 && hpToHeal < (foodHealWithQuantity / 2))
                 {
-                    isBestCandidate = true;
+                    return null;
                 }
 
-                if (!isBestCandidate && currentHpHealed < hpToHeal)
+                // We might waste a little bit of the food, but that's ok as long as it's not too much
+                bool isHealingWithinThresholdOrBelow =
+                    foodHealWithQuantity / (1 + EAT_FOOD_HP_THRESHOLD) <= hpToHeal;
+
+                if (foodHealWithQuantity >= hpToHeal && isHealingWithinThresholdOrBelow)
                 {
-                    if ((healValue / (1 + EAT_FOOD_HP_THRESHOLD)) <= hpToHeal)
+                    return new FoodCandidate
                     {
-                        isBestCandidate = true;
-                    }
-                    else if (i - 1 > 0)
+                        Code = food.Item.Code,
+                        Quantity = i,
+                        TotalHealAmount = foodHealWithQuantity,
+                    };
+                }
+
+                bool isHealingMoreThanNeeded = foodHealWithQuantity > hpToHeal;
+
+                if (isHealingMoreThanNeeded)
+                {
+                    if (i > 1)
                     {
-                        // Previous candidate was better, they didn't overshoot as much
-                        bestFoodCandidate = new FoodCandidate
+                        int previousFoodHealWithQuantity = foodHealValue * (i - 1);
+
+                        if (
+                            previousFoodHealWithQuantity >= hpToHeal
+                            || hpToHeal / (1 + EAT_FOOD_HP_THRESHOLD)
+                                <= previousFoodHealWithQuantity
+                        )
                         {
-                            Code = food.Item.Code,
-                            Quantity = i - 1,
-                            TotalHealAmount = currentHpHealed,
-                        };
-                        break;
+                            return new FoodCandidate
+                            {
+                                Code = food.Item.Code,
+                                Quantity = i - 1,
+                                TotalHealAmount = previousFoodHealWithQuantity,
+                            };
+                        }
                     }
+
+                    return new FoodCandidate
+                    {
+                        Code = food.Item.Code,
+                        Quantity = i,
+                        TotalHealAmount = foodHealWithQuantity,
+                    };
                 }
 
-                if (!isBestCandidate && currentHpHealed > hpToHeal)
+                candidate = new FoodCandidate
                 {
-                    if (healValue * (1 + EAT_FOOD_HP_THRESHOLD) >= hpToHeal)
-                    {
-                        isBestCandidate = true;
-                    }
-                }
+                    Code = food.Item.Code,
+                    Quantity = i,
+                    TotalHealAmount = foodHealWithQuantity,
+                };
+            }
 
-                if (isBestCandidate)
-                {
-                    // Only take a better candidate if they heal more
-                    if (
-                        bestFoodCandidate is null
-                        || bestFoodCandidate.TotalHealAmount < currentHpHealed
-                    )
-                    {
-                        bestFoodCandidate = new FoodCandidate
-                        {
-                            Code = food.Item.Code,
-                            Quantity = i,
-                            TotalHealAmount = currentHpHealed,
-                        };
-                    }
-                }
+            if (candidate is not null)
+            {
+                return candidate;
             }
         }
 
-        return bestFoodCandidate;
+        return null;
     }
 
-    public OneOf<JobError, None> IsPossible(MonsterSchema monster)
+    public OneOf<AppError, None> IsPossible(MonsterSchema monster)
     {
-        var fightSimulation = FightSimulatorService.CalculateFightOutcome(
-            _playerCharacter._character,
+        var fightSimulation = FightSimulator.CalculateFightOutcomeWithBestEquipment(
+            Character,
             monster,
-            true
+            gameState
         );
 
         if (fightSimulation.ShouldFight)
@@ -307,11 +345,146 @@ public class FightMonster : CharacterJob
         }
         else
         {
-            return new JobError(
-                $"Should not fight ${_code} - outcome: {fightSimulation.Result} - remaining HP would be {fightSimulation.PlayerHp}",
-                JobStatus.InsufficientSkill
+            return new AppError(
+                $"Should not fight {Code} - outcome: {fightSimulation.Result} - remaining HP would be {fightSimulation.PlayerHp}",
+                ErrorStatus.InsufficientSkill
             );
         }
+    }
+
+    public int GetSuitableFoodFromInventory()
+    {
+        List<ItemInInventory> foodInInventory = Character.GetItemsFromInventoryWithType(
+            "consumable"
+        );
+
+        int amountOfSuitableFood = 0;
+
+        foreach (var food in foodInInventory)
+        {
+            bool isUsuable = Character.Schema.Level >= food.Item.Level;
+
+            if (isUsuable)
+            {
+                amountOfSuitableFood += food.Quantity;
+            }
+        }
+
+        return amountOfSuitableFood;
+    }
+
+    public int HasPotionsEquipped()
+    {
+        if (
+            Character.Schema.Utility1SlotQuantity == 0
+            && Character.Schema.Utility2SlotQuantity == 0
+        )
+        {
+            ItemSchema? potionSuitableForLevel = ObtainSuitablePotions.GetMostSuitablePotion(
+                Character,
+                gameState
+            );
+
+            if (potionSuitableForLevel is null) { }
+        }
+
+        List<ItemInInventory> foodInInventory = Character.GetItemsFromInventoryWithType("utility");
+
+        int amountOfSuitableFood = 0;
+
+        foreach (var food in foodInInventory)
+        {
+            bool isUsuable = Character.Schema.Level >= food.Item.Level;
+
+            if (isUsuable)
+            {
+                amountOfSuitableFood += food.Quantity;
+            }
+        }
+
+        return amountOfSuitableFood;
+    }
+
+    public async ValueTask<bool> EquipPotionsIfNeeded()
+    {
+        if (Character.Schema.Utility1SlotQuantity > 0 || Character.Schema.Utility2SlotQuantity > 0)
+        {
+            return false;
+        }
+
+        string? slot1Equip = null;
+        int slot1EquipAmount = 0;
+
+        string? slot2Equip = null;
+        int slot2EquipAmount = 0;
+
+        var potionsInInventory = Character.GetItemsFromInventoryWithType("utility");
+
+        foreach (var potion in potionsInInventory)
+        {
+            if (ItemService.CanUseItem(potion.Item, Character.Schema.Level))
+            {
+                if (slot1Equip is null)
+                {
+                    slot1Equip = potion.Item.Code;
+                    slot1EquipAmount = potion.Quantity;
+                }
+                else if (slot2Equip is null)
+                {
+                    slot2Equip = potion.Item.Code;
+                    slot2EquipAmount = potion.Quantity;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        bool equippedItem = false;
+
+        if (slot1Equip is not null)
+        {
+            equippedItem = true;
+
+            await Character.EquipItem(slot1Equip, "utility1", slot1EquipAmount);
+        }
+        if (slot2Equip is not null)
+        {
+            equippedItem = true;
+
+            await Character.EquipItem(slot2Equip, "utility2", slot2EquipAmount);
+        }
+
+        if (equippedItem)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public bool IsThereAPotionToObtain()
+    {
+        ItemSchema? potionSuitableForLevel = ObtainSuitablePotions.GetMostSuitablePotion(
+            Character,
+            gameState
+        );
+
+        return potionSuitableForLevel is not null;
+    }
+
+    public static int GetFoodToObtain(PlayerCharacter character)
+    {
+        return character.GetInventorySpaceLeft() / 4;
+    }
+
+    public static int GetPotionsToObtain(PlayerCharacter character)
+    {
+        // We want to ensure that we don't fill our inventory
+        int inventorySpaceLeft = character.GetInventorySpaceLeft();
+
+        return inventorySpaceLeft / 5;
     }
 }
 
@@ -320,4 +493,10 @@ record FoodCandidate
     public string Code = "";
     public int Quantity;
     public int TotalHealAmount;
+}
+
+enum JobMode
+{
+    Kill,
+    Gather,
 }

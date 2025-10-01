@@ -1,5 +1,6 @@
 using Application;
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
@@ -13,8 +14,8 @@ namespace Applicaton.Jobs;
 
 public class DepositUnneededItems : CharacterJob
 {
-    public DepositUnneededItems(PlayerCharacter playerCharacter)
-        : base(playerCharacter) { }
+    public DepositUnneededItems(PlayerCharacter playerCharacter, GameState gameState)
+        : base(playerCharacter, gameState) { }
 
     private static readonly List<string> _equipmentTypes =
     [
@@ -31,14 +32,12 @@ public class DepositUnneededItems : CharacterJob
     ];
 
     // Deposit until hitting this threshold
-    private static double MIN_FREE_INVENTORY_SPACES = 5;
-    private static double MAX_FREE_INVENTORY_SPACES = 30;
+    private static int MIN_FREE_INVENTORY_SPACES = 5;
+    private static int MAX_FREE_INVENTORY_SPACES = 30;
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        _logger.LogInformation(
-            $"{GetType().Name} run started for {_playerCharacter._character.Name}"
-        );
+        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] run started");
 
         List<(string Code, int Quantity, ItemImportance Importance)> itemsToDeposit = [];
 
@@ -50,7 +49,7 @@ public class DepositUnneededItems : CharacterJob
 
         if (result is not BankItemsResponse bankItemsResponse)
         {
-            return new JobError("Failed to get bank items");
+            return new AppError("Failed to get bank items");
         }
 
         Dictionary<string, int> bankItems = new();
@@ -64,13 +63,13 @@ public class DepositUnneededItems : CharacterJob
         // e.g the character has raw chicken, but there is cooked chicken in the bank. They could then run over to the cooking station,
         // cook the chicken, and then come back.
 
-        foreach (var item in _playerCharacter._character.Inventory)
+        foreach (var item in Character.Schema.Inventory)
         {
             if (item.Code == "")
             {
                 continue;
             }
-            bool itemIsUsedForTask = item.Code == _playerCharacter._character.Task;
+            bool itemIsUsedForTask = item.Code == Character.Schema.Task;
 
             if (itemIsUsedForTask)
             {
@@ -78,7 +77,7 @@ public class DepositUnneededItems : CharacterJob
                 continue;
             }
 
-            ItemSchema matchingItem = _gameState.Items.FirstOrDefault(_item =>
+            ItemSchema matchingItem = gameState.Items.FirstOrDefault(_item =>
                 _item.Code == item.Code
             )!;
 
@@ -90,8 +89,8 @@ public class DepositUnneededItems : CharacterJob
 
             if (
                 matchingItem.Subtype == "food"
-                && _playerCharacter._character.Level >= matchingItem.Level
-                && (_playerCharacter._character.Level - matchingItem.Level)
+                && Character.Schema.Level >= matchingItem.Level
+                && (Character.Schema.Level - matchingItem.Level)
                     <= PlayerCharacter.PREFERED_FOOD_LEVEL_DIFFERENCE
             )
             {
@@ -108,7 +107,7 @@ public class DepositUnneededItems : CharacterJob
                 continue;
             }
 
-            if (_playerCharacter._jobs.Find(job => job._code == item.Code) is not null)
+            if (Character.Jobs.Find(job => job.Code == item.Code) is not null)
             {
                 itemsToDeposit.Add((item.Code, item.Quantity, Importance: ItemImportance.High));
                 continue;
@@ -125,27 +124,29 @@ public class DepositUnneededItems : CharacterJob
 
         itemsToDeposit.Sort((a, b) => a.Importance.CompareTo(b.Importance));
 
-        await _playerCharacter.NavigateTo("bank", ContentType.Bank);
+        await Character.NavigateTo("bank", ContentType.Bank);
 
         foreach (var item in itemsToDeposit)
         {
-            if (!ShouldKeepDepositingIfAtBank(_playerCharacter))
+            if (!ShouldKeepDepositingIfAtBank(Character))
             {
                 break;
             }
 
-            await _playerCharacter.DepositBankItem(item.Code, item.Quantity);
+            int amountToDeposit = Math.Min(item.Quantity, MAX_FREE_INVENTORY_SPACES);
+
+            await Character.DepositBankItem(
+                [new WithdrawOrDepositItemRequest { Code = item.Code, Quantity = amountToDeposit }]
+            );
         }
 
-        if (_playerCharacter.GetInventorySpaceLeft() >= MIN_FREE_INVENTORY_SPACES)
+        if (Character.GetInventorySpaceLeft() >= MIN_FREE_INVENTORY_SPACES)
         {
             // TODO: Handle that we cannot tidy up enough - maybe spawn a HouseKeeping job? It would cook and craft items in the bank,
             // which often ends up taking up less space
         }
 
-        _logger.LogInformation(
-            $"{GetType().Name} completed for {_playerCharacter._character.Name}"
-        );
+        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] completed");
 
         return new None();
     }

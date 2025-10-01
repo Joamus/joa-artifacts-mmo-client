@@ -8,6 +8,8 @@ public class ApiRequester
 {
     private readonly float _secondsBetweenRequests = 0.6f;
 
+    private readonly int MAX_RETRIES = 3;
+
     private DateTime _lastRequest;
 
     private readonly string _token;
@@ -53,7 +55,7 @@ public class ApiRequester
         double secondsDiff = (now - _lastRequest).TotalSeconds;
         if (secondsDiff < _secondsBetweenRequests)
         {
-            await Task.Delay((int)(_secondsBetweenRequests * 1000));
+            await Task.Delay((int)((_secondsBetweenRequests + 1) * 1000));
         }
         _lastRequest = DateTime.UtcNow;
     }
@@ -67,7 +69,24 @@ public class ApiRequester
     public async Task<HttpResponseMessage> PostAsync(string requestUri, HttpContent? content)
     {
         await ThrottleRequest();
-        return await _httpClient.PostAsync(requestUri, content);
+
+        HttpResponseMessage? response = null;
+
+        for (var i = 0; i < MAX_RETRIES; i++)
+        {
+            response = await _httpClient.PostAsync(requestUri, content);
+
+            if ((int)response.StatusCode == 499)
+            {
+                await Task.Delay((int)((_secondsBetweenRequests + 1) * 1000 * (i + 1) * 10));
+            }
+            else
+            {
+                return response;
+            }
+        }
+
+        return response!;
     }
 
     public async Task<HttpResponseMessage> PutAsync(string requestUri, HttpContent? content)

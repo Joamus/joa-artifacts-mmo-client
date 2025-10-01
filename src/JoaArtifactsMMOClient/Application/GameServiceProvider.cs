@@ -13,7 +13,7 @@ public static class GameServiceProvider
         return _serviceProvider;
     }
 
-    public static void SetInstance(ServiceProvider serviceProvider)
+    public static void SetInstance(IServiceProvider serviceProvider)
     {
         if (_serviceProvider is not null)
         {

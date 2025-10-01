@@ -1,10 +1,6 @@
-using System.Diagnostics;
-using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
-using Application.Jobs;
-using Application.Services;
 using Applicaton.Jobs;
 using OneOf;
 using OneOf.Types;
@@ -13,32 +9,53 @@ namespace Application.Jobs;
 
 public class CraftItem : CharacterJob
 {
-    protected string _code { get; init; }
-    protected int _amount { get; set; }
+    public int Amount { get; private set; }
 
-    protected int _progressAmount { get; set; } = 0;
+    protected int progressAmount { get; set; } = 0;
 
-    public CraftItem(PlayerCharacter playerCharacter, string code, int amount)
-        : base(playerCharacter)
+    public bool CanTriggerTraining { get; set; } = true;
+
+    public CraftItem(PlayerCharacter playerCharacter, GameState gameState, string code, int amount)
+        : base(playerCharacter, gameState)
     {
-        _code = code;
-        _amount = amount;
+        Code = code;
+        Amount = amount;
     }
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    public void ForBank()
     {
-        if (DepositUnneededItems.ShouldInitDepositItems(_playerCharacter))
+        onSuccessEndHook += () =>
         {
-            _playerCharacter.QueueJobsBefore(Id, [new DepositUnneededItems(_playerCharacter)]);
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
+            );
+            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+
+            Character.QueueJob(depositItemJob, true);
+
+            return Task.Run(() => { });
+        };
+    }
+
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
+    {
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({progressAmount}/{Amount})"
+        );
+
+        if (DepositUnneededItems.ShouldInitDepositItems(Character))
+        {
+            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            Status = JobStatus.Suspend;
             return new None();
         }
 
-        var matchingItem = _gameState.Items.Find(item => item.Code == _code);
+        var matchingItem = gameState.Items.Find(item => item.Code == Code);
 
         if (matchingItem is null || matchingItem.Craft is null)
         {
-            return new JobError(
-                $"Could not find craftable item with code {_code} - could not craft it"
+            return new AppError(
+                $"Could not find craftable item with code {Code} - could not craft it"
             );
         }
 
@@ -48,53 +65,75 @@ public class CraftItem : CharacterJob
         switch (matchingItem.Craft.Skill)
         {
             case Artifacts.Schemas.Skill.Alchemy:
-                characterSkillLevel = _playerCharacter._character.AlchemyLevel;
+                characterSkillLevel = Character.Schema.AlchemyLevel;
                 craftingLocationCode = "alchemy";
                 break;
             case Artifacts.Schemas.Skill.Cooking:
-                characterSkillLevel = _playerCharacter._character.CookingLevel;
+                characterSkillLevel = Character.Schema.CookingLevel;
                 craftingLocationCode = "cooking";
                 break;
             case Artifacts.Schemas.Skill.Gearcrafting:
-                characterSkillLevel = _playerCharacter._character.GearcraftingLevel;
+                characterSkillLevel = Character.Schema.GearcraftingLevel;
                 craftingLocationCode = "gearcrafting";
                 break;
             case Artifacts.Schemas.Skill.Jewelrycrafting:
-                characterSkillLevel = _playerCharacter._character.JewelrycraftingLevel;
+                characterSkillLevel = Character.Schema.JewelrycraftingLevel;
                 craftingLocationCode = "jewelrycrafting";
                 break;
             case Artifacts.Schemas.Skill.Mining:
-                characterSkillLevel = _playerCharacter._character.MiningLevel;
+                characterSkillLevel = Character.Schema.MiningLevel;
                 craftingLocationCode = "mining";
                 break;
             case Artifacts.Schemas.Skill.Weaponcrafting:
-                characterSkillLevel = _playerCharacter._character.WeaponcraftingLevel;
+                characterSkillLevel = Character.Schema.WeaponcraftingLevel;
                 craftingLocationCode = "weaponcrafting";
                 break;
             case Artifacts.Schemas.Skill.Woodcutting:
-                characterSkillLevel = _playerCharacter._character.WoodcuttingLevel;
+                characterSkillLevel = Character.Schema.WoodcuttingLevel;
                 craftingLocationCode = "woodcutting";
                 break;
         }
 
         if (matchingItem.Craft.Level > characterSkillLevel)
         {
-            return new JobError(
-                $"Could not craft item {_code} - current skill level is {characterSkillLevel}, required is {matchingItem.Craft.Level}",
-                JobStatus.InsufficientSkill
-            );
+            if (CanTriggerTraining)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Craft.Level}) in {craftingLocationCode} - training until they can craft the item"
+                );
+                Character.QueueJobsBefore(
+                    Id,
+                    [
+                        new TrainSkill(
+                            Character,
+                            gameState,
+                            matchingItem.Craft.Skill,
+                            matchingItem.Craft.Level
+                        ),
+                    ]
+                );
+                Status = JobStatus.Suspend;
+                return new None();
+            }
+            else
+            {
+                return new AppError(
+                    $"Could not craft item {Code} - current skill level is {characterSkillLevel}, required is {matchingItem.Craft.Level}",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
         }
 
         if (craftingLocationCode == "")
         {
-            return new JobError(
-                $"Could not craft item {_code} - could not find workshop to go to - skill is {matchingItem.Craft.Skill}"
+            return new AppError(
+                $"Could not craft item {Code} - could not find workshop to go to - skill is {matchingItem.Craft.Skill}"
             );
         }
 
-        await _playerCharacter.NavigateTo(craftingLocationCode, ContentType.Workshop);
+        await Character.NavigateTo(craftingLocationCode, ContentType.Workshop);
 
-        await _playerCharacter.Craft(_code, _amount);
+        await Character.Craft(Code, Amount);
 
         return new None();
     }

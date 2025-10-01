@@ -1,5 +1,6 @@
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
+using Application.Dtos;
 using Application.Errors;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -9,82 +10,131 @@ namespace Application.Jobs;
 
 public class ItemTask : CharacterJob
 {
-    public ItemTask(PlayerCharacter playerCharacter)
-        : base(playerCharacter) { }
+    public string? ItemCode { get; set; }
+    public int? ItemAmount { get; set; }
 
-    public override Task<OneOf<JobError, None>> RunAsync()
+    public bool CanTriggerTraining { get; set; }
+
+    public ItemTask(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        string? itemCode,
+        int? itemAmount
+    )
+        : base(playerCharacter, gameState)
     {
-        _logger.LogInformation(
-            $"{GetType().Name} run started - for {_playerCharacter._character.Name}"
-        );
+        ItemCode = itemCode;
+        ItemAmount = itemAmount;
+    }
+
+    public void ForBank()
+    {
+        onSuccessEndHook += () =>
+        {
+            logger.LogInformation(
+                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: running"
+            );
+
+            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coins")?.Quantity ?? 0;
+
+            if (taskCoinsAmount > 0)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositing them"
+                );
+                Character.QueueJob(
+                    new DepositItems(Character, gameState, "tasks_coins", taskCoinsAmount),
+                    true
+                );
+            }
+
+            if (ItemCode is not null && ItemAmount is not null)
+            {
+                logger.LogInformation(
+                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositing them"
+                );
+                Character.QueueJob(
+                    new DepositItems(Character, gameState, ItemCode, (int)ItemAmount),
+                    true
+                );
+            }
+
+            return Task.Run(() => { });
+        };
+    }
+
+    protected override Task<OneOf<AppError, None>> ExecuteAsync()
+    {
+        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] run started");
 
         List<CharacterJob> jobs = [];
 
-        if (_playerCharacter._character.TaskType == "")
+        if (Character.Schema.TaskType == "")
         {
             // Go pick up task - then we should continue
-            _playerCharacter.QueueJobsBefore(Id, [new TakeTask(_playerCharacter, "items")]);
-            return Task.FromResult<OneOf<JobError, None>>(new None());
+            Character.QueueJobsBefore(
+                Id,
+                [
+                    new AcceptNewTask(
+                        Character,
+                        gameState,
+                        TaskType.items
+                    ).SetParent<AcceptNewTask>(this),
+                ]
+            );
+            Status = JobStatus.Suspend;
+            return Task.FromResult<OneOf<AppError, None>>(new None());
         }
 
-        if (_playerCharacter._character.TaskType == "items")
+        // For gather tasks, we are only going to get tasks that we have high enough skill to do, which means that it shouldn't be needed
+        // to check if we have enough skill etc. to complete the task
+        if (Character.Schema.TaskType != TaskType.items.ToString())
         {
-            MonsterSchema? monster = _gameState.Monsters.FirstOrDefault(monster =>
-                monster.Code == _code!
-            );
-            if (monster is null)
-            {
-                return Task.FromResult<OneOf<JobError, None>>(
-                    new JobError($"Cannot find monster {_code} to fight in task")
-                );
-            }
-            var outcome = FightSimulatorService.CalculateFightOutcome(
-                _playerCharacter._character,
-                monster
-            );
-
-            if (!outcome.ShouldFight)
-            {
-                return Task.FromResult<OneOf<JobError, None>>(
-                    new JobError(
-                        $"Cannot complete monster task, because the monster is too strong - outcome: {outcome.ShouldFight} - remaining monster hp: {outcome.MonsterHp} - monster {_code} to fight in task"
-                    )
-                );
-            }
-        }
-        else
-        {
-            return Task.FromResult<OneOf<JobError, None>>(
-                new JobError(
-                    $"Cannot do a {GetType().Name}, because the current task is {_playerCharacter._character.TaskType}"
+            return Task.FromResult<OneOf<AppError, None>>(
+                new AppError(
+                    $"Cannot do a {GetType().Name}, because the current task is {Character.Schema.TaskType}"
                 )
             );
         }
 
-        int progressAmount = _playerCharacter._character.TaskProgress;
-        int amount = _playerCharacter._character.TaskTotal;
+        int progressAmount = Character.Schema.TaskProgress;
+        int amount = Character.Schema.TaskTotal;
 
         int remainingToGather = amount - progressAmount;
         if (remainingToGather > 0)
         {
-            jobs.Add(
-                new ObtainItem(
-                    _playerCharacter,
-                    _playerCharacter._character.Task,
-                    amount - progressAmount,
-                    true
-                )
+            var job = new ObtainItem(
+                Character,
+                gameState,
+                Character.Schema.Task,
+                amount - progressAmount
             );
+
+            job.CanTriggerTraining = CanTriggerTraining;
+
+            jobs.Add(job);
         }
 
-        jobs.Add(new CompleteTask(_playerCharacter));
-
-        _playerCharacter.QueueJobsAfter(Id, jobs);
-
-        _logger.LogInformation(
-            $"{GetType().Name} - found {jobs.Count} jobs to run, to complete task {_code} for {_playerCharacter._character.Name}"
+        jobs.Add(
+            new CompleteTask(Character, gameState, ItemCode, ItemAmount).SetParent<CompleteTask>(
+                this
+            )
         );
 
-        return Task.FromResult<OneOf<JobError, None>>(new None());
+        if (jobs.Count > 0)
+        {
+            jobs.Last()!.onSuccessEndHook += onSuccessEndHook;
+
+            Character.QueueJobsAfter(Id, jobs);
+        }
+
+        // Reset it
+        onSuccessEndHook = () => Task.Run(() => { });
+
+        logger.LogInformation(
+            $"{GetType().Name}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"
+        );
+
+        return Task.FromResult<OneOf<AppError, None>>(new None());
     }
 }

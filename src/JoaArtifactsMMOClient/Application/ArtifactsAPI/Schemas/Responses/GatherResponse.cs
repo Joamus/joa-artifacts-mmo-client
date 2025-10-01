@@ -5,10 +5,10 @@ namespace Application.ArtifactsApi.Schemas.Responses;
 
 public record GatherResponse
 {
-    public SkillDataSchema Data { get; set; }
+    public required SkillDataSchema Data { get; set; }
 }
 
 public record SkillDataSchema : GenericCharacterSchema
 {
-    public SkillInfoSchema Details { get; set; }
+    public required SkillInfoSchema Details { get; set; }
 }

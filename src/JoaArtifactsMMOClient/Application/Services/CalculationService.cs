@@ -10,29 +10,66 @@ public static class CalculationService
         return Math.Abs((mapX - originX) + mapY - originY);
     }
 
-    public static void SortFoodBasedOnHealValue(List<ItemInInventory> foodItems)
+    public static void SortItemsBasedOnEffect(
+        List<ItemSchema> items,
+        string effectName,
+        bool ascending = false
+    )
     {
-        foodItems.Sort(
+        items.Sort(
             (a, b) =>
             {
-                var aHealValue = a.Item.Effects.Find(effect => effect.Code == "heal")?.Value ?? 0;
-                var bHealValue = b.Item.Effects.Find(effect => effect.Code == "heal")?.Value ?? 0;
+                var aHealValue = a.Effects.Find(effect => effect.Code == effectName)?.Value ?? 0;
 
-                return bHealValue.CompareTo(aHealValue);
+                var bHealValue = b.Effects.Find(effect => effect.Code == effectName)?.Value ?? 0;
+
+                if (ascending)
+                {
+                    return aHealValue.CompareTo(bHealValue);
+                }
+                else
+                {
+                    return bHealValue.CompareTo(aHealValue);
+                }
             }
         );
     }
 
-    public static void SortFoodBasedOnHealValue(List<ItemSchema> foodItems)
+    public static void SortItemsBasedOnEffect(
+        List<ItemInInventory> items,
+        string effectName,
+        bool ascending = false
+    )
     {
-        foodItems.Sort(
+        items.Sort(
             (a, b) =>
             {
-                var aHealValue = a.Effects.Find(effect => effect.Code == "heal")?.Value ?? 0;
-                var bHealValue = b.Effects.Find(effect => effect.Code == "heal")?.Value ?? 0;
+                var aHealValue =
+                    a.Item.Effects.Find(effect => effect.Code == effectName)?.Value ?? 0;
 
-                return bHealValue.CompareTo(aHealValue);
+                var bHealValue =
+                    b.Item.Effects.Find(effect => effect.Code == effectName)?.Value ?? 0;
+
+                if (ascending)
+                {
+                    return aHealValue.CompareTo(bHealValue);
+                }
+                else
+                {
+                    return bHealValue.CompareTo(aHealValue);
+                }
             }
         );
+    }
+
+    public static bool IsItemBetter(ItemSchema? a, ItemSchema b)
+    {
+        // TODO: IMPL
+        if (a is null)
+        {
+            return true;
+        }
+
+        return false;
     }
 }

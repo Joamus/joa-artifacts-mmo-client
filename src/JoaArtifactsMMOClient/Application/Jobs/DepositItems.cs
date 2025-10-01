@@ -1,3 +1,4 @@
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
 using Application.Errors;
 using OneOf;
@@ -7,8 +8,7 @@ namespace Application.Jobs;
 
 public class DepositItems : CharacterJob
 {
-    public required string _code { get; init; }
-    public required int _amount { get; init; }
+    public int _amount { get; init; }
 
     public DepositItems(
         PlayerCharacter playerCharacter,
@@ -16,29 +16,35 @@ public class DepositItems : CharacterJob
         string code,
         int amount
     )
-        : base(playerCharacter)
+        : base(playerCharacter, gameState)
     {
-        _code = code;
+        Code = code;
         _amount = amount;
     }
 
-    public override async Task<OneOf<JobError, None>> RunAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var itemInInventory = _playerCharacter._character.Inventory.Find(item =>
-            item.Code == _code
-        );
+        var itemInInventory = Character.Schema.Inventory.Find(item => item.Code == Code);
 
         if (itemInInventory is null)
         {
-            return new JobError(
-                $"Could not deposit item(s) with code {_code} and amount ${_amount} - could not find it in inventory"
+            return new AppError(
+                $"Could not deposit item(s) with code {Code} and amount {_amount} - could not find it in inventory"
             );
         }
 
-        await _playerCharacter.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
+        await Character.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
 
-        // TODO Handle that bank might be full
-        await _playerCharacter.DepositBankItem(_code, Math.Min(_amount, itemInInventory.Quantity));
+        // TODO: Handle that bank might be full
+        await Character.DepositBankItem(
+            [
+                new WithdrawOrDepositItemRequest
+                {
+                    Code = Code!,
+                    Quantity = Math.Min(_amount, itemInInventory.Quantity),
+                },
+            ]
+        );
 
         return new None();
     }
