@@ -52,8 +52,8 @@ public static class CharacterEndpoints
             .Produces<OneOf<None, AppError>>();
 
         group
-            .MapPost("/{name}/train/fight", TrainFight)
-            .WithName(nameof(TrainRequest))
+            .MapPost("/{name}/train/combat", TrainCombat)
+            .WithName(nameof(TrainCombat))
             .WithOpenApi()
             .Produces<OneOf<None, AppError>>();
 
@@ -165,13 +165,13 @@ public static class CharacterEndpoints
         return await TrainSkillEndpoint.ProcessAsync(name, request, gameState);
     }
 
-    static async Task<IResult> TrainFight(
+    static async Task<IResult> TrainCombat(
         [FromRoute] string name,
         [FromBody] TrainRequest request,
         [FromServices] GameState gameState
     )
     {
-        return await TrainFightEndpoint.ProcessAsync(name, request, gameState);
+        return await TrainCombatEndpoint.ProcessAsync(name, request, gameState);
     }
 
     static async Task<IResult> ItemTask(

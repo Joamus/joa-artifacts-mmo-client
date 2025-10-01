@@ -4,7 +4,7 @@ using Application.Jobs;
 
 namespace Api.Endpoints;
 
-public static class TrainFightEndpoint
+public static class TrainCombatEndpoint
 {
     public static async Task<IResult> ProcessAsync(
         string name,
