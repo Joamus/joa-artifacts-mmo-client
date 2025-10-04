@@ -46,8 +46,6 @@ public static class ItemTaskEndpoint
 
 public record ItemTaskRequest : GenericActionRequest
 {
-    public int Repeat { get; set; } = 1;
-
     public bool ForBank { get; set; } = true;
     public string? ItemCode { get; set; }
     public int? ItemAmount { get; set; }

@@ -52,7 +52,7 @@ public class GatherResourceItem : CharacterJob
         onSuccessEndHook += () =>
         {
             logger.LogInformation(
-                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
+                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
             var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
 
@@ -65,7 +65,7 @@ public class GatherResourceItem : CharacterJob
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({ProgressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
         // In case of resuming a task
@@ -78,7 +78,7 @@ public class GatherResourceItem : CharacterJob
             ProgressAmount = amountInInventory;
 
             logger.LogInformation(
-                $"{GetType().Name}: [{Character.Schema.Name}] found {amountInInventory} in inventory - progress {Code} ({ProgressAmount}/{Amount})"
+                $"{JobName}: [{Character.Schema.Name}] found {amountInInventory} in inventory - progress {Code} ({ProgressAmount}/{Amount})"
             );
         }
 
@@ -120,7 +120,7 @@ public class GatherResourceItem : CharacterJob
         }
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] completed for {Character.Schema.Name} - progress {Code} ({ProgressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] completed for {Character.Schema.Name} - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
         return new None();
@@ -129,7 +129,7 @@ public class GatherResourceItem : CharacterJob
     protected async Task<OneOf<AppError, None>> InnerJobAsync(ItemSchema matchingItem)
     {
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] status for {Character.Schema.Name} - gathering {Code} ({ProgressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] status for {Character.Schema.Name} - gathering {Code} ({ProgressAmount}/{Amount})"
         );
 
         if (matchingItem.Type != "resource" || !_allowedSubtypes.Contains(matchingItem.Subtype))
@@ -162,7 +162,7 @@ public class GatherResourceItem : CharacterJob
             if (CanTriggerTraining)
             {
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] has too low gathering skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype} - training until they can craft the item"
+                    $"{JobName}: [{Character.Schema.Name}] has too low gathering skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype} - training until they can craft the item"
                 );
                 Skill skill = TrainSkill.GetSkillFromName(matchingItem.Subtype);
 
@@ -176,7 +176,7 @@ public class GatherResourceItem : CharacterJob
             else
             {
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype} - training until they can gather the item"
+                    $"{JobName}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype} - training until they can gather the item"
                 );
                 return new AppError(
                     $"Could not gather item {Code} - current skill level is {characterSkillLevel}, required is {matchingItem.Level}",

@@ -8,6 +8,10 @@ This project will contain a web-API, allowing a player to give higher level comm
 
 Rename "appSettings.Local.template.json" -> "appSettings.Local.json" and fill in the "AccountName" and "ApiToken" environment variables.
 
+## Publish
+
+Run `dotnet publich -c release -o published && docker build .`
+
 ## Roadmap
 
 - Allow the player to command their characters, through a web API. They can queue jobs, override jobs, etc.

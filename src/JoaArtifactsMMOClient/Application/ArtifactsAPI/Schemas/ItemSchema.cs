@@ -8,22 +8,22 @@ namespace Application.ArtifactsApi.Schemas;
 
 public record ItemSchema
 {
-    public string Name { get; set; }
+    public required string Name { get; set; } = "";
 
-    public string Code { get; set; }
+    public required string Code { get; set; } = "";
 
     // This is level required to equip AND level required to craft it through a skill
     public int Level { get; set; }
 
-    public string Type { get; set; }
+    public required string Type { get; set; } = "";
 
-    public string Subtype { get; set; }
+    public required string Subtype { get; set; } = "";
 
-    public string Description { get; set; }
+    public required string Description { get; set; } = "";
 
     public List<SimpleEffectSchema> Effects { get; set; } = [];
 
-    public List<ItemCondition> Conditions { get; set; } = [];
+    public List<ItemOrMapCondition> Conditions { get; set; } = [];
 
     public CraftDto? Craft { get; set; }
 
@@ -70,7 +70,7 @@ public record CraftDto
     public int Quantity { get; set; }
 }
 
-public record ItemCondition
+public record ItemOrMapCondition
 {
     public string Code { get; set; } = "";
 

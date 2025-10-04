@@ -46,7 +46,7 @@ public class ObtainItem : CharacterJob
         onSuccessEndHook = () =>
         {
             logger.LogInformation(
-                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to deposit {Amount} x {Code} to the bank"
+                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to deposit {Amount} x {Code} to the bank"
             );
 
             var depositItemJob = new DepositItems(
@@ -59,7 +59,7 @@ public class ObtainItem : CharacterJob
             depositItemJob.onSuccessEndHook = () =>
             {
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to withdraw {Amount} x {Code} from the bank"
+                    $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to withdraw {Amount} x {Code} from the bank"
                 );
                 recipient.QueueJob(
                     new WithdrawItem(recipient, gameState, Code, Amount, false),
@@ -79,7 +79,7 @@ public class ObtainItem : CharacterJob
         onSuccessEndHook = () =>
         {
             logger.LogInformation(
-                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
+                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
 
             var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
@@ -101,7 +101,7 @@ public class ObtainItem : CharacterJob
 
         List<CharacterJob> jobs = [];
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
         );
 
         if (AllowFindingItemInBank)
@@ -136,7 +136,7 @@ public class ObtainItem : CharacterJob
         );
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code}"
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code}"
         );
 
         switch (result.Value)

@@ -48,7 +48,6 @@ public record GatherRequest : GenericActionRequest
 {
     public required string Code { get; set; }
     public required int Amount { get; set; } = 1;
-    public int Repeat { get; set; } = 1;
 
     public bool ForBank { get; set; } = true;
 }

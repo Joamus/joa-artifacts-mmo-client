@@ -27,7 +27,7 @@ public class CraftItem : CharacterJob
         onSuccessEndHook += () =>
         {
             logger.LogInformation(
-                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
+                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
             var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
 
@@ -40,7 +40,7 @@ public class CraftItem : CharacterJob
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({progressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({progressAmount}/{Amount})"
         );
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
@@ -99,7 +99,7 @@ public class CraftItem : CharacterJob
             if (CanTriggerTraining)
             {
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Craft.Level}) in {craftingLocationCode} - training until they can craft the item"
+                    $"{JobName}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Craft.Level}) in {craftingLocationCode} - training until they can craft the item"
                 );
                 Character.QueueJobsBefore(
                     Id,

@@ -10,19 +10,34 @@ namespace Application.Jobs;
 public class TrainCombat : CharacterJob
 {
     public static readonly int AMOUNT_TO_KILL = 20;
-    public int UntilLevel { get; init; }
+    public int Level { get; private set; }
+    public bool Relative { get; init; }
 
-    public TrainCombat(PlayerCharacter character, GameState gameState, int UntilLevel)
-        : base(character, gameState) { }
+    public TrainCombat(
+        PlayerCharacter character,
+        GameState gameState,
+        int level,
+        bool relative = false
+    )
+        : base(character, gameState)
+    {
+        Level = level;
+        Relative = relative;
+    }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run started - training combat until level {UntilLevel}"
+            $"{JobName}: [{Character.Schema.Name}] run started - training combat until level {Level}"
         );
         int playerLevel = Character.Schema.Level;
 
-        if (playerLevel < UntilLevel)
+        if (Relative)
+        {
+            Level = playerLevel + Level;
+        }
+
+        if (playerLevel < Level)
         {
             var result = await GetJobRequired(playerLevel);
 

@@ -32,9 +32,9 @@ public class TrainSkill : CharacterJob
     public Skill Skill { get; init; }
 
     private string skillName { get; set; }
-    public int UntilLevel { get; private set; }
+    public int Level { get; private set; }
 
-    public bool RelativeLevel { get; init; }
+    public bool Relative { get; init; }
 
     private static ILogger<TrainSkill> staticLogger = LoggerFactory
         .Create(AppLogger.options)
@@ -44,14 +44,14 @@ public class TrainSkill : CharacterJob
         PlayerCharacter character,
         GameState gameState,
         Skill skill,
-        int untilLevel,
-        bool relativeLevel = false
+        int level,
+        bool relative = false
     )
         : base(character, gameState)
     {
         Skill = skill;
-        UntilLevel = untilLevel;
-        RelativeLevel = relativeLevel;
+        Level = level;
+        Relative = relative;
         skillName = GetSkillName(Skill);
     }
 
@@ -59,28 +59,27 @@ public class TrainSkill : CharacterJob
     {
         int skillLevel = GetSkillLevel(skillName);
 
-        if (RelativeLevel)
+        if (Relative)
         {
-            UntilLevel = skillLevel + UntilLevel;
+            Level = skillLevel + Level;
         }
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run started - training {skillName} until level {UntilLevel}"
+            $"{JobName}: [{Character.Schema.Name}] run started - training {skillName} until level {Level}"
         );
 
         SkillKind skillKind = GatheringSkills.Contains(skillName)
             ? SkillKind.Gathering
             : SkillKind.Crafting;
 
-        if (skillLevel < UntilLevel)
+        if (skillLevel < Level)
         {
-            var result = await GetJobRequired(skillName, skillKind, skillLevel);
+            var result = await GetJobsRequired(skillName, skillKind, skillLevel);
 
             switch (result.Value)
             {
                 case CharacterJob job:
                     Character.QueueJobsBefore(Id, [job]);
-                    Status = JobStatus.Suspend;
                     break;
                 case AppError error:
                     return error;
@@ -90,13 +89,15 @@ public class TrainSkill : CharacterJob
         return new None();
     }
 
-    public async Task<OneOf<AppError, CharacterJob>> GetJobRequired(
+    public async Task<OneOf<AppError, List<CharacterJob>>> GetJobsRequired(
         string skillName,
         SkillKind skillKind,
         int skillLevel
     )
     {
         // We want to find the the thing that we can gather/craft that is closest to us in skill
+
+        List<CharacterJob> trainJobs = [];
 
         switch (skillKind)
         {
@@ -133,7 +134,8 @@ public class TrainSkill : CharacterJob
                 // We don't want to keep the items in our inventory forever - just craft them and deposit.
                 gatherJob.ForBank();
 
-                return gatherJob;
+                trainJobs.Add(gatherJob);
+                break;
             case SkillKind.Crafting:
                 // We have to consider the amount of materials needed, and prioritize not having materials that require task items, etc.
 
@@ -154,29 +156,17 @@ public class TrainSkill : CharacterJob
                         if (bestItemToCraft is null || bestItemToCraft.Level < item.Level)
                         {
                             // Jobs is mutated in the method
-                            List<CharacterJob> jobs = [];
+                            // List<CharacterJob> jobs = [];
 
-                            // await ObtainItem.GetJobsRequired(
-                            //     Character,
-                            //     gameState,
-                            //     true,
-                            //     [],
-                            //     jobs,
-                            //     item.Code,
-                            //     1
-                            // );
-
-                            // Dumb implementation - we only want jobs where we can craft everything
-                            if (
-                                jobs.Find(job =>
-                                    JobTypesToAvoidWhenCrafting.Contains(job.GetType().Name)
-                                )
-                                is null
-                            )
-                            {
-                                // bestItemToCraft = item;
-                                itemToCraftCandidates.Add(item);
-                            }
+                            // // Dumb implementation - we only want jobs where we can craft everything
+                            // if (
+                            //     jobs.Find(job => JobTypesToAvoidWhenCrafting.Contains(job.JobName))
+                            //     is null
+                            // )
+                            // {
+                            // bestItemToCraft = item;
+                            itemToCraftCandidates.Add(item);
+                            // }
                         }
                     }
                 }
@@ -238,17 +228,20 @@ public class TrainSkill : CharacterJob
                     if (Skill == Skill.Alchemy)
                     {
                         // TODO: Hardcoded - you can't craft anything in Alchemy before being level 5, so you need to gather sunflowers until then.
-                        return new GatherResourceItem(
+
+                        var job = new GatherResourceItem(
                             Character,
                             gameState,
                             "sunflower",
                             AMOUNT_TO_GATHER_PER_JOB,
                             false
                         );
+                        job.ForBank();
+                        trainJobs.Add(job);
                     }
 
                     return new AppError(
-                        $"Could not find best item for training \"{skillName}\" at skill level \"{UntilLevel}\" for \"{Character.Schema.Name}\""
+                        $"Could not find best item for training \"{skillName}\" at skill level \"{Level}\" for \"{Character.Schema.Name}\""
                     );
                 }
 
@@ -262,7 +255,7 @@ public class TrainSkill : CharacterJob
                 }
 
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skillName} until level {UntilLevel}"
+                    $"{JobName}: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skillName} until level {Level}"
                 );
 
                 var obtainItemJob = new ObtainItem(
@@ -275,14 +268,38 @@ public class TrainSkill : CharacterJob
                 obtainItemJob.AllowFindingItemInBank = false;
                 obtainItemJob.AllowUsingMaterialsFromBank = true;
                 obtainItemJob.AllowUsingMaterialsFromInventory = true;
-                // obtainItemJob.CanTriggerTraining = true;
-                // We don't want to keep the items in our inventory forever - just craft them and deposit.
-                obtainItemJob.ForBank();
 
-                return obtainItemJob;
+                trainJobs.Add(obtainItemJob);
+
+                if (RecycleItem.CanItemBeRecycled(bestItemToCraft))
+                {
+                    var recycleJob = new RecycleItem(
+                        Character,
+                        gameState,
+                        bestItemToCraft.Code,
+                        craftingAmount
+                    );
+
+                    recycleJob.ForBank();
+                    trainJobs.Add(recycleJob);
+                }
+                else
+                {
+                    obtainItemJob.ForBank();
+                }
+                break;
         }
 
-        return new AppError($"Could not find a way to train skill \"{skillName}\" to {skillLevel}");
+        if (trainJobs.Count > 0)
+        {
+            return trainJobs;
+        }
+        else
+        {
+            return new AppError(
+                $"Could not find a way to train skill \"{skillName}\" to {skillLevel}"
+            );
+        }
     }
 
     int GetSkillLevel(string skill)

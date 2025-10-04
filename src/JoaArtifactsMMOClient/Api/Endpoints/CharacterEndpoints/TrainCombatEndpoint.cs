@@ -23,25 +23,14 @@ public static class TrainCombatEndpoint
 
         matchingCharacter.Suspend(false);
 
-        // if (!string.IsNullOrEmpty(request.ItemCode))
-        // {
-        //     matchingCharacter.QueueJob(
-        //         new FightMonster(
-        //             matchingCharacter,
-        //             gameState,
-        //             request.Code,
-        //             request.Amount,
-        //             request.ItemCode,
-        //             request.UseItemIfInInventory
-        //         )
-        //     );
-        // }
-        // else
-        // {
-        //     matchingCharacter.QueueJob(
-        //         new FightMonster(matchingCharacter, gameState, request.Code, request.Amount)
-        //     );
-        // }
+        if (request.Level < 0)
+        {
+            return TypedResults.BadRequest();
+        }
+
+        matchingCharacter.QueueJob(
+            new TrainCombat(matchingCharacter, gameState, request.Level, request.IsRelative)
+        );
 
         matchingCharacter.Unsuspend();
 

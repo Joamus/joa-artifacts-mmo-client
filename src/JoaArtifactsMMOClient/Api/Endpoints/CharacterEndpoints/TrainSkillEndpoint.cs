@@ -26,39 +26,20 @@ public static class TrainSkillEndpoint
 
         matchingCharacter.Suspend(false);
 
-        var until =
-            request.RelativeLevel > 0
-                ? matchingCharacter.Schema.Level + request.RelativeLevel
-                : request.UntilLevel;
-
-        if (until < 0)
+        if (request.Level < 0)
         {
             return TypedResults.BadRequest();
         }
 
         matchingCharacter.QueueJob(
-            new TrainSkill(matchingCharacter, gameState, request.Skill, until)
+            new TrainSkill(
+                matchingCharacter,
+                gameState,
+                request.Skill,
+                request.Level,
+                request.IsRelative
+            )
         );
-
-        // if (!string.IsNullOrEmpty(request.ItemCode))
-        // {
-        //     matchingCharacter.QueueJob(
-        //         new FightMonster(
-        //             matchingCharacter,
-        //             gameState,
-        //             request.Code,
-        //             request.Amount,
-        //             request.ItemCode,
-        //             request.UseItemIfInInventory
-        //         )
-        //     );
-        // }
-        // else
-        // {
-        //     matchingCharacter.QueueJob(
-        //         new FightMonster(matchingCharacter, gameState, request.Code, request.Amount)
-        //     );
-        // }
 
         matchingCharacter.Unsuspend();
 
@@ -74,6 +55,6 @@ public record TrainSkillRequest : TrainRequest
 
 public record TrainRequest : GenericActionRequest
 {
-    public int UntilLevel { get; set; } = 0;
-    public int RelativeLevel { get; set; } = 0;
+    public int Level { get; set; } = 0;
+    public bool IsRelative { get; set; } = false;
 }

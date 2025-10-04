@@ -24,7 +24,7 @@ public class ObtainSuitableFood : CharacterJob
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation(
-            $"{GetType().Name} run started - for {Character.Schema.Name} - need to find {_amount} food"
+            $"{JobName} run started - for {Character.Schema.Name} - need to find {_amount} food"
         );
         // Look in bank if we have any that is usable, just take the lowest level food, so we can clean out
         // If we have don't have enough, take uncooked food (if you can cook it), and cook it
@@ -42,7 +42,7 @@ public class ObtainSuitableFood : CharacterJob
                 return jobError;
             case List<CharacterJob> jobs:
                 logger.LogInformation(
-                    $"{GetType().Name} found {jobs.Count} jobs for {Character.Schema.Name} - need to find {_amount} food"
+                    $"{JobName} found {jobs.Count} jobs for {Character.Schema.Name} - need to find {_amount} food"
                 );
                 Character.QueueJobsAfter(Id, jobs);
                 break;
@@ -82,7 +82,7 @@ public class ObtainSuitableFood : CharacterJob
             // If item is null, then it has been deleted from the game or something
             if (
                 matchingItem.Subtype == "food"
-                && ItemService.CanUseItem(matchingItem, Character.Schema.Level)
+                && ItemService.CanUseItem(matchingItem, Character.Schema)
             )
             {
                 foodCandidates.Add(

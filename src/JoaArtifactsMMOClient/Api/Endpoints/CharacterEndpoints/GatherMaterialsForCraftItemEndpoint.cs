@@ -49,12 +49,12 @@ public static class GatherMaterialsForCraftItemEndpoint
                     );
                 }
 
-                job.Character = recipientCharacter;
+                job.Crafter = recipientCharacter;
             }
 
             if (request.Idle)
             {
-                matchingCharacter.SetIdleJob(job);
+                matchingCharacter.AddIdleJob(job);
                 break;
             }
 
@@ -70,7 +70,6 @@ public record GatherMaterialsForCraftItemEndpointRequest : GenericActionRequest
 {
     public required string Code { get; set; }
     public int Amount { get; set; } = 1;
-    public int Repeat { get; set; } = 1;
     public required bool AllowUsingMaterialsFromBank { get; set; } = true;
 
     public bool ForBank { get; set; } = true;

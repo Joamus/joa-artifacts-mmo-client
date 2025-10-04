@@ -259,7 +259,7 @@ public class FightSimulator
                     );
                 }
 
-                if (!ItemService.CanUseItem(itemSchema, character.Schema.Level))
+                if (!ItemService.CanUseItem(itemSchema, character.Schema))
                 {
                     continue;
                 }

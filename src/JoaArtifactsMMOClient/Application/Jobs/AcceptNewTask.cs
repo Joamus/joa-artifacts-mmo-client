@@ -24,7 +24,7 @@ public class AcceptNewTask : CharacterJob
             throw new Exception("Code cannot be null here");
         }
 
-        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] run started");
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
         List<CharacterJob> jobs = [];
 
@@ -37,7 +37,7 @@ public class AcceptNewTask : CharacterJob
         await Character.TaskNew();
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code} for {Character.Schema.Name}"
+            $"{JobName}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code} for {Character.Schema.Name}"
         );
 
         return new None();

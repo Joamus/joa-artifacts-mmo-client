@@ -17,6 +17,10 @@ namespace Application.Jobs;
 public class FightMonster : CharacterJob
 {
     private static readonly float EAT_FOOD_HP_THRESHOLD = 0.20f;
+    private static readonly int REST_HP_PER_SEC = 5;
+
+    // Doesn't matter the amount you consume, cooldown is the same
+    private static readonly int COOLDOWN_CONSUMING_FOOD = 3;
     string? ItemCode { get; init; }
 
     protected int? Amount { get; set; }
@@ -60,7 +64,7 @@ public class FightMonster : CharacterJob
         ShouldInterrupt = false;
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({ProgressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
         if (Mode == JobMode.Gather && ItemCode is null)
@@ -128,7 +132,7 @@ public class FightMonster : CharacterJob
         }
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] completed - progress {Code} ({ProgressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] completed - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
         return new None();
@@ -137,7 +141,7 @@ public class FightMonster : CharacterJob
     protected async Task<OneOf<AppError, None>> InnerJobAsync()
     {
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] status for {Character.Schema.Name} - fighting {Code} ({ProgressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] status for {Character.Schema.Name} - fighting {Code} ({ProgressAmount}/{Amount})"
         );
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
@@ -158,7 +162,10 @@ public class FightMonster : CharacterJob
                     new ObtainSuitableFood(
                         Character,
                         gameState,
-                        PlayerCharacter.AMOUNT_OF_FOOD_TO_KEEP
+                        GetFoodToObtain(
+                            Character,
+                            Mode == JobMode.Kill ? Amount - ProgressAmount : null
+                        )
                     ),
                 ]
             );
@@ -168,14 +175,29 @@ public class FightMonster : CharacterJob
 
         var hasPotionsEquipped = await EquipPotionsIfNeeded();
 
-        if (hasPotionsEquipped && IsThereAPotionToObtain())
+        if (!hasPotionsEquipped)
         {
-            Character.QueueJobsBefore(
-                Id,
-                [new ObtainSuitablePotions(Character, gameState, GetPotionsToObtain(Character))]
+            var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
+                Character,
+                gameState,
+                ObtainSuitablePotions.GetPotionsToObtain(Character)
             );
-            Status = JobStatus.Suspend;
-            return new None();
+
+            if (obtainPotionJobs.Count > 0)
+            {
+                Character.QueueJobsBefore(
+                    Id,
+                    [
+                        new ObtainSuitablePotions(
+                            Character,
+                            gameState,
+                            ObtainSuitablePotions.GetPotionsToObtain(Character)
+                        ),
+                    ]
+                );
+                Status = JobStatus.Suspend;
+                return new None();
+            }
         }
 
         if (Character.Schema.Hp != Character.Schema.MaxHp)
@@ -373,38 +395,6 @@ public class FightMonster : CharacterJob
         return amountOfSuitableFood;
     }
 
-    public int HasPotionsEquipped()
-    {
-        if (
-            Character.Schema.Utility1SlotQuantity == 0
-            && Character.Schema.Utility2SlotQuantity == 0
-        )
-        {
-            ItemSchema? potionSuitableForLevel = ObtainSuitablePotions.GetMostSuitablePotion(
-                Character,
-                gameState
-            );
-
-            if (potionSuitableForLevel is null) { }
-        }
-
-        List<ItemInInventory> foodInInventory = Character.GetItemsFromInventoryWithType("utility");
-
-        int amountOfSuitableFood = 0;
-
-        foreach (var food in foodInInventory)
-        {
-            bool isUsuable = Character.Schema.Level >= food.Item.Level;
-
-            if (isUsuable)
-            {
-                amountOfSuitableFood += food.Quantity;
-            }
-        }
-
-        return amountOfSuitableFood;
-    }
-
     public async ValueTask<bool> EquipPotionsIfNeeded()
     {
         if (Character.Schema.Utility1SlotQuantity > 0 || Character.Schema.Utility2SlotQuantity > 0)
@@ -422,7 +412,7 @@ public class FightMonster : CharacterJob
 
         foreach (var potion in potionsInInventory)
         {
-            if (ItemService.CanUseItem(potion.Item, Character.Schema.Level))
+            if (ItemService.CanUseItem(potion.Item, Character.Schema))
             {
                 if (slot1Equip is null)
                 {
@@ -464,27 +454,16 @@ public class FightMonster : CharacterJob
         return true;
     }
 
-    public bool IsThereAPotionToObtain()
+    public static int GetFoodToObtain(PlayerCharacter character, int? amountToKill)
     {
-        ItemSchema? potionSuitableForLevel = ObtainSuitablePotions.GetMostSuitablePotion(
-            Character,
-            gameState
-        );
+        int baselineAmount = character.GetInventorySpaceLeft() / 4;
 
-        return potionSuitableForLevel is not null;
-    }
+        if (amountToKill is not null)
+        {
+            return Math.Min(amountToKill.Value, baselineAmount);
+        }
 
-    public static int GetFoodToObtain(PlayerCharacter character)
-    {
-        return character.GetInventorySpaceLeft() / 4;
-    }
-
-    public static int GetPotionsToObtain(PlayerCharacter character)
-    {
-        // We want to ensure that we don't fill our inventory
-        int inventorySpaceLeft = character.GetInventorySpaceLeft();
-
-        return inventorySpaceLeft / 5;
+        return baselineAmount;
     }
 }
 

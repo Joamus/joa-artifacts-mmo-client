@@ -46,7 +46,7 @@ public static class FightEndpoint
 
             if (request.Idle)
             {
-                matchingCharacter.SetIdleJob(job);
+                matchingCharacter.AddIdleJob(job);
                 break;
             }
             matchingCharacter.QueueJob(job);
@@ -61,7 +61,6 @@ public static class FightEndpoint
 public record FightRequest : GenericActionRequest
 {
     public required string Code { get; set; }
-    public int Repeat { get; set; } = 1;
     public required int Amount { get; set; }
     public string? ItemCode { get; set; }
     public required bool AllowUsingMaterialsFromInventory { get; set; } = false;

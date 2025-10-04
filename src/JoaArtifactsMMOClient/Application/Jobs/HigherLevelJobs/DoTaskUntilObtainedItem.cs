@@ -30,7 +30,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] run started");
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
         // This job essentially just keeps queueing Monster/Item task jobs before it self, and then checking to see if the character has obtained the goal or not.
 
@@ -45,7 +45,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
                     : new ItemTask(Character, gameState, Code, Amount);
 
             logger.LogInformation(
-                $"{GetType().Name}: [{Character.Schema.Name}] queueing another task - have {amountInInventory}/{Amount} currently"
+                $"{JobName}: [{Character.Schema.Name}] queueing another task - have {amountInInventory}/{Amount} currently"
             );
             Character.QueueJobsBefore(Id, [task]);
             Status = JobStatus.Suspend;
@@ -53,7 +53,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
         }
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] completed - progress {Code} ({amountInInventory}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] completed - progress {Code} ({amountInInventory}/{Amount})"
         );
 
         return new None();

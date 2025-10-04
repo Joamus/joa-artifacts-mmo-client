@@ -47,14 +47,14 @@ public class GatherMaterialsForItem : CharacterJob
     private void SetupMakeCharacterCraftEvents(PlayerCharacter crafter, CraftItem lastJob)
     {
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] setting up events to have {crafter.Schema.Name} craft {lastJob.Amount} x {lastJob.Code}"
+            $"{JobName}: [{Character.Schema.Name}] setting up events to have {crafter.Schema.Name} craft {lastJob.Amount} x {lastJob.Code}"
         );
 
         var depositItems = SetupDepositAllMaterialsToBank(lastJob, crafter);
 
         foreach (var job in depositItems)
         {
-            Character.QueueJob(job, true);
+            Character.QueueJob(job);
         }
 
         depositItems.Last().onSuccessEndHook += () =>
@@ -65,7 +65,7 @@ public class GatherMaterialsForItem : CharacterJob
             job.onSuccessEndHook = () =>
             {
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queuing withdraw for {lastJob.Amount} x {lastJob.Code} items, that {crafter.Schema.Name} should have crafted"
+                    $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queuing withdraw for {lastJob.Amount} x {lastJob.Code} items, that {crafter.Schema.Name} should have crafted"
                 );
 
                 Character.QueueJob(
@@ -93,7 +93,7 @@ public class GatherMaterialsForItem : CharacterJob
 
         foreach (var job in jobs)
         {
-            Character.QueueJob(job, true);
+            Character.QueueJob(job);
         }
     }
 
@@ -126,7 +126,7 @@ public class GatherMaterialsForItem : CharacterJob
                 job.onSuccessEndHook = () =>
                 {
                     logger.LogInformation(
-                        $"{GetType().Name}: [{Character.Schema.Name}] onSuccessEndHook: queueing job for {crafter.Schema.Name} to withdraw {material.Quantity} x {material.Code}"
+                        $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job for {crafter.Schema.Name} to withdraw {material.Quantity} x {material.Code}"
                     );
 
                     crafter.QueueJob(
@@ -144,7 +144,7 @@ public class GatherMaterialsForItem : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] run started");
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
@@ -156,13 +156,13 @@ public class GatherMaterialsForItem : CharacterJob
         if (Character.Schema.Name == Crafter?.Schema.Name)
         {
             return new AppError(
-                $"{GetType().Name}: [{Character.Schema.Name}] the crafter is the same as the creator - skipping"
+                $"{JobName}: [{Character.Schema.Name}] the crafter is the same as the creator - skipping"
             );
         }
 
         List<CharacterJob> jobs = [];
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
         );
 
         if (AllowFindingItemInBank)
@@ -198,7 +198,7 @@ public class GatherMaterialsForItem : CharacterJob
         );
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code}"
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code}"
         );
 
         switch (result.Value)
@@ -212,7 +212,7 @@ public class GatherMaterialsForItem : CharacterJob
         if (lastJob is null || lastJob is not CraftItem)
         {
             return new AppError(
-                $"{GetType().Name}: [{Character.Schema.Name}] error - last job is null or not a CraftItem job"
+                $"{JobName}: [{Character.Schema.Name}] error - last job is null or not a CraftItem job"
             );
         }
 
@@ -228,7 +228,7 @@ public class GatherMaterialsForItem : CharacterJob
             if (lastJob is null || lastJob is not CraftItem)
             {
                 return new AppError(
-                    $"{GetType().Name}: [{Character.Schema.Name}] error - last job is null or not a CraftItem job"
+                    $"{JobName}: [{Character.Schema.Name}] error - last job is null or not a CraftItem job"
                 );
             }
             SetupForBankEvents(craftJob);

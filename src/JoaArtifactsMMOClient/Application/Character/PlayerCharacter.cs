@@ -18,10 +18,7 @@ namespace Application.Character;
 public class PlayerCharacter
 {
     [JsonIgnore]
-    public static readonly int AMOUNT_OF_FOOD_TO_KEEP = 20;
-
-    [JsonIgnore]
-    public static readonly int AMOUNT_OF_POTIONS_TO_KEEP = 20;
+    public static readonly int MIN_AMOUNT_OF_FOOD_TO_KEEP = 20;
 
     [JsonIgnore]
     public static readonly int PREFERED_FOOD_LEVEL_DIFFERENCE = 5;
@@ -38,7 +35,7 @@ public class PlayerCharacter
     private const string MediaType = "application/json";
     public List<CharacterJob> Jobs { get; private set; } = [];
 
-    public CharacterJob? IdleJob { get; private set; }
+    public List<CharacterJob> IdleJobs { get; private set; }
 
     public CharacterJob? CurrentJob { get; private set; }
 
@@ -90,10 +87,10 @@ public class PlayerCharacter
         Busy = false;
     }
 
-    public void SetIdleJob(CharacterJob job)
+    public void AddIdleJob(CharacterJob job)
     {
         Busy = true;
-        IdleJob = job;
+        IdleJobs.Add(job);
         Busy = false;
     }
 
@@ -170,7 +167,7 @@ public class PlayerCharacter
     {
         Busy = true;
         Jobs = [];
-        IdleJob = null;
+        IdleJobs = [];
         if (CurrentJob is not null)
         {
             CurrentJob.Interrrupt();
@@ -197,15 +194,21 @@ public class PlayerCharacter
             nextJob = Jobs[0];
             Jobs.RemoveAt(0);
         }
-        else if (IdleJob is not null)
+        else if (IdleJobs is not null)
         {
-            var clonedIdleJob = IdleJob.Clone();
+            int randomIndex = new Random().Next(0, IdleJobs.Count - 1);
+
+            CharacterJob randomJob = IdleJobs.ElementAtOrDefault(randomIndex)!;
+            var clonedIdleJob = randomJob.Clone();
 
             // This is mess, but we want the job to have a reference to this character,
             // and not a clone. It's only the rest of the job we want to clone, in case the job
             // saves state on it, that should be reset. A better solution could be found :D
             clonedIdleJob.Character = this;
 
+            Logger.LogInformation(
+                $"{GetType().Name}: [{Schema.Name}] picked random job index {randomIndex} of {IdleJobs.Count}"
+            );
             nextJob = clonedIdleJob;
         }
 
@@ -214,6 +217,8 @@ public class PlayerCharacter
         if (CurrentJob is not null)
         {
             OneOf<AppError, None>? result = null;
+            bool failed = false;
+
             try
             {
                 // If the job was suspended before, we set it to "New" now, because it shouldn't be suspend anymore.
@@ -228,6 +233,8 @@ public class PlayerCharacter
                             $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()}"
                         );
                         Logger.LogError(appError.Message);
+                        failed = true;
+
                         break;
                     case None:
                         break;
@@ -238,6 +245,15 @@ public class PlayerCharacter
                 Logger.LogError(
                     $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - threw exception: {e.Message}"
                 );
+                failed = true;
+            }
+
+            if (failed)
+            {
+                Jobs = Jobs.Where(job =>
+                        job.ParentJob?.Id != CurrentJob.Id && job.Id != CurrentJob.Id
+                    )
+                    .ToList();
             }
 
             if (result is not null)

@@ -270,5 +270,6 @@ public static class CharacterEndpoints
 
 public record GenericActionRequest
 {
+    public int Repeat { get; set; } = 1;
     public bool Idle { get; set; } = false;
 }

@@ -37,7 +37,7 @@ public class DepositUnneededItems : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] run started");
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
         List<(string Code, int Quantity, ItemImportance Importance)> itemsToDeposit = [];
 
@@ -73,7 +73,7 @@ public class DepositUnneededItems : CharacterJob
 
             if (itemIsUsedForTask)
             {
-                itemsToDeposit.Add((item.Code, item.Quantity, Importance: ItemImportance.High));
+                itemsToDeposit.Add((item.Code, item.Quantity, ItemImportance.High));
                 continue;
             }
 
@@ -83,7 +83,14 @@ public class DepositUnneededItems : CharacterJob
 
             if (_equipmentTypes.Contains(matchingItem.Type))
             {
-                itemsToDeposit.Add((item.Code, item.Quantity, Importance: ItemImportance.Medium));
+                var itemImportance = ItemImportance.Medium;
+
+                if (matchingItem.Subtype == "tool")
+                {
+                    itemImportance = ItemImportance.High;
+                }
+
+                itemsToDeposit.Add((item.Code, item.Quantity, itemImportance));
                 continue;
             }
 
@@ -94,7 +101,10 @@ public class DepositUnneededItems : CharacterJob
                     <= PlayerCharacter.PREFERED_FOOD_LEVEL_DIFFERENCE
             )
             {
-                int amountToKeep = Math.Min(PlayerCharacter.AMOUNT_OF_FOOD_TO_KEEP, item.Quantity);
+                int amountToKeep = Math.Min(
+                    PlayerCharacter.MIN_AMOUNT_OF_FOOD_TO_KEEP,
+                    item.Quantity
+                );
 
                 int amountToDeposit = item.Quantity - amountToKeep;
 
@@ -146,7 +156,7 @@ public class DepositUnneededItems : CharacterJob
             // which often ends up taking up less space
         }
 
-        logger.LogInformation($"{GetType().Name}: [{Character.Schema.Name}] completed");
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] completed");
 
         return new None();
     }

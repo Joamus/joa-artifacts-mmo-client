@@ -29,16 +29,14 @@ public class MonsterTask : CharacterJob
     {
         onSuccessEndHook += () =>
         {
-            logger.LogInformation(
-                $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: running"
-            );
+            logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
             var taskCoinsAmount = Character.GetItemFromInventory("tasks_coins")?.Quantity ?? 0;
 
             if (taskCoinsAmount > 0)
             {
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositting them"
+                    $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositting them"
                 );
                 Character.QueueJob(
                     new DepositItems(
@@ -54,7 +52,7 @@ public class MonsterTask : CharacterJob
             if (ItemCode is not null && ItemAmount is not null)
             {
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositting them"
+                    $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositting them"
                 );
                 Character.QueueJob(
                     new DepositItems(
@@ -73,7 +71,7 @@ public class MonsterTask : CharacterJob
 
     protected override Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        logger.LogInformation($"{GetType().Name} run started - for {Character.Schema.Name}");
+        logger.LogInformation($"{JobName} run started - for {Character.Schema.Name}");
 
         List<CharacterJob> jobs = [];
 
@@ -126,7 +124,7 @@ public class MonsterTask : CharacterJob
         {
             return Task.FromResult<OneOf<AppError, None>>(
                 new AppError(
-                    $"Cannot do a {GetType().Name}, because the current task is {Character.Schema.TaskType}"
+                    $"Cannot do a {JobName}, because the current task is {Character.Schema.TaskType}"
                 )
             );
         }
@@ -164,7 +162,7 @@ public class MonsterTask : CharacterJob
         onSuccessEndHook = () => Task.Run(() => { });
 
         logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"
+            $"{JobName}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"
         );
 
         return Task.FromResult<OneOf<AppError, None>>(new None());

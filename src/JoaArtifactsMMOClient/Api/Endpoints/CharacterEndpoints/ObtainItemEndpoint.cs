@@ -50,7 +50,7 @@ public static class ObtainItemEndpoint
 
             if (request.Idle)
             {
-                matchingCharacter.SetIdleJob(job);
+                matchingCharacter.AddIdleJob(job);
                 break;
             }
 
@@ -66,8 +66,7 @@ public record ObtainItemRequest : GenericActionRequest
 {
     public required string Code { get; set; }
     public int Amount { get; set; } = 1;
-    public int Repeat { get; set; } = 1;
-    public required bool AllowUsingMaterialsFromBank { get; set; } = true;
+    public bool AllowUsingMaterialsFromBank { get; set; } = true;
 
     // public required bool AllowUsingMaterialsFromInventory { get; set; } = true;
     //

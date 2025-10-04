@@ -10,6 +10,7 @@ namespace Application.Jobs;
 public abstract class CharacterJob
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+    public string JobName { get; private set; } = "";
     public JobStatus Status = JobStatus.New;
 
     public CharacterJob? ParentJob { get; private set; }
@@ -53,6 +54,8 @@ public abstract class CharacterJob
     {
         Character = playerCharacter;
         this.gameState = gameState;
+
+        JobName = GetType().Name;
     }
 
     protected abstract Task<OneOf<AppError, None>> ExecuteAsync();

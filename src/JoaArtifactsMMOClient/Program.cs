@@ -58,8 +58,25 @@ JsonConvert.DefaultSettings = (
     }
 );
 
-string token = builder.Configuration["ApiToken"]!;
+ILogger logger = LoggerFactory.Create(AppLogger.options).CreateLogger("Program");
+
+logger.LogInformation($"Environment: {builder.Environment.EnvironmentName}");
+
 string accountName = builder.Configuration["AccountName"]!;
+
+if (string.IsNullOrWhiteSpace(accountName))
+{
+    throw new Exception("Account name not found");
+}
+
+string token = builder.Configuration["ApiToken"]!;
+
+if (string.IsNullOrWhiteSpace(token))
+{
+    throw new Exception("API Token not found");
+}
+
+logger.LogInformation($"Accountname: {accountName}");
 
 GameState? gameState = SetupGameServiceProvider(builder.Services, token, accountName);
 

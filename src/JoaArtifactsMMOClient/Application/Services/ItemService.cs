@@ -48,11 +48,40 @@ public static class ItemService
         }.Contains(itemType);
     }
 
-    public static bool CanUseItem(ItemSchema item, int playerLevel)
+    public static bool CanUseItem(ItemSchema item, CharacterSchema playerSchema)
     {
-        var levelCondition = item.Conditions.Find(condition => condition.Code == "level");
+        foreach (var condition in item.Conditions)
+        {
+            int playerLevelOfSkill = 0;
+            switch (condition.Code)
+            {
+                case "level":
+                    playerLevelOfSkill = playerSchema.Level;
+                    break;
+                case "mining_level":
+                    playerLevelOfSkill = playerSchema.MiningLevel;
+                    break;
+                case "alchemy_level":
+                    playerLevelOfSkill = playerSchema.AlchemyLevel;
+                    break;
+                case "fishing_level":
+                    playerLevelOfSkill = playerSchema.FishingLevel;
+                    break;
+                case "woodcutting_level":
+                    playerLevelOfSkill = playerSchema.WoodcuttingLevel;
+                    break;
+            }
 
-        return levelCondition is null || levelCondition.Value <= playerLevel;
+            if (
+                condition.Operator == ItemConditionOperator.GreaterThan
+                && playerLevelOfSkill < condition.Value
+            )
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static string[] GetItemSlotsFromItemType(string itemType)

@@ -1,5 +1,6 @@
 *.env
 appSettings.Local.json
+appSettings.Production.json
 .vscode
 
 ## A streamlined .gitignore for modern .NET projects

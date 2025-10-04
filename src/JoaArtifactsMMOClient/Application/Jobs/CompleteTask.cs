@@ -35,9 +35,7 @@ public class CompleteTask : CharacterJob
             return new None();
         }
 
-        logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run started - task {Code}"
-        );
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started - task {Code}");
 
         var matchingItem = ItemCode is not null
             ? gameState.NpcItemsDict.GetValueOrNull(ItemCode)
@@ -66,7 +64,7 @@ public class CompleteTask : CharacterJob
             )
             {
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] buying item \"{ItemCode}\" for {matchingItem.BuyPrice} per item (total: {matchingItem.BuyPrice * ItemAmount}) from \"tasks_master\" - have {taskCoinsAmount} total tasks_coins - for {Character.Schema.Name} - task {Code}"
+                    $"{JobName}: [{Character.Schema.Name}] buying item \"{ItemCode}\" for {matchingItem.BuyPrice} per item (total: {matchingItem.BuyPrice * ItemAmount}) from \"tasks_master\" - have {taskCoinsAmount} total tasks_coins - for {Character.Schema.Name} - task {Code}"
                 );
                 await Character.NavigateTo(Code!, ArtifactsApi.Schemas.ContentType.TasksTrader);
                 await Character.NpcBuyItem(matchingItem.Code, itemAmount);
@@ -84,13 +82,13 @@ public class CompleteTask : CharacterJob
                 int amountOfItemNow = Character.GetItemFromInventory(ItemCode)?.Quantity ?? 0;
 
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coins\" for a random reward, to get {ItemCode} - task {Code}"
+                    $"{JobName}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coins\" for a random reward, to get {ItemCode} - task {Code}"
                 );
 
                 var result = await Character.TaskExchange();
 
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] rewards were gold: {result.Data.Rewards.Gold} and items: {result.Data.Rewards.Items} - task {Code}"
+                    $"{JobName}: [{Character.Schema.Name}] rewards were gold: {result.Data.Rewards.Gold} and items: {result.Data.Rewards.Items} - task {Code}"
                 );
 
                 var itemAsReward = result.Data.Rewards.Items.Find(item => item.Code == ItemCode);
@@ -98,25 +96,23 @@ public class CompleteTask : CharacterJob
                 if (itemAsReward?.Quantity >= ItemAmount)
                 {
                     logger.LogInformation(
-                        $"{GetType().Name}: [{Character.Schema.Name}] found {itemAsReward?.Quantity} of the items we needed, out of {ItemAmount} - task {Code}"
+                        $"{JobName}: [{Character.Schema.Name}] found {itemAsReward?.Quantity} of the items we needed, out of {ItemAmount} - task {Code}"
                     );
                 }
 
                 logger.LogInformation(
-                    $"{GetType().Name}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coins\" for a random reward, to get {ItemCode} - task {Code}"
+                    $"{JobName}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coins\" for a random reward, to get {ItemCode} - task {Code}"
                 );
             }
         }
         else
         {
             logger.LogInformation(
-                $"{GetType().Name}: [{Character.Schema.Name}] just completed task for task coins - got {taskCoinsAmount} x \"task_coins\" - task {Code}"
+                $"{JobName}: [{Character.Schema.Name}] just completed task for task coins - got {taskCoinsAmount} x \"task_coins\" - task {Code}"
             );
         }
 
-        logger.LogInformation(
-            $"{GetType().Name}: [{Character.Schema.Name}] run complete - task {Code}"
-        );
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run complete - task {Code}");
 
         return new None();
     }

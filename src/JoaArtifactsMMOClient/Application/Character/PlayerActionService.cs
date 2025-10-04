@@ -19,7 +19,7 @@ namespace Application.Character;
 */
 public class PlayerActionService
 {
-    private static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
+    public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
     private readonly GameState GameState;
 
     private readonly ILogger<PlayerActionService> Logger;
@@ -79,9 +79,7 @@ public class PlayerActionService
             code = bestResource.Code;
         }
 
-        var maps = GameState.Maps.FindAll(map =>
-            map.Content is not null && map.Content.Code == code
-        );
+        var maps = GameState.Maps.FindAll(map => map.Interactions.Content?.Code == code);
 
         if (maps.Count == 0)
         {
