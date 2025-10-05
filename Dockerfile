@@ -8,6 +8,9 @@ COPY . ./
 RUN dotnet restore
 RUN dotnet publish src/JoaArtifactsMMOClient/JoaArtifactsMMOClient.csproj -c release -o /app
 
+# Setup DNS
+RUN echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+
 # final stage/image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
