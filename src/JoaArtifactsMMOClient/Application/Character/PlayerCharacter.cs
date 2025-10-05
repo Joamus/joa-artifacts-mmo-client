@@ -163,16 +163,36 @@ public class PlayerCharacter
         Busy = false;
     }
 
+    public void DeleteJob(Guid id)
+    {
+        Busy = true;
+        Jobs = Jobs.Where(job => !job.Id.Equals(id)).ToList();
+        // IdleJobs = [];
+        if (CurrentJob is not null && CurrentJob.Id.Equals(id))
+        {
+            CurrentJob.Interrrupt();
+            CurrentJob = null;
+        }
+        Busy = false;
+    }
+
     public void ClearJobs()
     {
         Busy = true;
         Jobs = [];
-        IdleJobs = [];
+        // IdleJobs = [];
         if (CurrentJob is not null)
         {
             CurrentJob.Interrrupt();
             CurrentJob = null;
         }
+        Busy = false;
+    }
+
+    public void ClearIdleJobs()
+    {
+        Busy = true;
+        IdleJobs = [];
         Busy = false;
     }
 

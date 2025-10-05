@@ -182,11 +182,10 @@ public class ObtainItem : CharacterJob
         string code,
         int amount,
         bool allowUsingItemFromInventory = false,
-        bool canTriggerTraining = false
+        bool canTriggerTraining = false,
+        bool firstIteration = true
     )
     {
-        bool firstIteration = jobs.Count() == 0;
-
         var matchingItem = gameState.Items.Find(item => item.Code == code);
 
         if (matchingItem is null)
@@ -240,7 +239,9 @@ public class ObtainItem : CharacterJob
                     jobs,
                     item.Code,
                     item.Quantity * requiredAmount,
-                    true
+                    true,
+                    canTriggerTraining,
+                    false
                 );
 
                 switch (result.Value)
