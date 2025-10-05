@@ -1,9 +1,7 @@
 services:
   api:
     build: .
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
+    network_mode: "host"
     ports:
       - "5291:8080"
     environment:

@@ -88,7 +88,7 @@ public class GatherMaterialsForItem : CharacterJob
                     return Task.Run(() => { });
                 };
 
-                crafter.QueueJob(depositCraftItem);
+                crafter.QueueJob(depositCraftItem, true);
                 return Task.Run(() => { });
             };
 
