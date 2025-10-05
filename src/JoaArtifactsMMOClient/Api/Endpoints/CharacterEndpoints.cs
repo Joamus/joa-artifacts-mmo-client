@@ -81,7 +81,7 @@ public static class CharacterEndpoints
             .Produces<OneOf<None, AppError>>();
 
         group
-            .MapDelete("/{name}/job/:id", DeleteJob)
+            .MapDelete("/{name}/job/{id}", DeleteJob)
             .WithName(nameof(DeleteJob))
             .WithOpenApi()
             .Produces<OneOf<None, AppError>>();

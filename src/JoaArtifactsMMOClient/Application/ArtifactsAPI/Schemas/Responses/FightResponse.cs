@@ -8,7 +8,9 @@ public record FightResponse
     public FightResponseData Data { get; set; }
 }
 
-public record FightResponseData : GenericCharacterSchema
+public record FightResponseData
 {
+    public CooldownSchema Cooldown { get; set; }
     public FightSchema Fight { get; set; }
+    public List<CharacterSchema> Characters { get; set; } = [];
 }
