@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -38,10 +39,12 @@ public class ApiRequester
         _token = token;
         _lastRequest = DateTime.UtcNow;
 
-        _httpClient = new HttpClient()
+        var handler = new HttpClientHandler() { MaxConnectionsPerServer = 10, UseProxy = false };
+
+        _httpClient = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://api.artifactsmmo.com"),
-            Timeout = TimeSpan.FromSeconds(10000),
+            Timeout = TimeSpan.FromSeconds(30),
         };
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer",

@@ -59,24 +59,40 @@ public class GatherMaterialsForItem : CharacterJob
 
         depositItems.Last().onSuccessEndHook += () =>
         {
-            var job = lastJob;
-            job.Character = crafter;
+            var craftJob = lastJob;
+            craftJob.Character = crafter;
 
-            job.onSuccessEndHook = () =>
+            craftJob.onSuccessEndHook = () =>
             {
                 logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queuing withdraw for {lastJob.Amount} x {lastJob.Code} items, that {crafter.Schema.Name} should have crafted"
+                    $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queuing crafter {crafter.Schema.Name} depositting {lastJob.Amount} x {lastJob.Code} items, before {Character.Schema.Name} withdraws it"
+                );
+                var depositCraftItem = new DepositItems(
+                    crafter,
+                    gameState,
+                    craftJob.Code,
+                    craftJob.Amount
                 );
 
-                Character.QueueJob(
-                    new WithdrawItem(Character, gameState, lastJob.Code, lastJob.Amount, false),
-                    true
-                );
+                depositCraftItem.onSuccessEndHook = () =>
+                {
+                    logger.LogInformation(
+                        $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queuing withdraw for {lastJob.Amount} x {lastJob.Code} items, that {crafter.Schema.Name} should have crafted"
+                    );
 
+                    Character.QueueJob(
+                        new WithdrawItem(Character, gameState, lastJob.Code, lastJob.Amount, false),
+                        true
+                    );
+
+                    return Task.Run(() => { });
+                };
+
+                crafter.QueueJob(depositCraftItem);
                 return Task.Run(() => { });
             };
 
-            crafter.QueueJob(job);
+            crafter.QueueJob(craftJob);
 
             return Task.Run(() => { });
         };
@@ -192,8 +208,7 @@ public class GatherMaterialsForItem : CharacterJob
             jobs,
             Code,
             Amount,
-            // AllowUsingMaterialsFromInventory
-            true,
+            AllowUsingMaterialsFromInventory,
             CanTriggerTraining
         );
 

@@ -1,8 +1,8 @@
 namespace Application.Errors;
 
-public class AppError
+public class AppError : SystemException
 {
-    public string Message { get; private set; }
+    // public string Message { get; private set; }
 
     public ErrorStatus Status { get; init; }
 
@@ -11,15 +11,15 @@ public class AppError
         .CreateLogger<AppError>();
 
     public AppError(string message)
+        : base(message)
     {
-        Message = message;
         Status = ErrorStatus.Undefined;
         _logger.LogDebug($"JobError: {message}");
     }
 
     public AppError(string message, ErrorStatus status)
+        : base(message)
     {
-        Message = message;
         Status = status;
         _logger.LogDebug($"JobError: {message}");
     }

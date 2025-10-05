@@ -1,0 +1,1 @@
+podman compose --podman-run-args="--replace" up --build

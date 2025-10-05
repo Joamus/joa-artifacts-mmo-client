@@ -81,6 +81,18 @@ public static class CharacterEndpoints
             .Produces<OneOf<None, AppError>>();
 
         group
+            .MapDelete("/{name}/job/:id", DeleteJob)
+            .WithName(nameof(DeleteJob))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+
+        group
+            .MapPost("/{name}/job/clearIdle", ClearIdle)
+            .WithName(nameof(ClearIdle))
+            .WithOpenApi()
+            .Produces<OneOf<None, AppError>>();
+
+        group
             .MapPost("/{name}/interrupt", Interrupt)
             .WithName(nameof(Interrupt))
             .WithOpenApi()
@@ -204,6 +216,45 @@ public static class CharacterEndpoints
         }
 
         matchingCharacter.ClearJobs();
+
+        return TypedResults.NoContent();
+    }
+
+    static async Task<IResult> DeleteJob(
+        [FromRoute] string name,
+        [FromRoute] Guid id,
+        [FromServices] GameState gameState
+    )
+    {
+        var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
+            character.Schema.Name == name
+        );
+
+        if (matchingCharacter is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        matchingCharacter.DeleteJob(id);
+
+        return TypedResults.NoContent();
+    }
+
+    static async Task<IResult> ClearIdle(
+        [FromRoute] string name,
+        [FromServices] GameState gameState
+    )
+    {
+        var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
+            character.Schema.Name == name
+        );
+
+        if (matchingCharacter is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        matchingCharacter.ClearIdleJobs();
 
         return TypedResults.NoContent();
     }

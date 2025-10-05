@@ -74,22 +74,18 @@ public class TrainSkill : CharacterJob
 
         if (skillLevel < Level)
         {
-            var result = await GetJobsRequired(skillName, skillKind, skillLevel);
+            var jobs = await GetJobsRequired(skillName, skillKind, skillLevel);
 
-            switch (result.Value)
+            if (jobs.Count > 0)
             {
-                case CharacterJob job:
-                    Character.QueueJobsBefore(Id, [job]);
-                    break;
-                case AppError error:
-                    return error;
+                Character.QueueJobsBefore(Id, jobs);
             }
         }
 
         return new None();
     }
 
-    public async Task<OneOf<AppError, List<CharacterJob>>> GetJobsRequired(
+    public async Task<List<CharacterJob>> GetJobsRequired(
         string skillName,
         SkillKind skillKind,
         int skillLevel
@@ -118,7 +114,7 @@ public class TrainSkill : CharacterJob
 
                 if (bestResource is null)
                 {
-                    return new AppError(
+                    throw new AppError(
                         $"Could not find best resource for training \"{skillName}\" at skill level \"{skillLevel}\""
                     );
                 }
@@ -175,7 +171,7 @@ public class TrainSkill : CharacterJob
 
                 if (bankItemsResponse is null)
                 {
-                    return new AppError("Failed to get bank items");
+                    throw new AppError("Failed to get bank items");
                 }
 
                 // The difference in skill level is essentially a cost, because we get less XP.
@@ -240,7 +236,7 @@ public class TrainSkill : CharacterJob
                         trainJobs.Add(job);
                     }
 
-                    return new AppError(
+                    throw new AppError(
                         $"Could not find best item for training \"{skillName}\" at skill level \"{Level}\" for \"{Character.Schema.Name}\""
                     );
                 }
@@ -296,7 +292,7 @@ public class TrainSkill : CharacterJob
         }
         else
         {
-            return new AppError(
+            throw new AppError(
                 $"Could not find a way to train skill \"{skillName}\" to {skillLevel}"
             );
         }
