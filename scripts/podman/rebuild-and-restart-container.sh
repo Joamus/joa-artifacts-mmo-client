@@ -1,1 +1,1 @@
-podman compose --podman-run-args="--replace" up --build
+podman compose --podman-run-args="--replace" up --build -d
