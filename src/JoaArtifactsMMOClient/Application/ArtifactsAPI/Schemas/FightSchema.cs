@@ -7,19 +7,13 @@ namespace Application.ArtifactsApi.Schemas;
 
 public record FightSchema
 {
-    public int Xp { get; set; }
+    public required int Turns { get; set; }
 
-    public int Gold { get; set; }
+    public required List<CharacterFightSchema> Characters { get; set; } = [];
 
-    public List<DropSchema> Drops { get; set; } = [];
+    public required string Opponent { get; set; } = "";
 
-    public int Turns { get; set; }
-
-    public BlockedHitsSchema MonsterBlockedHits { get; set; }
-
-    public BlockedHitsSchema PlayerBlockedHits { get; set; }
-
-    public FightResult result { get; set; }
+    public required FightResult result { get; set; }
 }
 
 public enum FightResult
@@ -27,4 +21,13 @@ public enum FightResult
     Win,
 
     Loss,
+}
+
+public record CharacterFightSchema
+{
+    public required string CharacterName { get; set; } = "";
+    public required int Xp { get; set; }
+    public required int Gold { get; set; }
+    public required List<DropSchema> Drops { get; set; } = [];
+    public required int FinalHp { get; set; }
 }

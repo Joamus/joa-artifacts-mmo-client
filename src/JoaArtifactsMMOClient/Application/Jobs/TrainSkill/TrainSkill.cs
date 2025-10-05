@@ -194,7 +194,7 @@ public class TrainSkill : CharacterJob
                             return 1;
                         }
 
-                        int resultAScore = resultA.Item2 + skillLevel - a.Craft!.Level;
+                        int resultACost = resultA.Item2 + skillLevel - a.Craft!.Level;
 
                         var resultB = GetInconvenienceCostCraftItem(
                             b,
@@ -203,14 +203,14 @@ public class TrainSkill : CharacterJob
                             Character
                         );
 
-                        int resultBScore = resultB.Item2 + skillLevel - b.Craft!.Level;
+                        int resultBCost = resultB.Item2 + skillLevel - b.Craft!.Level;
 
                         if (!resultB.Item1)
                         {
                             return 0;
                         }
 
-                        return resultAScore.CompareTo(resultBScore);
+                        return resultACost.CompareTo(resultBCost);
                     }
                 );
 

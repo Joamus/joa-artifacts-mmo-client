@@ -362,7 +362,14 @@ public class PlayerCharacter
             ApiRequester.getJsonOptions()
         )!;
 
-        PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+        foreach (var character in result.Data.Characters)
+        {
+            var matchingGameStateCharacter = GameState.Characters.Find(_character =>
+                _character.Schema.Name == character.Name
+            );
+
+            matchingGameStateCharacter!.PostTaskHandler(result.Data.Cooldown, character);
+        }
 
         return result;
     }
@@ -416,7 +423,7 @@ public class PlayerCharacter
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/crafting", body);
 
         var content = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<FightResponse>(
+        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
             content,
             ApiRequester.getJsonOptions()
         )!;
