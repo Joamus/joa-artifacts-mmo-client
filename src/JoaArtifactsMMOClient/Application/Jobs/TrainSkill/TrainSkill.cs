@@ -55,11 +55,15 @@ public class TrainSkill : CharacterJob
     {
         int skillLevel = GetSkillLevel(skillName);
 
-        int untilLevel = 0;
+        int untilLevel;
 
         if (Relative)
         {
             untilLevel = skillLevel + LevelOffset;
+        }
+        else
+        {
+            untilLevel = LevelOffset;
         }
 
         logger.LogInformation(

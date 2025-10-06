@@ -29,11 +29,15 @@ public class TrainCombat : CharacterJob
     {
         int playerLevel = Character.Schema.Level;
 
-        int untilLevel = 0;
+        int untilLevel;
 
         if (Relative)
         {
             untilLevel = playerLevel + LevelOffset;
+        }
+        else
+        {
+            untilLevel = LevelOffset;
         }
 
         logger.LogInformation(
