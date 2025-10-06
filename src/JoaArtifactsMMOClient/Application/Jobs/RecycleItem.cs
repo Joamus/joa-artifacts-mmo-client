@@ -34,7 +34,7 @@ public class RecycleItem : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook += () =>
+        onSuccessEndHook = () =>
         {
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit recycled items to the bank"
@@ -83,13 +83,13 @@ public class RecycleItem : CharacterJob
 
         switch (matchingItem.Craft.Skill)
         {
-            case Artifacts.Schemas.Skill.Gearcrafting:
+            case Skill.Gearcrafting:
                 craftingLocationCode = "gearcrafting";
                 break;
-            case Artifacts.Schemas.Skill.Jewelrycrafting:
+            case Skill.Jewelrycrafting:
                 craftingLocationCode = "jewelrycrafting";
                 break;
-            case Artifacts.Schemas.Skill.Weaponcrafting:
+            case Skill.Weaponcrafting:
                 craftingLocationCode = "weaponcrafting";
                 break;
         }

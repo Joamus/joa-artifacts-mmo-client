@@ -27,7 +27,7 @@ public static class TrainCombatEndpoint
         {
             return TypedResults.BadRequest();
         }
-        var job = new TrainCombat(matchingCharacter, gameState, request.Level, request.IsRelative);
+        var job = new TrainCombat(matchingCharacter, gameState, request.Level, request.Relative);
 
         if (request.Idle)
         {

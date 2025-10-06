@@ -32,7 +32,7 @@ public abstract class CharacterJob
 
     public delegate Task OnSuccessEndHook();
 
-    public OnSuccessEndHook onSuccessEndHook = () =>
+    public OnSuccessEndHook? onSuccessEndHook = () =>
     {
         return Task.Run(() => { });
     };
@@ -71,6 +71,7 @@ public abstract class CharacterJob
         {
             case AppError appError:
                 Status = JobStatus.Failed;
+                onSuccessEndHook = null;
                 return appError;
         }
 
@@ -85,7 +86,11 @@ public abstract class CharacterJob
 
         if (Status == JobStatus.Completed)
         {
-            await onSuccessEndHook.Invoke();
+            if (onSuccessEndHook is not null)
+            {
+                await onSuccessEndHook.Invoke();
+                onSuccessEndHook = null;
+            }
         }
         return new None();
     }

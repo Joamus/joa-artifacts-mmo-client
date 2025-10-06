@@ -57,7 +57,7 @@ public class GatherMaterialsForItem : CharacterJob
             Character.QueueJob(job);
         }
 
-        depositItems.Last().onSuccessEndHook += () =>
+        depositItems.Last().onSuccessEndHook = () =>
         {
             var craftJob = lastJob;
             craftJob.Character = crafter;

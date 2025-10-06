@@ -1,3 +1,4 @@
+version: "2.4"
 services:
   api:
     build: .
@@ -6,3 +7,4 @@ services:
       - "5291:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+    mem_limit: 3GB

@@ -153,7 +153,7 @@ public class ObtainItem : CharacterJob
 
         if (jobs.Count > 0)
         {
-            jobs.Last()!.onSuccessEndHook += onSuccessEndHook;
+            jobs.Last()!.onSuccessEndHook = onSuccessEndHook;
 
             foreach (var job in jobs)
             {
@@ -164,7 +164,7 @@ public class ObtainItem : CharacterJob
         }
 
         // Reset it
-        onSuccessEndHook = () => Task.Run(() => { });
+        onSuccessEndHook = null;
 
         return new None();
     }
@@ -230,26 +230,49 @@ public class ObtainItem : CharacterJob
         if (matchingItem.Craft is not null)
         {
             // if the total ingredients of the items is higher than 60
+            //
+
+            int totalIngredientsForCrafting = 0;
 
             foreach (var item in matchingItem.Craft.Items)
             {
-                var result = await GetJobsRequired(
-                    Character,
-                    gameState,
-                    allowUsingItemFromBank,
-                    itemsInBank,
-                    jobs,
-                    item.Code,
-                    item.Quantity * requiredAmount,
-                    true,
-                    canTriggerTraining,
-                    false
+                totalIngredientsForCrafting += item.Quantity * requiredAmount;
+            }
+
+            /*
+                We want to split the crafting, if we need a lot of ingredients, e.g. if we need 80 copper ore,
+                then it's safer to split it in 2, if we our character's max inventory space is only 100
+            */
+
+            int iterations = (int)
+                Math.Ceiling(
+                    totalIngredientsForCrafting / (Character.Schema.InventoryMaxItems * 0.75)
                 );
 
-                switch (result.Value)
+            for (int i = 0; i < iterations; i++)
+            {
+                foreach (var item in matchingItem.Craft.Items)
                 {
-                    case AppError jobError:
-                        return jobError;
+                    int itemAmount = item.Quantity * (requiredAmount / iterations);
+
+                    var result = await GetJobsRequired(
+                        Character,
+                        gameState,
+                        allowUsingItemFromBank,
+                        itemsInBank,
+                        jobs,
+                        item.Code,
+                        itemAmount,
+                        true,
+                        canTriggerTraining,
+                        false
+                    );
+
+                    switch (result.Value)
+                    {
+                        case AppError jobError:
+                            return jobError;
+                    }
                 }
             }
             var craftItemJob = new CraftItem(Character, gameState, code, requiredAmount);

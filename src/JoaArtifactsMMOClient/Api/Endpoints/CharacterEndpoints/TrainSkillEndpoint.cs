@@ -37,7 +37,7 @@ public static class TrainSkillEndpoint
                 gameState,
                 request.Skill,
                 request.Level,
-                request.IsRelative
+                request.Relative
             )
         );
 
@@ -65,5 +65,5 @@ public record TrainSkillRequest : TrainRequest
 public record TrainRequest : GenericActionRequest
 {
     public int Level { get; set; } = 0;
-    public bool IsRelative { get; set; } = false;
+    public bool Relative { get; set; } = false;
 }

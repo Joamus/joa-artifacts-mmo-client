@@ -32,13 +32,9 @@ public class TrainSkill : CharacterJob
     public Skill Skill { get; init; }
 
     private string skillName { get; set; }
-    public int Level { get; private set; }
+    public int LevelOffset { get; private set; }
 
     public bool Relative { get; init; }
-
-    private static ILogger<TrainSkill> staticLogger = LoggerFactory
-        .Create(AppLogger.options)
-        .CreateLogger<TrainSkill>();
 
     public TrainSkill(
         PlayerCharacter character,
@@ -50,7 +46,7 @@ public class TrainSkill : CharacterJob
         : base(character, gameState)
     {
         Skill = skill;
-        Level = level;
+        LevelOffset = level;
         Relative = relative;
         skillName = GetSkillName(Skill);
     }
@@ -59,22 +55,24 @@ public class TrainSkill : CharacterJob
     {
         int skillLevel = GetSkillLevel(skillName);
 
+        int untilLevel = 0;
+
         if (Relative)
         {
-            Level = skillLevel + Level;
+            untilLevel = skillLevel + LevelOffset;
         }
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] run started - training {skillName} until level {Level}"
+            $"{JobName}: [{Character.Schema.Name}] run started - training {skillName} until level {untilLevel}"
         );
 
         SkillKind skillKind = GatheringSkills.Contains(skillName)
             ? SkillKind.Gathering
             : SkillKind.Crafting;
 
-        if (skillLevel < Level)
+        if (skillLevel < untilLevel)
         {
-            var jobs = await GetJobsRequired(skillName, skillKind, skillLevel);
+            var jobs = await GetJobsRequired(skillName, skillKind, untilLevel);
 
             if (jobs.Count > 0)
             {
@@ -151,18 +149,7 @@ public class TrainSkill : CharacterJob
                     {
                         if (bestItemToCraft is null || bestItemToCraft.Level < item.Level)
                         {
-                            // Jobs is mutated in the method
-                            // List<CharacterJob> jobs = [];
-
-                            // // Dumb implementation - we only want jobs where we can craft everything
-                            // if (
-                            //     jobs.Find(job => JobTypesToAvoidWhenCrafting.Contains(job.JobName))
-                            //     is null
-                            // )
-                            // {
-                            // bestItemToCraft = item;
                             itemToCraftCandidates.Add(item);
-                            // }
                         }
                     }
                 }
@@ -207,7 +194,7 @@ public class TrainSkill : CharacterJob
 
                         if (!resultB.Item1)
                         {
-                            return 0;
+                            return -1;
                         }
 
                         return resultACost.CompareTo(resultBCost);
@@ -234,10 +221,11 @@ public class TrainSkill : CharacterJob
                         );
                         job.ForBank();
                         trainJobs.Add(job);
+                        return trainJobs;
                     }
 
                     throw new AppError(
-                        $"Could not find best item for training \"{skillName}\" at skill level \"{Level}\" for \"{Character.Schema.Name}\""
+                        $"Could not find best item for training \"{skillName}\" at skill level \"{skillLevel}\" for \"{Character.Schema.Name}\""
                     );
                 }
 
@@ -251,7 +239,7 @@ public class TrainSkill : CharacterJob
                 }
 
                 logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skillName} until level {Level}"
+                    $"{JobName}: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skillName} until level {skillLevel}"
                 );
 
                 var obtainItemJob = new ObtainItem(
@@ -375,6 +363,10 @@ public class TrainSkill : CharacterJob
                     {
                         score +=
                             1 + (int)Math.Round((float)monsterWeCanFightOutcome!.TotalTurns / 10);
+                    }
+                    else
+                    {
+                        canObtain = false;
                     }
                 }
             }

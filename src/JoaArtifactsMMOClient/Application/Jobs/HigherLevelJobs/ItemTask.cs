@@ -127,7 +127,7 @@ public class ItemTask : CharacterJob
         Character.QueueJobsAfter(Id, jobs);
 
         // Reset it
-        onSuccessEndHook = () => Task.Run(() => { });
+        onSuccessEndHook = null;
 
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"

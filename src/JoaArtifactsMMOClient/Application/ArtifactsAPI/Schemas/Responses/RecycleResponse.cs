@@ -1,14 +1,11 @@
-using System.Text.Json.Serialization;
-using Application.ArtifactsApi.Schemas;
-
 namespace Application.ArtifactsApi.Schemas.Responses;
 
 public record RecycleResponse
 {
-    public required RecycleSchema Data { get; set; }
+    public required RecyclingDataSchema Data { get; set; }
 }
 
-public record RecycleSchema : GenericCharacterSchema
+public record RecyclingDataSchema : GenericCharacterSchema
 {
     public required RecyclingItemsSchema Details { get; set; }
 }

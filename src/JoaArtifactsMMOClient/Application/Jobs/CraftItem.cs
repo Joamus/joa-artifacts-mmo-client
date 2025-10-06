@@ -24,7 +24,7 @@ public class CraftItem : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook += () =>
+        onSuccessEndHook = () =>
         {
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"

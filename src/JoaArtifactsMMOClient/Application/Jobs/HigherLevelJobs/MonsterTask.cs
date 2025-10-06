@@ -27,7 +27,7 @@ public class MonsterTask : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook += () =>
+        onSuccessEndHook = () =>
         {
             logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
@@ -153,7 +153,7 @@ public class MonsterTask : CharacterJob
 
         if (jobs.Count > 0)
         {
-            jobs.Last()!.onSuccessEndHook += onSuccessEndHook;
+            jobs.Last()!.onSuccessEndHook = onSuccessEndHook;
 
             Character.QueueJobsAfter(Id, jobs);
         }

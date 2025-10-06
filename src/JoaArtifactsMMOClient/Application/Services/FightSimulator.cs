@@ -277,11 +277,12 @@ public class FightSimulator
                 var fightOutcome = CalculateFightOutcome(characterSchema, monster);
 
                 if (
-                    fightOutcome.Result == FightResult.Win
-                    && (
-                        bestFightOutcome.Result != FightResult.Win
-                        || fightOutcome.PlayerHp > bestFightOutcome.PlayerHp
-                    )
+                    bestItemCandidate is null
+                    || fightOutcome.Result == FightResult.Win
+                        && (
+                            bestFightOutcome.Result != FightResult.Win
+                            || fightOutcome.PlayerHp > bestFightOutcome.PlayerHp
+                        )
                 )
                 {
                     bestFightOutcome = fightOutcome;

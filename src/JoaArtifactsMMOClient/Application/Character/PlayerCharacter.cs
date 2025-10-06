@@ -167,7 +167,7 @@ public class PlayerCharacter
     {
         Busy = true;
         Jobs = Jobs.Where(job => !job.Id.Equals(id)).ToList();
-        // IdleJobs = [];
+        IdleJobs = IdleJobs.Where(job => !job.Id.Equals(id)).ToList();
         if (CurrentJob is not null && CurrentJob.Id.Equals(id))
         {
             CurrentJob.Interrrupt();
@@ -180,7 +180,6 @@ public class PlayerCharacter
     {
         Busy = true;
         Jobs = [];
-        // IdleJobs = [];
         if (CurrentJob is not null)
         {
             CurrentJob.Interrrupt();
@@ -193,6 +192,14 @@ public class PlayerCharacter
     {
         Busy = true;
         IdleJobs = [];
+        if (
+            CurrentJob is not null
+            && IdleJobs.Find(job => job.Id.Equals(CurrentJob.Id)) is not null
+        )
+        {
+            CurrentJob.Interrrupt();
+            CurrentJob = null;
+        }
         Busy = false;
     }
 
@@ -214,7 +221,7 @@ public class PlayerCharacter
             nextJob = Jobs[0];
             Jobs.RemoveAt(0);
         }
-        else if (IdleJobs is not null)
+        else if (IdleJobs.Count > 0)
         {
             int randomIndex = new Random().Next(0, IdleJobs.Count - 1);
 
@@ -225,6 +232,7 @@ public class PlayerCharacter
             // and not a clone. It's only the rest of the job we want to clone, in case the job
             // saves state on it, that should be reset. A better solution could be found :D
             clonedIdleJob.Character = this;
+            clonedIdleJob.gameState = GameState;
 
             Logger.LogInformation(
                 $"{GetType().Name}: [{Schema.Name}] picked random job index {randomIndex} of {IdleJobs.Count}"
