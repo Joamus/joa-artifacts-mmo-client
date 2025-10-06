@@ -231,8 +231,8 @@ public class PlayerCharacter
             // This is mess, but we want the job to have a reference to this character,
             // and not a clone. It's only the rest of the job we want to clone, in case the job
             // saves state on it, that should be reset. A better solution could be found :D
-            clonedIdleJob.Character = this;
-            clonedIdleJob.gameState = GameState;
+            // clonedIdleJob.Character = this;
+            // clonedIdleJob.gameState = GameState;
 
             Logger.LogInformation(
                 $"{GetType().Name}: [{Schema.Name}] picked random job index {randomIndex} of {IdleJobs.Count}"
