@@ -66,6 +66,8 @@ public class ObtainSuitableFood : CharacterJob
 
         List<CharacterJob> jobs = [];
 
+        jobs.Add(new CookEverythingInInventory(Character, gameState));
+
         List<ItemInInventory> foodCandidates = [];
 
         foreach (var item in bankItemsResponse.Data)
@@ -118,33 +120,31 @@ public class ObtainSuitableFood : CharacterJob
             new ObtainItem(Character, gameState, mostSuitableFood.Code, _amount - amountFound)
         );
 
-        // Just in case we end up with a lot of ingredients in our inventory, we might as well try to cook them.
-        // It's not really a perfect system, because it would be better to try to pick ingredients, but eh
-        jobs.Add(new CookEverythingInInventory(Character, gameState));
-
         return jobs;
+    }
+
+    public static bool CanPlayerEatFood(ItemSchema item, PlayerCharacter player)
+    {
+        if (item.Subtype != "food")
+        {
+            return false;
+        }
+
+        // We don't really care about the level difference atm, because we just need to obtain the best available food
+
+        if (item.Level > player.Schema.Level)
+        {
+            // Find out if you can craft it, if it's craftable. We should probably bias fishing, seeing as it's usually the fastest way to get food
+            // and also a good way for our characters to keep their level up in fishing
+            return false;
+        }
+
+        return true;
     }
 
     private ItemSchema GetMostSuitableFood()
     {
-        var viableFood = gameState.Items.FindAll(item =>
-        {
-            if (item.Subtype != "food")
-            {
-                return false;
-            }
-
-            // We don't really care about the level difference atm, because we just need to obtain the best available food
-
-            if (item.Level > Character.Schema.Level)
-            {
-                // Find out if you can craft it, if it's craftable. We should probably bias fishing, seeing as it's usually the fastest way to get food
-                // and also a good way for our characters to keep their level up in fishing
-                return false;
-            }
-
-            return true;
-        });
+        var viableFood = gameState.Items.FindAll(item => CanPlayerEatFood(item, Character));
 
         CalculationService.SortItemsBasedOnEffect(viableFood, "heal");
 
@@ -181,4 +181,28 @@ public class ObtainSuitableFood : CharacterJob
 
         return gatherableFood ?? fightableFood ?? gameState.ItemsDict["cooked_gudgeon"]!; // You can cook this from level 1, but this should probably never occur
     }
+
+    // /*
+    //  For now, this job only handles creating crafting obtain jobs, e.g. it won't make jobs for withdrawing cooked food.
+    // */
+    // public static List<ObtainItem> GetFoodObtainJobsFromIngredientList(
+    //     PlayerCharacter character,
+    //     GameState gameState,
+    //     List<ItemSchema> itemSource
+    // )
+    // {
+    //     List<ObtainItem> jobs = [];
+
+    //     var itemSourceDict = new Dictionary<string, ItemSchema>();
+
+    //     var viableFood = gameState.Items.FindAll(item => CanPlayerEatFood(item, character));
+
+    //     foreach (var food in viableFood)
+    //     {
+    //         var craft = food.Craft;
+    //         if (craft is null) { }
+    //     }
+
+    //     return jobs;
+    // }
 }

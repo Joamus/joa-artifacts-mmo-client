@@ -229,6 +229,8 @@ public class ObtainItem : CharacterJob
 
         if (matchingItem.Craft is not null)
         {
+            // if the total ingredients of the items is higher than 60
+
             foreach (var item in matchingItem.Craft.Items)
             {
                 var result = await GetJobsRequired(

@@ -29,7 +29,7 @@ public class ItemTask : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook += () =>
+        onSuccessEndHook = () =>
         {
             logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
@@ -113,18 +113,18 @@ public class ItemTask : CharacterJob
             jobs.Add(job);
         }
 
-        jobs.Add(
-            new CompleteTask(Character, gameState, ItemCode, ItemAmount).SetParent<CompleteTask>(
-                this
-            )
-        );
+        var completeTask = new CompleteTask(
+            Character,
+            gameState,
+            ItemCode,
+            ItemAmount
+        ).SetParent<CompleteTask>(this);
 
-        if (jobs.Count > 0)
-        {
-            jobs.Last()!.onSuccessEndHook += onSuccessEndHook;
+        jobs.Add(completeTask);
 
-            Character.QueueJobsAfter(Id, jobs);
-        }
+        completeTask.onSuccessEndHook = onSuccessEndHook;
+
+        Character.QueueJobsAfter(Id, jobs);
 
         // Reset it
         onSuccessEndHook = () => Task.Run(() => { });

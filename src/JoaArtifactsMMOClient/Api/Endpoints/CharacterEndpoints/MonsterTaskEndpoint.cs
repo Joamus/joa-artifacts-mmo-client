@@ -35,7 +35,15 @@ public static class MonsterTaskEndpoint
                 job.ForBank();
             }
 
-            matchingCharacter.QueueJob(job);
+            if (request.Idle)
+            {
+                matchingCharacter.AddIdleJob(job);
+                break;
+            }
+            else
+            {
+                matchingCharacter.QueueJob(job);
+            }
         }
 
         matchingCharacter.Unsuspend();

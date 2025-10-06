@@ -31,7 +31,7 @@ public static class TrainSkillEndpoint
             return TypedResults.BadRequest();
         }
 
-        matchingCharacter.QueueJob(
+        var job = (
             new TrainSkill(
                 matchingCharacter,
                 gameState,
@@ -40,6 +40,15 @@ public static class TrainSkillEndpoint
                 request.IsRelative
             )
         );
+
+        if (request.Idle)
+        {
+            matchingCharacter.AddIdleJob(job);
+        }
+        else
+        {
+            matchingCharacter.QueueJob(job);
+        }
 
         matchingCharacter.Unsuspend();
 

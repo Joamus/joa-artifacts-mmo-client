@@ -35,7 +35,7 @@ public class PlayerCharacter
     private const string MediaType = "application/json";
     public List<CharacterJob> Jobs { get; private set; } = [];
 
-    public List<CharacterJob> IdleJobs { get; private set; }
+    public List<CharacterJob> IdleJobs { get; private set; } = [];
 
     public CharacterJob? CurrentJob { get; private set; }
 

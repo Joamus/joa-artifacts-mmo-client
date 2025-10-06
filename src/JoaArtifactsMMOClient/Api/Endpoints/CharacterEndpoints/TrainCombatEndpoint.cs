@@ -27,10 +27,16 @@ public static class TrainCombatEndpoint
         {
             return TypedResults.BadRequest();
         }
+        var job = new TrainCombat(matchingCharacter, gameState, request.Level, request.IsRelative);
 
-        matchingCharacter.QueueJob(
-            new TrainCombat(matchingCharacter, gameState, request.Level, request.IsRelative)
-        );
+        if (request.Idle)
+        {
+            matchingCharacter.AddIdleJob(job);
+        }
+        else
+        {
+            matchingCharacter.QueueJob(job);
+        }
 
         matchingCharacter.Unsuspend();
 
