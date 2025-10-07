@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Security.AccessControl;
 using System.Text.Json.Serialization;
+using System.Xml.Serialization;
 
 namespace Application.ArtifactsApi.Schemas;
 
@@ -13,7 +15,25 @@ public record MapSchema
 
     public int Y { get; set; }
 
+    public required MapLayer Layer { get; set; }
+
     public required MapInteractions Interactions { get; set; }
+
+    public required AccessSchema Access { get; set; }
+}
+
+public record AccessSchema
+{
+    public required AccessType Type { get; set; }
+    public required List<ItemOrMapCondition>? Conditions { get; set; } = [];
+}
+
+public enum AccessType
+{
+    Standard,
+    Teleportation,
+    Conditional,
+    Blocked,
 }
 
 public record MapInteractions

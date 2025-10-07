@@ -75,7 +75,7 @@ public static class ItemService
             }
 
             if (
-                condition.Operator == ItemConditionOperator.GreaterThan
+                condition.Operator == ItemConditionOperator.Gt
                 && playerLevelOfSkill < condition.Value
             )
             {

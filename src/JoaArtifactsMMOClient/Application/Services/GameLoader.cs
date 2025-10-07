@@ -25,11 +25,9 @@ public class GameLoader
             ?? throw new Exception("No env variable \"ACCOUNT\" found");
     }
 
-    public async Task<int> Start()
+    public async Task Start()
     {
         await GameLoop();
-
-        return 1;
     }
 
     public async Task GameLoop()
@@ -51,6 +49,11 @@ public class GameLoader
                 {
                     var _ = character.RunJob();
                 }
+            }
+
+            if (_gameState.ShouldReload())
+            {
+                await _gameState.ReloadAll();
             }
 
             await Task.Delay(1 * 1000);

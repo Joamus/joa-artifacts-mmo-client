@@ -23,7 +23,7 @@ public record ItemSchema
 
     public List<SimpleEffectSchema> Effects { get; set; } = [];
 
-    public List<ItemOrMapCondition> Conditions { get; set; } = [];
+    public List<ItemOrMapCondition>? Conditions { get; set; } = [];
 
     public CraftDto? Craft { get; set; }
 
@@ -74,15 +74,19 @@ public record ItemOrMapCondition
 {
     public string Code { get; set; } = "";
 
-    public string Operator { get; set; } = "";
+    public ItemConditionOperator Operator { get; set; }
 
     public int Value { get; set; }
 }
 
-public static class ItemConditionOperator
+public enum ItemConditionOperator
 {
-    public static readonly string GreaterThan = "gt";
+    Eq,
+    Ne,
 
-    // Haven't seen this one yet
-    public readonly static string LessThan = "lt";
+    Gt,
+    Lt,
+    Cost,
+    HasItem,
+    AchievementUnlocked,
 }

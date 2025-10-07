@@ -79,7 +79,31 @@ public class PlayerActionService
             code = bestResource.Code;
         }
 
-        var maps = GameState.Maps.FindAll(map => map.Interactions.Content?.Code == code);
+        var maps = GameState.Maps.FindAll(map =>
+        {
+            bool matchesCode = map.Interactions.Content?.Code == code;
+
+            if (!matchesCode)
+            {
+                return false;
+            }
+
+            foreach (var condition in map.Access.Conditions)
+            {
+                if (
+                    condition.Operator == ItemConditionOperator.AchievementUnlocked
+                    && GameState.AccountAchievements.Find(achievement =>
+                        achievement.Code == condition.Code
+                    )
+                        is null
+                )
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        });
 
         if (maps.Count == 0)
         {

@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Application;
+using Newtonsoft.Json.Serialization;
 
 namespace Infrastructure;
 
@@ -15,6 +17,10 @@ public class ApiRequester
 
     private readonly string _token;
 
+    private static readonly ILogger logger = LoggerFactory
+        .Create(AppLogger.options)
+        .CreateLogger<ApiRequester>();
+
     // Putting them here for global access
     public static JsonSerializerOptions getJsonOptions()
     {
@@ -24,7 +30,9 @@ public class ApiRequester
             {
                 PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
             };
-            _jsonOptions.Converters.Add(new JsonStringEnumConverter { });
+            _jsonOptions.Converters.Add(
+                new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower)
+            );
         }
 
         return _jsonOptions;
@@ -87,6 +95,13 @@ public class ApiRequester
             {
                 return response;
             }
+        }
+
+        if (response is not null && (int)response.StatusCode >= 400)
+        {
+            logger.LogWarning(
+                $"Request with uri \"{requestUri}\" failed - status code {response.StatusCode}"
+            );
         }
 
         return response!;

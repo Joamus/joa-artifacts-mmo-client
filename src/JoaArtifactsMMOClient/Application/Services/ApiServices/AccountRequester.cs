@@ -66,7 +66,9 @@ public class AccountRequester
 
     public async Task<MapsResponse> GetMaps(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/maps?page={pageNumber}");
+        var response = await _apiService.GetAsync(
+            $"/maps?page={pageNumber}&hide_blocked_maps=true"
+        );
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -106,14 +108,29 @@ public class AccountRequester
         return JsonSerializer.Deserialize<NpcItemsResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
-    // public async Task<GetCharactersResponse> GetAchievements()
-    // [EnumMember(Value = "monster")]
-    // [JsonStringEnumMemberName("monster")]
-    // {
-    //     var response = await _apiService.PostAsync($"/accounts/{_accountName}/achievments", null);
+    public async Task<GetAccountAchievementsResponse> GetAccountAchievements(int pageNumber = 1)
+    {
+        var response = await _apiService.GetAsync(
+            $"/accounts/{_accountName}/achievements?page={pageNumber}"
+        );
 
-    //     var result = await response.Content.ReadAsStringAsync();
+        var result = await response.Content.ReadAsStringAsync();
 
-    //     return JsonSerializer.Deserialize<GetCharactersResponse>(result)!;
-    // }
+        return JsonSerializer.Deserialize<GetAccountAchievementsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
+    public async Task<GetAchievementsResponse> GetAchievements()
+    {
+        var response = await _apiService.GetAsync($"/achievements");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<GetAchievementsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
 }
