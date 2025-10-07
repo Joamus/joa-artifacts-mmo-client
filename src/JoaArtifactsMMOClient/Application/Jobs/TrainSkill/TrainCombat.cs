@@ -76,7 +76,11 @@ public class TrainCombat : CharacterJob
 
             int levelDifference = playerLevel - monster.Level;
 
-            var outcome = FightSimulator.CalculateFightOutcome(Character.Schema, monster, true);
+            var outcome = FightSimulator.CalculateFightOutcomeWithBestEquipment(
+                Character,
+                monster,
+                gameState
+            );
 
             var candidate = new OutcomeCandidate
             {
@@ -98,13 +102,13 @@ public class TrainCombat : CharacterJob
 
                 if (candidate.MonsterLevel < bestMonsterCandidate.MonsterLevel)
                 {
-                    if (
-                        candidate.FightOutcome.TotalTurns
-                        <= bestMonsterCandidate.FightOutcome.TotalTurns
-                    )
-                    {
-                        bestMonsterCandidate = candidate;
-                    }
+                    // if (
+                    //     candidate.FightOutcome.TotalTurns
+                    //     <= bestMonsterCandidate.FightOutcome.TotalTurns
+                    // )
+                    // {
+                    bestMonsterCandidate = candidate;
+                    // }
                 }
             }
         }

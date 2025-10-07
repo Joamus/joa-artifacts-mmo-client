@@ -66,8 +66,6 @@ public class ObtainSuitableFood : CharacterJob
 
         List<CharacterJob> jobs = [];
 
-        jobs.Add(new CookEverythingInInventory(Character, gameState));
-
         List<ItemInInventory> foodCandidates = [];
 
         foreach (var item in bankItemsResponse.Data)
@@ -109,16 +107,16 @@ public class ObtainSuitableFood : CharacterJob
             }
         }
 
-        if (amountFound >= _amount)
+        if (amountFound < _amount)
         {
-            return jobs;
+            var mostSuitableFood = GetMostSuitableFood();
+
+            jobs.Add(
+                new ObtainItem(Character, gameState, mostSuitableFood.Code, _amount - amountFound)
+            );
         }
 
-        var mostSuitableFood = GetMostSuitableFood();
-
-        jobs.Add(
-            new ObtainItem(Character, gameState, mostSuitableFood.Code, _amount - amountFound)
-        );
+        jobs.Add(new CookEverythingInInventory(Character, gameState));
 
         return jobs;
     }

@@ -117,6 +117,12 @@ public class GatherResourceItem : CharacterJob
                     // Just continue
                     break;
             }
+
+            if (Status == JobStatus.Suspend)
+            {
+                // Queued other jobs before this job
+                return new None();
+            }
         }
 
         logger.LogInformation(
@@ -176,7 +182,7 @@ public class GatherResourceItem : CharacterJob
             else
             {
                 logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype} - training until they can gather the item"
+                    $"{JobName}: [{Character.Schema.Name}] has too low gathering skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype}"
                 );
                 return new AppError(
                     $"Could not gather item {Code} - current skill level is {characterSkillLevel}, required is {matchingItem.Level}",

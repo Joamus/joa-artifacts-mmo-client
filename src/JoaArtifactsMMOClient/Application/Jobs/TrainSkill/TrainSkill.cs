@@ -76,7 +76,7 @@ public class TrainSkill : CharacterJob
 
         if (skillLevel < untilLevel)
         {
-            var jobs = await GetJobsRequired(skillName, skillKind, untilLevel);
+            var jobs = await GetJobsRequired(skillName, skillKind, skillLevel);
 
             if (jobs.Count > 0)
             {
@@ -121,10 +121,14 @@ public class TrainSkill : CharacterJob
                     );
                 }
 
+                var itemToGather = bestResource.Drops.Find(drop =>
+                    gameState.ItemsDict.GetValueOrNull(drop.Code)?.Level <= skillLevel
+                );
+
                 var gatherJob = new GatherResourceItem(
                     Character,
                     gameState,
-                    bestResource.Code,
+                    itemToGather!.Code,
                     AMOUNT_TO_GATHER_PER_JOB,
                     false
                 );
@@ -206,9 +210,10 @@ public class TrainSkill : CharacterJob
                 );
 
                 bestItemToCraft =
-                    itemToCraftCandidates.FirstOrDefault(candidate =>
-                        skillLevel - candidate.Craft!.Level < 5 // there are basically always new items to craft every 5 levels
-                    ) ?? itemToCraftCandidates.ElementAtOrDefault(0);
+                    // itemToCraftCandidates.FirstOrDefault(candidate =>
+                    //     skillLevel - candidate.Craft!.Level < 5 // there are basically always new items to craft every 5 levels
+                    // ) ?? itemToCraftCandidates.ElementAtOrDefault(0);
+                    itemToCraftCandidates.ElementAtOrDefault(0);
 
                 if (bestItemToCraft is null)
                 {
