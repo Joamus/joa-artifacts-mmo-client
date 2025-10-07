@@ -15,6 +15,7 @@ public class GameState
     DateTime cacheReload = DateTime.UtcNow;
 
     ILogger _logger { get; init; }
+
     public List<PlayerCharacter> Characters { get; private set; } = [];
     public List<ItemSchema> Items { get; set; } = [];
     public Dictionary<string, ItemSchema> ItemsDict { get; set; } = [];
@@ -37,7 +38,7 @@ public class GameState
     {
         AccountRequester = accountRequester;
         _apiRequester = apiRequester;
-        _logger = LoggerFactory.Create(AppLogger.options).CreateLogger<GameState>();
+        _logger = AppLogger.loggerFactory.CreateLogger<GameState>();
     }
 
     public async Task LoadAll()

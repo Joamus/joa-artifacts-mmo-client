@@ -3,9 +3,9 @@ namespace Application;
 public static class AppLogger
 {
     // public T ILogger<T> CreateLogger()
-
-    public readonly static Action<ILoggingBuilder> options = builder =>
+    public static readonly Action<ILoggingBuilder> options = builder =>
     {
         builder.AddConsole();
     };
+    public static ILoggerFactory loggerFactory { get; } = LoggerFactory.Create(options);
 }

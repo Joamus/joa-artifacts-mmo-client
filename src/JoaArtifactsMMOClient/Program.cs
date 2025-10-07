@@ -58,7 +58,7 @@ JsonConvert.DefaultSettings = (
     }
 );
 
-ILogger logger = LoggerFactory.Create(AppLogger.options).CreateLogger("Program");
+ILogger logger = AppLogger.loggerFactory.CreateLogger("Program");
 
 logger.LogInformation($"Environment: {builder.Environment.EnvironmentName}");
 

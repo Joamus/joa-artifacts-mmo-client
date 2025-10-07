@@ -23,7 +23,7 @@ public abstract class CharacterJob
 
     [JsonIgnore]
     protected ILogger<CharacterJob> logger { get; init; } =
-        LoggerFactory.Create(AppLogger.options).CreateLogger<CharacterJob>();
+        AppLogger.loggerFactory.CreateLogger<CharacterJob>();
 
     [JsonIgnore]
     protected bool ShouldInterrupt { get; set; }
@@ -32,10 +32,7 @@ public abstract class CharacterJob
 
     public delegate Task OnSuccessEndHook();
 
-    public OnSuccessEndHook? onSuccessEndHook = () =>
-    {
-        return Task.Run(() => { });
-    };
+    public OnSuccessEndHook? onSuccessEndHook = null;
 
     public virtual CharacterJob Clone()
     {

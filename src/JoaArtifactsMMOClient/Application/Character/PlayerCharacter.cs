@@ -303,10 +303,10 @@ public class PlayerCharacter
         Schema = characterSchema;
         GameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
         ApiRequester = GameServiceProvider.GetInstance().GetService<ApiRequester>()!;
-        Logger = LoggerFactory.Create(AppLogger.options).CreateLogger<PlayerCharacter>();
+        Logger = AppLogger.loggerFactory.CreateLogger<PlayerCharacter>();
 
         PlayerActionService = new PlayerActionService(
-            LoggerFactory.Create(AppLogger.options).CreateLogger<PlayerActionService>(),
+            AppLogger.loggerFactory.CreateLogger<PlayerActionService>(),
             GameState,
             this
         );
