@@ -100,7 +100,7 @@ public class TrainCombat : CharacterJob
 
                 // We always want to prioritize fighting monsters as close to the character's level as possible, to avoid an XP penalty.
 
-                if (candidate.MonsterLevel < bestMonsterCandidate.MonsterLevel)
+                if (candidate.MonsterLevel > bestMonsterCandidate.MonsterLevel)
                 {
                     // if (
                     //     candidate.FightOutcome.TotalTurns
