@@ -66,15 +66,15 @@ public class ObtainSuitableFood : CharacterJob
 
         List<CharacterJob> jobs = [];
 
-        List<ItemInInventory> foodCandidates = [];
+        // Prioritize cooking stuff from inventory before running to bank - should be faster,
+        // and we won't end up with a lot of uncooked stuff.
 
-        var jobsToCookFromBank = ItemService.GetFoodObtainJobsFromIngredientList(
+        var jobsToCookFoodInInventory = new CookEverythingInInventory(
             Character,
-            gameState,
-            Character.Schema.Inventory
-        );
+            gameState
+        ).GetJobs();
 
-        foreach (var job in jobsToCookFromBank)
+        foreach (var job in jobsToCookFoodInInventory)
         {
             amountFound += job.Amount;
             jobs.Add(job);
@@ -85,10 +85,7 @@ public class ObtainSuitableFood : CharacterJob
             return jobs;
         }
 
-        if (jobs.Count > 0)
-        {
-            Character.QueueJobsAfter(Id, jobs);
-        }
+        List<ItemInInventory> foodCandidates = [];
 
         foreach (var item in bankItemsResponse.Data)
         {
@@ -131,14 +128,49 @@ public class ObtainSuitableFood : CharacterJob
 
         if (amountFound < _amount)
         {
+            var jobsToCookFromBank = ItemService.GetFoodObtainJobsFromIngredientList(
+                Character,
+                gameState,
+                result.Data
+            );
+
+            foreach (var job in jobsToCookFromBank)
+            {
+                int amountStillNeeded = Math.Min(_amount - amountFound, job.Amount);
+                job.Amount = amountStillNeeded;
+
+                amountFound += amountStillNeeded;
+
+                jobs.Add(job);
+
+                job.AllowUsingMaterialsFromBank = true;
+
+                if (amountFound >= _amount)
+                {
+                    break;
+                }
+            }
+
+            if (amountFound >= _amount)
+            {
+                return jobs;
+            }
+
+            if (jobs.Count > 0)
+            {
+                Character.QueueJobsAfter(Id, jobs);
+            }
             var mostSuitableFood = GetMostSuitableFood();
 
-            jobs.Add(
-                new ObtainItem(Character, gameState, mostSuitableFood.Code, _amount - amountFound)
+            var obtainJob = new ObtainItem(
+                Character,
+                gameState,
+                mostSuitableFood.Code,
+                _amount - amountFound
             );
-        }
 
-        jobs.Add(new CookEverythingInInventory(Character, gameState));
+            jobs.Add(obtainJob);
+        }
 
         return jobs;
     }

@@ -96,13 +96,6 @@ public abstract class CharacterJob
     {
         ShouldInterrupt = true;
     }
-
-    public virtual Task<List<CharacterJob>> GetJobs()
-    {
-        List<CharacterJob> jobs = [this];
-
-        return Task.FromResult(jobs);
-    }
 }
 
 public enum JobStatus

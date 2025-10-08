@@ -13,18 +13,33 @@ public class CookEverythingInInventory : CharacterJob
     public CookEverythingInInventory(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
-    protected override Task<OneOf<AppError, None>> ExecuteAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var jobs = ItemService
-            .GetFoodObtainJobsFromIngredientList(Character, gameState, Character.Schema.Inventory)
-            .Cast<CharacterJob>()
-            .ToList();
+        var jobs = GetJobs().Cast<CharacterJob>().ToList();
 
         if (jobs.Count > 0)
         {
             Character.QueueJobsAfter(Id, jobs);
         }
 
-        return Task.FromResult<OneOf<AppError, None>>(new None());
+        return new None();
+    }
+
+    public List<ObtainItem> GetJobs()
+    {
+        List<DropSchema> ingredients = [];
+
+        foreach (var item in Character.Schema.Inventory)
+        {
+            ingredients.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
+        }
+
+        var jobs = ItemService.GetFoodObtainJobsFromIngredientList(
+            Character,
+            gameState,
+            ingredients
+        );
+
+        return jobs;
     }
 }

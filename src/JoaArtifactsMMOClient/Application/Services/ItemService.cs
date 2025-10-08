@@ -147,7 +147,7 @@ public static class ItemService
     public static List<ObtainItem> GetFoodObtainJobsFromIngredientList(
         PlayerCharacter character,
         GameState gameState,
-        List<InventorySlot> itemSource
+        List<DropSchema> itemSource
     )
     {
         Dictionary<string, int> ingredientAmounts = new();
