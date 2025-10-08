@@ -51,7 +51,7 @@ public class ObtainSuitablePotions : CharacterJob
         // We want to ensure that we don't fill our inventory
         int inventorySpaceLeft = character.GetInventorySpaceLeft();
 
-        return Math.Max(PlayerActionService.MAX_AMOUNT_UTILITY_SLOT, inventorySpaceLeft / 2);
+        return Math.Min(PlayerActionService.MAX_AMOUNT_UTILITY_SLOT, inventorySpaceLeft / 2);
     }
 
     public static async Task<List<CharacterJob>> GetAcquirePotionJobs(
@@ -123,52 +123,44 @@ public class ObtainSuitablePotions : CharacterJob
                 );
 
                 amountLeft = amountLeft - amount;
+                resultJobs.Add(job);
 
                 // Craft it or learn to craft it, if needed.
                 job.CanTriggerObtain = true;
             }
             else
             {
-                // split the jobs
+                int ingredientsRequiredToCraftOne = 0;
 
-                // int ingredientsRequiredToCraftOne = 0;
+                foreach (var material in candidate.item.Craft!.Items)
+                {
+                    ingredientsRequiredToCraftOne += material.Quantity;
+                }
 
-                // foreach (var material in candidate.item.Craft!.Items)
-                // {
-                //     ingredientsRequiredToCraftOne += material.Quantity;
-                // }
+                int totalIngredientsRequired = ingredientsRequiredToCraftOne * amountLeft;
 
-                // int totalIngredientsRequired = ingredientsRequiredToCraftOne * amountLeft;
+                int iterations = (int)
+                    Math.Ceiling((double)totalIngredientsRequired / POTION_BATCH_SIZE);
 
-                // int iterations = (int)
-                //     Math.Ceiling((double)totalIngredientsRequired / POTION_BATCH_SIZE);
+                for (int i = 0; i < iterations; i++)
+                {
+                    int amountToCraft = Math.Min(amountLeft, POTION_BATCH_SIZE);
 
-                // for (int i = 0; i < iterations; i++)
-                // {
-                //     int amountToCraft = Math.Min(amountLeft, POTION_BATCH_SIZE);
+                    if (amountLeft <= 0)
+                    {
+                        break;
+                    }
+                    var job = new ObtainItem(
+                        character,
+                        gameState,
+                        bestPotionCandidate.item.Code,
+                        amountToCraft
+                    );
+                    job.AllowUsingMaterialsFromBank = true;
 
-                //     if (amountLeft <= 0)
-                //     {
-                //         // should not happen
-                //         break;
-                //     }
-                //     var job = new ObtainItem(
-                //         character,
-                //         gameState,
-                //         bestPotionCandidate.item.Code,
-                //         amountToCraft
-                //     );
-
-                //     amountLeft = amountLeft - POTION_BATCH_SIZE;
-                // }
-
-                // Test: ObtainItem should split the jobs
-                var job = new ObtainItem(
-                    character,
-                    gameState,
-                    bestPotionCandidate.item.Code,
-                    amountLeft
-                );
+                    amountLeft = amountLeft - amountToCraft;
+                    resultJobs.Add(job);
+                }
 
                 amountLeft = 0;
             }
