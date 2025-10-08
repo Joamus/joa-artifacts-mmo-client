@@ -9,7 +9,7 @@ namespace Application.Jobs;
 
 public class TrainCombat : CharacterJob
 {
-    public static readonly int AMOUNT_TO_KILL = 20;
+    public static readonly int AMOUNT_TO_KILL = 50;
     public int LevelOffset { get; private set; }
     public bool Relative { get; init; }
 

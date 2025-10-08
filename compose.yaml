@@ -3,8 +3,7 @@ services:
   api:
     build: .
     network_mode: "host"
-    ports:
-      - "5291:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-    mem_limit: 3GB
+      - DOTNET_GCHeapHardLimitPercent=75
+    mem_limit: 150MB

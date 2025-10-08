@@ -146,7 +146,8 @@ public class GatherMaterialsForItem : CharacterJob
                     );
 
                     crafter.QueueJob(
-                        new WithdrawItem(crafter, gameState, material.Code, material.Quantity)
+                        new WithdrawItem(crafter, gameState, material.Code, material.Quantity),
+                        true
                     );
 
                     return Task.Run(() => { });

@@ -93,7 +93,7 @@ public class ApiRequester
             }
             else
             {
-                return response;
+                break;
             }
         }
 

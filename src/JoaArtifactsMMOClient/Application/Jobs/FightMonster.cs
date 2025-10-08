@@ -17,6 +17,9 @@ namespace Application.Jobs;
 public class FightMonster : CharacterJob
 {
     private static readonly float EAT_FOOD_HP_THRESHOLD = 0.20f;
+
+    private static readonly int MIN_FOOD_TO_OBTAIN = 20;
+
     private static readonly int REST_HP_PER_SEC = 5;
 
     // Doesn't matter the amount you consume, cooldown is the same
@@ -162,7 +165,7 @@ public class FightMonster : CharacterJob
                     new ObtainSuitableFood(
                         Character,
                         gameState,
-                        GetFoodToObtain(
+                        GetFoodAmountToObtain(
                             Character,
                             Mode == JobMode.Kill ? Amount - ProgressAmount : null
                         )
@@ -173,9 +176,9 @@ public class FightMonster : CharacterJob
             return new None();
         }
 
-        var hasPotionsEquipped = await EquipPotionsIfNeeded();
+        var hasNoPotionsEquipped = await EquipPotionsIfNeeded();
 
-        if (!hasPotionsEquipped)
+        if (hasNoPotionsEquipped)
         {
             var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
                 Character,
@@ -454,16 +457,20 @@ public class FightMonster : CharacterJob
         return true;
     }
 
-    public static int GetFoodToObtain(PlayerCharacter character, int? amountToKill)
+    public static int GetFoodAmountToObtain(PlayerCharacter character, int? amountToKill)
     {
-        int baselineAmount = character.GetInventorySpaceLeft() / 4;
+        int maxAmount = character.GetInventorySpaceLeft() / 3;
 
         if (amountToKill is not null)
         {
-            return Math.Min(amountToKill.Value, baselineAmount);
+            int minAmount = Math.Max(amountToKill.Value, MIN_FOOD_TO_OBTAIN);
+
+            int foodNeededToKillMobs = Math.Min(minAmount, maxAmount);
+
+            return foodNeededToKillMobs;
         }
 
-        return baselineAmount;
+        return maxAmount;
     }
 }
 

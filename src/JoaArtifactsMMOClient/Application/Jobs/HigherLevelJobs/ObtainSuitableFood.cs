@@ -68,6 +68,28 @@ public class ObtainSuitableFood : CharacterJob
 
         List<ItemInInventory> foodCandidates = [];
 
+        var jobsToCookFromBank = ItemService.GetFoodObtainJobsFromIngredientList(
+            Character,
+            gameState,
+            Character.Schema.Inventory
+        );
+
+        foreach (var job in jobsToCookFromBank)
+        {
+            amountFound += job.Amount;
+            jobs.Add(job);
+        }
+
+        if (amountFound >= _amount)
+        {
+            return jobs;
+        }
+
+        if (jobs.Count > 0)
+        {
+            Character.QueueJobsAfter(Id, jobs);
+        }
+
         foreach (var item in bankItemsResponse.Data)
         {
             var matchingItem = gameState.Items.FirstOrDefault(_item => _item.Code == item.Code);
@@ -179,28 +201,4 @@ public class ObtainSuitableFood : CharacterJob
 
         return gatherableFood ?? fightableFood ?? gameState.ItemsDict["cooked_gudgeon"]!; // You can cook this from level 1, but this should probably never occur
     }
-
-    // /*
-    //  For now, this job only handles creating crafting obtain jobs, e.g. it won't make jobs for withdrawing cooked food.
-    // */
-    // public static List<ObtainItem> GetFoodObtainJobsFromIngredientList(
-    //     PlayerCharacter character,
-    //     GameState gameState,
-    //     List<ItemSchema> itemSource
-    // )
-    // {
-    //     List<ObtainItem> jobs = [];
-
-    //     var itemSourceDict = new Dictionary<string, ItemSchema>();
-
-    //     var viableFood = gameState.Items.FindAll(item => CanPlayerEatFood(item, character));
-
-    //     foreach (var food in viableFood)
-    //     {
-    //         var craft = food.Craft;
-    //         if (craft is null) { }
-    //     }
-
-    //     return jobs;
-    // }
 }

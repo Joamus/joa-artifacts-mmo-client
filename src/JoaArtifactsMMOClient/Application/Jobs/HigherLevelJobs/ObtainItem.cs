@@ -24,7 +24,7 @@ public class ObtainItem : CharacterJob
     public bool CanTriggerTraining { get; set; } = true;
 
     private List<DropSchema> itemsInBank { get; set; } = [];
-    protected int Amount { get; init; }
+    public int Amount { get; private init; }
 
     protected int _progressAmount { get; set; } = 0;
 
