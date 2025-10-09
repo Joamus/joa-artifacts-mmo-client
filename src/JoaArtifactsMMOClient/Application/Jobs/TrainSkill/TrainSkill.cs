@@ -258,7 +258,7 @@ public class TrainSkill : CharacterJob
                     craftingAmount
                 );
 
-                obtainItemJob.AllowFindingItemInBank = false;
+                // obtainItemJob.AllowFindingItemInBank = false;
                 obtainItemJob.AllowUsingMaterialsFromBank = true;
                 obtainItemJob.AllowUsingMaterialsFromInventory = true;
 
