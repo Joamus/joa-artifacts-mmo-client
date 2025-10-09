@@ -59,12 +59,12 @@ public class CompleteTask : CharacterJob
             int itemAmount = (int)ItemAmount;
 
             if (
-                matchingItem.Currency == "tasks_coins"
+                matchingItem.Currency == "tasks_coin"
                 && matchingItem.BuyPrice * ItemAmount >= taskCoinsAmount
             )
             {
                 logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] buying item \"{ItemCode}\" for {matchingItem.BuyPrice} per item (total: {matchingItem.BuyPrice * ItemAmount}) from \"tasks_master\" - have {taskCoinsAmount} total tasks_coins - for {Character.Schema.Name} - task {Code}"
+                    $"{JobName}: [{Character.Schema.Name}] buying item \"{ItemCode}\" for {matchingItem.BuyPrice} per item (total: {matchingItem.BuyPrice * ItemAmount}) from \"tasks_master\" - have {taskCoinsAmount} total tasks_coin - for {Character.Schema.Name} - task {Code}"
                 );
                 await Character.NavigateTo(Code!, ArtifactsApi.Schemas.ContentType.TasksTrader);
                 await Character.NpcBuyItem(matchingItem.Code, itemAmount);
@@ -82,7 +82,7 @@ public class CompleteTask : CharacterJob
                 int amountOfItemNow = Character.GetItemFromInventory(ItemCode)?.Quantity ?? 0;
 
                 logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coins\" for a random reward, to get {ItemCode} - task {Code}"
+                    $"{JobName}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coin\" for a random reward, to get {ItemCode} - task {Code}"
                 );
 
                 var result = await Character.TaskExchange();
@@ -101,7 +101,7 @@ public class CompleteTask : CharacterJob
                 }
 
                 logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coins\" for a random reward, to get {ItemCode} - task {Code}"
+                    $"{JobName}: [{Character.Schema.Name}] exchanged {PRICE_OF_EXCHANGE} \"tasks_coin\" for a random reward, to get {ItemCode} - task {Code}"
                 );
             }
         }

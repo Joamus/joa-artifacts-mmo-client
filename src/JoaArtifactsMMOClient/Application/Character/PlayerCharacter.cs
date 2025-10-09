@@ -223,7 +223,7 @@ public class PlayerCharacter
         }
         else if (IdleJobs.Count > 0)
         {
-            int randomIndex = new Random().Next(0, IdleJobs.Count - 1);
+            int randomIndex = new Random().Next(0, IdleJobs.Count);
 
             CharacterJob randomJob = IdleJobs.ElementAtOrDefault(randomIndex)!;
             var clonedIdleJob = randomJob.Clone();
@@ -235,7 +235,7 @@ public class PlayerCharacter
             // clonedIdleJob.gameState = GameState;
 
             Logger.LogInformation(
-                $"{GetType().Name}: [{Schema.Name}] picked random job index {randomIndex} of {IdleJobs.Count}"
+                $"{GetType().Name}: [{Schema.Name}] picked random job index {randomIndex} of {IdleJobs.Count - 1}"
             );
             nextJob = clonedIdleJob;
         }

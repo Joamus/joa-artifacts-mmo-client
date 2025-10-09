@@ -128,11 +128,16 @@ public class ObtainSuitableFood : CharacterJob
 
         if (amountFound < _amount)
         {
-            var jobsToCookFromBank = ItemService.GetFoodObtainJobsFromIngredientList(
-                Character,
-                gameState,
-                result.Data
-            );
+            var jobsToCookFromBank = ItemService
+                .GetFoodToCookFromInventoryList(Character, gameState, result.Data)
+                .Select(item =>
+                {
+                    var job = new ObtainItem(Character, gameState, item.Code, item.Quantity);
+                    job.AllowUsingMaterialsFromBank = true;
+
+                    return job;
+                })
+                .ToList();
 
             foreach (var job in jobsToCookFromBank)
             {

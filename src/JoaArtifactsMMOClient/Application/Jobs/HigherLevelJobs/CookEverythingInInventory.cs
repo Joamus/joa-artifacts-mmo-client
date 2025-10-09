@@ -25,7 +25,7 @@ public class CookEverythingInInventory : CharacterJob
         return new None();
     }
 
-    public List<ObtainItem> GetJobs()
+    public List<CraftItem> GetJobs()
     {
         List<DropSchema> ingredients = [];
 
@@ -34,11 +34,10 @@ public class CookEverythingInInventory : CharacterJob
             ingredients.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
         }
 
-        var jobs = ItemService.GetFoodObtainJobsFromIngredientList(
-            Character,
-            gameState,
-            ingredients
-        );
+        var jobs = ItemService
+            .GetFoodToCookFromInventoryList(Character, gameState, ingredients)
+            .Select(item => new CraftItem(Character, gameState, item.Code, item.Quantity))
+            .ToList();
 
         return jobs;
     }

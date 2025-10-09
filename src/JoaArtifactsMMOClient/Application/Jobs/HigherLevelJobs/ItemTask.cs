@@ -33,7 +33,7 @@ public class ItemTask : CharacterJob
         {
             logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
-            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coins")?.Quantity ?? 0;
+            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coin")?.Quantity ?? 0;
 
             if (taskCoinsAmount > 0)
             {
@@ -41,7 +41,7 @@ public class ItemTask : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositing them"
                 );
                 Character.QueueJob(
-                    new DepositItems(Character, gameState, "tasks_coins", taskCoinsAmount),
+                    new DepositItems(Character, gameState, "tasks_coin", taskCoinsAmount),
                     true
                 );
             }

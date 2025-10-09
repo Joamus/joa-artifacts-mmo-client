@@ -31,7 +31,7 @@ public class MonsterTask : CharacterJob
         {
             logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
-            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coins")?.Quantity ?? 0;
+            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coin")?.Quantity ?? 0;
 
             if (taskCoinsAmount > 0)
             {
@@ -42,7 +42,7 @@ public class MonsterTask : CharacterJob
                     new DepositItems(
                         Character,
                         gameState,
-                        "tasks_coins",
+                        "tasks_coin",
                         taskCoinsAmount
                     ).SetParent<DepositItems>(this),
                     true

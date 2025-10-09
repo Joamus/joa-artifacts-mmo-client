@@ -144,14 +144,14 @@ public static class ItemService
         return item.Effects.Find(effect => effect.Code == key)?.Value ?? 0;
     }
 
-    public static List<ObtainItem> GetFoodObtainJobsFromIngredientList(
+    public static List<DropSchema> GetFoodToCookFromInventoryList(
         PlayerCharacter character,
         GameState gameState,
         List<DropSchema> itemSource
     )
     {
         Dictionary<string, int> ingredientAmounts = new();
-        Dictionary<string, ItemSchema> potentialFoodsToCook = new();
+        Dictionary<string, ItemSchema> potentialFoodsToCookDict = new();
 
         foreach (var item in itemSource)
         {
@@ -167,24 +167,24 @@ public static class ItemService
                 {
                     if (character.Schema.CookingLevel >= food.Level && food.Subtype == "food")
                     {
-                        potentialFoodsToCook.Add(food.Code, food);
+                        potentialFoodsToCookDict.Add(food.Code, food);
                     }
                 }
             }
         }
 
-        List<ItemSchema> foodsToCook = [];
+        List<ItemSchema> potentialFoodsToCook = [];
 
-        foreach (var food in potentialFoodsToCook)
+        foreach (var food in potentialFoodsToCookDict)
         {
-            foodsToCook.Add(food.Value);
+            potentialFoodsToCook.Add(food.Value);
         }
 
-        CalculationService.SortItemsBasedOnEffect(foodsToCook, "heal");
+        CalculationService.SortItemsBasedOnEffect(potentialFoodsToCook, "heal");
 
-        List<ObtainItem> jobs = [];
+        List<DropSchema> foodsToCook = [];
 
-        foreach (var food in foodsToCook)
+        foreach (var food in potentialFoodsToCook)
         {
             bool hasAllIngredients = true;
             int? amountThatCanBeCooked = null;
@@ -235,12 +235,13 @@ public static class ItemService
                     ingredientAmounts[ingredient.Code] -= ingredient.Quantity;
                 }
 
-                jobs.Add(
-                    // new CraftItem(character, gameState, food.Code, amountThatCanBeCooked.Value)
-                    new ObtainItem(character, gameState, food.Code, amountThatCanBeCooked.Value)
+                foodsToCook.Add(
+                    new DropSchema { Code = food.Code, Quantity = amountThatCanBeCooked.Value }
+                // new CraftItem(character, gameState, food.Code, amountThatCanBeCooked.Value)
+                // new ObtainItem(character, gameState, food.Code, amountThatCanBeCooked.Value)
                 );
             }
         }
-        return jobs;
+        return foodsToCook;
     }
 }

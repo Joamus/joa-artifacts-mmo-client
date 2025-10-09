@@ -50,15 +50,26 @@ public class GatherMaterialsForItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] setting up events to have {crafter.Schema.Name} craft {lastJob.Amount} x {lastJob.Code}"
         );
 
-        var depositItems = SetupDepositAllMaterialsToBank(lastJob, crafter);
+        var depositItems = GetDepositAllMaterialsToBankJobs(lastJob);
 
-        foreach (var job in depositItems)
+        foreach (var item in depositItems)
         {
-            Character.QueueJob(job);
+            Character.QueueJob(item);
         }
 
         depositItems.Last().onSuccessEndHook = () =>
         {
+            List<CharacterJob> jobsForCrafter = [];
+
+            logger.LogInformation(
+                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing {depositItems.Count} x withdraw item jobs for the crafter {crafter.Schema.Name}, so they can craft {lastJob.Amount} x {lastJob.Code}"
+            );
+
+            foreach (var job in depositItems)
+            {
+                jobsForCrafter.Add(new WithdrawItem(crafter, gameState, job.Code, job._amount));
+            }
+
             var craftJob = lastJob;
             craftJob.Character = crafter;
 
@@ -92,7 +103,14 @@ public class GatherMaterialsForItem : CharacterJob
                 return Task.Run(() => { });
             };
 
-            crafter.QueueJob(craftJob);
+            jobsForCrafter.Add(craftJob);
+
+            foreach (var job in jobsForCrafter)
+            {
+                crafter.QueueJob(job);
+            }
+
+            // crafter.QueueJob(craftJob);
 
             return Task.Run(() => { });
         };
@@ -105,7 +123,7 @@ public class GatherMaterialsForItem : CharacterJob
 
     private void SetupForBankEvents(CraftItem lastJob)
     {
-        var jobs = SetupDepositAllMaterialsToBank(lastJob, null);
+        var jobs = GetDepositAllMaterialsToBankJobs(lastJob);
 
         foreach (var job in jobs)
         {
@@ -113,9 +131,9 @@ public class GatherMaterialsForItem : CharacterJob
         }
     }
 
-    private List<DepositItems> SetupDepositAllMaterialsToBank(
-        CraftItem lastJob,
-        PlayerCharacter? crafter
+    private List<DepositItems> GetDepositAllMaterialsToBankJobs(
+        CraftItem lastJob
+    // PlayerCharacter? crafter
     )
     {
         var materials = gameState.ItemsDict.GetValueOrNull(lastJob.Code)?.Craft?.Items;
@@ -136,23 +154,6 @@ public class GatherMaterialsForItem : CharacterJob
                 material.Code,
                 material.Quantity
             ).SetParent<DepositItems>(this);
-
-            if (crafter is not null)
-            {
-                job.onSuccessEndHook = () =>
-                {
-                    logger.LogInformation(
-                        $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job for {crafter.Schema.Name} to withdraw {material.Quantity} x {material.Code}"
-                    );
-
-                    crafter.QueueJob(
-                        new WithdrawItem(crafter, gameState, material.Code, material.Quantity),
-                        true
-                    );
-
-                    return Task.Run(() => { });
-                };
-            }
             depositItems.Add(job);
         }
 
