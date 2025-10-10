@@ -218,11 +218,9 @@ public class ObtainSuitableFood : CharacterJob
                 // Prefer fish, where we just need to cook one fish
                 var ingredient = food.Craft.Items[0];
 
-                var matchInDict = gameState.ItemsDict.ContainsKey(ingredient.Code);
-                if (matchInDict)
+                var itemInDict = gameState.ItemsDict.GetValueOrNull(ingredient.Code);
+                if (itemInDict is not null)
                 {
-                    var itemInDict = gameState.ItemsDict[ingredient.Code];
-
                     if (
                         itemInDict.Type == "resource"
                         && itemInDict.Subtype == "fishing"

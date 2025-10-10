@@ -44,7 +44,11 @@ public class GatherMaterialsForItem : CharacterJob
         Amount = amount;
     }
 
-    private void SetupMakeCharacterCraftEvents(PlayerCharacter crafter, CraftItem lastJob)
+    private void SetupMakeCharacterCraftEvents(
+        PlayerCharacter crafter,
+        List<CharacterJob> allJobs,
+        CraftItem lastJob
+    )
     {
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] setting up events to have {crafter.Schema.Name} craft {lastJob.Amount} x {lastJob.Code}"
@@ -52,10 +56,10 @@ public class GatherMaterialsForItem : CharacterJob
 
         var depositItems = GetDepositAllMaterialsToBankJobs(lastJob);
 
-        foreach (var item in depositItems)
-        {
-            Character.QueueJob(item);
-        }
+        // Should not crash
+        var jobBeforeCraft = allJobs.Last();
+
+        Character.QueueJobsAfter(jobBeforeCraft.Id, depositItems.Cast<CharacterJob>().ToList());
 
         depositItems.Last().onSuccessEndHook = () =>
         {
@@ -109,8 +113,6 @@ public class GatherMaterialsForItem : CharacterJob
             {
                 crafter.QueueJob(job);
             }
-
-            // crafter.QueueJob(craftJob);
 
             return Task.Run(() => { });
         };
@@ -250,7 +252,7 @@ public class GatherMaterialsForItem : CharacterJob
         }
         else if (Crafter is not null)
         {
-            SetupMakeCharacterCraftEvents(Crafter, craftJob);
+            SetupMakeCharacterCraftEvents(Crafter, jobs, craftJob);
         }
 
         return new None();

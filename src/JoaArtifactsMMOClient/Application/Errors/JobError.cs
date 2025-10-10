@@ -14,7 +14,7 @@ public class AppError : SystemException
         : base(message)
     {
         Status = ErrorStatus.Undefined;
-        _logger.LogDebug($"JobError: {message}");
+        _logger.LogDebug($"JobError: {message} \nstack: {base.StackTrace}");
     }
 
     public AppError(string message, ErrorStatus status)

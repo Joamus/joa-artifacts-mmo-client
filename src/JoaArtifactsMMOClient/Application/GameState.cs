@@ -14,7 +14,7 @@ public class GameState
 
     DateTime cacheReload = DateTime.UtcNow;
 
-    ILogger _logger { get; init; }
+    ILogger logger { get; init; }
 
     public List<PlayerCharacter> Characters { get; private set; } = [];
     public List<ItemSchema> Items { get; set; } = [];
@@ -38,7 +38,7 @@ public class GameState
     {
         AccountRequester = accountRequester;
         _apiRequester = apiRequester;
-        _logger = AppLogger.loggerFactory.CreateLogger<GameState>();
+        logger = AppLogger.loggerFactory.CreateLogger<GameState>();
     }
 
     public async Task LoadAll()
@@ -79,7 +79,7 @@ public class GameState
 
     public async Task LoadCharacters()
     {
-        _logger.LogInformation("Loading characters...");
+        logger.LogInformation("Loading characters...");
         var result = await AccountRequester.GetCharacters();
 
         List<PlayerCharacter> characters = [];
@@ -90,12 +90,12 @@ public class GameState
         }
 
         Characters = characters;
-        _logger.LogInformation("Loading characters - DONE;");
+        logger.LogInformation("Loading characters - DONE;");
     }
 
     public async Task LoadItems()
     {
-        _logger.LogInformation("Loading items...");
+        logger.LogInformation("Loading items...");
         bool doneLoading = false;
         List<ItemSchema> items = [];
         Dictionary<string, ItemSchema> itemsDict = new();
@@ -143,12 +143,12 @@ public class GameState
         UtilityItemsDict = utilityItemsDict;
         CraftingLookupDict = craftingLookupDict;
 
-        _logger.LogInformation("Loading items - DONE;");
+        logger.LogInformation("Loading items - DONE;");
     }
 
     public async Task LoadNpcItems()
     {
-        _logger.LogInformation("Loading NPC items...");
+        logger.LogInformation("Loading NPC items...");
         bool doneLoading = false;
         List<NpcItemSchema> items = [];
         Dictionary<string, NpcItemSchema> itemsDict = new();
@@ -176,12 +176,12 @@ public class GameState
         NpcItems = items;
         NpcItemsDict = itemsDict;
 
-        _logger.LogInformation("Loading NPC items - DONE;");
+        logger.LogInformation("Loading NPC items - DONE;");
     }
 
     public async Task LoadMaps()
     {
-        _logger.LogInformation("Loading maps...");
+        logger.LogInformation("Loading maps...");
         bool doneLoading = false;
         List<MapSchema> maps = [];
         int pageNumber = 1;
@@ -203,12 +203,12 @@ public class GameState
             pageNumber++;
         }
         Maps = maps;
-        _logger.LogInformation("Loading maps - DONE;");
+        logger.LogInformation("Loading maps - DONE;");
     }
 
     public async Task LoadResources()
     {
-        _logger.LogInformation("Loading resources...");
+        logger.LogInformation("Loading resources...");
         bool doneLoading = false;
         List<ResourceSchema> resources = [];
         int pageNumber = 1;
@@ -231,12 +231,12 @@ public class GameState
         }
 
         Resources = resources;
-        _logger.LogInformation("Loading resources - DONE;");
+        logger.LogInformation("Loading resources - DONE;");
     }
 
     public async Task LoadNpcs()
     {
-        _logger.LogInformation("Loading NPCs...");
+        logger.LogInformation("Loading NPCs...");
         bool doneLoading = false;
         List<NpcSchema> npcs = [];
         int pageNumber = 1;
@@ -258,42 +258,49 @@ public class GameState
             pageNumber++;
         }
         Npcs = npcs;
-        _logger.LogInformation("Loading NPCs - DONE;");
+        logger.LogInformation("Loading NPCs - DONE;");
     }
 
     public async Task LoadAccountAchievements()
     {
-        _logger.LogInformation("Loading account achievements...");
+        logger.LogInformation("Loading account achievements...");
         bool doneLoading = false;
         List<AccountAchievementSchema> accountAchievements = [];
         int pageNumber = 1;
 
-        while (!doneLoading)
+        try
         {
-            var result = await AccountRequester.GetAccountAchievements(pageNumber);
-
-            foreach (var achievement in result.Data)
+            while (!doneLoading)
             {
-                if (!string.IsNullOrEmpty(achievement.CompletedAt))
+                var result = await AccountRequester.GetAccountAchievements(pageNumber);
+
+                foreach (var achievement in result.Data)
                 {
-                    accountAchievements.Add(achievement);
+                    if (!string.IsNullOrEmpty(achievement.CompletedAt))
+                    {
+                        accountAchievements.Add(achievement);
+                    }
                 }
-            }
 
-            if (result.Data.Count == 0)
-            {
-                doneLoading = true;
-            }
+                if (result.Data.Count == 0)
+                {
+                    doneLoading = true;
+                }
 
-            pageNumber++;
+                pageNumber++;
+            }
+            AccountAchievements = accountAchievements;
+            logger.LogInformation("Loading account achievements - DONE;");
         }
-        AccountAchievements = accountAchievements;
-        _logger.LogInformation("Loading account achievements - DONE;");
+        catch (Exception e)
+        {
+            logger.LogError(e.ToString());
+        }
     }
 
     public async Task LoadMonsters()
     {
-        _logger.LogInformation("Loading monsters...");
+        logger.LogInformation("Loading monsters...");
         bool doneLoading = false;
         List<MonsterSchema> monsters = [];
         int pageNumber = 1;
@@ -315,6 +322,6 @@ public class GameState
             pageNumber++;
         }
         Monsters = monsters;
-        _logger.LogInformation("Loading monsters - DONE;");
+        logger.LogInformation("Loading monsters - DONE;");
     }
 }

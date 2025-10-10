@@ -155,13 +155,11 @@ public static class ItemService
 
         foreach (var item in itemSource)
         {
-            bool isIngredient = gameState.CraftingLookupDict.ContainsKey(item.Code);
+            var foods = gameState.CraftingLookupDict.GetValueOrNull(item.Code);
 
-            if (isIngredient)
+            if (foods is not null)
             {
                 ingredientAmounts.Add(item.Code, item.Quantity);
-
-                var foods = gameState.CraftingLookupDict[item.Code];
 
                 foreach (var food in foods)
                 {
