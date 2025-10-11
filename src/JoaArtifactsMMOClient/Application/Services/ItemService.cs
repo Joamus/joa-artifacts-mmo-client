@@ -189,7 +189,12 @@ public static class ItemService
 
             foreach (var ingredient in food.Craft!.Items)
             {
-                int amountInInventory = ingredientAmounts[ingredient.Code];
+                int amountInInventory = ingredientAmounts.GetValueOrNull(ingredient.Code);
+
+                if (amountInInventory == 0)
+                {
+                    continue;
+                }
 
                 // If we need more than we have, then we can just skip on to the next food
                 if (amountInInventory < ingredient.Quantity)
@@ -230,7 +235,10 @@ public static class ItemService
 
                 foreach (var ingredient in ingredientsToSubtract)
                 {
-                    ingredientAmounts[ingredient.Code] -= ingredient.Quantity;
+                    if (ingredientAmounts.ContainsKey(ingredient.Code))
+                    {
+                        ingredientAmounts[ingredient.Code] -= ingredient.Quantity;
+                    }
                 }
 
                 foodsToCook.Add(
