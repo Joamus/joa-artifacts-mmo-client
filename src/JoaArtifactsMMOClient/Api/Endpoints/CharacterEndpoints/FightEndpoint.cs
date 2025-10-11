@@ -63,5 +63,5 @@ public record FightRequest : GenericActionRequest
     public required string Code { get; set; }
     public required int Amount { get; set; }
     public string? ItemCode { get; set; }
-    public required bool AllowUsingMaterialsFromInventory { get; set; } = false;
+    public bool AllowUsingMaterialsFromInventory { get; set; } = false;
 }

@@ -7,7 +7,9 @@ public static class CalculationService
 {
     public static int CalculateDistanceToMap(int originX, int originY, int mapX, int mapY)
     {
-        return Math.Abs(mapX - originX + mapY - originY);
+        int xDiff = Math.Max(mapX, originX) - Math.Min(mapX, originX);
+        int yDiff = Math.Max(mapY, originY) - Math.Min(mapY, originY);
+        return Math.Abs(xDiff - yDiff);
     }
 
     public static void SortItemsBasedOnEffect(

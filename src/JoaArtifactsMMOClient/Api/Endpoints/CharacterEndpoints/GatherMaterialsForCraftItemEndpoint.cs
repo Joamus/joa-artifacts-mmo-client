@@ -70,7 +70,7 @@ public record GatherMaterialsForCraftItemEndpointRequest : GenericActionRequest
 {
     public required string Code { get; set; }
     public int Amount { get; set; } = 1;
-    public required bool AllowUsingMaterialsFromBank { get; set; } = true;
+    public bool AllowUsingMaterialsFromBank { get; set; } = true;
 
     public bool ForBank { get; set; } = true;
     public string? CraftBy { get; set; } = null;
