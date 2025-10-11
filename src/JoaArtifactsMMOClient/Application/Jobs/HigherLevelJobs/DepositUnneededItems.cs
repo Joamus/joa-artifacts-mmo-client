@@ -90,6 +90,8 @@ public class DepositUnneededItems : CharacterJob
                     itemImportance = ItemImportance.High;
                 }
 
+                // TODO: Introduce logic to deposit equipment that isn't needed anymore
+
                 itemsToDeposit.Add((item.Code, item.Quantity, itemImportance));
                 continue;
             }
