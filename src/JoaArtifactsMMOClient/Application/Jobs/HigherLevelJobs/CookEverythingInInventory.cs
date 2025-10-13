@@ -2,6 +2,8 @@ using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
 using Application.Services;
+using OneOf;
+using OneOf.Types;
 
 namespace Application.Jobs;
 

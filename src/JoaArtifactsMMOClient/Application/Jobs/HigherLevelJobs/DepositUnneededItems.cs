@@ -140,6 +140,8 @@ public class DepositUnneededItems : CharacterJob
 
         foreach (var item in itemsToDeposit)
         {
+            bool deposittingLowPrioItem = item.Importance <= ItemImportance.Low;
+
             // Keep going if we are depositting low prio items
             if (!deposittingLowPrioItem && !ShouldKeepDepositingIfAtBank(Character))
             {
@@ -147,8 +149,6 @@ public class DepositUnneededItems : CharacterJob
             }
 
             int amountToDeposit = 0;
-
-            bool deposittingLowPrioItem = item.Importance <= ItemImportance.Low;
 
             if (deposittingLowPrioItem)
             {

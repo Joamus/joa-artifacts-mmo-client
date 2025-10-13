@@ -416,7 +416,8 @@ public class PlayerActionService
                                 var equippedItemValue =
                                     equippedItemInSlot
                                         .Effects.Find(effect => effect.Code == skill)
-                                        ?.Value ?? 0;
+                                        ?.Value
+                                    ?? 0;
 
                                 // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                                 if (equippedItemValue > itemInInventoryEffect.Value)

@@ -104,7 +104,6 @@ await loader.Start();
 
 // await Task.WhenAny([loader.Start(), app.RunAsync()]);
 
-
 // var _ = await loader.Start();
 
 // await app.RunAsync();
