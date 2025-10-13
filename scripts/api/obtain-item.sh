@@ -7,7 +7,7 @@ if [ -z "$char" ] || [ -z "$code" ]; then
   exit 1
 fi
 
-body='{ "Code": '"\"$code\""', "ForBank": false }'
+body='{ "Code": '"\"$code\""', "ForBank": false, "AllowUsingMaterialsFromBank": true }'
 
 echo $body
 

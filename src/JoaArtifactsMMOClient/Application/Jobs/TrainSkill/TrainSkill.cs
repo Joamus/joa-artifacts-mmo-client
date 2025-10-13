@@ -271,7 +271,7 @@ public class TrainSkill : CharacterJob
                         gameState,
                         bestItemToCraft.Code,
                         craftingAmount
-                    );
+                    ).SetParent<RecycleItem>(this);
 
                     recycleJob.ForBank();
                     trainJobs.Add(recycleJob);
