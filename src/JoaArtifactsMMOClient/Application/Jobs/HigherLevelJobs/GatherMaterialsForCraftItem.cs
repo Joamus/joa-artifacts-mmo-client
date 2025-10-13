@@ -65,6 +65,10 @@ public class GatherMaterialsForItem : CharacterJob
         {
             List<CharacterJob> jobsForCrafter = [];
 
+            jobsForCrafter.Add(
+                new DepositUnneededItems(crafter, gameState).SetParent<GatherMaterialsForItem>(this)
+            );
+
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing {depositItems.Count} x withdraw item jobs for the crafter {crafter.Schema.Name}, so they can craft {lastJob.Amount} x {lastJob.Code}"
             );

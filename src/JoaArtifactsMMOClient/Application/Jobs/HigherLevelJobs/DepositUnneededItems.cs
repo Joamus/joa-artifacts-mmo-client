@@ -140,12 +140,32 @@ public class DepositUnneededItems : CharacterJob
 
         foreach (var item in itemsToDeposit)
         {
-            if (!ShouldKeepDepositingIfAtBank(Character))
+            // Keep going if we are depositting low prio items
+            if (!deposittingLowPrioItem && !ShouldKeepDepositingIfAtBank(Character))
             {
                 break;
             }
 
-            int amountToDeposit = Math.Min(item.Quantity, MAX_FREE_INVENTORY_SPACES);
+            int amountToDeposit = 0;
+
+            bool deposittingLowPrioItem = item.Importance <= ItemImportance.Low;
+
+            if (deposittingLowPrioItem)
+            {
+                amountToDeposit = item.Quantity;
+            }
+            else
+            {
+                amountToDeposit = Math.Min(
+                    item.Quantity,
+                    MAX_FREE_INVENTORY_SPACES - Character.GetInventorySpaceLeft()
+                );
+
+                if (amountToDeposit <= 0)
+                {
+                    logger.LogInformation($"{JobName}: [{Character.Schema.Name}] ");
+                }
+            }
 
             await Character.DepositBankItem(
                 [new WithdrawOrDepositItemRequest { Code = item.Code, Quantity = amountToDeposit }]

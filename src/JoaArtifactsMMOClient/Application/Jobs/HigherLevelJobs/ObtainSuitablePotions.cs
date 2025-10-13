@@ -86,7 +86,8 @@ public class ObtainSuitablePotions : CharacterJob
             int amountInBank =
                 bankItemsResponse
                     .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                    ?.Quantity ?? 0;
+                    ?.Quantity
+                ?? 0;
 
             if (!canCraftItem && amountInBank == 0)
             {

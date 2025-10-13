@@ -191,11 +191,6 @@ public static class ItemService
             {
                 int amountInInventory = ingredientAmounts.GetValueOrNull(ingredient.Code);
 
-                if (amountInInventory == 0)
-                {
-                    continue;
-                }
-
                 // If we need more than we have, then we can just skip on to the next food
                 if (amountInInventory < ingredient.Quantity)
                 {
