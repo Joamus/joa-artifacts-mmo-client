@@ -165,7 +165,10 @@ public static class ItemService
                 {
                     if (character.Schema.CookingLevel >= food.Level && food.Subtype == "food")
                     {
-                        potentialFoodsToCookDict.Add(food.Code, food);
+                        if (!potentialFoodsToCookDict.ContainsKey(food.Code))
+                        {
+                            potentialFoodsToCookDict.Add(food.Code, food);
+                        }
                     }
                 }
             }
