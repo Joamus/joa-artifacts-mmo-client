@@ -99,18 +99,46 @@ public class ItemTask : CharacterJob
         int amount = Character.Schema.TaskTotal;
 
         int remainingToGather = amount - progressAmount;
+
         if (remainingToGather > 0)
         {
-            var job = new ObtainItem(
-                Character,
-                gameState,
-                Character.Schema.Task,
+            string itemCode = Character.Schema.Task;
+
+            // We can be told to do a job that requires us to gather more items than we can carry.
+            // We queue the job to gather and deposit it before the current job, so we essentially loop this until we are done
+            // For now, DepositUnneededItems should also take into account to give things to the tasks master, as a fallback.
+
+            int amountToObtain = Math.Min(
+                Character.GetInventorySpaceLeft() - 10,
                 amount - progressAmount
             );
 
-            job.CanTriggerTraining = CanTriggerTraining;
+            logger.LogInformation(
+                $"{JobName}: [{Character.Schema.Name}]: Need to gather {progressAmount} of {amount} x {Code} - gathering and trading {amountToObtain}, then retriggering this job"
+            );
 
-            jobs.Add(job);
+            var job = new ObtainItem(Character, gameState, Character.Schema.Task, amountToObtain);
+
+            job.CanTriggerTraining = CanTriggerTraining;
+            job.AllowUsingMaterialsFromBank = true;
+
+            job.onSuccessEndHook = async () =>
+            {
+                int amountInInventory = Character.GetItemFromInventory(itemCode)?.Quantity ?? 0;
+
+                logger.LogInformation(
+                    $"{JobName}: [{Character.Schema.Name}]: onSuccessEndHook for obtain item - trading {amountInInventory} (skip if 0)"
+                );
+
+                if (amountInInventory > 0)
+                {
+                    await Character.TaskTrade(itemCode, amountInInventory);
+                }
+            };
+
+            Character.QueueJobsBefore(Id, [job]);
+            Status = JobStatus.Suspend;
+            return Task.FromResult<OneOf<AppError, None>>(new None());
         }
 
         var completeTask = new CompleteTask(

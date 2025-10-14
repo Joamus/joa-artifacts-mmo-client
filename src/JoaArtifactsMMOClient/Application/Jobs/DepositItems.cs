@@ -10,6 +10,8 @@ public class DepositItems : CharacterJob
 {
     public int _amount { get; init; }
 
+    public bool DontFailIfItemNotThere { get; set; } = false;
+
     public DepositItems(
         PlayerCharacter playerCharacter,
         GameState gameState,
@@ -24,27 +26,39 @@ public class DepositItems : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var itemInInventory = Character.Schema.Inventory.Find(item => item.Code == Code);
+        var amountInInventory = Character.GetItemFromInventory(Code)?.Quantity ?? 0;
 
-        if (itemInInventory is null)
+        if (amountInInventory < _amount)
         {
-            return new AppError(
-                $"Could not deposit item(s) with code {Code} and amount {_amount} - could not find it in inventory"
-            );
+            var errorMessage =
+                $"{JobName}: [{Character.Schema.Name}]: Only found {amountInInventory} of {_amount} x {Code} in inventory";
+
+            logger.LogWarning(errorMessage);
+
+            if (amountInInventory == 0 && !DontFailIfItemNotThere)
+            {
+                return new AppError(
+                    $"Could not deposit item(s) with code {Code} and amount {_amount} - could not find it in inventory"
+                );
+            }
         }
 
         await Character.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
 
         // TODO: Handle that bank might be full
-        await Character.DepositBankItem(
-            [
-                new WithdrawOrDepositItemRequest
-                {
-                    Code = Code!,
-                    Quantity = Math.Min(_amount, itemInInventory.Quantity),
-                },
-            ]
-        );
+
+        if (amountInInventory > 0)
+        {
+            await Character.DepositBankItem(
+                [
+                    new WithdrawOrDepositItemRequest
+                    {
+                        Code = Code!,
+                        Quantity = Math.Min(_amount, amountInInventory),
+                    },
+                ]
+            );
+        }
 
         return new None();
     }

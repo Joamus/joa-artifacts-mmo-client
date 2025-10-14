@@ -40,6 +40,7 @@ public class DepositUnneededItems : CharacterJob
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
         List<(string Code, int Quantity, ItemImportance Importance)> itemsToDeposit = [];
+        (string Code, int Quantity)? itemToTurnIn = null;
 
         // Deposit least important items
 
@@ -73,7 +74,8 @@ public class DepositUnneededItems : CharacterJob
 
             if (itemIsUsedForTask)
             {
-                itemsToDeposit.Add((item.Code, item.Quantity, ItemImportance.High));
+                // itemsToDeposit.Add((item.Code, item.Quantity, ItemImportance.High));
+                itemToTurnIn = (item.Code, item.Quantity);
                 continue;
             }
 
@@ -132,6 +134,12 @@ public class DepositUnneededItems : CharacterJob
             var importance = quantityInBank > 0 ? ItemImportance.None : ItemImportance.Low;
 
             itemsToDeposit.Add((item.Code, item.Quantity, Importance: importance));
+        }
+
+        if (itemToTurnIn is not null)
+        {
+            await Character.NavigateTo("items", ContentType.TasksMaster);
+            await Character.TaskTrade(itemToTurnIn.Value.Code, itemToTurnIn.Value.Quantity);
         }
 
         itemsToDeposit.Sort((a, b) => a.Importance.CompareTo(b.Importance));

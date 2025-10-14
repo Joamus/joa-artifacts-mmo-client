@@ -160,6 +160,9 @@ public class GatherMaterialsForItem : CharacterJob
                 material.Code,
                 material.Quantity
             ).SetParent<DepositItems>(this);
+
+            job.DontFailIfItemNotThere = true;
+
             depositItems.Add(job);
         }
 
