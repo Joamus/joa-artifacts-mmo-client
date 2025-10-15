@@ -44,7 +44,7 @@ public class DepositUnneededItems : CharacterJob
 
         // Deposit least important items
 
-        var accountRequester = GameServiceProvider.GetInstance().GetService<AccountRequester>()!;
+        var accountRequester = gameState.AccountRequester;
 
         var result = await accountRequester.GetBankItems();
 

@@ -106,7 +106,7 @@ public class ObtainItem : CharacterJob
 
         // if (AllowFindingItemInBank)
         // {
-        var accountRequester = GameServiceProvider.GetInstance().GetService<AccountRequester>()!;
+        var accountRequester = gameState.AccountRequester;
 
         var bankResult = await accountRequester.GetBankItems();
 

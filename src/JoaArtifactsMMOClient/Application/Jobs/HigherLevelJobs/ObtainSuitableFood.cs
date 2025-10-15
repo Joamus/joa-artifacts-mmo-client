@@ -31,7 +31,6 @@ public class ObtainSuitableFood : CharacterJob
 
         // If still not enough, find
 
-
         // If still not enough, we just go gather and cook some - be biased towards fishing, fastest way to get food
 
         var result = await GetJobsToObtainFood();
@@ -53,7 +52,7 @@ public class ObtainSuitableFood : CharacterJob
 
     private async Task<OneOf<AppError, List<CharacterJob>>> GetJobsToObtainFood()
     {
-        var accountRequester = GameServiceProvider.GetInstance().GetService<AccountRequester>()!;
+        var accountRequester = gameState.AccountRequester;
 
         var result = await accountRequester.GetBankItems();
 

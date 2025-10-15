@@ -35,7 +35,7 @@ public class WithdrawItem : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var accountRequester = GameServiceProvider.GetInstance().GetService<AccountRequester>()!;
+        var accountRequester = gameState.AccountRequester;
 
         var result = await accountRequester.GetBankItems();
 
