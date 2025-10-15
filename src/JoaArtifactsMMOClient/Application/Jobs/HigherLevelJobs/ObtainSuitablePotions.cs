@@ -93,7 +93,7 @@ public class ObtainSuitablePotions : CharacterJob
         }
 
         potionCandidates.Sort(
-            (a, b) =>
+            (b, a) =>
                 ItemService
                     .GetEffect(b.item, "restore")
                     .CompareTo(ItemService.GetEffect(a.item, "restore"))
