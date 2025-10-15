@@ -244,7 +244,7 @@ public class ObtainItem : CharacterJob
 
             int iterations = (int)
                 Math.Ceiling(
-                    totalIngredientsForCrafting / (Character.Schema.InventoryMaxItems * 0.75)
+                    totalIngredientsForCrafting / (Character.GetInventorySpaceLeft() * 0.85)
                 );
 
             for (int i = 0; i < iterations; i++)
