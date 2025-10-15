@@ -69,7 +69,7 @@ public class TrainCombat : CharacterJob
         foreach (var monster in gameState.Monsters)
         {
             // Our character might be able to punch above their weight
-            if (playerLevel >= monster.Level + 10 || playerLevel + 5 < monster.Level)
+            if (playerLevel > monster.Level + 10 || playerLevel + 5 < monster.Level)
             {
                 continue;
             }
@@ -113,10 +113,17 @@ public class TrainCombat : CharacterJob
             }
         }
 
+        if (bestMonsterCandidate is null)
+        {
+            return new AppError(
+                $"{JobName}: [{Character.Schema.Name}]: error - no monste candidates to fight that give XP."
+            );
+        }
+
         return new FightMonster(
             Character,
             gameState,
-            bestMonsterCandidate!.MonsterCode,
+            bestMonsterCandidate.MonsterCode,
             AMOUNT_TO_KILL
         );
     }

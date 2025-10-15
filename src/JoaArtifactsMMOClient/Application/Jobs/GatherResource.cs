@@ -153,7 +153,7 @@ public class GatherResourceItem : CharacterJob
                 characterSkillLevel = Character.Schema.AlchemyLevel;
                 break;
             case "fishing":
-                characterSkillLevel = Character.Schema.CookingLevel;
+                characterSkillLevel = Character.Schema.FishingLevel;
                 break;
             case "mining":
                 characterSkillLevel = Character.Schema.MiningLevel;

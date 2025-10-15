@@ -22,7 +22,7 @@ public abstract class CharacterJob
     public GameState gameState { get; set; }
 
     [JsonIgnore]
-    protected ILogger<CharacterJob> logger { get; init; } =
+    public ILogger<CharacterJob> logger { get; init; } =
         AppLogger.loggerFactory.CreateLogger<CharacterJob>();
 
     [JsonIgnore]
@@ -52,7 +52,7 @@ public abstract class CharacterJob
         Character = playerCharacter;
         this.gameState = gameState;
 
-        JobName = GetType().Name;
+        JobName = GetType().Name + $" ({Id})";
     }
 
     protected abstract Task<OneOf<AppError, None>> ExecuteAsync();

@@ -28,6 +28,18 @@ public class AccountRequester
         )!;
     }
 
+    public async Task<CharacterResponse> GetCharacter(string name)
+    {
+        var response = await _apiService.GetAsync($"/characters/{_accountName}/characters/{name}");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<CharacterResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
     public async Task<ItemsResponse> GetItems(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync($"/items?page={pageNumber}");

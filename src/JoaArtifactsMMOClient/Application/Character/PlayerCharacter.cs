@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -357,6 +356,16 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
+    public async Task ReloadCharacterSchema()
+    {
+        var result = await GameState.AccountRequester.GetCharacter(Schema.Name);
+
+        if (result?.Data is not null)
+        {
+            Schema = result.Data;
+        }
+    }
+
     // Make proper error handling with response codes etc.
     public async Task<OneOf<AppError, FightResponse>> Fight()
     {
@@ -480,8 +489,10 @@ public class PlayerCharacter
     public async Task DepositBankItem(List<WithdrawOrDepositItemRequest> depositItems)
     {
         await PreTaskHandler();
-
         string _body = JsonSerializer.Serialize(depositItems);
+
+        Logger.LogDebug($"{GetType().Name}: Depositting items to bank - payload: {_body}");
+
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await ApiRequester.PostAsync(
             $"/my/{Schema.Name}/action/bank/deposit/item",
@@ -503,6 +514,7 @@ public class PlayerCharacter
         await PreTaskHandler();
 
         string _body = JsonSerializer.Serialize(withdrawItems);
+        Logger.LogDebug($"{GetType().Name}: Withdrawing items from bank -  payload: {_body}");
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await ApiRequester.PostAsync(
             $"/my/{Schema.Name}/action/bank/withdraw/item",

@@ -61,13 +61,15 @@ public class GatherMaterialsForItem : CharacterJob
 
         Character.QueueJobsAfter(jobBeforeCraft.Id, depositItems.Cast<CharacterJob>().ToList());
 
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] queued {depositItems.Count} x deposit item jobs after job {jobBeforeCraft.Id} (last job before crafting)"
+        );
+
         depositItems.Last().onSuccessEndHook = () =>
         {
             List<CharacterJob> jobsForCrafter = [];
 
-            jobsForCrafter.Add(
-                new DepositUnneededItems(crafter, gameState).SetParent<GatherMaterialsForItem>(this)
-            );
+            jobsForCrafter.Add(new DepositUnneededItems(crafter, gameState));
 
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing {depositItems.Count} x withdraw item jobs for the crafter {crafter.Schema.Name}, so they can craft {lastJob.Amount} x {lastJob.Code}"
@@ -75,7 +77,9 @@ public class GatherMaterialsForItem : CharacterJob
 
             foreach (var job in depositItems)
             {
-                jobsForCrafter.Add(new WithdrawItem(crafter, gameState, job.Code, job._amount));
+                var withdrawItemJob = new WithdrawItem(crafter, gameState, job.Code, job._amount);
+                withdrawItemJob.CanTriggerObtain = true;
+                jobsForCrafter.Add(withdrawItemJob);
             }
 
             var craftJob = lastJob;
@@ -92,6 +96,8 @@ public class GatherMaterialsForItem : CharacterJob
                     craftJob.Code,
                     craftJob.Amount
                 );
+
+                depositCraftItem.DontFailIfItemNotThere = true;
 
                 depositCraftItem.onSuccessEndHook = () =>
                 {

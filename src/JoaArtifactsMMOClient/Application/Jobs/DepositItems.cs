@@ -59,6 +59,12 @@ public class DepositItems : CharacterJob
                 ]
             );
         }
+        else
+        {
+            logger.LogWarning(
+                $"{JobName}: [{Character.Schema.Name}]: Nothing to deposit - skipping depositting (DontFailIfItemNotThere = {DontFailIfItemNotThere})"
+            );
+        }
 
         return new None();
     }

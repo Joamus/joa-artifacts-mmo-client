@@ -3,6 +3,7 @@ using Application;
 using Application.Character;
 using Application.Errors;
 using Application.Jobs;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using OneOf;
 using OneOf.Types;
@@ -24,6 +25,12 @@ public static class CharacterEndpoints
         group
             .MapGet("/{name}", Get)
             .WithName(nameof(Get))
+            .WithOpenApi()
+            .Produces<PlayerCharacter>();
+
+        group
+            .MapPost("/{name}/reload", ReloadCharacter)
+            .WithName(nameof(ReloadCharacter))
             .WithOpenApi()
             .Produces<PlayerCharacter>();
 
@@ -130,6 +137,25 @@ public static class CharacterEndpoints
         }
 
         return TypedResults.Ok(matchingCharacter);
+    }
+
+    static async Task<IResult> ReloadCharacter(
+        [FromRoute] string name,
+        [FromServices] GameState gameState
+    )
+    {
+        var matchingCharacter = gameState.Characters.FirstOrDefault(character =>
+            character.Schema.Name == name
+        );
+
+        if (matchingCharacter is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        await matchingCharacter.ReloadCharacterSchema();
+
+        return TypedResults.NoContent();
     }
 
     static async Task<IResult> FightMonster(

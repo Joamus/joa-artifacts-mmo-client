@@ -1,13 +1,8 @@
-using System.Threading.Tasks;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
-using Application.Records;
 using Application.Services;
-using Application.Services.ApiServices;
-using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
@@ -151,16 +146,61 @@ public class ObtainSuitablePotions : CharacterJob
                     {
                         break;
                     }
-                    var job = new ObtainItem(
-                        character,
-                        gameState,
-                        bestPotionCandidate.item.Code,
-                        amountToCraft
-                    );
+                    string itemCode = bestPotionCandidate.item.Code;
+
+                    var job = new ObtainItem(character, gameState, itemCode, amountToCraft);
                     job.AllowUsingMaterialsFromBank = true;
 
                     amountLeft = amountLeft - amountToCraft;
                     resultJobs.Add(job);
+
+                    job.onSuccessEndHook = async () =>
+                    {
+                        int amountInInventory =
+                            character.GetItemFromInventory(itemCode)?.Quantity ?? 0;
+
+                        character.Logger.LogDebug(
+                            $"GetAcquirePotionJobs: [{character.Schema.Name}] onSuccessEndHook: Trying to equip {amountInInventory} x {itemCode}"
+                        );
+                        if (amountInInventory > 0)
+                        {
+                            bool availableInUtil1 =
+                                character.Schema.Utility1SlotQuantity
+                                    < PlayerActionService.MAX_AMOUNT_UTILITY_SLOT
+                                && (
+                                    character.Schema.Utility1Slot == ""
+                                    || character.Schema.Utility1Slot == itemCode
+                                );
+
+                            bool availableInUtil2 =
+                                character.Schema.Utility2SlotQuantity
+                                    < PlayerActionService.MAX_AMOUNT_UTILITY_SLOT
+                                && (
+                                    character.Schema.Utility2Slot == ""
+                                    || character.Schema.Utility2Slot == itemCode
+                                );
+
+                            if (availableInUtil1 || availableInUtil2)
+                            {
+                                character.Logger.LogDebug(
+                                    $"GetAcquirePotionJobs: [{character.Schema.Name}] onSuccessEndHook: Smart equipping {amountInInventory} x {itemCode}"
+                                );
+                                await character.SmartItemEquip(itemCode, amountInInventory);
+                            }
+                            else
+                            {
+                                character.Logger.LogDebug(
+                                    $"GetAcquirePotionJobs: [{character.Schema.Name}] onSuccessEndHook: No available util slots for equipping {amountInInventory} x {itemCode} - not equipping"
+                                );
+                            }
+                        }
+                        else
+                        {
+                            character.Logger.LogDebug(
+                                $"GetAcquirePotionJobs: [{character.Schema.Name}] onSuccessEndHook: Found {amountInInventory} x {itemCode} in inventory - not equipping"
+                            );
+                        }
+                    };
                 }
 
                 amountLeft = 0;
