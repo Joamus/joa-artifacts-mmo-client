@@ -71,7 +71,7 @@ public class GatherMaterialsForItem : CharacterJob
         depositItems.Last().onSuccessEndHook = () =>
         {
             logger.LogInformation(
-                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing ObtainItem for crafter {crafter.Schema.Name} with ForCharacter({Character}) - {depositItems.Count}, so they can craft {lastJob.Amount} x {lastJob.Code}"
+                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing ObtainItem for crafter {crafter.Schema.Name} with ForCharacter({Character}) - {depositItems.Count} jobs, so they can craft {lastJob.Amount} x {lastJob.Code}"
             );
             var job = new ObtainItem(crafter, gameState, lastJob.Code, lastJob.Amount);
             // job.AllowFindingItemInBank = true;
@@ -248,7 +248,7 @@ public class GatherMaterialsForItem : CharacterJob
         );
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code} - jobs: {jobs.Select(job => $"{job.JobName} - {job.Code}").ToList()}"
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code}"
         );
 
         switch (result.Value)

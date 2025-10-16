@@ -123,7 +123,28 @@ public class DepositUnneededItems : CharacterJob
                 continue;
             }
 
-            if (Character.Jobs.Find(job => job.Code == item.Code) is not null)
+            if (
+                Character.Jobs.Find(job =>
+                {
+                    bool hasJobRelatedToIt = job.Code == item.Code;
+
+                    if (hasJobRelatedToIt)
+                    {
+                        return hasJobRelatedToIt;
+                    }
+
+                    // Good enough, but it could technically go deeper - we might a job related to item C, but we have item A in our inventory
+                    // and item A is an ingredient for item B, which is an ingredient for item C.
+                    bool isIngredientOf =
+                        gameState
+                            .CraftingLookupDict?.GetValueOrNull(job.Code)
+                            ?.FirstOrDefault(ingredient => ingredient.Code == item.Code)
+                            is not null;
+
+                    return isIngredientOf;
+                })
+                is not null
+            )
             {
                 itemsToDeposit.Add((item.Code, item.Quantity, Importance: ItemImportance.High));
                 continue;

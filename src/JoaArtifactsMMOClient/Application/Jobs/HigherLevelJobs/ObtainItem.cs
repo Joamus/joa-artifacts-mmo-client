@@ -130,7 +130,7 @@ public class ObtainItem : CharacterJob
         );
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code} -  jobs: {jobs.Select(job => $"{job.JobName} - {job.Code}").ToList()}"
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code}"
         );
 
         switch (result.Value)
@@ -488,8 +488,8 @@ public class ObtainItem : CharacterJob
 
         List<int> iterations = [];
 
-        // Adding leeway with - 1
-        int availableInventorySpace = character.GetInventorySpaceLeft() - 1;
+        // Adding leeway with - 1. We use max items, because we assume that the character will deposit stuff
+        int availableInventorySpace = character.Schema.InventoryMaxItems - 1;
 
         int iterationAmount = (int)
             Math.Ceiling((double)totalInventorySpaceNeeded / availableInventorySpace);

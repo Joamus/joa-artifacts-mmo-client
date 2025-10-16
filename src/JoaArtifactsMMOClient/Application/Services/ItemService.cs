@@ -52,6 +52,10 @@ public static class ItemService
 
     public static bool CanUseItem(ItemSchema item, CharacterSchema playerSchema)
     {
+        if (item.Conditions is null)
+        {
+            return true;
+        }
         foreach (var condition in item.Conditions)
         {
             int playerLevelOfSkill = 0;
@@ -241,8 +245,6 @@ public static class ItemService
 
                 foodsToCook.Add(
                     new DropSchema { Code = food.Code, Quantity = amountThatCanBeCooked.Value }
-                // new CraftItem(character, gameState, food.Code, amountThatCanBeCooked.Value)
-                // new ObtainItem(character, gameState, food.Code, amountThatCanBeCooked.Value)
                 );
             }
         }
