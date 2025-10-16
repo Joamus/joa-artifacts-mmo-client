@@ -147,7 +147,10 @@ public class DepositUnneededItems : CharacterJob
 
                 await Character.TaskTrade(
                     itemToTurnIn.Value.Code,
-                    Math.Min(itemToTurnIn.Value.Quantity, amountInInventory)
+                    Math.Min(
+                        Character.Schema.TaskTotal - Character.Schema.TaskProgress,
+                        amountInInventory
+                    )
                 );
 
                 if (amountInInventory >= itemToTurnIn.Value.Quantity)
