@@ -14,7 +14,7 @@ public class ItemTask : CharacterJob
     public string? ItemCode { get; set; }
     public int? ItemAmount { get; set; }
 
-    public bool CanTriggerTraining { get; set; }
+    public bool CanTriggerTraining { get; set; } = true;
 
     public ItemTask(
         PlayerCharacter playerCharacter,
