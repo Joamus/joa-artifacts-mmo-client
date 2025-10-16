@@ -13,6 +13,8 @@ public class TrainCombat : CharacterJob
     public int LevelOffset { get; private set; }
     public bool Relative { get; init; }
 
+    public int PlayerLevel { get; set; }
+
     public TrainCombat(
         PlayerCharacter character,
         GameState gameState,
@@ -27,13 +29,17 @@ public class TrainCombat : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        int playerLevel = Character.Schema.Level;
+        // Only runs the first time this job runs. If it queues a job before itself, it shouldn't recalculate the level
+        if (PlayerLevel == 0)
+        {
+            PlayerLevel = Character.Schema.Level;
+        }
 
         int untilLevel;
 
         if (Relative)
         {
-            untilLevel = playerLevel + LevelOffset;
+            untilLevel = PlayerLevel + LevelOffset;
         }
         else
         {
@@ -44,9 +50,9 @@ public class TrainCombat : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - training combat until level {untilLevel}"
         );
 
-        if (playerLevel < untilLevel)
+        if (PlayerLevel < untilLevel)
         {
-            var result = await GetJobRequired(playerLevel);
+            var result = await GetJobRequired(PlayerLevel);
 
             switch (result.Value)
             {

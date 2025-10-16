@@ -36,6 +36,8 @@ public class TrainSkill : CharacterJob
 
     public bool Relative { get; init; }
 
+    public int SkillLevel { get; set; }
+
     public TrainSkill(
         PlayerCharacter character,
         GameState gameState,
@@ -53,13 +55,17 @@ public class TrainSkill : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        int skillLevel = GetSkillLevel(skillName);
+        // Only runs the first time this job runs. If it queues a job before itself, it shouldn't recalculate the level
+        if (SkillLevel == 0)
+        {
+            SkillLevel = GetSkillLevel(skillName);
+        }
 
         int untilLevel;
 
         if (Relative)
         {
-            untilLevel = skillLevel + LevelOffset;
+            untilLevel = SkillLevel + LevelOffset;
         }
         else
         {
@@ -74,9 +80,9 @@ public class TrainSkill : CharacterJob
             ? SkillKind.Gathering
             : SkillKind.Crafting;
 
-        if (skillLevel < untilLevel)
+        if (SkillLevel < untilLevel)
         {
-            var jobs = await GetJobsRequired(skillName, skillKind, skillLevel);
+            var jobs = await GetJobsRequired(skillName, skillKind, SkillLevel);
 
             if (jobs.Count > 0)
             {
@@ -238,7 +244,7 @@ public class TrainSkill : CharacterJob
                     );
                 }
 
-                // Weapon, gear, and jewel crafting often requires a lot of raw materials, which fill up the inventory faster.
+                // Weapon, gear, and jewellery crafting often requires a lot of raw materials, which fill up the inventory faster.
                 // Cooking and alchemy rarely do, so we can cook/make potions in bigger batches.
                 int craftingAmount = 1;
 

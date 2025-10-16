@@ -136,35 +136,59 @@ public class ItemTask : CharacterJob
 
             if (amountToObtain > 0)
             {
+                var matchingItem = gameState.ItemsDict.GetValueOrNull(Character.Schema.Task)!;
+
+                if (matchingItem is null)
+                {
+                    return new AppError(
+                        $"{JobName}: [{Character.Schema.Name}] app error: Could not find {Character.Schema.Task} item in items dict"
+                    );
+                }
+
+                List<int> iterations = ObtainItem.CalculateObtainItemIterations(
+                    matchingItem,
+                    Character,
+                    amountToObtain
+                );
+
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}]: Need to gather {progressAmount} of {amount} x {Code} - gathering and trading {amountToObtain}, then retriggering this job"
                 );
 
-                var job = new ObtainItem(
-                    Character,
-                    gameState,
-                    Character.Schema.Task,
-                    amountToObtain
-                );
-
-                job.CanTriggerTraining = CanTriggerTraining;
-                job.AllowUsingMaterialsFromBank = true;
-
-                job.onSuccessEndHook = async () =>
+                foreach (var iterationAmount in iterations)
                 {
-                    int amountInInventory = Character.GetItemFromInventory(itemCode)?.Quantity ?? 0;
-
-                    logger.LogInformation(
-                        $"{JobName}: [{Character.Schema.Name}]: onSuccessEndHook for obtain item - trading {amountInInventory} (skip if 0)"
+                    var job = new ObtainItem(
+                        Character,
+                        gameState,
+                        Character.Schema.Task,
+                        iterationAmount
                     );
 
-                    if (amountInInventory > 0)
-                    {
-                        await Character.TaskTrade(itemCode, amountInInventory);
-                    }
-                };
+                    logger.LogDebug(
+                        $"{JobName}: [{Character.Schema.Name}]: Queueing obtaining {iterationAmount} of {amountToObtain} - total iterations will be {iterations.Count}"
+                    );
 
-                Character.QueueJobsBefore(Id, [job]);
+                    job.CanTriggerTraining = CanTriggerTraining;
+                    job.AllowUsingMaterialsFromBank = true;
+
+                    job.onSuccessEndHook = async () =>
+                    {
+                        int amountInInventory =
+                            Character.GetItemFromInventory(itemCode)?.Quantity ?? 0;
+
+                        logger.LogInformation(
+                            $"{JobName}: [{Character.Schema.Name}]: onSuccessEndHook for obtain item - trading {amountInInventory} (skip if 0)"
+                        );
+
+                        if (amountInInventory > 0)
+                        {
+                            await Character.TaskTrade(itemCode, amountInInventory);
+                        }
+                    };
+
+                    jobs.Add(job);
+                }
+                Character.QueueJobsBefore(Id, jobs);
                 Status = JobStatus.Suspend;
                 return new None();
             }

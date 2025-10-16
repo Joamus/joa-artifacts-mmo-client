@@ -180,11 +180,11 @@ public class DepositUnneededItems : CharacterJob
             );
         }
 
-        if (Character.GetInventorySpaceLeft() >= MIN_FREE_INVENTORY_SPACES)
-        {
-            // TODO: Handle that we cannot tidy up enough - maybe spawn a HouseKeeping job? It would cook and craft items in the bank,
-            // which often ends up taking up less space
-        }
+        // if (Character.GetInventorySpaceLeft() >= MIN_FREE_INVENTORY_SPACES)
+        // {
+        //     // TODO: Handle that we cannot tidy up enough - maybe spawn a HouseKeeping job? It would cook and craft items in the bank,
+        //     // which often ends up taking up less space
+        // }
 
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] completed");
 

@@ -1,12 +1,8 @@
-using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
-using Application.Jobs;
-using Application.Services;
-using Application.Services.ApiServices;
 using Applicaton.Jobs;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -242,16 +238,18 @@ public class ObtainItem : CharacterJob
                 then it's safer to split it in 2, if we our character's max inventory space is only 100
             */
 
-            int iterations = (int)
-                Math.Ceiling(
-                    totalIngredientsForCrafting / (Character.GetInventorySpaceLeft() * 0.85)
-                );
+            List<int> iterations = CalculateObtainItemIterations(
+                matchingItem,
+                Character,
+                requiredAmount
+            );
 
-            for (int i = 0; i < iterations; i++)
+            foreach (var iterationAmount in iterations)
             {
                 foreach (var item in matchingItem.Craft.Items)
                 {
-                    int itemAmount = item.Quantity * (requiredAmount / iterations);
+                    // int itemAmount = item.Quantity * (requiredAmount / iterationAmount);
+                    int itemAmount = item.Quantity * iterationAmount;
 
                     var result = await GetJobsRequired(
                         Character,
@@ -454,5 +452,49 @@ public class ObtainItem : CharacterJob
         }
 
         return new None();
+    }
+
+    // TODO: Make the iterations into something like "craftPerIteration", so it returns a list of tuples or something,
+    // e.g if you have to create 10 iron bars, it might be, 3, 3, 3, 1 or something
+    public static List<int> CalculateObtainItemIterations(
+        ItemSchema item,
+        PlayerCharacter character,
+        int totalItemsWantedAmount
+    )
+    {
+        int totalInventorySpaceNeeded = 0;
+
+        if (item.Craft is not null)
+        {
+            foreach (var material in item.Craft.Items)
+            {
+                totalInventorySpaceNeeded += material.Quantity * totalItemsWantedAmount;
+            }
+        }
+        else
+        {
+            totalInventorySpaceNeeded = totalItemsWantedAmount;
+        }
+
+        int totalItemsWantedAmountRemaining = totalItemsWantedAmount;
+
+        List<int> iterations = [];
+
+        // Minus one for leeway in case of some bug or something :)
+        int maxAmountPerIteration = character.GetInventorySpaceLeft() - 1;
+
+        int itemAmountPerIteration = (int)
+            Math.Ceiling((double)totalInventorySpaceNeeded / maxAmountPerIteration);
+
+        for (int i = 0; i < itemAmountPerIteration; i++)
+        {
+            int iteration = Math.Min(itemAmountPerIteration, totalItemsWantedAmountRemaining);
+
+            totalItemsWantedAmountRemaining -= iteration;
+
+            iterations.Add(iteration);
+        }
+
+        return iterations;
     }
 }
