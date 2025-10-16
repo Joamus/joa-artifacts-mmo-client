@@ -244,11 +244,10 @@ public class ObtainItem : CharacterJob
                 requiredAmount
             );
 
-            foreach (var iterationAmount in iterations)
+            foreach (var item in matchingItem.Craft.Items)
             {
-                foreach (var item in matchingItem.Craft.Items)
+                foreach (var iterationAmount in iterations)
                 {
-                    // int itemAmount = item.Quantity * (requiredAmount / iterationAmount);
                     int itemAmount = item.Quantity * iterationAmount;
 
                     var result = await GetJobsRequired(
