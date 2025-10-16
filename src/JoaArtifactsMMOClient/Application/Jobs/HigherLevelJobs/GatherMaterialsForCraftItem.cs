@@ -248,7 +248,7 @@ public class GatherMaterialsForItem : CharacterJob
         );
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code} - jobs: {jobs.Select(job => $"{job.JobName} - {job.Code}")}"
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code} - jobs: {jobs.Select(job => $"{job.JobName} - {job.Code}").ToList()}"
         );
 
         switch (result.Value)

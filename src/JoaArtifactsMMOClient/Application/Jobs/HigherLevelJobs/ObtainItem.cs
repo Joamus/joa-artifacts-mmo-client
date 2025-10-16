@@ -130,7 +130,7 @@ public class ObtainItem : CharacterJob
         );
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code} -  jobs: {jobs.Select(job => $"{job.JobName} - {job.Code}")}"
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code} -  jobs: {jobs.Select(job => $"{job.JobName} - {job.Code}").ToList()}"
         );
 
         switch (result.Value)

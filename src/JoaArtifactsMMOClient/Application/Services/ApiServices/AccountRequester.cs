@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Infrastructure;
 using Newtonsoft.Json.Serialization;
@@ -87,17 +88,38 @@ public class AccountRequester
         return JsonSerializer.Deserialize<MapsResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
-    public async Task<BankItemsResponse> GetBankItems(int pageNumber = 1)
+    public async Task<BankItemsResponse> GetBankItems()
     {
-        // TODO: Add pagination, get all of the items
-        var response = await _apiService.GetAsync($"/my/bank/items?page={pageNumber}&size=100");
+        int pageNumber = 1;
+        bool doneFetching = false;
 
-        var result = await response.Content.ReadAsStringAsync();
+        List<DropSchema> items = [];
 
-        return JsonSerializer.Deserialize<BankItemsResponse>(
-            result,
-            ApiRequester.getJsonOptions()
-        )!;
+        while (!doneFetching)
+        {
+            var response = await _apiService.GetAsync($"/my/bank/items?page={pageNumber}");
+
+            var result = await response.Content.ReadAsStringAsync();
+
+            var content = JsonSerializer.Deserialize<BankItemsResponse>(
+                result,
+                ApiRequester.getJsonOptions()
+            )!;
+
+            if (content.Data.Count == 0)
+            {
+                doneFetching = true;
+            }
+
+            foreach (var item in content.Data)
+            {
+                items.Add(item);
+            }
+
+            pageNumber++;
+        }
+
+        return new BankItemsResponse { Data = items };
     }
 
     public async Task<BankDetailsResponse> GetBankDetails()
