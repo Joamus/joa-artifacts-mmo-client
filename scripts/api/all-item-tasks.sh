@@ -7,7 +7,7 @@ for char in "${chars[@]}";
 		echo $url;
 			curl -X POST $url \
 					-H "Content-Type: application/json" \
-					-d '{ "Relative": true, "Amount": 1, "Idle": true }' \
+					-d '{ "Relative": true, "Amount": 1, "Idle": true, "ForBank":" true }' \
 					-kv
 	done
 

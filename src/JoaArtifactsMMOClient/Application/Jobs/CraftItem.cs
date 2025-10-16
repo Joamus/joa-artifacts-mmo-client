@@ -43,13 +43,6 @@ public class CraftItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({progressAmount}/{Amount})"
         );
 
-        if (DepositUnneededItems.ShouldInitDepositItems(Character))
-        {
-            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
-            Status = JobStatus.Suspend;
-            return new None();
-        }
-
         var matchingItem = gameState.Items.Find(item => item.Code == Code);
 
         if (matchingItem is null || matchingItem.Craft is null)

@@ -21,8 +21,10 @@ public class DepositUnneededItems : CharacterJob
     [
         "weapon",
         "shield",
+        "helmet",
         "body_armor",
         "leg_armor",
+        "boots",
         "ring",
         "amulet",
         "artifact",
@@ -94,7 +96,7 @@ public class DepositUnneededItems : CharacterJob
 
                 // TODO: Introduce logic to deposit equipment that isn't needed anymore
 
-                itemsToDeposit.Add((item.Code, item.Quantity, itemImportance));
+                itemsToDeposit.Add((item.Code, item.Quantity, Importance: itemImportance));
                 continue;
             }
 
@@ -189,7 +191,9 @@ public class DepositUnneededItems : CharacterJob
 
                 if (amountToDeposit <= 0)
                 {
-                    logger.LogInformation($"{JobName}: [{Character.Schema.Name}] ");
+                    logger.LogWarning(
+                        $"{JobName}: [{Character.Schema.Name}] Amount to deposit is {amountToDeposit} - shouldn't happen"
+                    );
                 }
             }
 
