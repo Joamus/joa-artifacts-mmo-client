@@ -100,7 +100,7 @@ public class ApiRequester
         if (response is not null && (int)response.StatusCode >= 400)
         {
             logger.LogWarning(
-                $"Request with uri \"{requestUri}\" failed - status code {response.StatusCode}"
+                $"Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {response.Content}"
             );
         }
 

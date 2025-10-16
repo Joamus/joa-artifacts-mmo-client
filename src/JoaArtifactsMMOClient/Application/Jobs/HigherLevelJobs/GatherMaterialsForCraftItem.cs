@@ -70,67 +70,82 @@ public class GatherMaterialsForItem : CharacterJob
 
         depositItems.Last().onSuccessEndHook = () =>
         {
-            List<CharacterJob> jobsForCrafter = [];
-            if (DepositUnneededItems.ShouldInitDepositItems(crafter))
-            {
-                jobsForCrafter.Add(new DepositUnneededItems(crafter, gameState));
-            }
-
             logger.LogInformation(
-                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing {depositItems.Count} x withdraw item jobs for the crafter {crafter.Schema.Name}, so they can craft {lastJob.Amount} x {lastJob.Code}"
+                $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing ObtainItem for crafter {crafter.Schema.Name} with ForCharacter({Character}) - {depositItems.Count}, so they can craft {lastJob.Amount} x {lastJob.Code}"
             );
+            var job = new ObtainItem(crafter, gameState, lastJob.Code, lastJob.Amount);
+            // job.AllowFindingItemInBank = true;
+            job.AllowUsingMaterialsFromBank = true;
 
-            foreach (var job in depositItems)
-            {
-                var withdrawItemJob = new WithdrawItem(crafter, gameState, job.Code, job._amount);
-                withdrawItemJob.CanTriggerObtain = true;
-                jobsForCrafter.Add(withdrawItemJob);
-            }
+            job.ForCharacter(Character);
 
-            var craftJob = lastJob;
-            craftJob.Character = crafter;
-
-            craftJob.onSuccessEndHook = () =>
-            {
-                logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queuing crafter {crafter.Schema.Name} depositting {lastJob.Amount} x {lastJob.Code} items, before {Character.Schema.Name} withdraws it"
-                );
-                var depositCraftItem = new DepositItems(
-                    crafter,
-                    gameState,
-                    craftJob.Code,
-                    craftJob.Amount
-                );
-
-                depositCraftItem.DontFailIfItemNotThere = true;
-
-                depositCraftItem.onSuccessEndHook = () =>
-                {
-                    logger.LogInformation(
-                        $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queuing withdraw for {lastJob.Amount} x {lastJob.Code} items, that {crafter.Schema.Name} should have crafted"
-                    );
-
-                    Character.QueueJob(
-                        new WithdrawItem(Character, gameState, lastJob.Code, lastJob.Amount, false),
-                        true
-                    );
-
-                    return Task.Run(() => { });
-                };
-
-                crafter.QueueJob(depositCraftItem, true);
-                return Task.Run(() => { });
-            };
-
-            jobsForCrafter.Add(craftJob);
-
-            foreach (var job in jobsForCrafter)
-            {
-                crafter.QueueJob(job);
-            }
-
+            crafter.QueueJob(job);
             return Task.Run(() => { });
         };
+
+        // depositItems.Last().onSuccessEndHook = () =>
+        // {
+        //     List<CharacterJob> jobsForCrafter = [];
+        //     if (DepositUnneededItems.ShouldInitDepositItems(crafter))
+        //     {
+        //         jobsForCrafter.Add(new DepositUnneededItems(crafter, gameState));
+        //     }
+
+        //     logger.LogInformation(
+        //         $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing {depositItems.Count} x withdraw item jobs for the crafter {crafter.Schema.Name}, so they can craft {lastJob.Amount} x {lastJob.Code}"
+        //     );
+
+        //     foreach (var job in depositItems)
+        //     {
+        //         var withdrawItemJob = new WithdrawItem(crafter, gameState, job.Code, job._amount);
+        //         withdrawItemJob.CanTriggerObtain = true;
+        //         jobsForCrafter.Add(withdrawItemJob);
+        //     }
+
+        //     var craftJob = lastJob;
+        //     craftJob.Character = crafter;
+
+        //     craftJob.onSuccessEndHook = () =>
+        //     {
+        //         logger.LogInformation(
+        //             $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queuing crafter {crafter.Schema.Name} depositting {lastJob.Amount} x {lastJob.Code} items, before {Character.Schema.Name} withdraws it"
+        //         );
+        //         var depositCraftItem = new DepositItems(
+        //             crafter,
+        //             gameState,
+        //             craftJob.Code,
+        //             craftJob.Amount
+        //         );
+
+        //         depositCraftItem.DontFailIfItemNotThere = true;
+
+        //         depositCraftItem.onSuccessEndHook = () =>
+        //         {
+        //             logger.LogInformation(
+        //                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queuing withdraw for {lastJob.Amount} x {lastJob.Code} items, that {crafter.Schema.Name} should have crafted"
+        //             );
+
+        //             Character.QueueJob(
+        //                 new WithdrawItem(Character, gameState, lastJob.Code, lastJob.Amount, false),
+        //                 true
+        //             );
+
+        //             return Task.Run(() => { });
+        //         };
+
+        //         crafter.QueueJob(depositCraftItem, true);
+        //         return Task.Run(() => { });
+        //     };
+
+        //     jobsForCrafter.Add(craftJob);
+
+        //     foreach (var job in jobsForCrafter)
+        //     {
+        //         crafter.QueueJob(job);
+        //     }
+
+        //     return Task.Run(() => { });
+        // };
     }
 
     public void ForBank()
@@ -169,7 +184,7 @@ public class GatherMaterialsForItem : CharacterJob
                 Character,
                 gameState,
                 material.Code,
-                material.Quantity
+                material.Quantity * lastJob.Amount
             ).SetParent<DepositItems>(this);
 
             job.DontFailIfItemNotThere = true;

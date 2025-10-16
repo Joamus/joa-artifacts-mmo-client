@@ -78,7 +78,10 @@ public class WithdrawItem : CharacterJob
             logger.LogWarning(
                 $"{JobName}: [{Character.Schema.Name}]: Triggering obtain - found quantity of {Code} was {foundQuantity}"
             );
-            Character.QueueJobsAfter(Id, [new ObtainItem(Character, gameState, Code, _amount)]);
+            var job = new ObtainItem(Character, gameState, Code, _amount);
+            job.AllowUsingMaterialsFromBank = true;
+
+            Character.QueueJobsAfter(Id, [job]);
             return new None();
         }
         else
