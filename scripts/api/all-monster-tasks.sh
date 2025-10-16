@@ -5,7 +5,7 @@ body='{ "Idle": true, "ForBank": true }'
 
 for char in "${chars[@]}";
 	do
-		url="http://localhost:8080/char/$char/monster/item" 
+		url="http://localhost:8080/char/$char/task/monster" 
 		echo $url
 			curl -X POST $url \
 					-H "Content-Type: application/json" \
