@@ -130,7 +130,7 @@ public class ObtainItem : CharacterJob
         );
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code}"
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code} -  jobs: {jobs.Select(job => $"{job.JobName} - {job.Code}")}"
         );
 
         switch (result.Value)
@@ -388,7 +388,7 @@ public class ObtainItem : CharacterJob
                     }
 
                     monstersThatDropTheItem.Sort(
-                        (a, b) =>
+                        (b, a) =>
                         {
                             int aDropRate = a.Drops.Find(drop => drop.Code == code)!.Rate;
                             int bDropRate = b.Drops.Find(drop => drop.Code == code)!.Rate;

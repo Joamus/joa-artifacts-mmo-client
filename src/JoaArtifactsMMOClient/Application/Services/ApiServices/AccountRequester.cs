@@ -89,7 +89,8 @@ public class AccountRequester
 
     public async Task<BankItemsResponse> GetBankItems(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/my/bank/items?page={pageNumber}");
+        // TODO: Add pagination, get all of the items
+        var response = await _apiService.GetAsync($"/my/bank/items?page={pageNumber}&size=100");
 
         var result = await response.Content.ReadAsStringAsync();
 

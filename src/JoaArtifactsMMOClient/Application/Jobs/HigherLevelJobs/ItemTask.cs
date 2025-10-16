@@ -185,9 +185,21 @@ public class ItemTask : CharacterJob
                             $"{JobName}: [{Character.Schema.Name}]: onSuccessEndHook for obtain item - trading {amountInInventory} (skip if 0)"
                         );
 
-                        if (amountInInventory > 0)
+                        int progressAmount = Character.Schema.TaskProgress;
+                        int amount = Character.Schema.TaskTotal;
+
+                        // Being absolutely sure that we are still working on this task.
+                        int remainingToGather =
+                            Character.Schema.Task == itemCode
+                                ? Character.Schema.TaskTotal - Character.Schema.TaskProgress
+                                : 0;
+
+                        if (amountInInventory > 0 && remainingToGather > 0)
                         {
-                            await Character.TaskTrade(itemCode, amountInInventory);
+                            await Character.TaskTrade(
+                                itemCode,
+                                Math.Min(amountInInventory, remainingToGather)
+                            );
                         }
                     };
 

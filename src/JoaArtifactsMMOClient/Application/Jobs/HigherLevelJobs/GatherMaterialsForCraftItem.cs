@@ -1,14 +1,8 @@
-using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
-using Application.Dtos;
 using Application.Errors;
-using Application.Jobs;
-using Application.Services;
-using Application.Services.ApiServices;
 using Applicaton.Jobs;
-using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
@@ -46,7 +40,7 @@ public class GatherMaterialsForItem : CharacterJob
 
     private void SetupMakeCharacterCraftEvents(
         PlayerCharacter crafter,
-        List<CharacterJob> allJobs,
+        CharacterJob? jobBeforeCraft,
         CraftItem lastJob
     )
     {
@@ -56,13 +50,22 @@ public class GatherMaterialsForItem : CharacterJob
 
         var depositItems = GetDepositAllMaterialsToBankJobs(lastJob);
 
-        // Should not crash
-        var jobBeforeCraft = allJobs.Last();
-
-        Character.QueueJobsAfter(jobBeforeCraft.Id, depositItems.Cast<CharacterJob>().ToList());
+        if (jobBeforeCraft is not null)
+        {
+            Character.QueueJobsAfter(jobBeforeCraft.Id, depositItems.Cast<CharacterJob>().ToList());
+        }
+        else
+        {
+            // This scenario can happen if the character has all of the items in their inventory, at the time of writing this,
+            // I think this scenario is caused by a bug
+            foreach (var job in depositItems)
+            {
+                Character.QueueJob(job);
+            }
+        }
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] queued {depositItems.Count} x deposit item jobs after job {jobBeforeCraft.Id} (last job before crafting)"
+            $"{JobName}: [{Character.Schema.Name}] queued {depositItems.Count} x deposit item jobs - last job before crafting ID: {(jobBeforeCraft is null ? "n/a" : jobBeforeCraft.Id)}"
         );
 
         depositItems.Last().onSuccessEndHook = () =>
@@ -230,7 +233,7 @@ public class GatherMaterialsForItem : CharacterJob
         );
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code}"
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code} - jobs: {jobs.Select(job => $"{job.JobName} - {job.Code}")}"
         );
 
         switch (result.Value)
@@ -267,7 +270,8 @@ public class GatherMaterialsForItem : CharacterJob
         }
         else if (Crafter is not null)
         {
-            SetupMakeCharacterCraftEvents(Crafter, jobs, craftJob);
+            var jobBeforeCraft = jobs.Last();
+            SetupMakeCharacterCraftEvents(Crafter, jobBeforeCraft, craftJob);
         }
 
         return new None();
