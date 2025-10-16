@@ -126,7 +126,7 @@ public class ItemTask : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}]: Found {amountInInventory} x {Code} in inventory - trading in those"
                 );
-                await Character.TaskTrade(itemCode, amountInInventory);
+                await Character.TaskTrade(itemCode, amountToObtain);
 
                 amountToObtain = 0;
             }
