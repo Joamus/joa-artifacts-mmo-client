@@ -462,17 +462,26 @@ public class ObtainItem : CharacterJob
         int totalItemsWantedAmount
     )
     {
-        int totalInventorySpaceNeeded = 0;
+        int totalInventorySpaceNeeded;
+
+        int spaceNeededPerItem;
 
         if (item.Craft is not null)
         {
+            int materialsNeeded = 0;
+
             foreach (var material in item.Craft.Items)
             {
-                totalInventorySpaceNeeded += material.Quantity * totalItemsWantedAmount;
+                materialsNeeded += material.Quantity;
             }
+
+            spaceNeededPerItem = materialsNeeded;
+
+            totalInventorySpaceNeeded = materialsNeeded * totalItemsWantedAmount;
         }
         else
         {
+            spaceNeededPerItem = 1;
             totalInventorySpaceNeeded = totalItemsWantedAmount;
         }
 
@@ -480,19 +489,26 @@ public class ObtainItem : CharacterJob
 
         List<int> iterations = [];
 
-        // Minus one for leeway in case of some bug or something :)
-        int maxAmountPerIteration = character.GetInventorySpaceLeft() - 1;
+        // Adding leeway with - 1
+        int availableInventorySpace = character.GetInventorySpaceLeft() - 1;
 
-        int itemAmountPerIteration = (int)
-            Math.Ceiling((double)totalInventorySpaceNeeded / maxAmountPerIteration);
+        int iterationAmount = (int)
+            Math.Ceiling((double)totalInventorySpaceNeeded / availableInventorySpace);
 
-        for (int i = 0; i < itemAmountPerIteration; i++)
+        for (int i = 0; i < iterationAmount; i++)
         {
-            int iteration = Math.Min(itemAmountPerIteration, totalItemsWantedAmountRemaining);
+            int amountObtainedInIteration = Math.Min(
+                (int)Math.Floor((double)availableInventorySpace / spaceNeededPerItem),
+                totalItemsWantedAmountRemaining
+            );
 
-            totalItemsWantedAmountRemaining -= iteration;
+            totalItemsWantedAmountRemaining -= amountObtainedInIteration;
 
-            iterations.Add(iteration);
+            // Should always be true
+            if (amountObtainedInIteration > 0)
+            {
+                iterations.Add(amountObtainedInIteration);
+            }
         }
 
         return iterations;

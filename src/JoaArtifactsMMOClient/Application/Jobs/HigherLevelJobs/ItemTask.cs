@@ -2,6 +2,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
+using Applicaton.Jobs;
 using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
@@ -64,6 +65,13 @@ public class ItemTask : CharacterJob
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
+
+        if (DepositUnneededItems.ShouldInitDepositItems(Character))
+        {
+            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
 
         List<CharacterJob> jobs = [];
 
@@ -164,7 +172,7 @@ public class ItemTask : CharacterJob
                         iterationAmount
                     );
 
-                    logger.LogDebug(
+                    logger.LogInformation(
                         $"{JobName}: [{Character.Schema.Name}]: Queueing obtaining {iterationAmount} of {amountToObtain} - total iterations will be {iterations.Count}"
                     );
 
