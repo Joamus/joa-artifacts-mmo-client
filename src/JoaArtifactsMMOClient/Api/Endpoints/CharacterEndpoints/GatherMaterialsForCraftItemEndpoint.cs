@@ -32,11 +32,7 @@ public static class GatherMaterialsForCraftItemEndpoint
             );
             job.AllowUsingMaterialsFromBank = request.AllowUsingMaterialsFromBank;
 
-            if (request.ForBank)
-            {
-                job.ForBank();
-            }
-            else if (!string.IsNullOrEmpty(request.CraftBy))
+            if (!string.IsNullOrEmpty(request.CraftBy))
             {
                 var recipientCharacter = gameState.Characters.FirstOrDefault(character =>
                     character.Schema.Name == request.CraftBy
@@ -50,6 +46,10 @@ public static class GatherMaterialsForCraftItemEndpoint
                 }
 
                 job.Crafter = recipientCharacter;
+            }
+            else if (request.ForBank)
+            {
+                job.ForBank();
             }
 
             if (request.Idle)

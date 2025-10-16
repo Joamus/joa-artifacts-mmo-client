@@ -138,8 +138,23 @@ public class DepositUnneededItems : CharacterJob
 
         if (itemToTurnIn is not null)
         {
-            await Character.NavigateTo("items", ContentType.TasksMaster);
-            await Character.TaskTrade(itemToTurnIn.Value.Code, itemToTurnIn.Value.Quantity);
+            int amountInInventory =
+                Character.GetItemFromInventory(itemToTurnIn.Value.Code)?.Quantity ?? 0;
+
+            if (amountInInventory > 0)
+            {
+                await Character.NavigateTo("items", ContentType.TasksMaster);
+
+                await Character.TaskTrade(
+                    itemToTurnIn.Value.Code,
+                    Math.Min(itemToTurnIn.Value.Quantity, amountInInventory)
+                );
+
+                if (amountInInventory >= itemToTurnIn.Value.Quantity)
+                {
+                    await Character.TaskComplete();
+                }
+            }
         }
 
         itemsToDeposit.Sort((a, b) => a.Importance.CompareTo(b.Importance));

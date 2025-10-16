@@ -10,7 +10,7 @@ if [ -z "$char" ] || [ -z "$code" ] || [ -z "$craftBy" ]; then
   exit 1
 fi
 
-body='{ "Code": '"\"$code\""', "CraftBy": '"\"$craftBy\""', "AllowUsingMaterialsFromBank": true }'
+body='{ "Code": '"\"$code\""', "CraftBy": '"\"$craftBy\""', "AllowUsingMaterialsFromBank": true, "ForBank": false }'
 
 url="http://localhost:8080/char/$char/job/gatherMaterialsForCraftItem" 
 

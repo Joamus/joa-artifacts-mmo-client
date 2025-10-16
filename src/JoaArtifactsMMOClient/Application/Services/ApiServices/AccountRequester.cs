@@ -30,7 +30,7 @@ public class AccountRequester
 
     public async Task<CharacterResponse> GetCharacter(string name)
     {
-        var response = await _apiService.GetAsync($"/characters/{_accountName}/characters/{name}");
+        var response = await _apiService.GetAsync($"/characters/{name}");
 
         var result = await response.Content.ReadAsStringAsync();
 
