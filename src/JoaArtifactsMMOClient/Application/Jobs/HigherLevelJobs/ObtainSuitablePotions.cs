@@ -82,8 +82,7 @@ public class ObtainSuitablePotions : CharacterJob
             int amountInBank =
                 bankItemsResponse
                     .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                    ?.Quantity
-                ?? 0;
+                    ?.Quantity ?? 0;
 
             if (!canCraftItem && amountInBank == 0)
             {
@@ -118,16 +117,23 @@ public class ObtainSuitablePotions : CharacterJob
             {
                 var amount = Math.Min(
                     character.GetInventorySpaceLeft() - 1,
-                    Math.Max(preferedAmount, potion.amountInBank)
+                    Math.Min(preferedAmount, potion.amountInBank)
                 );
 
-                var job = new WithdrawItem(character, gameState, potion.item.Code, amount);
+                if (amount > 0)
+                {
+                    var job = new WithdrawItem(character, gameState, potion.item.Code, amount);
 
-                amountLeft = amountLeft - amount;
-                resultJobs.Add(job);
+                    amountLeft = amountLeft - amount;
+                    resultJobs.Add(job);
 
-                // Craft it or learn to craft it, if needed.
-                job.CanTriggerObtain = true;
+                    // Craft it or learn to craft it, if needed.
+                    job.CanTriggerObtain = true;
+                }
+                else
+                {
+                    break;
+                }
             }
         }
 
@@ -206,17 +212,19 @@ public class ObtainSuitablePotions : CharacterJob
                         character.Logger.LogDebug(
                             $"GetAcquirePotionJobs: [{character.Schema.Name}] onSuccessEndHook: No available util slots for equipping {amountInInventory} x {job.Code} - depositting"
                         );
-                    }
 
-                    await character.DepositBankItem(
-                        [
-                            new WithdrawOrDepositItemRequest
-                            {
-                                Code = job.Code,
-                                Quantity = amountInInventory,
-                            },
-                        ]
-                    );
+                        await character.NavigateTo("bank", ContentType.Bank);
+
+                        await character.DepositBankItem(
+                            [
+                                new WithdrawOrDepositItemRequest
+                                {
+                                    Code = job.Code,
+                                    Quantity = amountInInventory,
+                                },
+                            ]
+                        );
+                    }
                 }
                 else
                 {

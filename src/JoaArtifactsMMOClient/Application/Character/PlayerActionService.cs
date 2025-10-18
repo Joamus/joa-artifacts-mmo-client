@@ -201,8 +201,7 @@ public class PlayerActionService
 
             itemSlot = GetBestEquipmentSlotOfMultiple(itemSlotCodes, isUtility, code);
         }
-
-        if (matchingItem.Type == "ring")
+        else if (matchingItem.Type == "ring")
         {
             List<string> itemSlotCodes = new List<string>
             {
@@ -416,8 +415,7 @@ public class PlayerActionService
                                 var equippedItemValue =
                                     equippedItemInSlot
                                         .Effects.Find(effect => effect.Code == skill)
-                                        ?.Value
-                                    ?? 0;
+                                        ?.Value ?? 0;
 
                                 // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                                 if (equippedItemValue > itemInInventoryEffect.Value)
