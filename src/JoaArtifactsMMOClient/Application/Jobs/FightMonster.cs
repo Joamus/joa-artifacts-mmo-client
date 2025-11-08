@@ -395,8 +395,8 @@ public class FightMonster : CharacterJob
     public async ValueTask<bool> EquipPotionsIfNeeded()
     {
         if (
-            Character.Schema.Utility1SlotQuantity <= 5
-            || Character.Schema.Utility2SlotQuantity <= 5
+            Character.Schema.Utility1SlotQuantity >= 5
+            || Character.Schema.Utility2SlotQuantity >= 5
         )
         {
             return false;
