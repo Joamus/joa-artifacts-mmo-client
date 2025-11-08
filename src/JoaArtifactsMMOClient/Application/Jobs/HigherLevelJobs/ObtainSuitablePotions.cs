@@ -255,7 +255,7 @@ public class ObtainSuitablePotions : CharacterJob
                             $"GetAcquirePotionJobs: [{character.Schema.Name}] onSuccessEndHook: No available util slots for equipping {amountInInventory} x {job.Code} - depositting"
                         );
 
-                        await character.NavigateTo("bank", ContentType.Bank);
+                        await character.NavigateTo("bank");
 
                         await character.DepositBankItem(
                             [
