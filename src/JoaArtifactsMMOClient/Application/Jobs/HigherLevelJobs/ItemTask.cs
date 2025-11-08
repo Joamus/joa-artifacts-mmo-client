@@ -1,9 +1,7 @@
-using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
 using Applicaton.Jobs;
-using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
@@ -19,8 +17,8 @@ public class ItemTask : CharacterJob
     public ItemTask(
         PlayerCharacter playerCharacter,
         GameState gameState,
-        string? itemCode,
-        int? itemAmount
+        string? itemCode = null,
+        int? itemAmount = null
     )
         : base(playerCharacter, gameState)
     {
@@ -123,6 +121,7 @@ public class ItemTask : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}]: Found {amountInInventory} x {Code} in inventory - trading in those"
                 );
+                await Character.NavigateTo("items");
                 await Character.TaskTrade(itemCode, amountToObtain);
 
                 amountToObtain = 0;
@@ -196,6 +195,7 @@ public class ItemTask : CharacterJob
 
                         if (amountInInventory > 0 && remainingToGather > 0)
                         {
+                            await Character.NavigateTo("items");
                             await Character.TaskTrade(
                                 itemCode,
                                 Math.Min(amountInInventory, remainingToGather)

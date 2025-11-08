@@ -1,9 +1,6 @@
-using System.Security.Permissions;
 using Application;
 using Application.Character;
 using Application.Errors;
-using Application.Jobs;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using OneOf;
 using OneOf.Types;
@@ -31,6 +28,12 @@ public static class CharacterEndpoints
         group
             .MapPost("/{name}/reload", ReloadCharacter)
             .WithName(nameof(ReloadCharacter))
+            .WithOpenApi()
+            .Produces<PlayerCharacter>();
+
+        group
+            .MapPost("/{name}/ai", UpdateCharacterAI)
+            .WithName(nameof(UpdateCharacterAI))
             .WithOpenApi()
             .Produces<PlayerCharacter>();
 
@@ -154,6 +157,26 @@ public static class CharacterEndpoints
         }
 
         await matchingCharacter.ReloadCharacterSchema();
+
+        return TypedResults.NoContent();
+    }
+
+    static async Task<IResult> UpdateCharacterAI(
+        [FromRoute] string name,
+        [FromBody] UpdatePlayerAIRequest request,
+        [FromServices] GameState gameState
+    )
+    {
+        var matchingAI = gameState.CharacterAIs.FirstOrDefault(ai =>
+            ai.Character.Schema.Name == name
+        );
+
+        if (matchingAI is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        matchingAI.Enabled = request.Enabled;
 
         return TypedResults.NoContent();
     }
@@ -349,4 +372,9 @@ public record GenericActionRequest
 {
     public int Repeat { get; set; } = 1;
     public bool Idle { get; set; } = false;
+}
+
+public record UpdatePlayerAIRequest
+{
+    public bool Enabled { get; set; } = true;
 }

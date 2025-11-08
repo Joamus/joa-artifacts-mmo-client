@@ -41,7 +41,7 @@ public class CompleteTask : CharacterJob
             ? gameState.NpcItemsDict.GetValueOrNull(ItemCode)
             : null;
 
-        await Character.NavigateTo(Code!, ArtifactsApi.Schemas.ContentType.TasksMaster);
+        await Character.NavigateTo(Code!);
 
         await Character.TaskComplete();
 
@@ -66,7 +66,7 @@ public class CompleteTask : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] buying item \"{ItemCode}\" for {matchingItem.BuyPrice} per item (total: {matchingItem.BuyPrice * ItemAmount}) from \"tasks_master\" - have {taskCoinsAmount} total tasks_coin - for {Character.Schema.Name} - task {Code}"
                 );
-                await Character.NavigateTo(Code!, ArtifactsApi.Schemas.ContentType.TasksTrader);
+                await Character.NavigateTo(Code);
                 await Character.NpcBuyItem(matchingItem.Code, itemAmount);
             }
         }

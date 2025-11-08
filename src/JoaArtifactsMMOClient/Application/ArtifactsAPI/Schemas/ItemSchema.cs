@@ -1,8 +1,5 @@
 using System.Runtime.Serialization;
-using System.Text.Json.Serialization;
 using Application.Artifacts.Schemas;
-using Application.ArtifactsApi.Schemas;
-using Newtonsoft.Json.Converters;
 
 namespace Application.ArtifactsApi.Schemas;
 

@@ -1,8 +1,6 @@
-using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
-using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
@@ -11,8 +9,6 @@ namespace Application.Jobs;
 public class DoTaskUntilObtainedItem : CharacterJob
 {
     public TaskType Type { get; private set; }
-
-    public int Amount { get; private set; }
 
     public DoTaskUntilObtainedItem(
         PlayerCharacter playerCharacter,

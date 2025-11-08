@@ -1,15 +1,10 @@
-using System.Reflection.Metadata.Ecma335;
-using System.Security.Permissions;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
-using Application.Jobs;
 using Application.Services;
 using Applicaton.Jobs;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.ObjectPool;
 using OneOf;
 using OneOf.Types;
 
@@ -24,8 +19,6 @@ public class GatherResourceItem : CharacterJob
         "alchemy",
         "woodcutting",
     ];
-
-    protected int Amount { get; set; }
 
     protected int ProgressAmount { get; set; } = 0;
 
@@ -104,7 +97,9 @@ public class GatherResourceItem : CharacterJob
                 return new AppError($"Could not find item with code {Code} - could not gather it");
             }
 
-            await Character.PlayerActionService.EquipBestGatheringEquipment(matchingItem.Subtype);
+            Skill skill = (Skill)SkillService.GetSkillFromName(matchingItem.Subtype)!;
+
+            await Character.PlayerActionService.EquipBestGatheringEquipment(skill);
 
             var result = await InnerJobAsync(matchingItem);
 
@@ -170,7 +165,7 @@ public class GatherResourceItem : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] has too low gathering skill ({characterSkillLevel}/{matchingItem.Level}) in {matchingItem.Subtype} - training until they can craft the item"
                 );
-                Skill skill = TrainSkill.GetSkillFromName(matchingItem.Subtype);
+                Skill skill = (Skill)SkillService.GetSkillFromName(matchingItem.Subtype)!;
 
                 Character.QueueJobsBefore(
                     Id,
@@ -191,7 +186,16 @@ public class GatherResourceItem : CharacterJob
             }
         }
 
-        await Character.NavigateTo(Code, ContentType.Resource);
+        var resource = ItemService.FindBestResourceToGatherItem(Character, gameState, Code);
+
+        if (resource is null)
+        {
+            return new AppError(
+                $"{JobName}: [{Character.Schema.Name}] appError: Could not find resource to gather {Code}",
+                ErrorStatus.InsufficientSkill
+            );
+        }
+        await Character.NavigateTo(resource.Code);
 
         var result = await Character.Gather();
 

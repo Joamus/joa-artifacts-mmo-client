@@ -1,3 +1,4 @@
+using System.Net.WebSockets;
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
@@ -6,7 +7,6 @@ using Application.Character;
 using Application.Errors;
 using Application.Jobs;
 using Application.Services;
-using Application.Services.ApiServices;
 using OneOf;
 using OneOf.Types;
 
@@ -14,24 +14,21 @@ namespace Applicaton.Jobs;
 
 public class DepositUnneededItems : CharacterJob
 {
-    public DepositUnneededItems(PlayerCharacter playerCharacter, GameState gameState)
-        : base(playerCharacter, gameState) { }
+    public DepositUnneededItems(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        MonsterSchema? monsterSchema = null
+    )
+        : base(playerCharacter, gameState)
+    {
+        MonsterSchema = monsterSchema;
+    }
 
-    private static readonly List<string> _equipmentTypes =
-    [
-        "weapon",
-        "shield",
-        "helmet",
-        "body_armor",
-        "leg_armor",
-        "boots",
-        "ring",
-        "amulet",
-        "artifact",
-        "rune",
-        "bag",
-        "utility",
-    ];
+    public MonsterSchema? MonsterSchema { get; set; }
+
+    private static float NEXT_BANK_EXPANION_COST_PERCENTAGE_OF_TOTAL = 0.80f;
+
+    private static int MIN_FREE_BANK_SLOTS = 10;
 
     // Deposit until hitting this threshold
     private static int MIN_FREE_INVENTORY_SPACES = 5;
@@ -41,14 +38,14 @@ public class DepositUnneededItems : CharacterJob
     {
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
-        List<(string Code, int Quantity, ItemImportance Importance)> itemsToDeposit = [];
+        List<DepositItemRecord> itemsToDeposit = [];
         (string Code, int Quantity)? itemToTurnIn = null;
 
         // Deposit least important items
 
         var accountRequester = gameState.AccountRequester;
 
-        var result = await accountRequester.GetBankItems();
+        var result = await gameState.BankItemCache.GetBankItems(Character);
 
         if (result is not BankItemsResponse bankItemsResponse)
         {
@@ -66,8 +63,49 @@ public class DepositUnneededItems : CharacterJob
         // e.g the character has raw chicken, but there is cooked chicken in the bank. They could then run over to the cooking station,
         // cook the chicken, and then come back.
 
+        Dictionary<string, DepositItemRecord> bestToolDictionary = [];
+
+        Dictionary<string, List<DepositItemRecord>> equipmentToKeep = [];
+
         foreach (var item in Character.Schema.Inventory)
         {
+            if (string.IsNullOrEmpty(item.Code))
+            {
+                continue;
+            }
+            int amountInInventory = item.Quantity;
+
+            ItemSchema matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+            bool isEquipment = ItemService.EquipmentItemTypes.Contains(matchingItem.Type);
+
+            int amountEquipped = isEquipment
+                ? Character.GetEquippedItem(item.Code).Select(item => item.Quantity).Sum()
+                : 0;
+
+            bool isRing = matchingItem.Type == "ring";
+
+            bool hasAllEquipped = isRing ? amountEquipped == 2 : amountEquipped == 1;
+
+            // We might have fight equipments in our bag, that we haven't yet equipped, or need to use, but aren't at the moment (e.g. fishing but have a sword in our inventory)
+            // in those cases, we want to deposit surplus ones. This mostly comes up if we find equipment from mobs, e.g. wolf ears, we want to deposit the ones that we don't use.
+            if (
+                isEquipment
+                && (hasAllEquipped || amountInInventory > 1 || isRing && amountInInventory > 2)
+            )
+            {
+                itemsToDeposit.Add(
+                    new DepositItemRecord
+                    {
+                        Code = item.Code,
+                        Quantity = item.Quantity,
+                        Importance = ItemImportance.None,
+                    }
+                );
+
+                continue;
+            }
+
             if (item.Code == "")
             {
                 continue;
@@ -77,26 +115,29 @@ public class DepositUnneededItems : CharacterJob
             if (itemIsUsedForTask)
             {
                 // itemsToDeposit.Add((item.Code, item.Quantity, ItemImportance.High));
-                itemToTurnIn = (item.Code, item.Quantity);
+                itemToTurnIn = (item.Code, amountInInventory);
                 continue;
             }
 
-            ItemSchema matchingItem = gameState.Items.FirstOrDefault(_item =>
-                _item.Code == item.Code
-            )!;
-
-            if (_equipmentTypes.Contains(matchingItem.Type))
+            if (ItemService.EquipmentItemTypes.Contains(matchingItem.Type))
             {
-                var itemImportance = ItemImportance.Medium;
+                var itemImportance = ItemImportance.High;
 
                 if (matchingItem.Subtype == "tool")
                 {
-                    itemImportance = ItemImportance.High;
+                    itemImportance = ItemImportance.VeryHigh;
                 }
 
                 // TODO: Introduce logic to deposit equipment that isn't needed anymore
 
-                itemsToDeposit.Add((item.Code, item.Quantity, Importance: itemImportance));
+                itemsToDeposit.Add(
+                    new DepositItemRecord
+                    {
+                        Code = item.Code,
+                        Quantity = item.Quantity,
+                        Importance = itemImportance,
+                    }
+                );
                 continue;
             }
 
@@ -117,37 +158,57 @@ public class DepositUnneededItems : CharacterJob
                 if (amountToDeposit > 0)
                 {
                     itemsToDeposit.Add(
-                        (item.Code, item.Quantity, Importance: ItemImportance.Medium)
+                        new DepositItemRecord
+                        {
+                            Code = item.Code,
+                            Quantity = item.Quantity,
+                            Importance = ItemImportance.Medium,
+                        }
                     );
                 }
                 continue;
             }
 
-            if (
-                Character.Jobs.Find(job =>
-                {
-                    bool hasJobRelatedToIt = job.Code == item.Code;
+            // Looking through all of the jobs is a bit iffy, because a job queued far ahead can need some item,
+            // but we should probably just obtain it again if we don't have it. Changed this, because my character,
+            // kept refusing to deposit sap, but didn't need it until later.
 
-                    if (hasJobRelatedToIt)
-                    {
-                        return hasJobRelatedToIt;
-                    }
-
-                    // Good enough, but it could technically go deeper - we might a job related to item C, but we have item A in our inventory
-                    // and item A is an ingredient for item B, which is an ingredient for item C.
-                    bool isIngredientOf =
-                        gameState
-                            .CraftingLookupDict?.GetValueOrNull(job.Code)
-                            ?.FirstOrDefault(ingredient => ingredient.Code == item.Code)
-                            is not null;
-
-                    return isIngredientOf;
-                })
-                is not null
-            )
+            var jobsWithItem = Character.Jobs.Where(job =>
             {
-                itemsToDeposit.Add((item.Code, item.Quantity, Importance: ItemImportance.High));
-                continue;
+                bool hasJobRelatedToIt = job.Code == item.Code;
+
+                if (hasJobRelatedToIt)
+                {
+                    return hasJobRelatedToIt;
+                }
+
+                // Good enough, but it could technically go deeper - we might a job related to item C, but we have item A in our inventory
+                // and item A is an ingredient for item B, which is an ingredient for item C.
+                bool isIngredientOf =
+                    gameState
+                        .CraftingLookupDict?.GetValueOrNull(job.Code)
+                        ?.FirstOrDefault(ingredient => ingredient.Code == item.Code)
+                        is not null;
+
+                return isIngredientOf;
+            });
+
+            foreach (var job in jobsWithItem)
+            {
+                int amountToDeposit =
+                    job.Amount >= amountInInventory ? 0 : amountInInventory - job.Amount;
+                if (amountToDeposit > 0)
+                {
+                    itemsToDeposit.Add(
+                        new DepositItemRecord
+                        {
+                            Code = item.Code,
+                            Quantity = amountToDeposit,
+                            Importance = ItemImportance.High,
+                        }
+                    );
+                    amountInInventory -= amountToDeposit;
+                }
             }
 
             var quantityInBank = bankItems.ContainsKey(item.Code) ? bankItems[item.Code] : 0;
@@ -156,36 +217,124 @@ public class DepositUnneededItems : CharacterJob
 
             var importance = quantityInBank > 0 ? ItemImportance.None : ItemImportance.Low;
 
-            itemsToDeposit.Add((item.Code, item.Quantity, Importance: importance));
+            itemsToDeposit.Add(
+                new DepositItemRecord
+                {
+                    Code = item.Code,
+                    Quantity = item.Quantity,
+                    Importance = importance,
+                }
+            );
         }
 
-        if (itemToTurnIn is not null)
+        if (itemToTurnIn is not null && itemToTurnIn.Value.Quantity > 0)
         {
-            int amountInInventory =
-                Character.GetItemFromInventory(itemToTurnIn.Value.Code)?.Quantity ?? 0;
+            // int amountInInventory =
+            //     Character.GetItemFromInventory(itemToTurnIn.Value.Code)?.Quantity ?? 0;
 
-            if (amountInInventory > 0)
+            await Character.NavigateTo("items");
+
+            int amountLeft = Character.Schema.TaskTotal - Character.Schema.TaskProgress;
+
+            await Character.TaskTrade(
+                itemToTurnIn.Value.Code,
+                Math.Min(
+                    Character.Schema.TaskTotal - Character.Schema.TaskProgress,
+                    itemToTurnIn.Value.Quantity
+                )
+            );
+        }
+
+        foreach (var item in itemsToDeposit)
+        {
+            if (item.Importance > ItemImportance.Low)
             {
-                await Character.NavigateTo("items", ContentType.TasksMaster);
+                continue;
+            }
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+            // We want to skip non-equipment, but also equipment we have deemed low prio anyway
+            if (!ItemService.EquipmentItemTypes.Contains(matchingItem.Type))
+            {
+                continue;
+            }
 
-                await Character.TaskTrade(
-                    itemToTurnIn.Value.Code,
-                    Math.Min(
-                        Character.Schema.TaskTotal - Character.Schema.TaskProgress,
-                        amountInInventory
-                    )
+            if (matchingItem.Subtype == "tool")
+            {
+                var toolEffect = matchingItem.Effects.FirstOrDefault(effect =>
+                    SkillService.GetSkillFromName(effect.Code) is not null
                 );
 
-                if (amountInInventory >= itemToTurnIn.Value.Quantity)
+                if (toolEffect is null)
                 {
-                    await Character.TaskComplete();
+                    // Could happen, but then we don't care I guess?
+                    continue;
                 }
+
+                DepositItemRecord? currentBest = bestToolDictionary.GetValueOrNull(
+                    toolEffect.Code!
+                );
+
+                var currentBestItem = currentBest is not null
+                    ? gameState.ItemsDict.GetValueOrNull(currentBest.Code)
+                    : null;
+
+                // Remember, the lower the value, the better for gathering tool effects
+                if (
+                    currentBestItem is null
+                    || !currentBestItem.Effects.Exists(effect =>
+                        effect.Code == toolEffect.Code && effect.Value < toolEffect.Value
+                    )
+                )
+                {
+                    bestToolDictionary.Add(toolEffect.Code, item);
+                }
+
+                if (currentBest is not null)
+                {
+                    currentBest.Importance = ItemImportance.None;
+                }
+            }
+        }
+
+        var bestFightItems = MonsterSchema is not null
+            ? (
+                await ItemService.GetBestFightItems(
+                    Character,
+                    gameState,
+                    MonsterSchema,
+                    Character
+                        .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+                        .ToList()
+                )
+            ).ToDictionary(item => item.Code)
+            : [];
+
+        foreach (var item in itemsToDeposit)
+        {
+            if (item.Importance > ItemImportance.Low)
+            {
+                continue;
+            }
+
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+            if (
+                !ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
+                || matchingItem.Subtype == "tool"
+            )
+            {
+                continue;
+            }
+
+            if (!bestFightItems.ContainsKey(item.Code))
+            {
+                item.Importance = ItemImportance.None;
             }
         }
 
         itemsToDeposit.Sort((a, b) => a.Importance.CompareTo(b.Importance));
 
-        await Character.NavigateTo("bank", ContentType.Bank);
+        await Character.NavigateTo("bank");
 
         foreach (var item in itemsToDeposit)
         {
@@ -234,6 +383,32 @@ public class DepositUnneededItems : CharacterJob
         return new None();
     }
 
+    public async Task BuyBankSpaceIfNeeded()
+    {
+        var result = await gameState.AccountRequester.GetBankDetails();
+
+        if (
+            result.Data.NextExpansionCost
+            <= Character.Schema.Gold * NEXT_BANK_EXPANION_COST_PERCENTAGE_OF_TOTAL
+        )
+        {
+            var itemsInBank = await gameState.AccountRequester.GetBankItems();
+
+            int amountFree =
+                result.Data.Slots
+                - itemsInBank.Data.FindAll(item => string.IsNullOrEmpty(item.Code)).Count();
+
+            if (amountFree <= MIN_FREE_BANK_SLOTS)
+            {
+                logger.LogInformation(
+                    $"{JobName}: [{Character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got ${Character.Schema.Gold} gold, next expansion costs ${result.Data.NextExpansionCost}"
+                );
+                // Buy bank expansion
+                await Character.BuyBankExpansion(Character.Schema.Name);
+            }
+        }
+    }
+
     public static bool ShouldInitDepositItems(PlayerCharacter character)
     {
         return character.GetInventorySpaceLeft() < MIN_FREE_INVENTORY_SPACES;
@@ -245,10 +420,18 @@ public class DepositUnneededItems : CharacterJob
     }
 }
 
-enum ItemImportance
+public enum ItemImportance
 {
     None = 0,
     Low = 10,
     Medium = 20,
     High = 30,
+    VeryHigh = 40,
+}
+
+public record DepositItemRecord
+{
+    public string Code { get; set; } = "";
+    public int Quantity { get; set; }
+    public ItemImportance Importance { get; set; }
 }

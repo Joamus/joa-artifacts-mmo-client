@@ -1,7 +1,6 @@
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
-using Applicaton.Jobs;
 using OneOf;
 using OneOf.Types;
 
@@ -9,11 +8,10 @@ namespace Application.Jobs;
 
 public class CraftItem : CharacterJob
 {
-    public int Amount { get; private set; }
-
     protected int progressAmount { get; set; } = 0;
 
     public bool CanTriggerTraining { get; set; } = true;
+    public bool CanTriggerObtain { get; set; } = true;
 
     public CraftItem(PlayerCharacter playerCharacter, GameState gameState, string code, int amount)
         : base(playerCharacter, gameState)
@@ -124,7 +122,54 @@ public class CraftItem : CharacterJob
             );
         }
 
-        await Character.NavigateTo(craftingLocationCode, ContentType.Workshop);
+        List<DropSchema> missingMaterials = [];
+
+        foreach (var material in matchingItem.Craft.Items)
+        {
+            if (
+                (Character.GetItemFromInventory(material.Code)?.Quantity ?? 0)
+                < material.Quantity * Amount
+            )
+            {
+                missingMaterials.Add(
+                    new DropSchema { Code = material.Code, Quantity = material.Quantity * Amount }
+                );
+            }
+        }
+
+        if (missingMaterials.Count > 0)
+        {
+            if (CanTriggerObtain)
+            {
+                logger.LogWarning(
+                    $"{JobName}: [{Character.Schema.Name}]: {missingMaterials.Count} materials were missing from inventory - triggering an obtain of them"
+                );
+
+                List<CharacterJob> jobs = [];
+                foreach (var material in missingMaterials)
+                {
+                    var job = new ObtainItem(
+                        Character,
+                        gameState,
+                        material.Code,
+                        material.Quantity * Amount
+                    );
+                    jobs.Add(job);
+                }
+
+                Character.QueueJobsBefore(Id, jobs);
+                Status = JobStatus.Suspend;
+                return new None();
+            }
+            else
+            {
+                return new AppError(
+                    $"{JobName}: [{Character.Schema.Name}] appError: {missingMaterials.Count} materials were missing from inventory, could not craft item"
+                );
+            }
+        }
+
+        await Character.NavigateTo(craftingLocationCode);
 
         await Character.Craft(Code, Amount);
 
