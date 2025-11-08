@@ -7,3 +7,4 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - DOTNET_GCHeapHardLimitPercent=75
     mem_limit: 150MB
+    restart: always
