@@ -1,13 +1,31 @@
+using System.Threading.Tasks;
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Jobs;
-using Microsoft.Extensions.ObjectPool;
-using OneOf.Types;
+using Application.Records;
+using Applicaton.Services.FightSimulator;
 
 namespace Application.Services;
 
 public static class ItemService
 {
+    public static readonly List<string> EquipmentItemTypes =
+    [
+        "weapon",
+        "shield",
+        "helmet",
+        "body_armor",
+        "leg_armor",
+        "boots",
+        "ring",
+        "amulet",
+        "artifact",
+        "rune",
+        "bag",
+        "utility",
+    ];
+
     public static List<ItemSchema> CraftsInto(List<ItemSchema> items, ItemSchema ingredientItem)
     {
         List<ItemSchema> crafts = [];
@@ -249,5 +267,323 @@ public static class ItemService
             }
         }
         return foodsToCook;
+    }
+
+    public static ResourceSchema? FindBestResourceToGatherItem(
+        PlayerCharacter character,
+        GameState gameState,
+        string code
+    )
+    {
+        var resources = gameState.Resources.FindAll(resource =>
+        {
+            bool hasDrop = resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null;
+
+            return hasDrop
+                && character.GetSkillLevel(SkillService.GetSkillName(resource.Skill))
+                    > resource.Level;
+        });
+
+        (ResourceSchema resource, int dropRate)? resourceWithDropRate = null;
+
+        // The higher the drop rate, the lower the number. Drop rate of 1 means 100% chance, rate of 10 is 10% chance, rate of 100 is 1%
+
+        foreach (var resource in resources)
+        {
+            var bestDrop = resource.Drops.Find(drop =>
+            {
+                if (resourceWithDropRate is null)
+                {
+                    return drop.Code == code && drop.Rate > 0;
+                }
+
+                bool betterDropRate =
+                    drop.Code == code && drop.Rate < resourceWithDropRate.Value.dropRate;
+
+                bool sameDropRateButHigherLevel =
+                    drop.Rate == resourceWithDropRate.Value.dropRate
+                    && resource.Level > resourceWithDropRate.Value.resource.Level;
+
+                return betterDropRate || sameDropRateButHigherLevel;
+            });
+
+            if (bestDrop is not null)
+            {
+                resourceWithDropRate = (resource, bestDrop.Rate);
+            }
+        }
+
+        if (resourceWithDropRate is not null)
+        {
+            return resourceWithDropRate.Value.resource;
+        }
+
+        return null;
+    }
+
+    public static bool ArePotionEffectsOverlapping(
+        GameState gameState,
+        string itemCodeA,
+        string itemCodeB
+    )
+    {
+        if (string.IsNullOrEmpty(itemCodeA) || string.IsNullOrEmpty(itemCodeB))
+        {
+            return false;
+        }
+
+        ItemSchema itemA = gameState.ItemsDict.GetValueOrNull(itemCodeA)!;
+        ItemSchema itemB = gameState.ItemsDict.GetValueOrNull(itemCodeB)!;
+
+        foreach (var effect in itemA.Effects)
+        {
+            if (itemB.Effects.Exists(otherEffect => otherEffect.Code == effect.Code))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static async Task<List<DropSchema>> GetBestFightItems(
+        PlayerCharacter character,
+        GameState gameState,
+        MonsterSchema monster,
+        List<InventorySlot>? allItemCandidates = null,
+        bool allowNonCraftedFromInventory = true,
+        bool allowNonCraftedFromBank = false,
+        bool alwaysAllNonCrafted = false
+    )
+    {
+        if (allItemCandidates is null)
+        {
+            // 100 quantity for potions, doesn't really matter
+            allItemCandidates = gameState
+                .Items.Where(item => EquipmentItemTypes.Contains(item.Type))
+                .Select(item => new InventorySlot { Code = item.Code, Quantity = 100 })
+                .ToList();
+        }
+
+        var bankItems = allowNonCraftedFromBank
+            ? (await gameState.BankItemCache.GetBankItems(character, true)).Data
+            : [];
+
+        // var relevantMonsters = FightSimulator.GetRelevantMonstersForCharacter(character);
+
+        List<ItemInInventory> itemsForSimming = [];
+
+        foreach (var item in allItemCandidates)
+        {
+            if (!EquipmentItemTypes.Contains(item.Code))
+            {
+                continue;
+            }
+
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+            if (matchingItem.Subtype == "tool")
+            {
+                continue;
+            }
+
+            // TODO: In most cases, it's probably better to just craft something instead of grinding out drops from mobs with low drop rate.
+            // Only allow non-crafted items if we already have them
+            if (matchingItem.Craft is null && !alwaysAllNonCrafted)
+            {
+                bool foundInInventory =
+                    allowNonCraftedFromInventory
+                    && character.GetItemFromInventory(item.Code) is not null;
+
+                bool foundInBank =
+                    !foundInInventory
+                    && allowNonCraftedFromBank
+                    && bankItems.FirstOrDefault(bankItem => bankItem.Code == item.Code) is not null;
+
+                if (!foundInInventory && !foundInBank)
+                {
+                    continue;
+                }
+            }
+
+            if (!CanUseItem(matchingItem, character.Schema))
+            {
+                continue;
+            }
+
+            // Just a heuristic - there is probably better equipment to use for "normal equipment", e.g weapons, helmets, etc,
+            // but the more "utility"-oriented slots might be worth it, e.g. many of the boost pots are sort of low level, runes as well, etc.
+            if (
+                !new[] { "utility", "artifact", "rune", "amulet" }.Contains(matchingItem.Type)
+                && matchingItem.Level + 10 < character.Schema.Level
+            )
+            {
+                continue;
+            }
+
+            itemsForSimming.Add(
+                new ItemInInventory
+                {
+                    Item = matchingItem,
+                    // Could just always set it to 100, but who cares
+                    Quantity =
+                        matchingItem.Type == "utility" ? 100
+                        : matchingItem.Type == "ring" ? 2
+                        : 1,
+                }
+            );
+        }
+
+        Dictionary<string, DropSchema> relevantItemsDict = [];
+
+        // foreach (var monster in relevantMonsters)
+        // {
+        var result = FightSimulator.FindBestFightEquipment(
+            character,
+            gameState,
+            monster,
+            itemsForSimming
+        );
+
+        foreach (var item in result.ItemsToEquip)
+        {
+            relevantItemsDict.Add(
+                item.Code,
+                new DropSchema { Code = item.Code, Quantity = item.Quantity }
+            );
+        }
+
+        // We don't care if we win or not, we just want to get the best outcome
+        // }
+
+        return relevantItemsDict.Select(item => item.Value).ToList();
+    }
+
+    public static List<ItemSchema> GetBestTools(
+        PlayerCharacter character,
+        GameState gameState,
+        List<InventorySlot>? allItemCandidates = null,
+        bool allowUsingTaskMaterials = true
+    )
+    {
+        if (allItemCandidates is null)
+        {
+            // 100 quantity for potions, doesn't really matter
+            allItemCandidates = gameState
+                .Items.Where(item => item.Subtype == "tool")
+                .Select(item => new InventorySlot { Code = item.Code, Quantity = 100 })
+                .ToList();
+        }
+
+        List<ItemSchema> relevantTools = [];
+
+        Dictionary<string, ItemSchema> relevantToolsDict = [];
+        List<string> skillNames = SkillService
+            .GatheringSkills.Select(SkillService.GetSkillName)
+            .Where(skill => skill is not null)
+            .ToList();
+
+        foreach (var item in allItemCandidates)
+        {
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+            if (matchingItem.Subtype != "tool")
+            {
+                continue;
+            }
+
+            if (!allowUsingTaskMaterials)
+            {
+                if (
+                    matchingItem.Craft is not null
+                    && matchingItem.Craft.Items.Exists(material =>
+                    {
+                        var matchingMaterial = gameState.ItemsDict.GetValueOrNull(material.Code);
+
+                        if (matchingMaterial?.Subtype == "task")
+                        {
+                            return true;
+                        }
+
+                        return false;
+                    })
+                )
+                {
+                    continue;
+                }
+            }
+
+            if (!CanUseItem(matchingItem, character.Schema))
+            {
+                continue;
+            }
+
+            var gatheringEffect = matchingItem.Effects.FirstOrDefault(effect =>
+                skillNames.Contains(effect.Code)
+            );
+
+            if (gatheringEffect is null)
+            {
+                continue;
+            }
+
+            var currentBestTool = relevantToolsDict.GetValueOrNull(gatheringEffect.Code);
+
+            // The gathering effects have an effect express in negative numbers, e.g. 10% lower cooldown when mining will be -10,
+            // so we want to find effects with a lower effect, e.g. -20 is better than -10
+            if (
+                currentBestTool is null
+                || currentBestTool.Effects.Exists(effect => effect.Value > gatheringEffect.Value)
+            )
+            {
+                relevantToolsDict.Remove(gatheringEffect.Code);
+                relevantToolsDict.Add(gatheringEffect.Code, matchingItem);
+            }
+        }
+
+        return relevantToolsDict.Select(candidate => candidate.Value).ToList();
+    }
+
+    public static CharacterJob GetObtainOrCraftForJob(
+        PlayerCharacter character,
+        GameState gameState,
+        ItemSchema item,
+        int amount,
+        bool addToWishList = true
+    )
+    {
+        CharacterJob job;
+        if (item.Craft is null || character.Roles.Exists(role => role == item.Craft.Skill))
+        {
+            job = new ObtainItem(character, gameState, item.Code, amount);
+        }
+        else
+        {
+            var crafter = gameState.Characters.FirstOrDefault(character =>
+                character.Roles.Exists(role => role == item.Craft.Skill)
+            );
+
+            if (crafter is null)
+            {
+                throw new Exception($"No crafter that has role {item.Craft.Skill}");
+            }
+
+            var gatherMaterialsJob = new GatherMaterialsForItem(
+                character,
+                gameState,
+                item.Code,
+                amount
+            );
+
+            if (addToWishList)
+            {
+                character.AddToWishlist(item.Code, amount);
+            }
+
+            gatherMaterialsJob.Crafter = crafter;
+
+            job = gatherMaterialsJob;
+        }
+        return job;
     }
 }

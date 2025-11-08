@@ -16,8 +16,8 @@ public class MonsterTask : CharacterJob
     public MonsterTask(
         PlayerCharacter playerCharacter,
         GameState gameState,
-        string? itemCode,
-        int? itemAmount
+        string? itemCode = null,
+        int? itemAmount = null
     )
         : base(playerCharacter, gameState)
     {

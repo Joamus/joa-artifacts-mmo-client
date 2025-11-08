@@ -1,6 +1,4 @@
-﻿using System.Reflection;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using Api.Endpoints;
 using Application;
 using Application.Services;
@@ -94,19 +92,18 @@ app.UseSwaggerUI(opt =>
     opt.SwaggerEndpoint("/swagger/v1/swagger.json", "Joas Artifacts MMO Client");
 });
 
+// Bind the "Characters" section to a list of CharacterConfig
+var characters = new List<CharacterConfig>();
+
+builder.Configuration.GetSection("Characters").Bind(characters);
+
 GameLoader loader = new GameLoader();
 
-await gameState.LoadAll();
+await gameState.LoadAll(characters);
 
 _ = app.RunAsync();
 
 await loader.Start();
-
-// await Task.WhenAny([loader.Start(), app.RunAsync()]);
-
-// var _ = await loader.Start();
-
-// await app.RunAsync();
 
 GameState SetupGameServiceProvider(IServiceCollection collection, string token, string accountName)
 {
@@ -121,4 +118,13 @@ GameState SetupGameServiceProvider(IServiceCollection collection, string token, 
     collection.AddSingleton(gameState);
 
     return gameState;
+}
+
+// Define a class to represent a character
+public record CharacterConfig
+{
+    public string Name { get; set; } = "";
+    public List<string> Roles { get; set; } = [];
+
+    public bool AI { get; set; } = true;
 }

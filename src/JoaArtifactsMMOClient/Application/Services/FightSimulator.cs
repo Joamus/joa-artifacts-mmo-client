@@ -1,17 +1,32 @@
-using System.Security.Principal;
+using System.Linq.Expressions;
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Application.Records;
 using Application.Services;
-using OneOf;
-using OneOf.Types;
 
 namespace Applicaton.Services.FightSimulator;
 
 public class FightSimulator
 {
     private static readonly double CRIT_DAMAGE_MODIFIER = 0.5;
+    private static readonly int MAX_LEVEL = 50;
+    private static readonly double PERCENTAGE_OF_SIMS_TO_WIN = 0.85;
+
+    private static List<EquipmentTypeMapping> allEquipmentTypes { get; } =
+        new List<EquipmentTypeMapping>
+        {
+            new EquipmentTypeMapping { ItemType = "weapon", Slot = "WeaponSlot" },
+            new EquipmentTypeMapping { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+            new EquipmentTypeMapping { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+            new EquipmentTypeMapping { ItemType = "helmet", Slot = "HelmetSlot" },
+            new EquipmentTypeMapping { ItemType = "boots", Slot = "BootsSlot" },
+            new EquipmentTypeMapping { ItemType = "ring", Slot = "Ring1Slot" },
+            new EquipmentTypeMapping { ItemType = "ring", Slot = "Ring2Slot" },
+            new EquipmentTypeMapping { ItemType = "amulet", Slot = "AmuletSlot" },
+            new EquipmentTypeMapping { ItemType = "shield", Slot = "ShieldSlot" },
+        };
 
     // We assume that monsters will crit more often than us, just to ensure that we don't take on fights too often, that we will probably not win.
     // private static readonly double MONSTER_CRIT_BIAS = 1.25;
@@ -28,79 +43,105 @@ public class FightSimulator
         bool playerFullHp = true
     )
     {
-        CharacterSchema characterSchema = originalSchema with { };
-
         List<FightOutcome> outcomes = [];
-
-        List<FightSimUtility> potions = [];
-
-        if (characterSchema.Utility1SlotQuantity > 0)
-        {
-            potions.Add(
-                new FightSimUtility
-                {
-                    Item = gameState.ItemsDict.GetValueOrNull(characterSchema.Utility1Slot)!,
-                    OriginalQuantity = characterSchema.Utility1SlotQuantity,
-                    Quantity = characterSchema.Utility1SlotQuantity,
-                }
-            );
-        }
-
-        if (characterSchema.Utility2SlotQuantity > 0)
-        {
-            potions.Add(
-                new FightSimUtility
-                {
-                    Item = gameState.ItemsDict.GetValueOrNull(characterSchema.Utility2Slot)!,
-                    OriginalQuantity = characterSchema.Utility2SlotQuantity,
-                    Quantity = characterSchema.Utility2SlotQuantity,
-                }
-            );
-        }
-
-        ApplyPreFightEffects(characterSchema, gameState, potions);
-
-        // Add runes to this
-        List<SimpleEffectSchema> runeEffects = [];
-
-        List<(FightEntity entity, List<SimpleEffectSchema> effects, bool isPlayer)> participants =
-        [
-            (monster, monster.effects, false),
-            (characterSchema, runeEffects, true),
-        ];
-
-        participants.Sort((a, b) => b.entity.Initiative.CompareTo(a.entity.Initiative));
 
         for (int i = 0; i < iterations; i++)
         {
+            List<FightSimUtility> potions = [];
+
+            // Add runes to this
+            List<SimpleEffectSchema> runeEffects = [];
+            var monsterClone = monster with { };
+
+            var initMonsterHp = monsterClone.Hp;
+            CharacterSchema characterSchema = originalSchema with { };
+
+            if (characterSchema.Utility1SlotQuantity > 0)
+            {
+                potions.Add(
+                    new FightSimUtility
+                    {
+                        Item = gameState.ItemsDict.GetValueOrNull(characterSchema.Utility1Slot)!,
+                        OriginalQuantity = characterSchema.Utility1SlotQuantity,
+                        Quantity = characterSchema.Utility1SlotQuantity,
+                    }
+                );
+            }
+
+            if (characterSchema.Utility2SlotQuantity > 0)
+            {
+                potions.Add(
+                    new FightSimUtility
+                    {
+                        Item = gameState.ItemsDict.GetValueOrNull(characterSchema.Utility2Slot)!,
+                        OriginalQuantity = characterSchema.Utility2SlotQuantity,
+                        Quantity = characterSchema.Utility2SlotQuantity,
+                    }
+                );
+            }
+
+            ApplyPreFightEffects(characterSchema, potions);
+
+            List<(
+                FightEntity entity,
+                List<SimpleEffectSchema> effects,
+                bool isPlayer
+            )> participants =
+            [
+                (monsterClone, monsterClone.Effects, false),
+                (characterSchema, runeEffects, true),
+            ];
+
+            participants.Sort((a, b) => b.entity.Initiative.CompareTo(a.entity.Initiative));
             var remainingPlayerHp = playerFullHp ? characterSchema.MaxHp : characterSchema.Hp;
-            var remainingMonsterHp = monster.Hp;
+            var remainingMonsterHp = initMonsterHp;
 
             FightResult? outcome = null;
 
-            int turns = 0;
+            int turnNumber = 1;
 
             while (outcome is null)
             {
                 foreach (var attacker in participants)
                 {
-                    List<FightSimUtility> potionEffectsForTurn = [];
+                    List<FightSimUtility> potionEffectsForTurn = attacker.isPlayer ? potions : [];
 
-                    foreach (var potion in potions)
+                    int poisonDamage = 0;
+
+                    /**
+                      The poison effect causes x damage per turn, unless the defender has an antidote. If the defender has an antidote,
+                      it subtracts the antidote value from the poison, using only 1 antidote.
+                    **/
+                    if (turnNumber == 1)
                     {
-                        if (potion.Quantity > 0)
+                        var poison = attacker.effects.FirstOrDefault(effect =>
+                            effect.Code == Effect.Poison
+                        );
+
+                        if (poison is not null)
                         {
-                            potionEffectsForTurn.Add(
-                                new FightSimUtility
+                            poisonDamage = poison.Value;
+
+                            foreach (var potion in potions)
+                            {
+                                var antidote = potion.Item.Effects.FirstOrDefault(effect =>
+                                    effect.Code == Effect.Antipoison
+                                );
+
+                                if (antidote is not null)
                                 {
-                                    Item = potion.Item,
-                                    Quantity = potion.Quantity,
-                                    OriginalQuantity = potion.OriginalQuantity,
+                                    poisonDamage -= antidote.Value;
+
+                                    if (poisonDamage < 0)
+                                    {
+                                        poisonDamage = 0;
+                                    }
+                                    potion.Quantity--;
+                                    break;
                                 }
-                            );
+                            }
                         }
                     }
-
                     // Elaborate for boss fights, e.g. boss will attack different players
                     var defender = participants.FirstOrDefault(participant =>
                         participant.isPlayer != attacker.isPlayer
@@ -111,8 +152,10 @@ public class FightSimulator
                         runeEffects,
                         potionEffectsForTurn,
                         defender.entity,
-                        turns
+                        turnNumber
                     );
+
+                    defender.entity.Hp -= poisonDamage;
 
                     bool attackerWon = defender.entity.Hp <= 0;
 
@@ -126,56 +169,30 @@ public class FightSimulator
                         {
                             outcome = FightResult.Loss;
                         }
+
+                        remainingMonsterHp = participants
+                            .FirstOrDefault(participant => !participant.isPlayer)
+                            .entity.Hp;
+                        remainingPlayerHp = participants
+                            .FirstOrDefault(participant => participant.isPlayer)
+                            .entity.Hp;
+
                         break;
                     }
-                    turns++;
                 }
+                turnNumber++;
             }
 
-            // while (outcome is null)
-            // {
-            //     turns++;
-            //     if (remainingPlayerHp <= 0)
-            //     {
-            //         outcome = FightResult.Loss;
-            //         break;
-            //     }
-            //     else if (remainingMonsterHp <= 0)
-            //     {
-            //         outcome = FightResult.Win;
-            //         break;
-            //     }
-
-            //     var playerDamage = CalculateTurnDamage(characterSchema, monster);
-
-            //     remainingMonsterHp -= playerDamage.damage;
-
-            //     if (remainingMonsterHp <= 0)
-            //     {
-            //         outcome = FightResult.Win;
-            //         break;
-            //     }
-
-            //     var monsterDamage = CalculateTurnDamage(monster, characterSchema);
-
-            //     remainingPlayerHp -= monsterDamage.damage;
-
-            //     if (remainingPlayerHp <= 0)
-            //     {
-            //         outcome = FightResult.Loss;
-            //         break;
-            //     }
-            // }
             outcomes.Add(
                 new FightOutcome
                 {
                     Result = outcome ?? FightResult.Loss, // Should not be necessary
-                    PlayerHp = remainingPlayerHp,
+                    PlayerHp = Math.Min(remainingPlayerHp, originalSchema.MaxHp), // in case of HP boost pots
                     MonsterHp = remainingMonsterHp,
-                    TotalTurns = turns,
+                    TotalTurns = turnNumber,
                     ShouldFight =
                         outcome == FightResult.Win
-                        && remainingPlayerHp >= (characterSchema.MaxHp * 0.15),
+                        && remainingPlayerHp >= (characterSchema.MaxHp * 0.30),
                 }
             );
         }
@@ -203,7 +220,9 @@ public class FightSimulator
         totalTurns = (int)Math.Floor((double)totalTurns / fightSimulations);
 
         FightResult generallyWon =
-            (amountWon / fightSimulations) > 0.85 ? FightResult.Win : FightResult.Loss;
+            (amountWon / fightSimulations) > PERCENTAGE_OF_SIMS_TO_WIN
+                ? FightResult.Win
+                : FightResult.Loss;
 
         return new FightOutcome
         {
@@ -223,7 +242,7 @@ public class FightSimulator
     {
         var result = FindBestFightEquipment(character, gameState, monster);
 
-        return result.Item2;
+        return result.Outcome;
     }
 
     private static (int damage, bool wasCrit) CalculateTurnDamage(
@@ -326,6 +345,10 @@ public class FightSimulator
 
         foreach (var effect in attackerPotionEffects)
         {
+            if (effect.Quantity < 0)
+            {
+                continue;
+            }
             var restoreEffect = effect.Item.Effects.FirstOrDefault(effect =>
                 effect.Code == Effect.Restore
             );
@@ -342,6 +365,8 @@ public class FightSimulator
                     attackerAsPlayer.Hp += restoreEffect.Value;
 
                     attackerAsPlayer.Hp = Math.Min(attackerAsPlayer.Hp, attackerAsPlayer.MaxHp);
+
+                    effect.Quantity--;
                 }
             }
         }
@@ -369,26 +394,55 @@ public class FightSimulator
         }
     }
 
-    public static (CharacterSchema, FightOutcome, List<EquipmentSlot>) FindBestFightEquipment(
+    public static FightSimResult FindBestFightEquipment(
         PlayerCharacter character,
         GameState gameState,
-        MonsterSchema monster
+        MonsterSchema monster,
+        List<ItemInInventory>? allItems = null,
+        List<string>? itemTypesToSim = null
     )
     {
-        List<(string, string)> equipmentTypes =
-        [
-            ("weapon", "WeaponSlot"),
-            ("body_armor", "BodyArmorSlot"),
-            ("leg_armor", "LegArmorSlot"),
-            ("helmet", "HelmetSlot"),
-            ("boots", "BootsSlot"),
-            ("ring", "Ring1Slot"),
-            ("ring", "Ring2Slot"),
-            ("amulet", "AmuletSlot"),
-            ("shield", "ShieldSlot"),
-        ];
+        if (allItems is null)
+        {
+            allItems = character
+                .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+                .Select(item => new ItemInInventory
+                {
+                    Item = gameState.ItemsDict[item.Code],
+                    Quantity = item.Quantity,
+                })
+                .ToList();
+        }
+        // This order should matter somewhat, since e.g. body armor slots typically give more stats than items lower in the list, e.g boots and amulets.
+        // List<EquipmentTypeMapping> equipmentTypes = allEquipmentTypes;
+        List<EquipmentTypeMapping> tempEquipmentTypes = [];
 
-        List<EquipmentSlot> itemsToEquip = [];
+        if (itemTypesToSim is null)
+        {
+            tempEquipmentTypes = allEquipmentTypes;
+        }
+        else
+        {
+            tempEquipmentTypes = allEquipmentTypes
+                .Where(type => itemTypesToSim.Contains(type.ItemType))
+                .ToList();
+        }
+
+        List<EquipmentTypeMapping> potionEquipmentTypes = [];
+
+        List<EquipmentTypeMapping> nonWeaponEquipmentTypes = [];
+
+        foreach (var equipmentType in tempEquipmentTypes)
+        {
+            if (equipmentType.ItemType == "ring")
+            {
+                potionEquipmentTypes.Add(equipmentType);
+            }
+            else if (equipmentType.ItemType != "weapon")
+            {
+                nonWeaponEquipmentTypes.Add(equipmentType);
+            }
+        }
 
         /*
           This might not be the most optimal, but basically we go through each item type one by one, and find the best fit for every item to equip.
@@ -396,122 +450,306 @@ public class FightSimulator
           with a specific armor set, because it gives more fire damage, but we will never consider that scenario, because the fire weapon might be
           disqualified in the "weapon" round, because it's not the best item.
           
-          We will need a recursive function that calculates all combinations, but for now, this will be good enough to ensure that the characters
-          put on their equipment before fighting, if they have any in their inventory, and in general will use decent equipment.
+          I think a good middleway is to always calculate all weapons, but for each weapon just find the best of each candidate.
+          That means we don't loop through all possible combinations of all items, but we find the best equipment set with each item,
+          which can handle that the air weapon might be best with the +air dmg set.
         */
-        var bestSchemaCandiate = character.Schema with
+
+        var initialSchema = character.Schema with
         { };
+
+        initialSchema.Hp = initialSchema.MaxHp;
+
+        string initialWeaponCode = initialSchema.WeaponSlot;
+
+        var initialFightOutcome = CalculateFightOutcome(initialSchema, monster, gameState);
+
+        // int bestItemAmount = 1;
+
+        // TODO: Loop through all weapons, and find the best combination with each weapon.
+        // We can maybe skip tools, and only take one if we literally have no other weapons
+
+
+        var weapons = allItems
+            .Where(item => item.Item.Type == "weapon" && item.Item.Subtype != "tool")
+            .ToList();
+
+        List<FightSimResult> allCandidates = [];
+
+        allCandidates.Add(
+            new FightSimResult
+            {
+                Schema = initialSchema,
+                Outcome = initialFightOutcome,
+                ItemsToEquip = [],
+            }
+        );
+
+        foreach (var weapon in weapons)
+        {
+            var bestSchemaCandiateWithWeapon = initialSchema with { };
+
+            bestSchemaCandiateWithWeapon.Hp = bestSchemaCandiateWithWeapon.MaxHp;
+
+            bestSchemaCandiateWithWeapon = PlayerActionService.SimulateItemEquip(
+                bestSchemaCandiateWithWeapon,
+                gameState.ItemsDict.GetValueOrNull(bestSchemaCandiateWithWeapon.WeaponSlot),
+                gameState.ItemsDict.GetValueOrNull(weapon.Item.Code)!,
+                "WeaponSlot",
+                1
+            );
+
+            var bestFightOutcomeWithWeapon = CalculateFightOutcome(
+                bestSchemaCandiateWithWeapon,
+                monster,
+                gameState
+            );
+
+            List<EquipmentSlot> itemsToEquip = [];
+
+            itemsToEquip.Add(
+                new EquipmentSlot
+                {
+                    Code = weapon.Item.Code,
+                    Quantity = 1,
+                    Slot = "weapon",
+                }
+            );
+
+            var bestFightSimResult = new FightSimResult
+            {
+                Schema = bestSchemaCandiateWithWeapon,
+                Outcome = bestFightOutcomeWithWeapon,
+                ItemsToEquip = itemsToEquip,
+            };
+
+            foreach (var equipmentTypeMapping in nonWeaponEquipmentTypes)
+            {
+                var result = SimItemsForEquipmentType(
+                    character,
+                    gameState,
+                    monster,
+                    allItems,
+                    equipmentTypeMapping,
+                    bestFightSimResult
+                );
+
+                bestSchemaCandiateWithWeapon = result.Schema;
+                bestFightOutcomeWithWeapon = result.Outcome;
+                itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
+            }
+
+            // Sim potions afterwards
+            foreach (var equipmentTypeMapping in potionEquipmentTypes)
+            {
+                var result = SimItemsForEquipmentType(
+                    character,
+                    gameState,
+                    monster,
+                    allItems,
+                    equipmentTypeMapping,
+                    bestFightSimResult
+                );
+
+                bestSchemaCandiateWithWeapon = result.Schema;
+                bestFightOutcomeWithWeapon = result.Outcome;
+                itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
+            }
+            allCandidates.Add(
+                new FightSimResult
+                {
+                    Schema = bestSchemaCandiateWithWeapon,
+                    Outcome = bestFightOutcomeWithWeapon,
+                    ItemsToEquip = itemsToEquip,
+                }
+            );
+        }
+
+        allCandidates.Sort(CompareSimResults);
+
+        return allCandidates.ElementAt(0);
+    }
+
+    public static FightSimResult SimItemsForEquipmentType(
+        PlayerCharacter character,
+        GameState gameState,
+        MonsterSchema monster,
+        List<ItemInInventory> allItems,
+        EquipmentTypeMapping equipmentTypeMapping,
+        FightSimResult originalResult
+    )
+    {
+        /*
+          This might not be the most optimal, but basically we go through each item type one by one, and find the best fit for every item to equip.
+          There are definitely cases we don't handle super well by doing this, because the characer might have a fire weapon, that will be better
+          with a specific armor set, because it gives more fire damage, but we will never consider that scenario, because the fire weapon might be
+          disqualified in the "weapon" round, because it's not the best item.
+          
+          I think a good middleway is to always calculate all weapons, but for each weapon just find the best of each candidate.
+          That means we don't loop through all possible combinations of all items, but we find the best equipment set with each item,
+          which can handle that the air weapon might be best with the +air dmg set.
+        */
+
+        var bestSchemaCandiate = originalResult.Schema with
+        { };
+        var bestFightOutcome = originalResult.Outcome with { };
+        var itemsToEquip = originalResult.ItemsToEquip.Select(item => item).ToList();
 
         bestSchemaCandiate.Hp = bestSchemaCandiate.MaxHp;
 
-        var bestFightOutcome = CalculateFightOutcome(bestSchemaCandiate, monster);
-
         int bestItemAmount = 1;
 
-        foreach (var (equipmentType, equipmentSlot) in equipmentTypes)
-        {
-            var items = character.GetItemsFromInventoryWithType(equipmentType);
+        // TODO: Loop through all weapons, and find the best combination with each weapon.
+        // We can maybe skip tools, and only take one if we literally have no other weapons
 
-            if (items.Count == 0)
+        var equipmentType = equipmentTypeMapping.ItemType;
+        var equipmentSlot = equipmentTypeMapping.Slot;
+        // var items = character.GetItemsFromInventoryWithType(equipmentType);
+        var items = allItems.Where(item => item.Item.Type == equipmentType).ToList();
+
+        if (items.Count == 0)
+        {
+            return new FightSimResult
+            {
+                Schema = bestSchemaCandiate,
+                Outcome = bestFightOutcome,
+                ItemsToEquip = itemsToEquip,
+            };
+        }
+
+        EquipmentSlot? equippedItem = null;
+
+        switch (character.GetEquipmentSlot(equipmentSlot).Value)
+        {
+            case AppError error:
+                throw new Exception(error.Message);
+            case EquipmentSlot slot:
+                equippedItem = slot;
+                break;
+        }
+
+        ItemSchema? bestItemCandidate = equippedItem is not null
+            ? gameState.ItemsDict.GetValueOrNull(equippedItem.Code)
+            : null;
+
+        string? initialItemCode = bestItemCandidate?.Code;
+
+        foreach (var item in items)
+        {
+            ItemSchema? itemSchema = gameState.ItemsDict.GetValueOrNull(item.Item.Code);
+
+            if (itemSchema is null)
+            {
+                throw new Exception(
+                    $"Current weapon with code \"{item.Item.Code}\" is null - should never happen"
+                );
+            }
+
+            if (itemSchema.Subtype == "tool")
             {
                 continue;
             }
 
-            EquipmentSlot? equippedItem = null;
-
-            switch (character.GetEquipmentSlot(equipmentSlot).Value)
+            if (!ItemService.CanUseItem(itemSchema, character.Schema))
             {
-                case AppError error:
-                    throw new Exception(error.Message);
-                case EquipmentSlot slot:
-                    equippedItem = slot;
-                    break;
+                continue;
             }
 
-            ItemSchema? bestItemCandidate = equippedItem is not null
-                ? gameState.ItemsDict.GetValueOrNull(equippedItem.Code)
-                : null;
-
-            string? initialItemCode = bestItemCandidate?.Code;
-
-            // if (bestItemCandidate is null)
-            // {
-            //     throw new Exception(
-            //         $"Currently best weapon with code \"{character.Schema.WeaponSlot}\" is null"
-            //     );
-            // }
-
-            foreach (var item in items)
+            // Not sure, but I don't think you can have the same effect in both util slots.
+            if (item.Item.Type == "utility" || item.Item.Type == "rune")
             {
-                ItemSchema? itemSchema = gameState.ItemsDict.GetValueOrNull(item.Item.Code);
+                string otherItemSlot =
+                    equipmentSlot == "Utility1Slot" ? "Utility2Slot" : "Utility1Slot";
 
-                if (itemSchema is null)
-                {
-                    throw new Exception(
-                        $"Current weapon with code \"{item.Item.Code}\" is null - should never happen"
-                    );
-                }
-
-                if (!ItemService.CanUseItem(itemSchema, character.Schema))
+                if (
+                    ItemService.ArePotionEffectsOverlapping(
+                        gameState,
+                        item.Item.Code,
+                        otherItemSlot
+                    )
+                )
                 {
                     continue;
                 }
-
-                var characterSchema = bestSchemaCandiate with { };
-
-                characterSchema = PlayerActionService.SimulateItemEquip(
-                    characterSchema,
-                    bestItemCandidate,
-                    itemSchema,
-                    equipmentSlot,
-                    1
-                );
-
-                var fightOutcome = CalculateFightOutcome(characterSchema, monster);
-
-                if (
-                    bestItemCandidate is null
-                    || fightOutcome.Result == FightResult.Win
-                        && (
-                            bestFightOutcome.Result != FightResult.Win
-                            || fightOutcome.PlayerHp > bestFightOutcome.PlayerHp
-                        )
-                )
-                {
-                    bestFightOutcome = fightOutcome;
-                    bestItemCandidate = item.Item;
-                    bestSchemaCandiate = characterSchema;
-                    bestItemAmount = item.Item.Subtype == "utility" ? item.Quantity : 1;
-                }
             }
 
-            if (bestItemCandidate is not null && initialItemCode != bestItemCandidate.Code)
+            var characterSchema = bestSchemaCandiate with { };
+
+            characterSchema = PlayerActionService.SimulateItemEquip(
+                characterSchema,
+                bestItemCandidate,
+                itemSchema,
+                equipmentSlot,
+                1
+            );
+
+            var fightOutcome = CalculateFightOutcome(characterSchema, monster, gameState);
+
+            if (
+                bestItemCandidate is null
+                || fightOutcome.Result == FightResult.Win
+                    && (
+                        bestFightOutcome is null
+                        || bestFightOutcome.Result != FightResult.Win
+                        || fightOutcome.PlayerHp > bestFightOutcome.PlayerHp
+                    )
+            )
             {
-                string snakeCaseSlot = equipmentSlot.Replace("Slot", "").FromPascalToSnakeCase();
-
-                logger.LogInformation(
-                    $"FindBestFightEquipment: Should swap \"{initialItemCode}\" -> \"{bestItemCandidate.Code}\" in slot \"{snakeCaseSlot}\" for {character.Schema.Name} when fighting \"{monster.Code}\""
-                );
-
-                itemsToEquip.Add(
-                    new EquipmentSlot
-                    {
-                        Code = bestItemCandidate.Code,
-                        Slot = snakeCaseSlot,
-                        Quantity = bestItemAmount,
-                    }
-                );
+                bestFightOutcome = fightOutcome;
+                bestItemCandidate = item.Item;
+                bestSchemaCandiate = characterSchema;
+                bestItemAmount = item.Item.Subtype == "utility" ? item.Quantity : 1;
             }
         }
 
-        return (bestSchemaCandiate, bestFightOutcome, itemsToEquip);
+        if (bestItemCandidate is not null && initialItemCode != bestItemCandidate.Code)
+        {
+            string snakeCaseSlot = equipmentSlot.Replace("Slot", "").FromPascalToSnakeCase();
+
+            logger.LogDebug(
+                $"FindBestFightEquipment: Should swap \"{initialItemCode}\" -> \"{bestItemCandidate.Code}\" in slot \"{snakeCaseSlot}\" for {character.Schema.Name} when fighting \"{monster.Code}\""
+            );
+
+            itemsToEquip.Add(
+                new EquipmentSlot
+                {
+                    Code = bestItemCandidate.Code,
+                    Slot = snakeCaseSlot,
+                    Quantity = bestItemAmount,
+                }
+            );
+        }
+
+        return new FightSimResult
+        {
+            Schema = bestSchemaCandiate,
+            Outcome = bestFightOutcome,
+            ItemsToEquip = itemsToEquip,
+        };
     }
 
-    static void ApplyPreFightEffects(
-        CharacterSchema characterSchema,
-        GameState gameState,
-        List<FightSimUtility> potions
-    )
+    public static int CompareSimResults(FightSimResult a, FightSimResult b)
+    {
+        if (
+            a.Outcome.Result == FightResult.Win
+            && (
+                b.Outcome.Result != FightResult.Win
+                || (
+                    a.Outcome.PlayerHp > b.Outcome.PlayerHp
+                    || a.Outcome.TotalTurns < b.Outcome.TotalTurns
+                )
+            )
+        )
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+
+    static void ApplyPreFightEffects(CharacterSchema characterSchema, List<FightSimUtility> potions)
     {
         foreach (var potion in potions)
         {
@@ -526,6 +764,70 @@ public class FightSimulator
                 }
             }
         }
+    }
+
+    public static List<MonsterSchema> GetRelevantMonstersForCharacter(PlayerCharacter character)
+    {
+        int maxToFindPerCategory = 3;
+
+        int playerLevel = character.Schema.Level;
+
+        List<MonsterSchema> relevantMonsters = [];
+
+        List<MonsterSchema> mediumMonsters = [];
+
+        List<MonsterSchema> toughMonsters = [];
+
+        int lowerLevelBound = playerLevel - 5;
+
+        if (lowerLevelBound < 0)
+        {
+            lowerLevelBound = 1;
+        }
+
+        int upperLevelBound = playerLevel + 2;
+
+        if (upperLevelBound > MAX_LEVEL)
+        {
+            upperLevelBound = MAX_LEVEL;
+        }
+
+        // Find the most difficult monsters that the character should realistically be able to fight,
+        // at their current level. It's okay that the character cannot defeat them all at the moment.
+
+        foreach (var monster in relevantMonsters)
+        {
+            if (monster.Type == MonsterType.Boss)
+            {
+                continue;
+            }
+            if (
+                mediumMonsters.Count >= maxToFindPerCategory
+                && toughMonsters.Count >= maxToFindPerCategory
+            )
+            {
+                break;
+            }
+            if (monster.Level < lowerLevelBound || monster.Level > upperLevelBound)
+            {
+                continue;
+            }
+
+            if (monster.Level >= playerLevel + 2 && toughMonsters.Count < maxToFindPerCategory)
+            {
+                toughMonsters.Add(monster);
+            }
+            else if (
+                monster.Level <= playerLevel
+                && monster.Level + 3 >= playerLevel
+                && mediumMonsters.Count < maxToFindPerCategory
+            )
+            {
+                toughMonsters.Add(monster);
+            }
+        }
+
+        return relevantMonsters;
     }
 }
 
@@ -557,4 +859,17 @@ public record FightSimUtility
 
     public int OriginalQuantity { get; set; }
     public int Quantity { get; set; }
+}
+
+public record EquipmentTypeMapping
+{
+    public string ItemType { get; set; } = "";
+    public string Slot { get; set; } = "";
+}
+
+public record FightSimResult
+{
+    public required CharacterSchema Schema { get; set; }
+    public required FightOutcome Outcome { get; set; }
+    public required List<EquipmentSlot> ItemsToEquip { get; set; }
 }

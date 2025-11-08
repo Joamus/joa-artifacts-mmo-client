@@ -1,6 +1,4 @@
-using Application.Jobs;
 using Application.Services;
-using Applicaton.Jobs;
 
 namespace Application;
 
@@ -36,18 +34,34 @@ public class GameLoader
 
         while (running)
         {
-            foreach (var character in _gameState.Characters)
+            foreach (var playerAI in _gameState.CharacterAIs)
             {
+                playerAI.Character.CleanupOldWishlistItems();
+
                 var now = DateTime.UtcNow.AddSeconds(-2);
-                var cooldownExpiresIn = character.Schema.CooldownExpiration - now;
+                var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
                 if (cooldownExpiresIn.TotalSeconds > 0)
                 {
                     continue;
                 }
+
                 // if (character.Jobs.Count > 0)
-                if (character.Idle)
+                if (playerAI.Character.Idle)
                 {
-                    var _ = character.RunJob();
+                    if (playerAI.Enabled)
+                    {
+                        if (
+                            playerAI.Character.CurrentJob is null
+                            && playerAI.Character.Jobs.Count == 0
+                        )
+                        {
+                            var job = await playerAI.GetNextJob();
+
+                            // Change
+                            playerAI.Character.QueueJob(job);
+                        }
+                    }
+                    var _ = playerAI.Character.RunJob();
                 }
             }
 

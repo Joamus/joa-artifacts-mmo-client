@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
@@ -16,8 +17,12 @@ public class GameState
 
     ILogger logger { get; init; }
 
+    public required BankItemCache BankItemCache { get; set; }
+
     public List<PlayerCharacter> Characters { get; private set; } = [];
+    public List<PlayerAI> CharacterAIs { get; private set; } = [];
     public List<ItemSchema> Items { get; set; } = [];
+    public List<TasksFullSchema> Tasks { get; set; } = [];
     public Dictionary<string, ItemSchema> ItemsDict { get; set; } = [];
 
     public Dictionary<string, ItemSchema> UtilityItemsDict { get; set; } = [];
@@ -34,18 +39,20 @@ public class GameState
     public List<AccountAchievementSchema> AccountAchievements { get; set; } = [];
     public List<MonsterSchema> Monsters { get; set; } = [];
 
+    [SetsRequiredMembers]
     public GameState(AccountRequester accountRequester, ApiRequester apiRequester)
     {
         AccountRequester = accountRequester;
         _apiRequester = apiRequester;
         logger = AppLogger.loggerFactory.CreateLogger<GameState>();
+        BankItemCache = new BankItemCache(accountRequester);
     }
 
-    public async Task LoadAll()
+    public async Task LoadAll(List<CharacterConfig> characterConfigs)
     {
         cacheReload = DateTime.UtcNow;
 
-        await LoadCharacters();
+        await LoadCharacters(characterConfigs);
         await LoadItems();
         await LoadNpcItems();
         await LoadMaps();
@@ -53,6 +60,7 @@ public class GameState
         await LoadMonsters();
         await LoadNpcs();
         await LoadAccountAchievements();
+        await LoadTasksList();
     }
 
     public bool ShouldReload()
@@ -77,19 +85,27 @@ public class GameState
         await LoadAccountAchievements();
     }
 
-    public async Task LoadCharacters()
+    public async Task LoadCharacters(List<CharacterConfig> characterConfigs)
     {
+        // Bind the "Characters" section to a list of CharacterConfig
         logger.LogInformation("Loading characters...");
         var result = await AccountRequester.GetCharacters();
 
         List<PlayerCharacter> characters = [];
+        List<PlayerAI> characterAIs = [];
 
         foreach (var characterSchema in result.Data)
         {
-            characters.Add(new PlayerCharacter(characterSchema));
+            var matchingConfig = characterConfigs.FirstOrDefault(config =>
+                config.Name == characterSchema.Name
+            );
+            var character = new PlayerCharacter(characterSchema, matchingConfig);
+            characters.Add(character);
+            characterAIs.Add(new PlayerAI(character, this, matchingConfig?.AI ?? true));
         }
 
         Characters = characters;
+        CharacterAIs = characterAIs;
         logger.LogInformation("Loading characters - DONE;");
     }
 
@@ -177,6 +193,23 @@ public class GameState
         NpcItemsDict = itemsDict;
 
         logger.LogInformation("Loading NPC items - DONE;");
+    }
+
+    public async Task LoadTasksList()
+    {
+        logger.LogInformation("Loading tasks list...");
+        List<TasksFullSchema> tasks = [];
+
+        var result = await AccountRequester.GetTasks();
+
+        foreach (var task in result)
+        {
+            tasks.Add(task);
+        }
+
+        Tasks = tasks;
+
+        logger.LogInformation("Loading tasks list - DONE;");
     }
 
     public async Task LoadMaps()

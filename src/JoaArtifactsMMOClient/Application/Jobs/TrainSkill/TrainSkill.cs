@@ -1,11 +1,10 @@
-using System.Collections;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Application.Services;
 using Applicaton.Services.FightSimulator;
-using Microsoft.Extensions.ObjectPool;
 using OneOf;
 using OneOf.Types;
 
@@ -50,7 +49,7 @@ public class TrainSkill : CharacterJob
         Skill = skill;
         LevelOffset = level;
         Relative = relative;
-        skillName = GetSkillName(Skill);
+        skillName = SkillService.GetSkillName(Skill);
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -58,7 +57,7 @@ public class TrainSkill : CharacterJob
         // Only runs the first time this job runs. If it queues a job before itself, it shouldn't recalculate the level
         if (SkillLevel == 0)
         {
-            SkillLevel = GetSkillLevel(skillName);
+            SkillLevel = Character.GetSkillLevel(skillName);
         }
 
         int untilLevel;
@@ -82,7 +81,7 @@ public class TrainSkill : CharacterJob
 
         if (SkillLevel < untilLevel)
         {
-            var jobs = await GetJobsRequired(skillName, skillKind, SkillLevel);
+            var jobs = await GetJobsRequired(Skill, skillKind, SkillLevel);
 
             if (jobs.Count > 0)
             {
@@ -94,7 +93,7 @@ public class TrainSkill : CharacterJob
     }
 
     public async Task<List<CharacterJob>> GetJobsRequired(
-        string skillName,
+        Skill skill,
         SkillKind skillKind,
         int skillLevel
     )
@@ -111,7 +110,7 @@ public class TrainSkill : CharacterJob
 
                 foreach (var resource in gameState.Resources)
                 {
-                    if (resource.Skill == skillName && resource.Level <= skillLevel)
+                    if (resource.Skill == skill && resource.Level <= skillLevel)
                     {
                         if (bestResource is null || bestResource.Level < resource.Level)
                         {
@@ -123,7 +122,7 @@ public class TrainSkill : CharacterJob
                 if (bestResource is null)
                 {
                     throw new AppError(
-                        $"Could not find best resource for training \"{skillName}\" at skill level \"{skillLevel}\""
+                        $"Could not find best resource for training \"{skill}\" at skill level \"{skillLevel}\""
                     );
                 }
 
@@ -155,7 +154,7 @@ public class TrainSkill : CharacterJob
                 {
                     if (
                         item.Craft is not null
-                        && GetSkillName(item.Craft.Skill) == skillName
+                        && item.Craft.Skill == skill
                         && item.Level <= skillLevel
                         && (skillLevel - item.Craft.Level) < LEVEL_DIFF_FOR_NO_XP
                     // && ()
@@ -168,7 +167,7 @@ public class TrainSkill : CharacterJob
                     }
                 }
 
-                var bankItemsResponse = await gameState.AccountRequester.GetBankItems();
+                var bankItemsResponse = await gameState.BankItemCache.GetBankItems(Character);
 
                 if (bankItemsResponse is null)
                 {
@@ -240,7 +239,7 @@ public class TrainSkill : CharacterJob
                     }
 
                     throw new AppError(
-                        $"Could not find best item for training \"{skillName}\" at skill level \"{skillLevel}\" for \"{Character.Schema.Name}\""
+                        $"Could not find best item for training \"{skill}\" at skill level \"{skillLevel}\" for \"{Character.Schema.Name}\""
                     );
                 }
 
@@ -254,7 +253,7 @@ public class TrainSkill : CharacterJob
                 }
 
                 logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skillName} until level {skillLevel}"
+                    $"{JobName}: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skill} until level {skillLevel}"
                 );
 
                 var obtainItemJob = new ObtainItem(
@@ -295,21 +294,8 @@ public class TrainSkill : CharacterJob
         }
         else
         {
-            throw new AppError(
-                $"Could not find a way to train skill \"{skillName}\" to {skillLevel}"
-            );
+            throw new AppError($"Could not find a way to train skill \"{skill}\" to {skillLevel}");
         }
-    }
-
-    int GetSkillLevel(string skill)
-    {
-        var prop = Character
-            .Schema.GetType()
-            .GetProperty((skill + "_level").FromSnakeToPascalCase());
-
-        var value = (int)prop!.GetValue(Character.Schema)!;
-
-        return value;
     }
 
     public static (bool, int) GetInconvenienceCostCraftItem(
@@ -388,61 +374,5 @@ public class TrainSkill : CharacterJob
         }
 
         return (canObtain, score);
-    }
-
-    public static string GetSkillName(Skill skill)
-    {
-        switch (skill)
-        {
-            case Skill.Weaponcrafting:
-                return "weaponcrafting";
-            case Skill.Gearcrafting:
-                return "gearcrafting";
-            case Skill.Jewelrycrafting:
-                return "jewelrycrafting";
-            case Skill.Cooking:
-                return "cooking";
-            case Skill.Woodcutting:
-                return "woodcutting";
-            case Skill.Mining:
-                return "mining";
-            case Skill.Alchemy:
-                return "alchemy";
-            case Skill.Fishing:
-                return "fishing";
-        }
-
-        throw new Exception($"Could not find skill - input: \"{skill}\"");
-    }
-
-    public static Skill GetSkillFromName(string skill)
-    {
-        switch (skill)
-        {
-            case "weaponcrafting":
-                return Skill.Weaponcrafting;
-            case "gearcrafting":
-                return Skill.Gearcrafting;
-            case "jewelrycrafting":
-                return Skill.Jewelrycrafting;
-            case "cooking":
-                return Skill.Cooking;
-            case "woodcutting":
-                return Skill.Woodcutting;
-            case "mining":
-                return Skill.Mining;
-            case "alchemy":
-                return Skill.Alchemy;
-            case "fishing":
-                return Skill.Fishing;
-        }
-
-        throw new Exception($"Could not find skill - input: \"{skill}\"");
-    }
-
-    public enum SkillKind
-    {
-        Crafting,
-        Gathering,
     }
 }

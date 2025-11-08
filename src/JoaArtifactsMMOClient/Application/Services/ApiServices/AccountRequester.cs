@@ -2,7 +2,6 @@ using System.Text.Json;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Infrastructure;
-using Newtonsoft.Json.Serialization;
 
 namespace Application.Services.ApiServices;
 
@@ -120,6 +119,40 @@ public class AccountRequester
         }
 
         return new BankItemsResponse { Data = items };
+    }
+
+    public async Task<List<TasksFullSchema>> GetTasks()
+    {
+        int pageNumber = 1;
+        bool doneFetching = false;
+
+        List<TasksFullSchema> tasks = [];
+
+        while (!doneFetching)
+        {
+            var response = await _apiService.GetAsync($"/tasks/list?page={pageNumber}");
+
+            var result = await response.Content.ReadAsStringAsync();
+
+            var content = JsonSerializer.Deserialize<TasksListsResponse>(
+                result,
+                ApiRequester.getJsonOptions()
+            )!;
+
+            if (content.Data.Count == 0)
+            {
+                doneFetching = true;
+            }
+
+            foreach (var task in content.Data)
+            {
+                tasks.Add(task);
+            }
+
+            pageNumber++;
+        }
+
+        return tasks;
     }
 
     public async Task<BankDetailsResponse> GetBankDetails()

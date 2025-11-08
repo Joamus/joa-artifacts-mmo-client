@@ -1,6 +1,3 @@
-using System.Runtime.Serialization;
-using System.Text.Json.Serialization;
-
 namespace Application.ArtifactsApi.Schemas;
 
 public record MapContentSchema

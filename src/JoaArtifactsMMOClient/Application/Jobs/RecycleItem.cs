@@ -10,7 +10,6 @@ namespace Application.Jobs;
 
 public class RecycleItem : CharacterJob
 {
-    public int Amount { get; private set; }
     public static readonly List<Skill> RECYCLABLE_ITEM_KINDS =
     [
         Skill.Gearcrafting,
@@ -98,7 +97,7 @@ public class RecycleItem : CharacterJob
         {
             return new AppError($"Could not find location to recycle {Code}");
         }
-        await Character.NavigateTo(craftingLocationCode, ContentType.Workshop);
+        await Character.NavigateTo(craftingLocationCode);
 
         var result = await Character.Recycle(Code, Amount);
 

@@ -1,10 +1,7 @@
-using System.Diagnostics.Eventing.Reader;
-using System.Security.Permissions;
-using Application;
+using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
-using Application.ArtifactsApi.Schemas.Responses;
-using Application.Character;
 using Application.Errors;
+using Application.Jobs;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -22,6 +19,8 @@ public class PlayerActionService
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
     private readonly GameState GameState;
 
+    private const string Name = "PlayerActionService";
+
     private readonly ILogger<PlayerActionService> Logger;
 
     private readonly PlayerCharacter Character;
@@ -37,47 +36,9 @@ public class PlayerActionService
         Character = character;
     }
 
-    public async Task<OneOf<AppError, None>> NavigateTo(string code, ContentType contentType)
+    public async Task<OneOf<AppError, None>> NavigateTo(string code)
     {
         // We don't know what it is, but it might be an item we wish to get
-
-        if (contentType == ContentType.Resource)
-        {
-            var resources = GameState.Resources.FindAll(resource =>
-                resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null
-            );
-
-            ResourceSchema? bestResource = null;
-            int bestDropRate = 0;
-
-            // The higher the drop rate, the lower the number. Drop rate of 1 means 100% chance, rate of 10 is 10% chance, rate of 100 is 1%
-
-            foreach (var resource in resources)
-            {
-                if (bestDropRate == 0)
-                {
-                    bestResource = resource;
-                    bestDropRate = resource.Drops[0].Rate;
-                    continue;
-                }
-                var bestDrop = resource.Drops.Find(drop =>
-                    drop.Code == code && drop.Rate < bestDropRate
-                );
-
-                if (bestDrop is not null)
-                {
-                    bestDropRate = bestDrop.Rate;
-                    bestResource = resource;
-                }
-            }
-
-            if (bestResource is null)
-            {
-                throw new Exception($"Could not find map with resource {code}");
-            }
-
-            code = bestResource.Code;
-        }
 
         var maps = GameState.Maps.FindAll(map =>
         {
@@ -88,17 +49,20 @@ public class PlayerActionService
                 return false;
             }
 
-            foreach (var condition in map.Access.Conditions)
+            if (map.Access.Conditions is not null)
             {
-                if (
-                    condition.Operator == ItemConditionOperator.AchievementUnlocked
-                    && GameState.AccountAchievements.Find(achievement =>
-                        achievement.Code == condition.Code
-                    )
-                        is null
-                )
+                foreach (var condition in map.Access.Conditions)
                 {
-                    return false;
+                    if (
+                        condition.Operator == ItemConditionOperator.AchievementUnlocked
+                        && GameState.AccountAchievements.Find(achievement =>
+                            achievement.Code == condition.Code
+                        )
+                            is null
+                    )
+                    {
+                        return false;
+                    }
                 }
             }
 
@@ -275,7 +239,7 @@ public class PlayerActionService
     {
         var result = FightSimulator.FindBestFightEquipment(Character, GameState, monster);
 
-        foreach (var item in result.Item3)
+        foreach (var item in result.ItemsToEquip)
         {
             await Character.EquipItem(item.Code, item.Slot, item.Quantity);
         }
@@ -343,24 +307,22 @@ public class PlayerActionService
         return schemaWithNewItem;
     }
 
-    public async Task<OneOf<AppError, None>> EquipBestGatheringEquipment(string skill)
+    public async Task<OneOf<AppError, None>> EquipBestGatheringEquipment(Skill skill)
     {
-        if (
-            !new[]
-            {
-                PlayerSkill.Alchemy,
-                PlayerSkill.Fishing,
-                PlayerSkill.Mining,
-                PlayerSkill.Woodcutting,
-            }.Contains(skill)
-        )
+        if (!SkillService.GatheringSkills.Contains(skill))
         {
             // TODO: Invalid argument, but eh
             return new AppError($"Skill \"{skill}\" is not a valid gathering skill");
         }
 
+        var skillName = SkillService.GetSkillName(skill)!;
+
         foreach (var item in Character.Schema.Inventory)
         {
+            if (string.IsNullOrEmpty(item.Code))
+            {
+                continue;
+            }
             var matchingItemInInventory = GameState.ItemsDict.ContainsKey(item.Code)
                 ? GameState.ItemsDict[item.Code]
                 : null;
@@ -369,11 +331,12 @@ public class PlayerActionService
             if (
                 matchingItemInInventory is not null
                 && ItemService.IsEquipment(matchingItemInInventory.Type)
-                && matchingItemInInventory.Effects.Find(effect => effect.Code == skill) is not null
+                && matchingItemInInventory.Effects.Find(effect => effect.Code == skillName)
+                    is not null
             )
             {
                 var itemInInventoryEffect = matchingItemInInventory.Effects.Find(effect =>
-                    effect.Code == skill
+                    effect.Code == skillName
                 );
 
                 if (itemInInventoryEffect is null)
@@ -415,9 +378,8 @@ public class PlayerActionService
 
                                 var equippedItemValue =
                                     equippedItemInSlot
-                                        .Effects.Find(effect => effect.Code == skill)
-                                        ?.Value
-                                    ?? 0;
+                                        .Effects.Find(effect => effect.Code == skillName)
+                                        ?.Value ?? 0;
 
                                 // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                                 if (equippedItemValue > itemInInventoryEffect.Value)
@@ -469,5 +431,84 @@ public class PlayerActionService
 
         // Just take the last one, if we didn't find a better match
         return itemSlot;
+    }
+
+    public async Task<bool> CanObtainItem(ItemSchema item)
+    {
+        var canObtainIt = await ObtainItem.GetJobsRequired(
+            Character,
+            GameState,
+            true,
+            [],
+            [],
+            item.Code,
+            1,
+            true,
+            true
+        );
+
+        switch (canObtainIt.Value)
+        {
+            case AppError:
+                return false;
+        }
+
+        return true;
+    }
+
+    public async Task<List<CharacterJob>?> GetJobsToGetItemsToFightMonster(
+        PlayerCharacter character,
+        GameState gameState,
+        MonsterSchema monster
+    )
+    {
+        var bestFightItems = await ItemService.GetBestFightItems(character, gameState, monster);
+
+        List<CharacterJob> jobs = [];
+
+        foreach (var item in bestFightItems)
+        {
+            var result = character.GetEquippedItemOrInInventory(item.Code);
+
+            (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+                result.Count > 0 ? result.ElementAt(0)! : null;
+
+            if (itemInInventory is not null)
+            {
+                continue;
+            }
+
+            if (character.ExistsInWishlist(item.Code))
+            {
+                Logger.LogInformation(
+                    $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining fight items - {item.Code} is already in wish list, so we should wait until obtaining more"
+                );
+                return null;
+            }
+
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(
+                itemInInventory!.Value.inventorySlot.Code
+            )!;
+
+            if (matchingItem.Craft is null) { }
+
+            if (!await character.PlayerActionService.CanObtainItem(matchingItem))
+            {
+                continue;
+            }
+
+            string itemCode = itemInInventory!.Value.inventorySlot.Code;
+            int itemAmount = itemInInventory!.Value.inventorySlot.Quantity;
+            // Find crafter
+            Logger.LogInformation(
+                $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Job found - acquire {itemAmount} x {itemCode} for fighting"
+            );
+
+            character.AddToWishlist(itemCode, itemAmount);
+
+            jobs.Add(new ObtainOrFindItem(character, gameState, itemCode, itemAmount));
+        }
+
+        return jobs;
     }
 }

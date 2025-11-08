@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace Application.ArtifactsApi.Schemas;
 
 public record CharacterSchema : FightEntity
@@ -73,13 +71,16 @@ public record CharacterSchema : FightEntity
 
     public int Y { get; set; }
 
+    public MapLayer Layer { get; set; }
+    public int MapId { get; set; }
+
     public int Cooldown { get; set; }
 
     public DateTime CooldownExpiration { get; set; }
 
-    public string? WeaponSlot { get; set; }
+    public string WeaponSlot { get; set; } = "";
 
-    public string? RuneSlot { get; set; }
+    public string RuneSlot { get; set; } = "";
 
     public string ShieldSlot { get; set; } = "";
 

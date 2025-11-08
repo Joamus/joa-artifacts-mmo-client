@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using Application.Character;
 using Application.Errors;
@@ -29,6 +28,8 @@ public abstract class CharacterJob
     protected bool ShouldInterrupt { get; set; }
 
     public string Code { get; init; } = "";
+
+    public int Amount { get; set; }
 
     public delegate Task OnSuccessEndHook();
 

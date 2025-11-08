@@ -1,9 +1,6 @@
-using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
-using Applicaton.Services.FightSimulator;
-using Microsoft.VisualBasic;
 using OneOf;
 using OneOf.Types;
 
@@ -33,7 +30,7 @@ public class AcceptNewTask : CharacterJob
             return new AppError($"Character already has a task {Character.Schema.Task}");
         }
 
-        await Character.NavigateTo(Code, ContentType.TasksMaster);
+        await Character.NavigateTo(Code);
         await Character.TaskNew();
 
         logger.LogInformation(

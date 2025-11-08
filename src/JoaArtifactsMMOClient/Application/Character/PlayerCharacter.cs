@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
@@ -17,6 +18,9 @@ namespace Application.Character;
 public class PlayerCharacter
 {
     [JsonIgnore]
+    const int CLEAN_UP_WISH_LIST_MINUTE_INTERVAL = 90;
+
+    [JsonIgnore]
     public static readonly int MIN_AMOUNT_OF_FOOD_TO_KEEP = 20;
 
     [JsonIgnore]
@@ -26,6 +30,10 @@ public class PlayerCharacter
     public CharacterSchema Schema { get; private set; }
 
     public CooldownSchema? Cooldown { get; private set; } = null;
+
+    private Dictionary<string, ItemReservation> itemWishlist { get; set; } = [];
+
+    public List<Skill> Roles { get; init; } = [];
 
     // Poor man's semaphor - make something sturdier
     private bool Busy { get; set; } = false;
@@ -70,6 +78,71 @@ public class PlayerCharacter
     public void Unsuspend()
     {
         Suspended = false;
+    }
+
+    public void AddToWishlist(string code, int amount)
+    {
+        var existingReservations = itemWishlist.GetValueOrNull(code);
+
+        var reservation = new ItemReservation
+        {
+            Item = new DropSchema { Code = code, Quantity = amount },
+            CharacterName = Schema.Name,
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        if (existingReservations is null)
+        {
+            itemWishlist[code] = reservation;
+        }
+        else
+        {
+            itemWishlist[code].Item.Quantity += amount;
+        }
+    }
+
+    public void RemoveFromWishlist(string code, int amount)
+    {
+        var existingReservations = itemWishlist.GetValueOrNull(code);
+
+        if (existingReservations is not null)
+        {
+            itemWishlist[code].Item.Quantity -= amount;
+
+            if (itemWishlist[code].Item.Quantity <= 0)
+            {
+                itemWishlist.Remove(code);
+            }
+        }
+    }
+
+    public bool ExistsInWishlist(string itemCode)
+    {
+        return itemWishlist.ContainsKey(itemCode);
+    }
+
+    public void CleanupOldWishlistItems()
+    {
+        List<string> keysToRemove = [];
+
+        foreach (var item in itemWishlist)
+        {
+            if (
+                item.Value.CreatedAt
+                <= DateTime.UtcNow.AddMinutes(-CLEAN_UP_WISH_LIST_MINUTE_INTERVAL)
+            )
+            {
+                Logger.LogInformation(
+                    $"{GetType().Name}: [{Schema.Name}] Removing wish list item for {item.Value.Item.Code} x {item.Value.Item.Quantity}"
+                );
+                keysToRemove.Add(item.Key);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            itemWishlist.Remove(key);
+        }
     }
 
     public void QueueJob(CharacterJob job, bool highestPriority = false)
@@ -134,7 +207,7 @@ public class PlayerCharacter
         Busy = true;
         var indexOf = Jobs.FindIndex(job => job.Id.Equals(jobId));
 
-        if (indexOf == -1)
+        if (indexOf == -1 || indexOf == Jobs.Count() - 1)
         {
             if (CurrentJob is not null && CurrentJob.Id.Equals(jobId))
             {
@@ -297,12 +370,27 @@ public class PlayerCharacter
         return new None();
     }
 
-    public PlayerCharacter(CharacterSchema characterSchema)
+    public PlayerCharacter(CharacterSchema characterSchema, CharacterConfig? characterConfig)
     {
         Schema = characterSchema;
         GameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
         ApiRequester = GameServiceProvider.GetInstance().GetService<ApiRequester>()!;
         Logger = AppLogger.loggerFactory.CreateLogger<PlayerCharacter>();
+
+        List<Skill> roles = [];
+        if (characterConfig is not null)
+        {
+            foreach (var role in characterConfig.Roles)
+            {
+                var skill = SkillService.GetSkillFromName(role);
+                if (skill is not null && !roles.Exists(role => role == skill))
+                {
+                    roles.Add((Skill)skill);
+                }
+            }
+        }
+
+        Roles = roles;
 
         PlayerActionService = new PlayerActionService(
             AppLogger.loggerFactory.CreateLogger<PlayerActionService>(),
@@ -731,6 +819,22 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
+    public async Task BuyBankExpansion(string characterName)
+    {
+        var response = await ApiRequester.PostAsync(
+            $"/my/{characterName}/action/bank/buy_expansion",
+            null
+        );
+
+        var content = await response.Content.ReadAsStringAsync();
+
+        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
+            content,
+            ApiRequester.getJsonOptions()
+        )!;
+        PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+    }
+
     public async Task PreTaskHandler()
     {
         await WaitForCooldown();
@@ -748,9 +852,9 @@ public class PlayerCharacter
         }
     }
 
-    public async Task<OneOf<AppError, None>> NavigateTo(string code, ContentType contentType)
+    public async Task<OneOf<AppError, None>> NavigateTo(string code)
     {
-        return await PlayerActionService.NavigateTo(code, contentType);
+        return await PlayerActionService.NavigateTo(code);
     }
 
     public InventorySlot? GetItemFromInventory(string code)
@@ -764,6 +868,10 @@ public class PlayerCharacter
 
         foreach (var item in Schema.Inventory)
         {
+            if (string.IsNullOrEmpty(item.Code))
+            {
+                continue;
+            }
             var matchingItem = GameState.Items.FirstOrDefault(_item => _item.Code == item.Code);
 
             // If item is null, then it has been deleted from the game or something
@@ -782,6 +890,10 @@ public class PlayerCharacter
 
         foreach (var item in Schema.Inventory)
         {
+            if (string.IsNullOrEmpty(item.Code))
+            {
+                continue;
+            }
             var matchingItem = GameState.Items.FirstOrDefault(_item => _item.Code == item.Code);
 
             // If item is null, then it has been deleted from the game or something
@@ -794,11 +906,86 @@ public class PlayerCharacter
         return items;
     }
 
+    public List<InventorySlot> GetAllItemSlots()
+    {
+        List<InventorySlot> itemSlots =
+        [
+            new InventorySlot { Code = Schema.WeaponSlot, Quantity = 1 },
+            new InventorySlot { Code = Schema.RuneSlot, Quantity = 1 },
+            new InventorySlot { Code = Schema.ShieldSlot, Quantity = 1 },
+            new InventorySlot { Code = Schema.HelmetSlot, Quantity = 1 },
+            new InventorySlot { Code = Schema.BodyArmorSlot, Quantity = 1 },
+            new InventorySlot { Code = Schema.LegArmorSlot, Quantity = 1 },
+            new InventorySlot { Code = Schema.BootsSlot, Quantity = 1 },
+            new InventorySlot { Code = Schema.Ring1Slot, Quantity = 1 },
+            new InventorySlot { Code = Schema.Ring2Slot, Quantity = 1 },
+            new InventorySlot { Code = Schema.AmuletSlot, Quantity = 1 },
+            new InventorySlot { Code = Schema.Artifact1Slot, Quantity = 1 },
+            new InventorySlot { Code = Schema.Artifact2Slot, Quantity = 1 },
+            new InventorySlot { Code = Schema.Artifact3Slot, Quantity = 1 },
+            new InventorySlot
+            {
+                Code = Schema.Utility1Slot,
+                Quantity = Schema.Utility1SlotQuantity,
+            },
+            new InventorySlot
+            {
+                Code = Schema.Utility2Slot,
+                Quantity = Schema.Utility2SlotQuantity,
+            },
+            new InventorySlot { Code = Schema.BagSlot, Quantity = 1 },
+        ];
+
+        return itemSlots;
+    }
+
+    public List<InventorySlot> GetEquippedItem(string itemCode)
+    {
+        List<InventorySlot> itemSlots = [];
+
+        foreach (var slot in GetAllItemSlots())
+        {
+            if (slot.Code == itemCode)
+            {
+                itemSlots.Add(slot);
+            }
+        }
+
+        return itemSlots;
+    }
+
+    public List<(InventorySlot inventorySlot, bool isEquipped)> GetEquippedItemOrInInventory(
+        string itemCode
+    )
+    {
+        List<(InventorySlot inventorySlot, bool isEquipped)> allItems = [];
+
+        var equippedItems = GetEquippedItem(itemCode);
+
+        foreach (var item in equippedItems)
+        {
+            allItems.Add((item, true));
+        }
+
+        var itemInInventory = GetItemFromInventory(itemCode);
+
+        if (itemInInventory is not null)
+        {
+            allItems.Add((itemInInventory, false));
+        }
+
+        return allItems;
+    }
+
     public int GetInventorySpaceUsed()
     {
         int inventorySpaceUsed = 0;
         foreach (var item in Schema.Inventory)
         {
+            if (string.IsNullOrEmpty(item.Code))
+            {
+                continue;
+            }
             inventorySpaceUsed += item.Quantity;
         }
 
@@ -853,5 +1040,14 @@ public class PlayerCharacter
         }
 
         return itemSlot;
+    }
+
+    public int GetSkillLevel(string skill)
+    {
+        var prop = Schema.GetType().GetProperty((skill + "_level").FromSnakeToPascalCase());
+
+        var value = (int)prop!.GetValue(Schema)!;
+
+        return value;
     }
 }

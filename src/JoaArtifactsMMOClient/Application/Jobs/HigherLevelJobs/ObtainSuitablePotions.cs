@@ -3,7 +3,9 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
 using Application.Errors;
+using Application.Records;
 using Application.Services;
+using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
@@ -15,10 +17,18 @@ public class ObtainSuitablePotions : CharacterJob
 
     public static readonly int POTION_BATCH_SIZE = 10;
 
-    public ObtainSuitablePotions(PlayerCharacter playerCharacter, GameState gameState, int amount)
+    public MonsterSchema Monster;
+
+    public ObtainSuitablePotions(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        int amount,
+        MonsterSchema monster
+    )
         : base(playerCharacter, gameState)
     {
         _amount = amount;
+        Monster = monster;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -29,7 +39,12 @@ public class ObtainSuitablePotions : CharacterJob
 
         // If still not enough, we just go gather and cook some - be biased towards fishing, fastest way to get food
 
-        var jobs = await GetAcquirePotionJobs(Character, gameState, GetPotionsToObtain(Character));
+        var jobs = await GetAcquirePotionJobs(
+            Character,
+            gameState,
+            GetPotionsToObtain(Character),
+            Monster
+        );
 
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs - need to find {_amount} potions"
@@ -53,12 +68,13 @@ public class ObtainSuitablePotions : CharacterJob
     public static async Task<List<CharacterJob>> GetAcquirePotionJobs(
         PlayerCharacter character,
         GameState gameState,
-        int preferedAmount
+        int preferedAmount,
+        MonsterSchema monster
     )
     {
         List<(ItemSchema item, bool canCraft, int amountInBank)> potionCandidates = [];
 
-        var bankItemsResponse = await gameState.AccountRequester.GetBankItems();
+        var bankItemsResponse = await gameState.BankItemCache.GetBankItems(character);
 
         foreach (var element in gameState.UtilityItemsDict)
         {
@@ -82,8 +98,7 @@ public class ObtainSuitablePotions : CharacterJob
             int amountInBank =
                 bankItemsResponse
                     .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                    ?.Quantity
-                ?? 0;
+                    ?.Quantity ?? 0;
 
             if (!canCraftItem && amountInBank == 0)
             {
@@ -100,12 +115,38 @@ public class ObtainSuitablePotions : CharacterJob
                     .CompareTo(ItemService.GetEffect(b.item, "restore"))
         );
 
+        List<ItemInInventory> potionsForSim = [];
+
+        foreach (var candiate in potionCandidates)
+        {
+            potionsForSim.Add(
+                new ItemInInventory
+                {
+                    Item = candiate.item,
+
+                    Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+                }
+            );
+        }
+
+        var fightSim = FightSimulator.FindBestFightEquipment(
+            character,
+            gameState,
+            monster,
+            potionsForSim
+        );
+
+        potionCandidates = potionCandidates
+            .Where(candidate =>
+                fightSim.ItemsToEquip.Exists(item => item.Code == candidate.item.Code)
+            )
+            .ToList();
+
+        // There should only be two
         if (potionCandidates.Count > 2)
         {
             potionCandidates = potionCandidates.GetRange(0, 2);
         }
-
-        // var bestPotionCandidate = potionCandidates.ElementAtOrDefault(0);
 
         List<CharacterJob> resultJobs = [];
 
