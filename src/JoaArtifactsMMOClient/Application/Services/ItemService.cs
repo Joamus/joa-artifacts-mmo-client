@@ -98,7 +98,7 @@ public static class ItemService
 
             if (
                 condition.Operator == ItemConditionOperator.Gt
-                && playerLevelOfSkill < condition.Value
+                && playerLevelOfSkill <= condition.Value
             )
             {
                 return false;

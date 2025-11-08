@@ -165,8 +165,7 @@ public class PlayerActionService
 
             itemSlot = GetBestEquipmentSlotOfMultiple(itemSlotCodes, isUtility, code);
         }
-
-        if (matchingItem.Type == "ring")
+        else if (matchingItem.Type == "ring")
         {
             List<string> itemSlotCodes = new List<string>
             {
