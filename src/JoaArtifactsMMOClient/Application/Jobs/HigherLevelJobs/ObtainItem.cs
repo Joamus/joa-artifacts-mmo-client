@@ -12,15 +12,13 @@ namespace Application.Jobs;
 
 public class ObtainItem : CharacterJob
 {
-    public bool AllowUsingMaterialsFromBank { get; set; } = false;
+    public bool AllowUsingMaterialsFromBank { get; set; } = true;
 
-    public bool AllowFindingItemInBank { get; set; } = true;
     public bool AllowUsingMaterialsFromInventory { get; set; } = true;
 
     public bool CanTriggerTraining { get; set; } = true;
 
     private List<DropSchema> itemsInBank { get; set; } = [];
-    public int Amount { get; set; }
 
     protected int _progressAmount { get; set; } = 0;
 
@@ -57,6 +55,8 @@ public class ObtainItem : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to withdraw {Amount} x {Code} from the bank"
                 );
+                recipient.RemoveFromWishlist(Code, Amount);
+
                 recipient.QueueJob(
                     new WithdrawItem(recipient, gameState, Code, Amount, false),
                     true
@@ -100,11 +100,7 @@ public class ObtainItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
         );
 
-        // if (AllowFindingItemInBank)
-        // {
-        var accountRequester = gameState.AccountRequester;
-
-        var bankResult = await accountRequester.GetBankItems();
+        var bankResult = await gameState.BankItemCache.GetBankItems(Character);
 
         if (bankResult is not BankItemsResponse bankItemsResponse)
         {
@@ -308,7 +304,7 @@ public class ObtainItem : CharacterJob
 
                         if (
                             FightSimulator
-                                .CalculateFightOutcome(Character.Schema, monster)
+                                .CalculateFightOutcome(Character.Schema, monster, gameState)
                                 .ShouldFight
                         )
                         {
@@ -489,7 +485,7 @@ public class ObtainItem : CharacterJob
         List<int> iterations = [];
 
         // Adding leeway with - 1. We use max items, because we assume that the character will deposit stuff
-        int availableInventorySpace = character.Schema.InventoryMaxItems - 1;
+        int availableInventorySpace = character.Schema.InventoryMaxItems - 10;
 
         int iterationAmount = (int)
             Math.Ceiling((double)totalInventorySpaceNeeded / availableInventorySpace);

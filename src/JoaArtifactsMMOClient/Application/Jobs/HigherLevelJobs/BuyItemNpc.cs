@@ -1,7 +1,5 @@
 using Application.Character;
 using Application.Errors;
-using Application.Services;
-using Application.Services.ApiServices;
 using OneOf;
 using OneOf.Types;
 
@@ -12,7 +10,6 @@ public class BuyItemNpc : CharacterJob
     public bool AllowObtainingCurrency { get; set; } = false;
     public bool UseInventory { get; set; } = false;
     public bool UseBank { get; set; } = false;
-    readonly int amount;
 
     // public BuyItemNpc(PlayerCharacter playerCharacter, GameState gameState)
     //     : base(playerCharacter, gameState) { }
@@ -30,7 +27,7 @@ public class BuyItemNpc : CharacterJob
     {
         AllowObtainingCurrency = allowObtainingCurrency;
         Code = code;
-        this.amount = amount;
+        Amount = amount;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -55,7 +52,7 @@ public class BuyItemNpc : CharacterJob
 
         bool isGold = itemToBuy.Currency == "gold";
 
-        int amountLeft = amount * itemToBuy.BuyPrice ?? 0;
+        int amountLeft = Amount * itemToBuy.BuyPrice ?? 0;
 
         if (UseBank)
         {
@@ -70,7 +67,7 @@ public class BuyItemNpc : CharacterJob
             }
             else
             {
-                var bankResponse = await gameState.AccountRequester.GetBankItems();
+                var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
                 var itemInBank = bankResponse.Data.Find(item => item.Code == matchingCurrency.Code);
 

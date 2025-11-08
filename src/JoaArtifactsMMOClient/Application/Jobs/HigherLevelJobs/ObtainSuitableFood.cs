@@ -4,8 +4,6 @@ using Application.Character;
 using Application.Errors;
 using Application.Records;
 using Application.Services;
-using Application.Services.ApiServices;
-using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
@@ -13,18 +11,16 @@ namespace Application.Jobs;
 
 public class ObtainSuitableFood : CharacterJob
 {
-    private readonly int _amount;
-
     public ObtainSuitableFood(PlayerCharacter playerCharacter, GameState gameState, int amount)
         : base(playerCharacter, gameState)
     {
-        _amount = amount;
+        Amount = amount;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation(
-            $"{JobName} run started - for {Character.Schema.Name} - need to find {_amount} food"
+            $"{JobName} run started - for {Character.Schema.Name} - need to find {Amount} food"
         );
         // Look in bank if we have any that is usable, just take the lowest level food, so we can clean out
         // If we have don't have enough, take uncooked food (if you can cook it), and cook it
@@ -41,7 +37,7 @@ public class ObtainSuitableFood : CharacterJob
                 return jobError;
             case List<CharacterJob> jobs:
                 logger.LogInformation(
-                    $"{JobName} found {jobs.Count} jobs for {Character.Schema.Name} - need to find {_amount} food"
+                    $"{JobName} found {jobs.Count} jobs for {Character.Schema.Name} - need to find {Amount} food"
                 );
                 Character.QueueJobsAfter(Id, jobs);
                 break;
@@ -52,9 +48,7 @@ public class ObtainSuitableFood : CharacterJob
 
     private async Task<OneOf<AppError, List<CharacterJob>>> GetJobsToObtainFood()
     {
-        var accountRequester = gameState.AccountRequester;
-
-        var result = await accountRequester.GetBankItems();
+        var result = await gameState.BankItemCache.GetBankItems(Character);
 
         if (result is not BankItemsResponse bankItemsResponse)
         {
@@ -79,7 +73,7 @@ public class ObtainSuitableFood : CharacterJob
             jobs.Add(job);
         }
 
-        if (amountFound >= _amount)
+        if (amountFound >= Amount)
         {
             return jobs;
         }
@@ -113,19 +107,19 @@ public class ObtainSuitableFood : CharacterJob
 
         foreach (var item in foodCandidates)
         {
-            int amountToTake = Math.Min(_amount - amountFound, item.Quantity);
+            int amountToTake = Math.Min(Amount - amountFound, item.Quantity);
 
             jobs.Add(new WithdrawItem(Character, gameState, item.Item.Code, amountToTake));
 
-            amountFound += Math.Min(_amount - amountFound, item.Quantity);
+            amountFound += Math.Min(Amount - amountFound, item.Quantity);
 
-            if (amountFound >= _amount)
+            if (amountFound >= Amount)
             {
                 break;
             }
         }
 
-        if (amountFound < _amount)
+        if (amountFound < Amount)
         {
             var jobsToCookFromBank = ItemService
                 .GetFoodToCookFromInventoryList(Character, gameState, result.Data)
@@ -140,7 +134,7 @@ public class ObtainSuitableFood : CharacterJob
 
             foreach (var job in jobsToCookFromBank)
             {
-                int amountStillNeeded = Math.Min(_amount - amountFound, job.Amount);
+                int amountStillNeeded = Math.Min(Amount - amountFound, job.Amount);
                 job.Amount = amountStillNeeded;
 
                 amountFound += amountStillNeeded;
@@ -149,13 +143,13 @@ public class ObtainSuitableFood : CharacterJob
 
                 job.AllowUsingMaterialsFromBank = true;
 
-                if (amountFound >= _amount)
+                if (amountFound >= Amount)
                 {
                     break;
                 }
             }
 
-            if (amountFound >= _amount)
+            if (amountFound >= Amount)
             {
                 return jobs;
             }
@@ -170,7 +164,7 @@ public class ObtainSuitableFood : CharacterJob
                 Character,
                 gameState,
                 mostSuitableFood.Code,
-                _amount - amountFound
+                Amount - amountFound
             );
 
             jobs.Add(obtainJob);

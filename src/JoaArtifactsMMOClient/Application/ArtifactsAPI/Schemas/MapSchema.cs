@@ -1,8 +1,3 @@
-using System.Diagnostics;
-using System.Security.AccessControl;
-using System.Text.Json.Serialization;
-using System.Xml.Serialization;
-
 namespace Application.ArtifactsApi.Schemas;
 
 public record MapSchema

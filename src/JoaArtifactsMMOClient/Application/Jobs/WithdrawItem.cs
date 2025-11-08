@@ -2,10 +2,7 @@ using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
-using Application.Services;
-using Application.Services.ApiServices;
 using Applicaton.Jobs;
-using Microsoft.AspNetCore.SignalR;
 using OneOf;
 using OneOf.Types;
 
@@ -17,7 +14,6 @@ namespace Application.Jobs;
 public class WithdrawItem : CharacterJob
 {
     public bool CanTriggerObtain { get; set; }
-    private int _amount { get; set; }
 
     public WithdrawItem(
         PlayerCharacter character,
@@ -29,15 +25,16 @@ public class WithdrawItem : CharacterJob
         : base(character, gameState)
     {
         Code = code;
-        _amount = amount;
+        Amount = amount;
         CanTriggerObtain = canTriggerObtain;
+
+        // Reserve when we create this job - less chance of collision
+        gameState.BankItemCache.ReserveItem(character, code, amount);
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var accountRequester = gameState.AccountRequester;
-
-        var result = await accountRequester.GetBankItems();
+        var result = await gameState.BankItemCache.GetBankItems(Character);
 
         if (result is not BankItemsResponse bankItemsResponse)
         {
@@ -50,7 +47,7 @@ public class WithdrawItem : CharacterJob
 
         if (matchingItemInBank is not null)
         {
-            foundQuantity = Math.Min(_amount, matchingItemInBank.Quantity);
+            foundQuantity = Math.Min(Amount, matchingItemInBank.Quantity);
         }
 
         if (Character.GetInventorySpaceLeft() < foundQuantity)
@@ -62,13 +59,14 @@ public class WithdrawItem : CharacterJob
 
         if (foundQuantity > 0)
         {
-            await Character.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
+            await Character.NavigateTo("bank");
             var withdrawResult = await Character.WithdrawBankItem(
                 [new WithdrawOrDepositItemRequest { Code = Code!, Quantity = foundQuantity }]
             );
             // There can be a clash
             if (withdrawResult.Value is None)
             {
+                gameState.BankItemCache.RemoveReservation(Character, Code, foundQuantity);
                 return new None();
             }
         }
@@ -78,7 +76,7 @@ public class WithdrawItem : CharacterJob
             logger.LogWarning(
                 $"{JobName}: [{Character.Schema.Name}]: Triggering obtain - found quantity of {Code} was {foundQuantity}"
             );
-            var job = new ObtainItem(Character, gameState, Code, _amount);
+            var job = new ObtainItem(Character, gameState, Code, Amount);
             job.AllowUsingMaterialsFromBank = true;
 
             Character.QueueJobsAfter(Id, [job]);

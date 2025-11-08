@@ -30,7 +30,10 @@ public class CookEverythingInInventory : CharacterJob
 
         foreach (var item in Character.Schema.Inventory)
         {
-            ingredients.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
+            if (!string.IsNullOrEmpty(item.Code))
+            {
+                ingredients.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
+            }
         }
 
         var jobs = ItemService

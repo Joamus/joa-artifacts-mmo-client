@@ -1,9 +1,5 @@
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
-using Application.Services;
-using Application.Services.ApiServices;
-using Applicaton.Jobs;
 using OneOf;
 using OneOf.Types;
 
@@ -15,12 +11,11 @@ namespace Application.Jobs;
 public class WithdrawGold : CharacterJob
 {
     private readonly bool _canTriggerObtain = false;
-    private int _amount { get; set; }
 
     public WithdrawGold(PlayerCharacter character, GameState gameState, int amount)
         : base(character, gameState)
     {
-        _amount = amount;
+        Amount = amount;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -31,7 +26,7 @@ public class WithdrawGold : CharacterJob
 
         if (goldInBank > 0)
         {
-            await Character.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
+            await Character.NavigateTo("bank");
 
             await Character.WithdrawBankGold(goldInBank);
         }

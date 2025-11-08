@@ -1,4 +1,3 @@
-using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
 using Applicaton.Services.FightSimulator;
@@ -52,23 +51,27 @@ public class TrainCombat : CharacterJob
 
         if (PlayerLevel < untilLevel)
         {
-            var result = await GetJobRequired(PlayerLevel);
+            var result = await GetJobRequired(Character, gameState, PlayerLevel);
 
-            switch (result.Value)
+            if (result is null)
             {
-                case CharacterJob job:
-                    Character.QueueJobsBefore(Id, [job]);
-                    Status = JobStatus.Suspend;
-                    break;
-                case AppError error:
-                    return error;
+                return new AppError(
+                    $"TrainCombat.GetJobRequired: [{Character.Schema.Name}]: error - no monster candidates to fight that give XP."
+                );
             }
+
+            Character.QueueJobsBefore(Id, [result]);
+            Status = JobStatus.Suspend;
         }
 
         return new None();
     }
 
-    public async Task<OneOf<AppError, CharacterJob>> GetJobRequired(int playerLevel)
+    public static async Task<FightMonster?> GetJobRequired(
+        PlayerCharacter character,
+        GameState gameState,
+        int playerLevel
+    )
     {
         OutcomeCandidate? bestMonsterCandidate = null;
 
@@ -83,7 +86,7 @@ public class TrainCombat : CharacterJob
             int levelDifference = playerLevel - monster.Level;
 
             var outcome = FightSimulator.CalculateFightOutcomeWithBestEquipment(
-                Character,
+                character,
                 monster,
                 gameState
             );
@@ -121,13 +124,14 @@ public class TrainCombat : CharacterJob
 
         if (bestMonsterCandidate is null)
         {
-            return new AppError(
-                $"{JobName}: [{Character.Schema.Name}]: error - no monste candidates to fight that give XP."
-            );
+            // return new AppError(
+            //     $"TrainCombat.GetJobRequired: [{character.Schema.Name}]: error - no monster candidates to fight that give XP."
+            // );
+            return null;
         }
 
         return new FightMonster(
-            Character,
+            character,
             gameState,
             bestMonsterCandidate.MonsterCode,
             AMOUNT_TO_KILL

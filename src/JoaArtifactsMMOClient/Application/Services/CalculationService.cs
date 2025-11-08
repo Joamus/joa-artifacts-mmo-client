@@ -63,15 +63,4 @@ public static class CalculationService
             }
         );
     }
-
-    public static bool IsItemBetter(ItemSchema? a, ItemSchema b)
-    {
-        // TODO: IMPL
-        if (a is null)
-        {
-            return true;
-        }
-
-        return false;
-    }
 }

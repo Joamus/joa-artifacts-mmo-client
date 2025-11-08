@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace Application.ArtifactsApi.Schemas;
 
 public record NpcSchema

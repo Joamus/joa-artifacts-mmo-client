@@ -8,8 +8,6 @@ namespace Application.Jobs;
 
 public class DepositItems : CharacterJob
 {
-    public int _amount { get; init; }
-
     public bool DontFailIfItemNotThere { get; set; } = false;
 
     public DepositItems(
@@ -21,29 +19,29 @@ public class DepositItems : CharacterJob
         : base(playerCharacter, gameState)
     {
         Code = code;
-        _amount = amount;
+        Amount = amount;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         var amountInInventory = Character.GetItemFromInventory(Code)?.Quantity ?? 0;
 
-        if (amountInInventory < _amount)
+        if (amountInInventory < Amount)
         {
             var errorMessage =
-                $"{JobName}: [{Character.Schema.Name}]: Only found {amountInInventory} of {_amount} x {Code} in inventory";
+                $"{JobName}: [{Character.Schema.Name}]: Only found {amountInInventory} of {Amount} x {Code} in inventory";
 
             logger.LogWarning(errorMessage);
 
             if (amountInInventory == 0 && !DontFailIfItemNotThere)
             {
                 return new AppError(
-                    $"Could not deposit item(s) with code {Code} and amount {_amount} - could not find it in inventory"
+                    $"Could not deposit item(s) with code {Code} and amount {Amount} - could not find it in inventory"
                 );
             }
         }
 
-        await Character.NavigateTo("bank", ArtifactsApi.Schemas.ContentType.Bank);
+        await Character.NavigateTo("bank");
 
         // TODO: Handle that bank might be full
 
@@ -54,7 +52,7 @@ public class DepositItems : CharacterJob
                     new WithdrawOrDepositItemRequest
                     {
                         Code = Code!,
-                        Quantity = Math.Min(_amount, amountInInventory),
+                        Quantity = Math.Min(Amount, amountInInventory),
                     },
                 ]
             );
