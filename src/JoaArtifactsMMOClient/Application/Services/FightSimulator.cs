@@ -26,6 +26,8 @@ public class FightSimulator
             new EquipmentTypeMapping { ItemType = "ring", Slot = "Ring2Slot" },
             new EquipmentTypeMapping { ItemType = "amulet", Slot = "AmuletSlot" },
             new EquipmentTypeMapping { ItemType = "shield", Slot = "ShieldSlot" },
+            new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility1Slot" },
+            new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility2Slot" },
         };
 
     // We assume that monsters will crit more often than us, just to ensure that we don't take on fights too often, that we will probably not win.
@@ -434,7 +436,7 @@ public class FightSimulator
 
         foreach (var equipmentType in tempEquipmentTypes)
         {
-            if (equipmentType.ItemType == "ring")
+            if (equipmentType.ItemType == "utility")
             {
                 potionEquipmentTypes.Add(equipmentType);
             }
@@ -474,6 +476,17 @@ public class FightSimulator
             .Where(item => item.Item.Type == "weapon" && item.Item.Subtype != "tool")
             .ToList();
 
+        if (!string.IsNullOrWhiteSpace(initialSchema.WeaponSlot))
+        {
+            weapons.Add(
+                new ItemInInventory
+                {
+                    Item = gameState.ItemsDict[initialSchema.WeaponSlot],
+                    Quantity = 1,
+                }
+            );
+        }
+
         List<FightSimResult> allCandidates = [];
 
         allCandidates.Add(
@@ -507,14 +520,17 @@ public class FightSimulator
 
             List<EquipmentSlot> itemsToEquip = [];
 
-            itemsToEquip.Add(
-                new EquipmentSlot
-                {
-                    Code = weapon.Item.Code,
-                    Quantity = 1,
-                    Slot = "weapon",
-                }
-            );
+            if (weapon.Item.Code != initialWeaponCode)
+            {
+                itemsToEquip.Add(
+                    new EquipmentSlot
+                    {
+                        Code = weapon.Item.Code,
+                        Quantity = 1,
+                        Slot = "weapon",
+                    }
+                );
+            }
 
             var bestFightSimResult = new FightSimResult
             {
@@ -532,11 +548,16 @@ public class FightSimulator
                     allItems,
                     equipmentTypeMapping,
                     bestFightSimResult
+                // bestFightSimResult with
+                // { }
                 );
 
                 bestSchemaCandiateWithWeapon = result.Schema;
                 bestFightOutcomeWithWeapon = result.Outcome;
                 itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
+
+                // bestFightSimResult = result;
+                // bestFightSimResult.ItemsToEquip = itemsToEquip;
             }
 
             // Sim potions afterwards
@@ -548,13 +569,33 @@ public class FightSimulator
                     monster,
                     allItems,
                     equipmentTypeMapping,
-                    bestFightSimResult
+                    /**
+                        This is kinda hacky, but we do this because we want the second time running,
+                        to know which potion we put in Util1
+                    **/
+                    new FightSimResult
+                    {
+                        Schema = bestSchemaCandiateWithWeapon,
+                        Outcome = bestFightOutcomeWithWeapon,
+                        ItemsToEquip = itemsToEquip,
+                    }
+                // bestFightSimResult
+                // bestFightSimResult with
+                // { }
                 );
 
                 bestSchemaCandiateWithWeapon = result.Schema;
                 bestFightOutcomeWithWeapon = result.Outcome;
                 itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
+
+                // bestFightSimResult = result;
+                // bestFightSimResult.ItemsToEquip = itemsToEquip;
+
+                // bestSchemaCandiateWithWeapon = result.Schema;
+                // bestFightOutcomeWithWeapon = result.Outcome;
+                // itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
             }
+
             allCandidates.Add(
                 new FightSimResult
                 {
@@ -562,6 +603,7 @@ public class FightSimulator
                     Outcome = bestFightOutcomeWithWeapon,
                     ItemsToEquip = itemsToEquip,
                 }
+            // bestFightSimResult
             );
         }
 
@@ -580,14 +622,14 @@ public class FightSimulator
     )
     {
         /*
-          This might not be the most optimal, but basically we go through each item type one by one, and find the best fit for every item to equip.
-          There are definitely cases we don't handle super well by doing this, because the characer might have a fire weapon, that will be better
-          with a specific armor set, because it gives more fire damage, but we will never consider that scenario, because the fire weapon might be
-          disqualified in the "weapon" round, because it's not the best item.
-          
-          I think a good middleway is to always calculate all weapons, but for each weapon just find the best of each candidate.
-          That means we don't loop through all possible combinations of all items, but we find the best equipment set with each item,
-          which can handle that the air weapon might be best with the +air dmg set.
+        This might not be the most optimal, but basically we go through each item type one by one, and find the best fit for every item to equip.
+        There are definitely cases we don't handle super well by doing this, because the characer might have a fire weapon, that will be better
+        with a specific armor set, because it gives more fire damage, but we will never consider that scenario, because the fire weapon might be
+        disqualified in the "weapon" round, because it's not the best item.
+        
+        I think a good middleway is to always calculate all weapons, but for each weapon just find the best of each candidate.
+        That means we don't loop through all possible combinations of all items, but we find the best equipment set with each item,
+        which can handle that the air weapon might be best with the +air dmg set.
         */
 
         var bestSchemaCandiate = originalResult.Schema with
@@ -659,7 +701,9 @@ public class FightSimulator
             if (item.Item.Type == "utility" || item.Item.Type == "rune")
             {
                 string otherItemSlot =
-                    equipmentSlot == "Utility1Slot" ? "Utility2Slot" : "Utility1Slot";
+                    equipmentSlot == "Utility1Slot"
+                        ? bestSchemaCandiate.Utility2Slot
+                        : bestSchemaCandiate.Utility1Slot;
 
                 if (
                     ItemService.ArePotionEffectsOverlapping(
@@ -698,7 +742,7 @@ public class FightSimulator
                 bestFightOutcome = fightOutcome;
                 bestItemCandidate = item.Item;
                 bestSchemaCandiate = characterSchema;
-                bestItemAmount = item.Item.Subtype == "utility" ? item.Quantity : 1;
+                bestItemAmount = item.Item.Type == "utility" ? item.Quantity : 1;
             }
         }
 

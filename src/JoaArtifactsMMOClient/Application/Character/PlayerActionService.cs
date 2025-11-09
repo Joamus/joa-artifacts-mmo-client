@@ -295,7 +295,7 @@ public class PlayerActionService
         // For utility items
         if (amount is not null && newItem.Type == "utility")
         {
-            type.GetProperty(itemSlot + "_quantity")!.SetValue(schemaWithNewItem, amount);
+            type.GetProperty(itemSlot + "Quantity")!.SetValue(schemaWithNewItem, amount);
         }
 
         if (schemaWithNewItem.MaxHp < schemaWithNewItem.Hp)
@@ -461,7 +461,17 @@ public class PlayerActionService
         MonsterSchema monster
     )
     {
-        var bestFightItems = await ItemService.GetBestFightItems(character, gameState, monster);
+        var itemsWithoutPotions = gameState
+            .Items.FindAll(item => item.Type != "utility")
+            .Select(item => new InventorySlot { Code = item.Code, Quantity = 1 })
+            .ToList();
+
+        var bestFightItems = await ItemService.GetBestFightItems(
+            character,
+            gameState,
+            monster,
+            itemsWithoutPotions
+        );
 
         List<CharacterJob> jobs = [];
 
@@ -485,9 +495,7 @@ public class PlayerActionService
                 return null;
             }
 
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(
-                itemInInventory!.Value.inventorySlot.Code
-            )!;
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
             if (matchingItem.Craft is null) { }
 
@@ -496,16 +504,14 @@ public class PlayerActionService
                 continue;
             }
 
-            string itemCode = itemInInventory!.Value.inventorySlot.Code;
-            int itemAmount = itemInInventory!.Value.inventorySlot.Quantity;
             // Find crafter
             Logger.LogInformation(
-                $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Job found - acquire {itemAmount} x {itemCode} for fighting"
+                $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Job found - acquire {item.Code} x {1} for fighting"
             );
 
-            character.AddToWishlist(itemCode, itemAmount);
+            character.AddToWishlist(item.Code, 1);
 
-            jobs.Add(new ObtainOrFindItem(character, gameState, itemCode, itemAmount));
+            jobs.Add(new ObtainOrFindItem(character, gameState, item.Code, 1));
         }
 
         return jobs;

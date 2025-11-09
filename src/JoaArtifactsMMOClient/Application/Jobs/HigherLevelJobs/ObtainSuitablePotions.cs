@@ -79,12 +79,6 @@ public class ObtainSuitablePotions : CharacterJob
         foreach (var element in gameState.UtilityItemsDict)
         {
             var item = element.Value;
-            int restoreEffect = ItemService.GetEffect(item, "restore");
-
-            if (restoreEffect == 0)
-            {
-                continue;
-            }
 
             if (!ItemService.CanUseItem(item, character.Schema))
             {
@@ -134,6 +128,11 @@ public class ObtainSuitablePotions : CharacterJob
             gameState,
             monster,
             potionsForSim
+        );
+        var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(fightSim.Schema, monster);
+
+        potionsForSim = potionsForSim.FindAll(potion =>
+            !potion.Item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
         );
 
         potionCandidates = potionCandidates

@@ -2,8 +2,6 @@ namespace Application.ArtifactsApi.Schemas;
 
 public record InventorySlot
 {
-    public int Slot { get; set; }
-
     public string Code { get; set; } = "";
 
     public int Quantity { get; set; }

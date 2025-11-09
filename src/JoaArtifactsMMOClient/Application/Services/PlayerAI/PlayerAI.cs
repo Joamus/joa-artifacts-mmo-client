@@ -46,19 +46,16 @@ public class PlayerAI
         logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Start"
         );
-        var itemTaskAchievement = gameState.AccountAchievements.FirstOrDefault(achiev =>
-            achiev.Code == "tasks_farmer" && achiev.CompletedAt is not null
-        );
+        var hasDoneItemTask =
+            gameState.AccountAchievements.FirstOrDefault(achiev =>
+                achiev.Code == "tasks_farmer" && achiev.CompletedAt is not null
+            )
+                is not null;
         // Evaluate if tools are up to date
 
-        var bestTools = ItemService.GetBestTools(
-            Character,
-            gameState,
-            null,
-            itemTaskAchievement is null ? false : true
-        );
+        var bestTools = ItemService.GetBestTools(Character, gameState, null, hasDoneItemTask);
 
-        if (itemTaskAchievement is null)
+        if (!hasDoneItemTask)
         {
             logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Tasks farmer achievement is not completed yet - evaluating best tools, which don't require task materials"
@@ -109,7 +106,7 @@ public class PlayerAI
         }
 
         // Highest prio is completing this achievement, else all task items are locked.
-        if (itemTaskAchievement is null)
+        if (!hasDoneItemTask)
         {
             if (Character.Schema.TaskType == TaskType.monsters.ToString())
             {
@@ -125,6 +122,19 @@ public class PlayerAI
                     logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do monster task ({monster.Code})"
                     );
+
+                    var jobs = await GetJobsToFightMonster(monster);
+
+                    if (jobs.Count > 0)
+                    {
+                        var nextJob = jobs[0];
+
+                        logger.LogInformation(
+                            $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                        );
+                        // Do the first job in the list, we only do one thing at a time
+                        return nextJob;
+                    }
                     return new MonsterTask(Character, gameState);
                 }
                 else
@@ -142,10 +152,6 @@ public class PlayerAI
                 return new ItemTask(Character, gameState);
             }
         }
-
-        logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Evaluating whether I should get better fight equipment"
-        );
 
         if (Character.Schema.AlchemyLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
         {
@@ -259,9 +265,13 @@ public class PlayerAI
                     logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Cannot handle all potential monster tasks - fighting  {fightMonster.Amount} x {fightMonster.Code}"
                     );
-                    var jobs = await GetJobsToFightMonster(fightMonster);
+                    var jobs = await GetJobsToFightMonster(
+                        gameState.Monsters.FirstOrDefault(monster =>
+                            monster.Code == fightMonster.Code
+                        )!
+                    );
 
-                    if (jobs is not null)
+                    if (jobs.Count > 0)
                     {
                         var nextJob = jobs[0];
 
@@ -316,23 +326,13 @@ public class PlayerAI
         return true;
     }
 
-    async Task<List<CharacterJob>> GetJobsToFightMonster(FightMonster fightMonster)
+    // async Task<List<CharacterJob>> GetJobsToFightMonster(FightMonster fightMonster)
+    async Task<List<CharacterJob>> GetJobsToFightMonster(MonsterSchema monster)
     {
-        var matchingMonster = gameState.Monsters.FirstOrDefault(monster =>
-            monster.Code == fightMonster.Code
-        );
-
-        if (matchingMonster is null)
-        {
-            throw new AppError(
-                $"Monster with code {fightMonster.Code} could not be found in gameState.Monsters"
-            );
-        }
-
         var jobsToGetItems = await Character.PlayerActionService.GetJobsToGetItemsToFightMonster(
             Character,
             gameState,
-            matchingMonster
+            monster
         );
 
         if (jobsToGetItems is null)
@@ -340,7 +340,7 @@ public class PlayerAI
             return [];
         }
 
-        jobsToGetItems.Append(fightMonster);
+        // jobsToGetItems.Append(fightMonster);
 
         return jobsToGetItems;
     }

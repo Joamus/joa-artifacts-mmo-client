@@ -431,24 +431,47 @@ public class FightMonster : CharacterJob
             }
         }
 
-        bool equippedItem = false;
+        bool equippedSlot1 = false;
+        bool equippedSlot2 = false;
 
         if (slot1Equip is not null)
         {
-            equippedItem = true;
+            equippedSlot1 = true;
 
             await Character.EquipItem(slot1Equip, "utility1", slot1EquipAmount);
         }
         if (slot2Equip is not null)
         {
-            equippedItem = true;
+            equippedSlot2 = true;
 
             await Character.EquipItem(slot2Equip, "utility2", slot2EquipAmount);
         }
 
-        if (equippedItem)
+        if (!equippedSlot1 || !equippedSlot2)
         {
-            return false;
+            // We still have a slot available
+
+            int amountOfPossiblePotionsWeCanUse = gameState
+                .Items.Where(item =>
+                    item.Type == "utility" && ItemService.CanUseItem(item, Character.Schema)
+                )
+                .Count();
+
+            int amountUnusedSlots = 0;
+
+            if (!equippedSlot1)
+            {
+                amountUnusedSlots++;
+            }
+            if (!equippedSlot2)
+            {
+                amountUnusedSlots++;
+            }
+
+            if (amountUnusedSlots > amountOfPossiblePotionsWeCanUse)
+            {
+                return false;
+            }
         }
 
         return true;

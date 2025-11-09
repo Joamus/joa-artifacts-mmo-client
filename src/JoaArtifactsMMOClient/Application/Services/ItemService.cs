@@ -375,14 +375,14 @@ public static class ItemService
 
         foreach (var item in allItemCandidates)
         {
-            if (!EquipmentItemTypes.Contains(item.Code))
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+            if (matchingItem.Subtype == "tool")
             {
                 continue;
             }
 
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
-
-            if (matchingItem.Subtype == "tool")
+            if (!EquipmentItemTypes.Contains(matchingItem.Type))
             {
                 continue;
             }
