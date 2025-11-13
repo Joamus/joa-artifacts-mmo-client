@@ -112,7 +112,7 @@ public class ItemTask : CharacterJob
             // We queue the job to gather and deposit it before the current job, so we essentially loop this until we are done
             // For now, DepositUnneededItems should also take into account to give things to the tasks master, as a fallback.
 
-            int amountInInventory = Character.GetItemFromInventory(Code)?.Quantity ?? 0;
+            int amountInInventory = Character.GetItemFromInventory(itemCode)?.Quantity ?? 0;
 
             int amountToObtain = Math.Min(Character.GetInventorySpaceLeft() - 1, remainingToGather);
 
@@ -161,7 +161,7 @@ public class ItemTask : CharacterJob
 
                 foreach (var iterationAmount in iterations)
                 {
-                    var job = new ObtainItem(
+                    var job = new ObtainOrFindItem(
                         Character,
                         gameState,
                         Character.Schema.Task,

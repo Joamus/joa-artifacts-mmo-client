@@ -27,7 +27,7 @@ public class PlayerCharacter
     public static readonly int PREFERED_FOOD_LEVEL_DIFFERENCE = 5;
 
     // If on cooldown, but not expected, just wait 5 seconds
-    public CharacterSchema Schema { get; private set; }
+    public CharacterSchema Schema { get; set; }
 
     public CooldownSchema? Cooldown { get; private set; } = null;
 
@@ -370,14 +370,27 @@ public class PlayerCharacter
         return new None();
     }
 
-    public PlayerCharacter(CharacterSchema characterSchema, CharacterConfig? characterConfig)
+    public PlayerCharacter(
+        CharacterSchema characterSchema,
+        GameState gameState,
+        ApiRequester apiRequester,
+        CharacterConfig? characterConfig
+    )
     {
         Schema = characterSchema;
-        GameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
-        ApiRequester = GameServiceProvider.GetInstance().GetService<ApiRequester>()!;
+        GameState = gameState;
+        ApiRequester = apiRequester;
         Logger = AppLogger.loggerFactory.CreateLogger<PlayerCharacter>();
 
-        List<Skill> roles = [];
+        List<Skill> roles =
+        [
+            Skill.Cooking,
+            Skill.Alchemy,
+            Skill.Mining,
+            Skill.Woodcutting,
+            Skill.Fishing,
+        ];
+
         if (characterConfig is not null)
         {
             foreach (var role in characterConfig.Roles)

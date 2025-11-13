@@ -220,7 +220,6 @@ public class ObtainItem : CharacterJob
         if (matchingItem.Craft is not null)
         {
             // if the total ingredients of the items is higher than 60
-            //
 
             int totalIngredientsForCrafting = 0;
 
@@ -484,8 +483,8 @@ public class ObtainItem : CharacterJob
 
         List<int> iterations = [];
 
-        // Adding leeway with - 1. We use max items, because we assume that the character will deposit stuff
-        int availableInventorySpace = character.Schema.InventoryMaxItems - 10;
+        // Adding leeway with - 10. We use max items, because we assume that the character will deposit stuff
+        int availableInventorySpace = character.GetInventorySpaceLeft() - 5;
 
         int iterationAmount = (int)
             Math.Ceiling((double)totalInventorySpaceNeeded / availableInventorySpace);

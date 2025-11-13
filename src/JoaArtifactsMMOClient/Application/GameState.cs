@@ -11,7 +11,7 @@ namespace Application;
 public class GameState
 {
     public AccountRequester AccountRequester { get; init; }
-    readonly ApiRequester _apiRequester;
+    readonly ApiRequester apiRequester;
 
     DateTime cacheReload = DateTime.UtcNow;
 
@@ -43,7 +43,7 @@ public class GameState
     public GameState(AccountRequester accountRequester, ApiRequester apiRequester)
     {
         AccountRequester = accountRequester;
-        _apiRequester = apiRequester;
+        this.apiRequester = apiRequester;
         logger = AppLogger.loggerFactory.CreateLogger<GameState>();
         BankItemCache = new BankItemCache(accountRequester);
     }
@@ -99,7 +99,12 @@ public class GameState
             var matchingConfig = characterConfigs.FirstOrDefault(config =>
                 config.Name == characterSchema.Name
             );
-            var character = new PlayerCharacter(characterSchema, matchingConfig);
+            var character = new PlayerCharacter(
+                characterSchema,
+                this,
+                apiRequester,
+                matchingConfig
+            );
             characters.Add(character);
             characterAIs.Add(new PlayerAI(character, this, matchingConfig?.AI ?? true));
         }

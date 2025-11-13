@@ -447,10 +447,17 @@ public static class ItemService
 
         foreach (var item in result.ItemsToEquip)
         {
-            relevantItemsDict.Add(
-                item.Code,
-                new DropSchema { Code = item.Code, Quantity = item.Quantity }
-            );
+            if (!relevantItemsDict.ContainsKey(item.Code))
+            {
+                relevantItemsDict.Add(
+                    item.Code,
+                    new DropSchema { Code = item.Code, Quantity = item.Quantity }
+                );
+            }
+            else
+            {
+                relevantItemsDict[item.Code].Quantity += item.Quantity;
+            }
         }
 
         // We don't care if we win or not, we just want to get the best outcome

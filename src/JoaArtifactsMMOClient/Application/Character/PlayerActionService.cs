@@ -1,3 +1,4 @@
+using System.Numerics;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Errors;
@@ -461,16 +462,65 @@ public class PlayerActionService
         MonsterSchema monster
     )
     {
-        var itemsWithoutPotions = gameState
-            .Items.FindAll(item => item.Type != "utility")
-            .Select(item => new InventorySlot { Code = item.Code, Quantity = 1 })
-            .ToList();
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character, false);
+
+        var bankItemDict = new Dictionary<string, DropSchema>();
+
+        foreach (var item in bankItems.Data)
+        {
+            // Cloning for changing the quantity
+            bankItemDict.Add(item.Code, item with { });
+        }
+
+        List<ItemSchema> itemsWithoutPotions = [];
+
+        foreach (var item in gameState.Items)
+        {
+            if (!ItemService.EquipmentItemTypes.Contains(item.Type))
+            {
+                continue;
+            }
+
+            if (!ItemService.CanUseItem(item, character.Schema))
+            {
+                continue;
+            }
+
+            if (character.ExistsInWishlist(item.Code))
+            {
+                Logger.LogInformation(
+                    $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining fight items - {item.Code} is already in wish list, so we should wait until obtaining more"
+                );
+                return null;
+            }
+
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+            var quantityInBank = bankItemDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
+
+            if (matchingItem.Craft is null && quantityInBank <= 0)
+            {
+                continue;
+            }
+
+            if (
+                !await character.PlayerActionService.CanObtainItem(matchingItem)
+                && quantityInBank <= 0
+            )
+            {
+                continue;
+            }
+
+            itemsWithoutPotions.Add(item);
+        }
 
         var bestFightItems = await ItemService.GetBestFightItems(
             character,
             gameState,
             monster,
             itemsWithoutPotions
+                .Select(item => new InventorySlot { Code = item.Code, Quantity = 1 })
+                .ToList()
         );
 
         List<CharacterJob> jobs = [];
@@ -487,21 +537,21 @@ public class PlayerActionService
                 continue;
             }
 
+            var matchInBank = bankItemDict.GetValueOrNull(item.Code);
+
+            if (matchInBank is not null)
+            {
+                jobs.Add(new ObtainOrFindItem(character, gameState, item.Code, 1));
+                matchInBank.Quantity--;
+                continue;
+            }
+
             if (character.ExistsInWishlist(item.Code))
             {
                 Logger.LogInformation(
                     $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining fight items - {item.Code} is already in wish list, so we should wait until obtaining more"
                 );
                 return null;
-            }
-
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
-
-            if (matchingItem.Craft is null) { }
-
-            if (!await character.PlayerActionService.CanObtainItem(matchingItem))
-            {
-                continue;
             }
 
             // Find crafter
