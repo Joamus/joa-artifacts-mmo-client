@@ -219,7 +219,7 @@ public class GatherMaterialsForItem : CharacterJob
         }
         else if (Crafter is not null)
         {
-            var jobBeforeCraft = jobs.Last();
+            var jobBeforeCraft = jobs.Count > 0 ? jobs.Last() : null;
             SetupMakeCharacterCraftEvents(Crafter, jobBeforeCraft, craftJob);
         }
 

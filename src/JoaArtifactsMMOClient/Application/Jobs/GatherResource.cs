@@ -77,7 +77,7 @@ public class GatherResourceItem : CharacterJob
 
         while (ProgressAmount < Amount)
         {
-            if (DepositUnneededItems.ShouldInitDepositItems(Character))
+            if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
             {
                 Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
                 Status = JobStatus.Suspend;

@@ -125,7 +125,7 @@ public class ObtainSuitableFood : CharacterJob
                 .GetFoodToCookFromInventoryList(Character, gameState, result.Data)
                 .Select(item =>
                 {
-                    var job = new ObtainItem(Character, gameState, item.Code, item.Quantity);
+                    var job = new ObtainOrFindItem(Character, gameState, item.Code, item.Quantity);
                     job.AllowUsingMaterialsFromBank = true;
 
                     return job;
@@ -160,7 +160,7 @@ public class ObtainSuitableFood : CharacterJob
             }
             var mostSuitableFood = GetMostSuitableFood();
 
-            var obtainJob = new ObtainItem(
+            var obtainJob = new ObtainOrFindItem(
                 Character,
                 gameState,
                 mostSuitableFood.Code,

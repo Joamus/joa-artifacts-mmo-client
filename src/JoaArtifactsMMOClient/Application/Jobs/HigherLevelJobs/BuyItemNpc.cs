@@ -105,7 +105,9 @@ public class BuyItemNpc : CharacterJob
             }
             else
             {
-                jobs.Add(new ObtainItem(Character, gameState, matchingCurrency.Code, amountLeft));
+                jobs.Add(
+                    new ObtainOrFindItem(Character, gameState, matchingCurrency.Code, amountLeft)
+                );
 
                 Character.QueueJobsBefore(Id, jobs);
                 Status = JobStatus.Suspend;
@@ -115,8 +117,11 @@ public class BuyItemNpc : CharacterJob
 
         if (amountLeft > 0)
         {
-            // handle that we cannot get all of it?
+            return new AppError(
+                $"{JobName}: [{Character.Schema.Name}] Still have {amountLeft} x {matchingCurrency.Code} left to find when buying item"
+            );
         }
+        await Character.NpcBuyItem(itemToBuy.Code, Amount);
 
         return new None();
     }

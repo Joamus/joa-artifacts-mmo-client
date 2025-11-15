@@ -409,9 +409,10 @@ public class DepositUnneededItems : CharacterJob
         }
     }
 
-    public static bool ShouldInitDepositItems(PlayerCharacter character)
+    public static bool ShouldInitDepositItems(PlayerCharacter character, bool preJob = true)
     {
-        return character.GetInventorySpaceLeft() < MIN_FREE_INVENTORY_SPACES;
+        return character.GetInventorySpaceLeft()
+            < (preJob ? MAX_FREE_INVENTORY_SPACES - 1 : MIN_FREE_INVENTORY_SPACES);
     }
 
     public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character)

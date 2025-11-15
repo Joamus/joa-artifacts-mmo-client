@@ -1,5 +1,6 @@
 using Application.Character;
 using Application.Errors;
+using Application.Services;
 using OneOf;
 using OneOf.Types;
 
@@ -46,8 +47,9 @@ public class CompleteTask : CharacterJob
         await Character.TaskComplete();
 
         var taskCoinsAmount =
-            Character.Schema.Inventory.FirstOrDefault(item => item.Code == "tasks_coin")?.Quantity
-            ?? 0;
+            Character
+                .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
+                ?.Quantity ?? 0;
 
         if (matchingItem is not null)
         {
@@ -59,14 +61,14 @@ public class CompleteTask : CharacterJob
             int itemAmount = (int)ItemAmount;
 
             if (
-                matchingItem.Currency == "tasks_coin"
+                matchingItem.Currency == ItemService.TasksCoin
                 && matchingItem.BuyPrice * ItemAmount >= taskCoinsAmount
             )
             {
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] buying item \"{ItemCode}\" for {matchingItem.BuyPrice} per item (total: {matchingItem.BuyPrice * ItemAmount}) from \"tasks_master\" - have {taskCoinsAmount} total tasks_coin - for {Character.Schema.Name} - task {Code}"
                 );
-                await Character.NavigateTo(Code);
+                await Character.NavigateTo("tasks_trader");
                 await Character.NpcBuyItem(matchingItem.Code, itemAmount);
             }
         }
@@ -74,7 +76,7 @@ public class CompleteTask : CharacterJob
         else if (ItemCode is not null)
         {
             var taskCoins = Character.Schema.Inventory.FirstOrDefault(item =>
-                item.Code == "tasks_coin"
+                item.Code == ItemService.TasksCoin
             );
 
             if (taskCoinsAmount >= PRICE_OF_EXCHANGE)

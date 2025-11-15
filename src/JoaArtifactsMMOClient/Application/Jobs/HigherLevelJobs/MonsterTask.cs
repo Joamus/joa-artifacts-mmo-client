@@ -2,6 +2,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
+using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
@@ -31,7 +32,8 @@ public class MonsterTask : CharacterJob
         {
             logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
-            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coin")?.Quantity ?? 0;
+            var taskCoinsAmount =
+                Character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
 
             if (taskCoinsAmount > 0)
             {
@@ -42,7 +44,7 @@ public class MonsterTask : CharacterJob
                     new DepositItems(
                         Character,
                         gameState,
-                        "tasks_coin",
+                        ItemService.TasksCoin,
                         taskCoinsAmount
                     ).SetParent<DepositItems>(this),
                     true

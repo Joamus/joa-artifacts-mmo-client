@@ -148,7 +148,7 @@ public class CraftItem : CharacterJob
                 List<CharacterJob> jobs = [];
                 foreach (var material in missingMaterials)
                 {
-                    var job = new ObtainItem(
+                    var job = new ObtainOrFindItem(
                         Character,
                         gameState,
                         material.Code,

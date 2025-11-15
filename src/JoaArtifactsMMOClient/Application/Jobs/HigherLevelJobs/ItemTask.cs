@@ -1,6 +1,7 @@
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
+using Application.Services;
 using Applicaton.Jobs;
 using OneOf;
 using OneOf.Types;
@@ -32,7 +33,8 @@ public class ItemTask : CharacterJob
         {
             logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
-            var taskCoinsAmount = Character.GetItemFromInventory("tasks_coin")?.Quantity ?? 0;
+            var taskCoinsAmount =
+                Character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
 
             if (taskCoinsAmount > 0)
             {
@@ -40,7 +42,7 @@ public class ItemTask : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositing them"
                 );
                 Character.QueueJob(
-                    new DepositItems(Character, gameState, "tasks_coin", taskCoinsAmount),
+                    new DepositItems(Character, gameState, ItemService.TasksCoin, taskCoinsAmount),
                     true
                 );
             }

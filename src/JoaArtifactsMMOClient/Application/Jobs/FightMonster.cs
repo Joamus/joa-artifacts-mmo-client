@@ -142,7 +142,7 @@ public class FightMonster : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] status for {Character.Schema.Name} - fighting {Code} ({ProgressAmount}/{Amount})"
         );
 
-        if (DepositUnneededItems.ShouldInitDepositItems(Character))
+        if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
         {
             Character.QueueJobsBefore(
                 Id,

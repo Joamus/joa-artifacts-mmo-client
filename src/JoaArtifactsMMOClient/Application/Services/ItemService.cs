@@ -26,6 +26,8 @@ public static class ItemService
         "utility",
     ];
 
+    public const string TasksCoin = "tasks_coin";
+
     public static List<ItemSchema> CraftsInto(List<ItemSchema> items, ItemSchema ingredientItem)
     {
         List<ItemSchema> crafts = [];
@@ -281,7 +283,7 @@ public static class ItemService
 
             return hasDrop
                 && character.GetSkillLevel(SkillService.GetSkillName(resource.Skill))
-                    > resource.Level;
+                    >= resource.Level;
         });
 
         (ResourceSchema resource, int dropRate)? resourceWithDropRate = null;

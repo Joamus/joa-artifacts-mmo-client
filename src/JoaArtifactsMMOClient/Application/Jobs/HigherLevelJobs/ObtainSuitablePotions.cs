@@ -204,7 +204,7 @@ public class ObtainSuitablePotions : CharacterJob
                     }
                     string itemCode = potion.item.Code;
 
-                    var job = new ObtainItem(character, gameState, itemCode, amountToCraft);
+                    var job = new ObtainOrFindItem(character, gameState, itemCode, amountToCraft);
                     job.AllowUsingMaterialsFromBank = true;
 
                     amountLeft = amountLeft - amountToCraft;

@@ -202,7 +202,7 @@ public class PlayerActionService
         switch (itemSlot.Value.Value)
         {
             case EquipmentSlot equipmentSlot:
-                equipmentSlot.Slot = equipmentSlot.Slot.Replace("Slot", "");
+                equipmentSlot.Slot = equipmentSlot.Slot.Replace("Slot", "").FromPascalToSnakeCase();
                 if (equipmentSlot.Code != "")
                 {
                     // Trying to equip the same item - at the moment we don't allow using both utility slots for same item
@@ -566,4 +566,6 @@ public class PlayerActionService
 
         return jobs;
     }
+
+    public async void BuyItemFromNpc(string code, int quantity) { }
 }

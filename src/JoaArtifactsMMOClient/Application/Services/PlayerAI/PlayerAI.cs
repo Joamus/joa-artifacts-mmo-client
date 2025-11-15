@@ -87,7 +87,7 @@ public class PlayerAI
             // itemInInventory!.Value.inventorySlot.Code
             )!;
 
-            if (!await CanObtainItem(item))
+            if (!await Character.PlayerActionService.CanObtainItem(item))
             {
                 continue;
             }
@@ -108,45 +108,7 @@ public class PlayerAI
         // Highest prio is completing this achievement, else all task items are locked.
         if (!hasDoneItemTask)
         {
-            if (Character.Schema.TaskType == TaskType.monsters.ToString())
-            {
-                var monster = gameState.Monsters.FirstOrDefault(monster =>
-                    monster.Code == Character.Schema.Task
-                )!;
-                var jobs = await GetJobsToFightMonster(monster);
-
-                if (jobs.Count > 0)
-                {
-                    logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do monster task ({monster.Code})"
-                    );
-
-                    var nextJob = jobs[0];
-
-                    logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                    );
-                    // Do the first job in the list, we only do one thing at a time
-                    return nextJob;
-                }
-                else
-                {
-                    logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Has a monster task, don't need more items - going to fight {monster.Code}"
-                    );
-                    return new MonsterTask(Character, gameState);
-                    // logger.LogInformation(
-                    //     $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Has a monster task, but cannot win a fight against {monster.Code} - moving on"
-                    // );
-                }
-            }
-            else
-            {
-                logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do item task"
-                );
-                return new ItemTask(Character, gameState);
-            }
+            return await GetTaskJob(false);
         }
 
         if (Character.Schema.AlchemyLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
@@ -284,7 +246,7 @@ public class PlayerAI
         logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job - this should never happen - just doing an item task"
         );
-        return new ItemTask(Character, gameState);
+        return await GetTaskJob(false);
         // Fallback job - should never happen
     }
 
@@ -340,26 +302,35 @@ public class PlayerAI
         return jobsToGetItems;
     }
 
-    public async Task<bool> CanObtainItem(ItemSchema item)
+    async Task<CharacterJob> GetTaskJob(bool preferMonsterTask = true)
     {
-        var canObtainIt = await ObtainItem.GetJobsRequired(
-            Character,
-            gameState,
-            true,
-            [],
-            [],
-            item.Code,
-            1,
-            true,
-            true
-        );
-
-        switch (canObtainIt.Value)
+        if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
-            case AppError:
-                return false;
-        }
+            var monster = gameState.Monsters.FirstOrDefault(monster =>
+                monster.Code == Character.Schema.Task
+            )!;
+            var jobs = await GetJobsToFightMonster(monster);
 
-        return true;
+            if (jobs.Count > 0)
+            {
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do monster task ({monster.Code})"
+                );
+
+                var nextJob = jobs[0];
+
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                );
+                // Do the first job in the list, we only do one thing at a time
+                return nextJob;
+            }
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Has a monster task, don't need more items - going to fight {monster.Code}"
+            );
+        }
+        return preferMonsterTask && CanHandlePotentialMonsterTasks()
+            ? new MonsterTask(Character, gameState)
+            : new ItemTask(Character, gameState);
     }
 }
