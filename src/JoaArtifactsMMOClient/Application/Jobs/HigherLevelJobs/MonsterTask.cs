@@ -105,11 +105,9 @@ public class MonsterTask : CharacterJob
                     new AppError($"Cannot find monster {code} to fight in task")
                 );
             }
-            var outcome = FightSimulator.CalculateFightOutcomeWithBestEquipment(
-                Character,
-                monster,
-                gameState
-            );
+            var outcome = FightSimulator
+                .GetFightSimWithBestEquipment(Character, monster, gameState)
+                .Outcome;
 
             if (!outcome.ShouldFight)
             {

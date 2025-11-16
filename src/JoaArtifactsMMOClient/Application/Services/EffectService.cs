@@ -1,4 +1,5 @@
 using Application.ArtifactsApi.Schemas;
+using Application.Jobs;
 using Applicaton.Services.FightSimulator;
 
 public static class EffectService
@@ -134,6 +135,13 @@ public static class EffectService
         }
 
         return effectsToSkip;
+    }
+
+    public static bool SimpleIsPreFightPotionWorthUsing(FightSimResult fightSim)
+    {
+        // Pretty rough heuristic, but it will help to avoid gathering dmg boost potions to fight low level monsters
+        return fightSim.Outcome.TotalTurns
+            > ObtainSuitablePotions.AMOUNT_OF_TURNS_TO_NOT_USE_PREFIGHT_POTS;
     }
 
     public static bool IsPreFightPotionWorthUsing(

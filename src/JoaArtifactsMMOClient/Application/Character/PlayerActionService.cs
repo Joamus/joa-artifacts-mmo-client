@@ -1,6 +1,7 @@
 using System.Numerics;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.Errors;
 using Application.Jobs;
 using Application.Services;
@@ -164,7 +165,7 @@ public class PlayerActionService
                 PlayerItemSlot.Utility2Slot,
             };
 
-            itemSlot = GetBestEquipmentSlotOfMultiple(itemSlotCodes, isUtility, code);
+            itemSlot = GetEmptyOrEquipmentSlotWithSameItem(itemSlotCodes, isUtility, code);
         }
         else if (matchingItem.Type == "ring")
         {
@@ -174,7 +175,7 @@ public class PlayerActionService
                 PlayerItemSlot.Ring2Slot,
             };
 
-            itemSlot = GetBestEquipmentSlotOfMultiple(itemSlotCodes, false, code);
+            itemSlot = GetEmptyOrEquipmentSlotWithSameItem(itemSlotCodes, false, code);
         }
         else if (matchingItem.Type == "artifact")
         {
@@ -185,7 +186,7 @@ public class PlayerActionService
                 PlayerItemSlot.Artifact3Slot,
             };
 
-            itemSlot = GetBestEquipmentSlotOfMultiple(itemSlotCodes, false, code);
+            itemSlot = GetEmptyOrEquipmentSlotWithSameItem(itemSlotCodes, false, code);
         }
         else
         {
@@ -354,48 +355,39 @@ public class PlayerActionService
                 // lowest bonus, if the ring we are evaluating has higher than any of the other.
                 if (itemSlotsTheItemFits.Count() > 0)
                 {
-                    var equippedItem = Character.GetEquipmentSlot(itemSlotsTheItemFits[0]);
+                    var equipmentSlot = Character.GetEquipmentSlot(itemSlotsTheItemFits[0]);
 
-                    switch (equippedItem.Value)
+                    if (equipmentSlot.Code == "")
                     {
-                        case EquipmentSlot equipmentSlot:
-                            if (equipmentSlot.Code == "")
-                            {
-                                await Character.SmartItemEquip(matchingItemInInventory.Code);
-                            }
-                            else
-                            {
-                                var equippedItemInSlot = GameState.ItemsDict.GetValueOrNull(
-                                    equipmentSlot.Code
-                                );
+                        await Character.SmartItemEquip(matchingItemInInventory.Code);
+                    }
+                    else
+                    {
+                        var equippedItemInSlot = GameState.ItemsDict.GetValueOrNull(
+                            equipmentSlot.Code
+                        );
 
-                                if (equippedItemInSlot is null)
-                                {
-                                    return new AppError(
-                                        $"Matching item in inventory is null for code \"{equipmentSlot.Code}\""
-                                    );
-                                }
-
-                                var equippedItemValue =
-                                    equippedItemInSlot
-                                        .Effects.Find(effect => effect.Code == skillName)
-                                        ?.Value ?? 0;
-
-                                // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
-                                if (equippedItemValue > itemInInventoryEffect.Value)
-                                {
-                                    Logger.LogInformation(
-                                        $"EquipBestGatheringEquipment: Equipping \"{item.Code}\" instead of \"{equipmentSlot.Code}\" for {Character.Schema.Name} for \"{skill}\""
-                                    );
-
-                                    await Character.SmartItemEquip(matchingItemInInventory.Code);
-                                }
-                            }
-                            break;
-                        case AppError:
+                        if (equippedItemInSlot is null)
+                        {
                             return new AppError(
-                                $"Error looking up item slot \"{itemSlotsTheItemFits[0]}\""
+                                $"Matching item in inventory is null for code \"{equipmentSlot.Code}\""
                             );
+                        }
+
+                        var equippedItemValue =
+                            equippedItemInSlot
+                                .Effects.Find(effect => effect.Code == skillName)
+                                ?.Value ?? 0;
+
+                        // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
+                        if (equippedItemValue > itemInInventoryEffect.Value)
+                        {
+                            Logger.LogInformation(
+                                $"EquipBestGatheringEquipment: Equipping \"{item.Code}\" instead of \"{equipmentSlot.Code}\" for {Character.Schema.Name} for \"{skill}\""
+                            );
+
+                            await Character.SmartItemEquip(matchingItemInInventory.Code);
+                        }
                     }
                 }
             }
@@ -404,7 +396,7 @@ public class PlayerActionService
         return new None();
     }
 
-    public EquipmentSlot? GetBestEquipmentSlotOfMultiple(
+    public EquipmentSlot? GetEmptyOrEquipmentSlotWithSameItem(
         List<string> itemSlotCodes,
         bool isUtility,
         string itemCode
@@ -414,18 +406,12 @@ public class PlayerActionService
 
         foreach (var slot in itemSlotCodes)
         {
-            var thisSlot = Character.GetEquipmentSlot(slot);
+            var inventorySlot = Character.GetEquipmentSlot(slot)!;
 
-            switch (thisSlot.Value)
+            if (isUtility && inventorySlot.Code == itemCode || inventorySlot.Code == "")
             {
-                case EquipmentSlot inventorySlot:
-                    itemSlot = thisSlot.AsT0;
-
-                    if (isUtility && inventorySlot.Code == itemCode || inventorySlot.Code == "")
-                    {
-                        return itemSlot;
-                    }
-                    break;
+                itemSlot = inventorySlot;
+                break;
             }
         }
 
@@ -585,4 +571,36 @@ public class PlayerActionService
     }
 
     public async void BuyItemFromNpc(string code, int quantity) { }
+
+    public async Task DepositPotions(int utilitySlot, string itemCode, int amount)
+    {
+        int amountToUnequip = Math.Min(Character.GetInventorySpaceLeft() - 5, amount);
+
+        while (amountToUnequip > 0)
+        {
+            int amountToDeposit = Math.Min(Character.GetInventorySpaceLeft(), amountToUnequip);
+
+            if (amountToDeposit == 0)
+            {
+                break;
+            }
+            await Character.NavigateTo("bank");
+            await Character.UnequipItem(
+                $"Utility{utilitySlot}".FromPascalToSnakeCase(),
+                amountToDeposit
+            );
+            await Character.DepositBankItem(
+                new List<WithdrawOrDepositItemRequest>
+                {
+                    new WithdrawOrDepositItemRequest
+                    {
+                        Code = itemCode,
+                        Quantity = amountToDeposit,
+                    },
+                }
+            );
+
+            amountToUnequip = Character.GetEquipmentSlot($"Utility{utilitySlot}Slot").Quantity;
+        }
+    }
 }

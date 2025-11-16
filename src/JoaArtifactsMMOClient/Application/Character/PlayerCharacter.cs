@@ -1013,19 +1013,19 @@ public class PlayerCharacter
         return Schema.InventoryMaxItems - inventorySpaceUsed;
     }
 
-    public OneOf<EquipmentSlot, AppError> GetEquipmentSlot(string slot)
+    public EquipmentSlot GetEquipmentSlot(string slot)
     {
         var prop = Schema.GetType().GetProperty(slot);
         if (prop is null || prop.PropertyType != typeof(string))
         {
-            return new AppError($"Invalid slot {slot}");
+            throw new AppError($"Invalid slot {slot}");
         }
 
         string? value = (string?)prop.GetValue(Schema);
 
         if (value is null)
         {
-            return new AppError($"Invalid value in slot {slot} - {value}");
+            throw new AppError($"Invalid value in slot {slot} - {value}");
         }
         else if (value == "")
         {
@@ -1033,7 +1033,7 @@ public class PlayerCharacter
             {
                 Slot = slot,
                 Code = "",
-                Quantity = 1,
+                Quantity = 0,
             };
         }
 

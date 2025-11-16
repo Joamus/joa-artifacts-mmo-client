@@ -250,7 +250,7 @@ public class FightSimulator
         };
     }
 
-    public static FightOutcome CalculateFightOutcomeWithBestEquipment(
+    public static FightSimResult GetFightSimWithBestEquipment(
         PlayerCharacter character,
         MonsterSchema monster,
         GameState gameState
@@ -258,7 +258,7 @@ public class FightSimulator
     {
         var result = FindBestFightEquipment(character, gameState, monster);
 
-        return result.Outcome;
+        return result;
     }
 
     private static (int damage, bool wasCrit) CalculateTurnDamage(
@@ -669,14 +669,7 @@ public class FightSimulator
 
         EquipmentSlot? equippedItem = null;
 
-        switch (character.GetEquipmentSlot(equipmentSlot).Value)
-        {
-            case AppError error:
-                throw new Exception(error.Message);
-            case EquipmentSlot slot:
-                equippedItem = slot;
-                break;
-        }
+        equippedItem = character.GetEquipmentSlot(equipmentSlot);
 
         ItemSchema? bestItemCandidate = equippedItem is not null
             ? gameState.ItemsDict.GetValueOrNull(equippedItem.Code)

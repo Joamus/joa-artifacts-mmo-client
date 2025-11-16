@@ -77,6 +77,8 @@ public class ObtainSuitablePotions : CharacterJob
 
         var bankItemsResponse = await gameState.BankItemCache.GetBankItems(character);
 
+        var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(character.Schema, monster);
+
         foreach (var element in gameState.UtilityItemsDict)
         {
             var item = element.Value;
@@ -96,6 +98,11 @@ public class ObtainSuitablePotions : CharacterJob
                     ?.Quantity ?? 0;
 
             if (!canCraftItem && amountInBank == 0)
+            {
+                continue;
+            }
+
+            if (item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code)))
             {
                 continue;
             }
@@ -131,11 +138,7 @@ public class ObtainSuitablePotions : CharacterJob
             potionsForSim
         );
 
-        var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(fightSim.Schema, monster);
-
-        // Pretty rough heuristic, but it will help to avoid gathering dmg boost potions to fight low level monsters
-        bool avoidPrefightPotions =
-            fightSim.Outcome.TotalTurns <= AMOUNT_OF_TURNS_TO_NOT_USE_PREFIGHT_POTS;
+        bool avoidPrefightPotions = EffectService.SimpleIsPreFightPotionWorthUsing(fightSim);
 
         potionsForSim = potionsForSim.FindAll(potion =>
         {
@@ -150,7 +153,8 @@ public class ObtainSuitablePotions : CharacterJob
                     return false;
                 }
             }
-            return !potion.Item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code));
+
+            return true;
         });
 
         potionCandidates = potionCandidates

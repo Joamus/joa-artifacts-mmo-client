@@ -474,7 +474,7 @@ public static class ItemService
         return relevantItemsDict.Select(item => item.Value).ToList();
     }
 
-    public static List<ItemSchema> GetBestTools(
+    public static async Task<List<ItemSchema>> GetBestTools(
         PlayerCharacter character,
         GameState gameState,
         List<InventorySlot>? allItemCandidates = null,
@@ -497,6 +497,8 @@ public static class ItemService
             .GatheringSkills.Select(SkillService.GetSkillName)
             .Where(skill => skill is not null)
             .ToList();
+
+        var bankData = await gameState.BankItemCache.GetBankItems(character);
 
         foreach (var item in allItemCandidates)
         {
@@ -543,6 +545,17 @@ public static class ItemService
             }
 
             var currentBestTool = relevantToolsDict.GetValueOrNull(gatheringEffect.Code);
+
+            if (
+                (character.GetItemFromInventory(item.Code)?.Quantity ?? 0) == 0
+                && !bankData.Data.Exists(bankItem =>
+                    bankItem.Code == item.Code && item.Quantity > 0
+                )
+                && !await character.PlayerActionService.CanObtainItem(matchingItem)
+            )
+            {
+                continue;
+            }
 
             // The gathering effects have an effect express in negative numbers, e.g. 10% lower cooldown when mining will be -10,
             // so we want to find effects with a lower effect, e.g. -20 is better than -10

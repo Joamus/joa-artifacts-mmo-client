@@ -1,4 +1,5 @@
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
@@ -70,19 +71,25 @@ public class FightMonster : CharacterJob
             return new AppError($"ItemCode cannot be null when JobMode == Gather");
         }
 
-        MonsterSchema? matchingMonster = gameState.MonstersDict.GetValueOrNull(Code);
+        MonsterSchema? monster = gameState.MonstersDict.GetValueOrNull(Code);
 
-        if (matchingMonster is null)
+        if (monster is null)
         {
             return new AppError($"Monster with code {Code} could not be found");
         }
 
-        var isPossibleResult = IsPossible(matchingMonster);
+        var fightSimResult = FightSimulator.GetFightSimWithBestEquipment(
+            Character,
+            monster,
+            gameState
+        );
 
-        switch (isPossibleResult.Value)
+        if (!fightSimResult.Outcome.ShouldFight)
         {
-            case AppError jobError:
-                return jobError;
+            return new AppError(
+                $"Should not fight {Code} - outcome: {fightSimResult.Outcome.Result} - remaining HP would be {fightSimResult.Outcome.PlayerHp}",
+                ErrorStatus.InsufficientSkill
+            );
         }
 
         int initialAmount =
@@ -90,7 +97,28 @@ public class FightMonster : CharacterJob
 
         await HealIfNotAtFullHp();
 
-        await Character.PlayerActionService.EquipBestFightEquipment(matchingMonster);
+        await Character.PlayerActionService.EquipBestFightEquipment(monster);
+
+        var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
+
+        if (obtainPotionJobs.Count > 0)
+        {
+            Character.QueueJobsBefore(Id, obtainPotionJobs);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
+        int potionSlotsUsed = 0;
+
+        if (Character.Schema.Utility1SlotQuantity > 0)
+        {
+            potionSlotsUsed++;
+        }
+
+        if (Character.Schema.Utility2SlotQuantity > 0)
+        {
+            potionSlotsUsed++;
+        }
 
         while (Amount > ProgressAmount)
         {
@@ -99,7 +127,7 @@ public class FightMonster : CharacterJob
                 return new None();
             }
 
-            var result = await InnerJobAsync(matchingMonster);
+            var result = await InnerJobAsync(monster, fightSimResult, potionSlotsUsed);
 
             switch (result.Value)
             {
@@ -138,7 +166,11 @@ public class FightMonster : CharacterJob
         return new None();
     }
 
-    protected async Task<OneOf<AppError, None>> InnerJobAsync(MonsterSchema monster)
+    protected async Task<OneOf<AppError, None>> InnerJobAsync(
+        MonsterSchema monster,
+        FightSimResult fightSimResult,
+        int initialPotionSlotsUsed
+    )
     {
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] status for {Character.Schema.Name} - fighting {Code} ({ProgressAmount}/{Amount})"
@@ -176,18 +208,52 @@ public class FightMonster : CharacterJob
             return new None();
         }
 
-        // Unequip potions if not worth it
+        bool hasRunOutOfPotions = false;
 
-        var shouldFindPotions = await EquipPotionsIfNeeded(monster);
-
-        if (shouldFindPotions)
+        if (initialPotionSlotsUsed > 0)
         {
-            var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
-                Character,
-                gameState,
-                ObtainSuitablePotions.GetPotionsToObtain(Character),
-                monster
-            );
+            if (initialPotionSlotsUsed == 1)
+            {
+                if (
+                    Character.Schema.Utility1SlotQuantity == 0
+                    && Character.Schema.Utility2SlotQuantity == 0
+                )
+                {
+                    hasRunOutOfPotions = true;
+                }
+            }
+            else if (initialPotionSlotsUsed == 2)
+            {
+                if (
+                    Character.Schema.Utility1SlotQuantity == 0
+                    || Character.Schema.Utility2SlotQuantity == 0
+                )
+                {
+                    hasRunOutOfPotions = true;
+                }
+            }
+        }
+
+        if (hasRunOutOfPotions)
+        {
+            // var shouldFindPotions = await ShouldGetNewPotionsAndEquipExisting(monster);
+
+            // if (shouldFindPotions)
+            // {
+            // var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
+            //     Character,
+            //     gameState,
+            //     ObtainSuitablePotions.GetPotionsToObtain(Character),
+            //     monster
+            // );
+
+            // if (obtainPotionJobs.Count > 0)
+            // {
+            //     Character.QueueJobsBefore(Id, obtainPotionJobs);
+            //     Status = JobStatus.Suspend;
+            //     return new None();
+            // }
+            var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
 
             if (obtainPotionJobs.Count > 0)
             {
@@ -195,6 +261,7 @@ public class FightMonster : CharacterJob
                 Status = JobStatus.Suspend;
                 return new None();
             }
+            // }
         }
 
         await HealIfNotAtFullHp();
@@ -337,27 +404,6 @@ public class FightMonster : CharacterJob
         return null;
     }
 
-    public OneOf<AppError, None> IsPossible(MonsterSchema monster)
-    {
-        var fightSimulation = FightSimulator.CalculateFightOutcomeWithBestEquipment(
-            Character,
-            monster,
-            gameState
-        );
-
-        if (fightSimulation.ShouldFight)
-        {
-            return new None();
-        }
-        else
-        {
-            return new AppError(
-                $"Should not fight {Code} - outcome: {fightSimulation.Result} - remaining HP would be {fightSimulation.PlayerHp}",
-                ErrorStatus.InsufficientSkill
-            );
-        }
-    }
-
     public int GetSuitableFoodFromInventory()
     {
         List<ItemInInventory> foodInInventory = Character.GetItemsFromInventoryWithType(
@@ -377,8 +423,18 @@ public class FightMonster : CharacterJob
         return amountOfSuitableFood;
     }
 
-    public async ValueTask<bool> EquipPotionsIfNeeded(MonsterSchema monster)
+    public async ValueTask<bool> ShouldGetNewPotionsAndEquipExisting(MonsterSchema monster)
     {
+        // Hack, but we assume we are running with preFight = false when running inner sync,
+        // and we should already have found the best potions.
+        if (
+            Character.Schema.Utility1SlotQuantity >= 0
+            && Character.Schema.Utility2SlotQuantity >= 0
+        )
+        {
+            return false;
+        }
+
         var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(Character.Schema, monster);
 
         var utility1 = (
@@ -421,57 +477,44 @@ public class FightMonster : CharacterJob
             }
         }
 
-        if (
-            Character.Schema.Utility1SlotQuantity >= 5
-            || Character.Schema.Utility2SlotQuantity >= 5
-        )
-        {
-            return false;
-        }
+        string slot1Equip = Character.Schema.Utility1Slot;
+        int slot1EquipAmount = Character.Schema.Utility1SlotQuantity;
+        bool equippedSlot1 = false;
 
-        string? slot1Equip = null;
-        int slot1EquipAmount = 0;
+        string slot2Equip = Character.Schema.Utility1Slot;
+        int slot2EquipAmount = Character.Schema.Utility2SlotQuantity;
+        bool equippedSlot2 = false;
 
-        string? slot2Equip = null;
-        int slot2EquipAmount = 0;
-
-        var potionsInInventory = Character.GetItemsFromInventoryWithType("utility");
+        var potionsInInventory = Character
+            .GetItemsFromInventoryWithType("utility")
+            .Where(potion =>
+                !potion.Item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
+            )
+            .ToList();
 
         foreach (var potion in potionsInInventory)
         {
             if (ItemService.CanUseItem(potion.Item, Character.Schema))
             {
-                if (slot1Equip is null)
+                if (string.IsNullOrEmpty(slot1Equip))
                 {
                     slot1Equip = potion.Item.Code;
                     slot1EquipAmount = potion.Quantity;
+                    equippedSlot1 = true;
+                    await Character.EquipItem(slot1Equip, "utility1", slot1EquipAmount);
                 }
-                else if (slot2Equip is null)
+                else if (string.IsNullOrEmpty(slot2Equip))
                 {
                     slot2Equip = potion.Item.Code;
                     slot2EquipAmount = potion.Quantity;
+                    equippedSlot2 = true;
+                    await Character.EquipItem(slot2Equip, "utility2", slot2EquipAmount);
                 }
                 else
                 {
                     break;
                 }
             }
-        }
-
-        bool equippedSlot1 = false;
-        bool equippedSlot2 = false;
-
-        if (slot1Equip is not null)
-        {
-            equippedSlot1 = true;
-
-            await Character.EquipItem(slot1Equip, "utility1", slot1EquipAmount);
-        }
-        if (slot2Equip is not null)
-        {
-            equippedSlot2 = true;
-
-            await Character.EquipItem(slot2Equip, "utility2", slot2EquipAmount);
         }
 
         if (!equippedSlot1 || !equippedSlot2)
@@ -504,6 +547,111 @@ public class FightMonster : CharacterJob
         }
 
         return true;
+    }
+
+    public async Task<List<CharacterJob>> HandlePotionsPreFight(
+        MonsterSchema monster,
+        FightSimResult fightSimResult
+    )
+    {
+        var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(Character.Schema, monster);
+
+        if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResult))
+        {
+            foreach (var effect in EffectService.preFightEffects)
+            {
+                potionEffectsToSkip.Add(effect);
+            }
+        }
+
+        List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
+
+        utilitySlots.Add((1, Character.Schema.Utility1Slot, Character.Schema.Utility1SlotQuantity));
+        utilitySlots.Add((2, Character.Schema.Utility2Slot, Character.Schema.Utility2SlotQuantity));
+
+        foreach (var utility in utilitySlots)
+        {
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(utility.ItemCode);
+
+            if (
+                matchingItem is not null
+                && matchingItem.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
+            )
+            {
+                await Character.PlayerActionService.DepositPotions(
+                    utility.Slot,
+                    utility.ItemCode,
+                    utility.Amount
+                );
+            }
+        }
+
+        var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
+            Character,
+            gameState,
+            ObtainSuitablePotions.GetPotionsToObtain(Character),
+            monster
+        );
+
+        obtainPotionJobs = obtainPotionJobs
+            .Where(job =>
+            {
+                var potion = gameState.ItemsDict[job.Code];
+
+                return !potion.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code));
+            })
+            .ToList();
+
+        bool samePotions = true;
+
+        foreach (var job in obtainPotionJobs)
+        {
+            bool anyMatches = false;
+
+            foreach (var util in utilitySlots)
+            {
+                if (util.ItemCode == job.Code)
+                {
+                    anyMatches = true;
+                    break;
+                }
+            }
+
+            if (!anyMatches)
+            {
+                samePotions = false;
+                break;
+            }
+        }
+
+        // Maybe it would make sense to restock, but it gets pretty complex
+        if (samePotions)
+        {
+            return [];
+        }
+
+        if (!samePotions && obtainPotionJobs.Count > 0)
+        {
+            utilitySlots = [];
+
+            utilitySlots.Add(
+                (1, Character.Schema.Utility1Slot, Character.Schema.Utility1SlotQuantity)
+            );
+            utilitySlots.Add(
+                (2, Character.Schema.Utility2Slot, Character.Schema.Utility2SlotQuantity)
+            );
+
+            foreach (var util in utilitySlots)
+            {
+                await Character.PlayerActionService.DepositPotions(
+                    util.Slot,
+                    util.ItemCode,
+                    util.Amount
+                );
+            }
+        }
+
+        return obtainPotionJobs;
     }
 
     public static int GetFoodAmountToObtain(PlayerCharacter character, int? amountToKill)

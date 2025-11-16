@@ -424,8 +424,8 @@ public class ObtainItem : CharacterJob
             {
                 if (
                     FightSimulator
-                        .CalculateFightOutcomeWithBestEquipment(Character, monster, gameState)
-                        .ShouldFight
+                        .GetFightSimWithBestEquipment(Character, monster, gameState)
+                        .Outcome.ShouldFight
                 )
                 {
                     var job = new FightMonster(

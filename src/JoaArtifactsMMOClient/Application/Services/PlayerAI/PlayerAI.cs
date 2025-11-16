@@ -57,7 +57,7 @@ public class PlayerAI
                 is not null;
         // Evaluate if tools are up to date
 
-        var bestTools = ItemService.GetBestTools(Character, gameState, null, hasDoneItemTask);
+        var bestTools = await ItemService.GetBestTools(Character, gameState, null, hasDoneItemTask);
 
         if (!hasDoneItemTask)
         {
@@ -207,20 +207,29 @@ public class PlayerAI
                 gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!
             );
 
-            if (jobs.Count > 0)
+            if (jobs is not null)
             {
-                var nextJob = jobs[0];
+                if (jobs.Count > 0)
+                {
+                    var nextJob = jobs[0];
 
-                logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight monster from monster task: {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {Character.Schema.Task} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                );
-                // Do the first job in the list, we only do one thing at a time
-                return nextJob;
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight monster from monster task: {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {Character.Schema.Task} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                    );
+                    // Do the first job in the list, we only do one thing at a time
+                    return nextJob;
+                }
+                else
+                {
+                    return new MonsterTask(Character, gameState);
+                }
             }
-
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Falling back - could not do jobs to defeat monster \"{Character.Schema.Task}\" from monster task"
-            );
+            else
+            {
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Falling back - could not do jobs to defeat monster \"{Character.Schema.Task}\" from monster task"
+                );
+            }
         }
         else
         {
@@ -255,15 +264,25 @@ public class PlayerAI
                     gameState.MonstersDict.GetValueOrNull(fightMonster.Code)!
                 );
 
-                if (jobs.Count > 0)
+                if (jobs is not null)
                 {
-                    var nextJob = jobs[0];
+                    if (jobs.Count > 0)
+                    {
+                        var nextJob = jobs[0];
 
-                    logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                    );
-                    // Do the first job in the list, we only do one thing at a time
-                    return nextJob;
+                        logger.LogInformation(
+                            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                        );
+                        // Do the first job in the list, we only do one thing at a time
+                        return nextJob;
+                    }
+                    else
+                    {
+                        logger.LogInformation(
+                            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fighting {fightMonster.Amount} x {fightMonster.Code}"
+                        );
+                        return fightMonster;
+                    }
                 }
             }
         }
@@ -309,8 +328,8 @@ public class PlayerAI
 
             if (
                 !FightSimulator
-                    .CalculateFightOutcomeWithBestEquipment(Character, matchingMonster, gameState)
-                    .ShouldFight
+                    .GetFightSimWithBestEquipment(Character, matchingMonster, gameState)
+                    .Outcome.ShouldFight
             )
             {
                 return false;
@@ -332,13 +351,24 @@ public class PlayerAI
             jobsToGetItems is null
             || jobsToGetItems.Count == 0
                 && !FightSimulator
-                    .CalculateFightOutcomeWithBestEquipment(Character, monster, gameState)
-                    .ShouldFight
+                    .GetFightSimWithBestEquipment(Character, monster, gameState)
+                    .Outcome.ShouldFight
         )
         {
             return null;
         }
 
+        // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
+        // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
+        jobsToGetItems.Sort(
+            (a, b) =>
+            {
+                var aLevel = gameState.ItemsDict.GetValueOrNull(a.Code)!.Level;
+                var bLevel = gameState.ItemsDict.GetValueOrNull(b.Code)!.Level;
+
+                return aLevel.CompareTo(bLevel);
+            }
+        );
         return jobsToGetItems;
     }
 

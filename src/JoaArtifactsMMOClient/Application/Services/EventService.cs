@@ -19,12 +19,10 @@ public class EventService
     {
         get
         {
-            var now = DateTime.UtcNow;
-
             return _activeEvents
                 .Where(_event =>
-                    (_event.Expiration - DateTime.UtcNow).TotalSeconds
-                    >= ACTIVE_EVENT_EXPIRATION_BUFFER_SECONDS
+                    _event.Expiration
+                    > DateTime.UtcNow.AddSeconds(ACTIVE_EVENT_EXPIRATION_BUFFER_SECONDS)
                 )
                 .ToList();
         }
