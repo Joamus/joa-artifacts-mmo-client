@@ -16,6 +16,7 @@ public class ObtainSuitablePotions : CharacterJob
     private readonly int _amount;
 
     public static readonly int POTION_BATCH_SIZE = 10;
+    public static readonly int AMOUNT_OF_TURNS_TO_NOT_USE_PREFIGHT_POTS = 10;
 
     public MonsterSchema Monster;
 
@@ -129,11 +130,28 @@ public class ObtainSuitablePotions : CharacterJob
             monster,
             potionsForSim
         );
+
         var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(fightSim.Schema, monster);
 
+        // Pretty rough heuristic, but it will help to avoid gathering dmg boost potions to fight low level monsters
+        bool avoidPrefightPotions =
+            fightSim.Outcome.TotalTurns <= AMOUNT_OF_TURNS_TO_NOT_USE_PREFIGHT_POTS;
+
         potionsForSim = potionsForSim.FindAll(potion =>
-            !potion.Item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
-        );
+        {
+            if (avoidPrefightPotions)
+            {
+                bool isPrefightPotion = potion.Item.Effects.Exists(effect =>
+                    EffectService.preFightEffects.Contains(effect.Code)
+                );
+
+                if (isPrefightPotion)
+                {
+                    return false;
+                }
+            }
+            return !potion.Item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code));
+        });
 
         potionCandidates = potionCandidates
             .Where(candidate =>

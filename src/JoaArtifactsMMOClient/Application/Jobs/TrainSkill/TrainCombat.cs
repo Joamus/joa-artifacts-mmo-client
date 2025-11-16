@@ -51,7 +51,7 @@ public class TrainCombat : CharacterJob
 
         if (PlayerLevel < untilLevel)
         {
-            var result = await GetJobRequired(Character, gameState, PlayerLevel);
+            var result = GetJobRequired(Character, gameState, PlayerLevel);
 
             if (result is null)
             {
@@ -67,10 +67,11 @@ public class TrainCombat : CharacterJob
         return new None();
     }
 
-    public static async Task<FightMonster?> GetJobRequired(
+    public static FightMonster? GetJobRequired(
         PlayerCharacter character,
         GameState gameState,
-        int playerLevel
+        int playerLevel,
+        bool canCurrentlyDefeat = false
     )
     {
         OutcomeCandidate? bestMonsterCandidate = null;
@@ -85,11 +86,13 @@ public class TrainCombat : CharacterJob
 
             int levelDifference = playerLevel - monster.Level;
 
-            var outcome = FightSimulator.CalculateFightOutcomeWithBestEquipment(
-                character,
-                monster,
-                gameState
-            );
+            var outcome = canCurrentlyDefeat
+                ? FightSimulator.CalculateFightOutcome(character.Schema, monster, gameState)
+                : FightSimulator.CalculateFightOutcomeWithBestEquipment(
+                    character,
+                    monster,
+                    gameState
+                );
 
             var candidate = new OutcomeCandidate
             {

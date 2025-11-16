@@ -70,7 +70,7 @@ public class FightMonster : CharacterJob
             return new AppError($"ItemCode cannot be null when JobMode == Gather");
         }
 
-        MonsterSchema? matchingMonster = gameState.Monsters.Find(monster => monster.Code == Code);
+        MonsterSchema? matchingMonster = gameState.MonstersDict.GetValueOrNull(Code);
 
         if (matchingMonster is null)
         {
@@ -87,6 +87,8 @@ public class FightMonster : CharacterJob
 
         int initialAmount =
             Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
+
+        await HealIfNotAtFullHp();
 
         await Character.PlayerActionService.EquipBestFightEquipment(matchingMonster);
 
@@ -174,9 +176,11 @@ public class FightMonster : CharacterJob
             return new None();
         }
 
-        var hasNoPotionsEquipped = await EquipPotionsIfNeeded();
+        // Unequip potions if not worth it
 
-        if (hasNoPotionsEquipped)
+        var shouldFindPotions = await EquipPotionsIfNeeded(monster);
+
+        if (shouldFindPotions)
         {
             var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
                 Character,
@@ -193,24 +197,7 @@ public class FightMonster : CharacterJob
             }
         }
 
-        if (Character.Schema.Hp != Character.Schema.MaxHp)
-        {
-            var bestFoodCandidate = GetFoodToEat();
-
-            if (bestFoodCandidate is not null)
-            {
-                await Character.UseItem(bestFoodCandidate.Code, bestFoodCandidate.Quantity);
-
-                if (Character.Schema.Hp != Character.Schema.MaxHp)
-                {
-                    await Character.Rest();
-                }
-            }
-            else
-            {
-                await Character.Rest();
-            }
-        }
+        await HealIfNotAtFullHp();
 
         await Character.NavigateTo(Code);
 
@@ -381,9 +368,7 @@ public class FightMonster : CharacterJob
 
         foreach (var food in foodInInventory)
         {
-            bool isUsuable = Character.Schema.Level >= food.Item.Level;
-
-            if (isUsuable)
+            if (ItemService.CanUseItem(food.Item, Character.Schema))
             {
                 amountOfSuitableFood += food.Quantity;
             }
@@ -392,8 +377,50 @@ public class FightMonster : CharacterJob
         return amountOfSuitableFood;
     }
 
-    public async ValueTask<bool> EquipPotionsIfNeeded()
+    public async ValueTask<bool> EquipPotionsIfNeeded(MonsterSchema monster)
     {
+        var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(Character.Schema, monster);
+
+        var utility1 = (
+            "Utility1",
+            Character.Schema.Utility1Slot,
+            Character.Schema.Utility1SlotQuantity
+        );
+        var utility2 = (
+            "Utility2",
+            Character.Schema.Utility2Slot,
+            Character.Schema.Utility2SlotQuantity
+        );
+
+        List<(string SlotName, string ItemCode, int Amount)> utilitySlots = [];
+
+        utilitySlots.Add(utility1);
+        utilitySlots.Add(utility2);
+
+        foreach (var utility in utilitySlots)
+        {
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(utility.ItemCode);
+
+            if (
+                matchingItem is not null
+                && matchingItem.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
+            )
+            {
+                int amountToUnequip = Math.Min(
+                    Character.GetInventorySpaceLeft() - 5,
+                    utility.Amount
+                );
+
+                if (amountToUnequip > 0)
+                {
+                    await Character.UnequipItem(
+                        utility.SlotName.FromPascalToSnakeCase(),
+                        amountToUnequip
+                    );
+                }
+            }
+        }
+
         if (
             Character.Schema.Utility1SlotQuantity >= 5
             || Character.Schema.Utility2SlotQuantity >= 5
@@ -451,9 +478,11 @@ public class FightMonster : CharacterJob
         {
             // We still have a slot available
 
-            int amountOfPossiblePotionsWeCanUse = gameState
+            int amountOfPossiblePotionsToConsider = gameState
                 .Items.Where(item =>
-                    item.Type == "utility" && ItemService.CanUseItem(item, Character.Schema)
+                    item.Type == "utility"
+                    && ItemService.CanUseItem(item, Character.Schema)
+                    && !item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
                 )
                 .Count();
 
@@ -468,7 +497,7 @@ public class FightMonster : CharacterJob
                 amountUnusedSlots++;
             }
 
-            if (amountUnusedSlots > amountOfPossiblePotionsWeCanUse)
+            if (amountUnusedSlots > amountOfPossiblePotionsToConsider)
             {
                 return false;
             }
@@ -491,6 +520,28 @@ public class FightMonster : CharacterJob
         }
 
         return maxAmount;
+    }
+
+    private async Task HealIfNotAtFullHp()
+    {
+        if (Character.Schema.Hp != Character.Schema.MaxHp)
+        {
+            var bestFoodCandidate = GetFoodToEat();
+
+            if (bestFoodCandidate is not null)
+            {
+                await Character.UseItem(bestFoodCandidate.Code, bestFoodCandidate.Quantity);
+
+                if (Character.Schema.Hp != Character.Schema.MaxHp)
+                {
+                    await Character.Rest();
+                }
+            }
+            else
+            {
+                await Character.Rest();
+            }
+        }
     }
 }
 

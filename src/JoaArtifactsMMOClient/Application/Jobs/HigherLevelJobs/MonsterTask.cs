@@ -97,9 +97,7 @@ public class MonsterTask : CharacterJob
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
             var code = Character.Schema.Task;
-            MonsterSchema? monster = gameState.Monsters.FirstOrDefault(monster =>
-                monster.Code == code!
-            );
+            MonsterSchema? monster = gameState.MonstersDict.GetValueOrNull(code);
             if (monster is null)
             {
                 Status = JobStatus.Failed;

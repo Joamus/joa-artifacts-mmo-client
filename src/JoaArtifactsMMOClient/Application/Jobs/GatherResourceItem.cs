@@ -213,4 +213,27 @@ public class GatherResourceItem : CharacterJob
         }
         return new None();
     }
+
+    public static bool CanGatherResource(ResourceSchema resource, CharacterSchema characterSchema)
+    {
+        int characterSkillLevel = 0;
+
+        switch (resource.Skill)
+        {
+            case Skill.Alchemy:
+                characterSkillLevel = characterSchema.AlchemyLevel;
+                break;
+            case Skill.Fishing:
+                characterSkillLevel = characterSchema.FishingLevel;
+                break;
+            case Skill.Mining:
+                characterSkillLevel = characterSchema.MiningLevel;
+                break;
+            case Skill.Woodcutting:
+                characterSkillLevel = characterSchema.WoodcuttingLevel;
+                break;
+        }
+
+        return characterSkillLevel >= resource.Level;
+    }
 }

@@ -34,6 +34,7 @@ public class ObtainItem : CharacterJob
     {
         if (recipient.Schema.Name == Character.Schema.Name)
         {
+            recipient.RemoveFromWishlist(Code, Amount);
             // it's a-me, no reason to deposit etc.
             return;
         }
@@ -501,6 +502,11 @@ public class ObtainItem : CharacterJob
 
         // Adding leeway with - 10. We use max items, because we assume that the character will deposit stuff
         int availableInventorySpace = character.GetInventorySpaceLeft() - 5;
+
+        if (availableInventorySpace <= 0)
+        {
+            return [];
+        }
 
         int iterationAmount = (int)
             Math.Ceiling((double)totalInventorySpaceNeeded / availableInventorySpace);

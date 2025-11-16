@@ -76,9 +76,11 @@ public static class ItemService
         {
             return true;
         }
+
         foreach (var condition in item.Conditions)
         {
             int playerLevelOfSkill = 0;
+
             switch (condition.Code)
             {
                 case "level":
@@ -187,7 +189,11 @@ public static class ItemService
 
                 foreach (var food in foods)
                 {
-                    if (character.Schema.CookingLevel >= food.Level && food.Subtype == "food")
+                    if (
+                        character.Schema.CookingLevel >= food.Level
+                        && food.Subtype == "food"
+                        && CanUseItem(food, character.Schema)
+                    )
                     {
                         if (!potentialFoodsToCookDict.ContainsKey(food.Code))
                         {
@@ -557,8 +563,7 @@ public static class ItemService
         PlayerCharacter character,
         GameState gameState,
         ItemSchema item,
-        int amount,
-        bool addToWishList = true
+        int amount
     )
     {
         CharacterJob job;
@@ -583,11 +588,6 @@ public static class ItemService
                 item.Code,
                 amount
             );
-
-            if (addToWishList)
-            {
-                character.AddToWishlist(item.Code, amount);
-            }
 
             gatherMaterialsJob.Crafter = crafter;
 

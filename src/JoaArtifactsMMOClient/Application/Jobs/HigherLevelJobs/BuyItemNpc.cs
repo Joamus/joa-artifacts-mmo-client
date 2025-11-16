@@ -7,9 +7,9 @@ namespace Application.Jobs;
 
 public class BuyItemNpc : CharacterJob
 {
-    public bool AllowObtainingCurrency { get; set; } = false;
-    public bool UseInventory { get; set; } = false;
-    public bool UseBank { get; set; } = false;
+    public bool AllowObtainingCurrency { get; set; } = true;
+    public bool UseInventory { get; set; } = true;
+    public bool UseBank { get; set; } = true;
 
     // public BuyItemNpc(PlayerCharacter playerCharacter, GameState gameState)
     //     : base(playerCharacter, gameState) { }
@@ -28,6 +28,8 @@ public class BuyItemNpc : CharacterJob
         AllowObtainingCurrency = allowObtainingCurrency;
         Code = code;
         Amount = amount;
+        UseInventory = useInventory;
+        UseBank = useBank;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -81,18 +83,21 @@ public class BuyItemNpc : CharacterJob
             }
         }
 
-        if (amountLeft > 0 && UseInventory && !isGold)
+        if (amountLeft > 0 && UseInventory)
         {
-            var itemInInventory = Character.GetItemFromInventory(matchingCurrency.Code);
-
-            if (itemInInventory is not null)
+            if (isGold)
             {
-                int amountNeeded = Math.Min(itemInInventory.Quantity, amountLeft);
-                amountLeft -= amountNeeded;
+                amountLeft -= Character.Schema.Gold;
+            }
+            else
+            {
+                var itemInInventory = Character.GetItemFromInventory(matchingCurrency.Code);
 
-                jobs.Add(
-                    new WithdrawItem(Character, gameState, itemInInventory.Code, amountNeeded)
-                );
+                if (itemInInventory is not null)
+                {
+                    int amountNeeded = Math.Min(itemInInventory.Quantity, amountLeft);
+                    amountLeft -= amountNeeded;
+                }
             }
         }
 
@@ -121,6 +126,7 @@ public class BuyItemNpc : CharacterJob
                 $"{JobName}: [{Character.Schema.Name}] Still have {amountLeft} x {matchingCurrency.Code} left to find when buying item"
             );
         }
+        await Character.NavigateTo(itemToBuy.Npc);
         await Character.NpcBuyItem(itemToBuy.Code, Amount);
 
         return new None();

@@ -38,6 +38,9 @@ public class GameState
     public List<NpcSchema> Npcs { get; set; } = [];
     public List<AccountAchievementSchema> AccountAchievements { get; set; } = [];
     public List<MonsterSchema> Monsters { get; set; } = [];
+    public Dictionary<string, MonsterSchema> MonstersDict { get; set; } = [];
+
+    public EventService EventService { get; set; }
 
     [SetsRequiredMembers]
     public GameState(AccountRequester accountRequester, ApiRequester apiRequester)
@@ -46,6 +49,10 @@ public class GameState
         this.apiRequester = apiRequester;
         logger = AppLogger.loggerFactory.CreateLogger<GameState>();
         BankItemCache = new BankItemCache(accountRequester);
+        EventService = new EventService(
+            AppLogger.loggerFactory.CreateLogger<EventService>(),
+            accountRequester
+        );
     }
 
     public async Task LoadAll(List<CharacterConfig> characterConfigs)
@@ -61,6 +68,8 @@ public class GameState
         await LoadNpcs();
         await LoadAccountAchievements();
         await LoadTasksList();
+        await EventService.LoadEvents();
+        await EventService.LoadActiveEvents();
     }
 
     public bool ShouldReload()
@@ -83,6 +92,7 @@ public class GameState
         // await LoadNpcs();
         // Just reload achievements for now, for things that are limited by achievements
         await LoadAccountAchievements();
+        await EventService.LoadActiveEvents();
     }
 
     public async Task LoadCharacters(List<CharacterConfig> characterConfigs)
@@ -341,6 +351,7 @@ public class GameState
         logger.LogInformation("Loading monsters...");
         bool doneLoading = false;
         List<MonsterSchema> monsters = [];
+        Dictionary<string, MonsterSchema> monstersDict = [];
         int pageNumber = 1;
 
         while (!doneLoading)
@@ -350,6 +361,7 @@ public class GameState
             foreach (var monster in result.Data)
             {
                 monsters.Add(monster);
+                monstersDict.Add(monster.Code, monster);
             }
 
             if (result.Data.Count == 0)
@@ -360,6 +372,7 @@ public class GameState
             pageNumber++;
         }
         Monsters = monsters;
+        MonstersDict = monstersDict;
         logger.LogInformation("Loading monsters - DONE;");
     }
 }

@@ -28,6 +28,7 @@ public class FightSimulator
             new EquipmentTypeMapping { ItemType = "shield", Slot = "ShieldSlot" },
             new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility1Slot" },
             new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility2Slot" },
+            new EquipmentTypeMapping { ItemType = "rune", Slot = "RuneSlot" },
         };
 
     // We assume that monsters will crit more often than us, just to ensure that we don't take on fights too often, that we will probably not win.
@@ -51,12 +52,25 @@ public class FightSimulator
         {
             List<FightSimUtility> potions = [];
 
-            // Add runes to this
-            List<SimpleEffectSchema> runeEffects = [];
             var monsterClone = monster with { };
 
             var initMonsterHp = monsterClone.Hp;
             CharacterSchema characterSchema = originalSchema with { };
+
+            // Add runes to this
+            List<SimpleEffectSchema> runeEffects = [];
+
+            var matchingRuneItem = !string.IsNullOrWhiteSpace(characterSchema.RuneSlot)
+                ? gameState.ItemsDict[characterSchema.RuneSlot]
+                : null;
+
+            if (matchingRuneItem is not null)
+            {
+                foreach (var effect in runeEffects)
+                {
+                    runeEffects.Add(effect);
+                }
+            }
 
             if (characterSchema.Utility1SlotQuantity > 0)
             {
@@ -466,12 +480,6 @@ public class FightSimulator
 
         var initialFightOutcome = CalculateFightOutcome(initialSchema, monster, gameState);
 
-        // int bestItemAmount = 1;
-
-        // TODO: Loop through all weapons, and find the best combination with each weapon.
-        // We can maybe skip tools, and only take one if we literally have no other weapons
-
-
         var weapons = allItems
             .Where(item => item.Item.Type == "weapon" && item.Item.Subtype != "tool")
             .ToList();
@@ -607,7 +615,7 @@ public class FightSimulator
             );
         }
 
-        allCandidates.Sort(CompareSimResults);
+        allCandidates.Sort((a, b) => CompareSimOutcome(a.Outcome, b.Outcome));
 
         return allCandidates.ElementAt(0);
     }
@@ -698,12 +706,13 @@ public class FightSimulator
             }
 
             // Not sure, but I don't think you can have the same effect in both util slots.
-            if (item.Item.Type == "utility" || item.Item.Type == "rune")
+            if (item.Item.Type == "utility")
             {
-                string otherItemSlot =
+                string otherItemSlot = (
                     equipmentSlot == "Utility1Slot"
                         ? bestSchemaCandiate.Utility2Slot
-                        : bestSchemaCandiate.Utility1Slot;
+                        : bestSchemaCandiate.Utility1Slot
+                );
 
                 if (
                     ItemService.ArePotionEffectsOverlapping(
@@ -729,15 +738,21 @@ public class FightSimulator
 
             var fightOutcome = CalculateFightOutcome(characterSchema, monster, gameState);
 
-            if (
-                bestItemCandidate is null
-                || fightOutcome.Result == FightResult.Win
-                    && (
-                        bestFightOutcome is null
-                        || bestFightOutcome.Result != FightResult.Win
-                        || fightOutcome.PlayerHp > bestFightOutcome.PlayerHp
-                    )
-            )
+            bool fightOutcomeIsBetter = CompareSimOutcome(bestFightOutcome, fightOutcome) == 1;
+
+            // if (
+            //     bestItemCandidate is null
+            //     || fightOutcome.Result == FightResult.Win
+            //         && (
+            //             bestFightOutcome is null
+            //             || bestFightOutcome.Result != FightResult.Win
+            //             || (
+            //                 fightOutcome.PlayerHp > bestFightOutcome.PlayerHp
+            //                 || bestFightOutcome.TotalTurns < fightOutcome.TotalTurns
+            //             )
+            //         )
+            // )
+            if (fightOutcomeIsBetter)
             {
                 bestFightOutcome = fightOutcome;
                 bestItemCandidate = item.Item;
@@ -772,15 +787,15 @@ public class FightSimulator
         };
     }
 
-    public static int CompareSimResults(FightSimResult a, FightSimResult b)
+    public static int CompareSimOutcome(FightOutcome a, FightOutcome b)
     {
         if (
-            a.Outcome.Result == FightResult.Win
+            a.Result == FightResult.Win
             && (
-                b.Outcome.Result != FightResult.Win
+                b.Result != FightResult.Win
                 || (
-                    a.Outcome.PlayerHp > b.Outcome.PlayerHp
-                    || a.Outcome.TotalTurns < b.Outcome.TotalTurns
+                    a.PlayerHp > b.PlayerHp
+                    || (a.TotalTurns < b.TotalTurns && a.PlayerHp >= b.PlayerHp)
                 )
             )
         )

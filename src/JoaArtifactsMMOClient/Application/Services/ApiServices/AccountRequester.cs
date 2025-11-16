@@ -201,4 +201,28 @@ public class AccountRequester
             ApiRequester.getJsonOptions()
         )!;
     }
+
+    public async Task<GetAllEventsResponse> GetEvents(int pageNumber = 1)
+    {
+        var response = await _apiService.GetAsync($"/events?page={pageNumber}");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<GetAllEventsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
+    public async Task<GetActiveEventsResponse> GetActiveEvents(int pageNumber = 1)
+    {
+        var response = await _apiService.GetAsync($"/events/active?page={pageNumber}");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<GetActiveEventsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
 }

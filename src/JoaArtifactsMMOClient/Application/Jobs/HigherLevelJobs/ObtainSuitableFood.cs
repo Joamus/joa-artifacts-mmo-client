@@ -173,28 +173,11 @@ public class ObtainSuitableFood : CharacterJob
         return jobs;
     }
 
-    public static bool CanPlayerEatFood(ItemSchema item, PlayerCharacter player)
-    {
-        if (item.Subtype != "food")
-        {
-            return false;
-        }
-
-        // We don't really care about the level difference atm, because we just need to obtain the best available food
-
-        if (item.Level > player.Schema.Level)
-        {
-            // Find out if you can craft it, if it's craftable. We should probably bias fishing, seeing as it's usually the fastest way to get food
-            // and also a good way for our characters to keep their level up in fishing
-            return false;
-        }
-
-        return true;
-    }
-
     private ItemSchema GetMostSuitableFood()
     {
-        var viableFood = gameState.Items.FindAll(item => CanPlayerEatFood(item, Character));
+        var viableFood = gameState.Items.FindAll(item =>
+            item.Subtype == "food" && ItemService.CanUseItem(item, Character.Schema)
+        );
 
         CalculationService.SortItemsBasedOnEffect(viableFood, "heal");
 

@@ -1,3 +1,4 @@
+using System.Security.Permissions;
 using System.Text.Json.Serialization;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
@@ -35,7 +36,10 @@ public class PlayerAI
     {
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating next job");
         var job =
-            await GetIndividualHighPrioJob() ?? GetRoleJob() ?? await GetIndividualLowPrioJob();
+            await GetEventJob()
+            ?? await GetIndividualHighPrioJob()
+            ?? GetRoleJob()
+            ?? await GetIndividualLowPrioJob();
 
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName}");
         return job!;
@@ -197,57 +201,89 @@ public class PlayerAI
             );
             return new ItemTask(Character, gameState);
         }
+        else if (Character.Schema.TaskType == TaskType.monsters.ToString())
+        {
+            var jobs = await GetJobsToFightMonster(
+                gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!
+            );
+
+            if (jobs.Count > 0)
+            {
+                var nextJob = jobs[0];
+
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight monster from monster task: {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {Character.Schema.Task} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                );
+                // Do the first job in the list, we only do one thing at a time
+                return nextJob;
+            }
+
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Falling back - could not do jobs to defeat monster \"{Character.Schema.Task}\" from monster task"
+            );
+        }
         else
         {
             logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing monster task for XP"
+                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Got no task - take monster task"
             );
 
-            if (CanHandlePotentialMonsterTasks())
+            return new AcceptNewTask(Character, gameState, TaskType.monsters);
+        }
+
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fall through - cannot handle the current task of type \"{Character.Schema.TaskType}\" for {Character.Schema.Task}"
+        );
+
+        // A bit dirty - we first want to try to find something to fight, allowing the character get better equipment.
+        // After that, we will try without allowing it, in case items are on the wish list.
+        foreach (var flag in new List<bool> { false, true })
+        {
+            var fightMonster = TrainCombat.GetJobRequired(
+                Character,
+                gameState,
+                Character.Schema.Level,
+                flag
+            );
+
+            if (fightMonster is not null)
             {
                 logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Can handle all potential monster tasks - doing monster task"
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting  {fightMonster.Amount} x {fightMonster.Code}"
                 );
-                return new MonsterTask(Character, gameState);
-            }
-            else
-            {
-                var fightMonster = await TrainCombat.GetJobRequired(
-                    Character,
-                    gameState,
-                    Character.Schema.Level
+                var jobs = await GetJobsToFightMonster(
+                    gameState.MonstersDict.GetValueOrNull(fightMonster.Code)!
                 );
 
-                if (fightMonster is not null)
+                if (jobs.Count > 0)
                 {
+                    var nextJob = jobs[0];
+
                     logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Cannot handle all potential monster tasks - fighting  {fightMonster.Amount} x {fightMonster.Code}"
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
                     );
-                    var jobs = await GetJobsToFightMonster(
-                        gameState.Monsters.FirstOrDefault(monster =>
-                            monster.Code == fightMonster.Code
-                        )!
-                    );
-
-                    if (jobs.Count > 0)
-                    {
-                        var nextJob = jobs[0];
-
-                        logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                        );
-                        // Do the first job in the list, we only do one thing at a time
-                        return nextJob;
-                    }
+                    // Do the first job in the list, we only do one thing at a time
+                    return nextJob;
                 }
             }
         }
 
         logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job - this should never happen - just doing an item task"
+            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job"
         );
-        return await GetTaskJob(false);
-        // Fallback job - should never happen
+
+        if (string.IsNullOrEmpty(Character.Schema.Task))
+        {
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job - taking a new task"
+            );
+            return await GetTaskJob(false);
+        }
+
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job - leveling mining"
+        );
+        return new TrainSkill(Character, gameState, Skill.Mining, 1, true);
     }
 
     public async Task GetCrafterJob()
@@ -264,7 +300,7 @@ public class PlayerAI
                 continue;
             }
 
-            var matchingMonster = gameState.Monsters.First(monster => monster.Code == task.Code)!;
+            var matchingMonster = gameState.MonstersDict.GetValueOrNull(task.Code)!;
 
             if (matchingMonster.Level > Character.Schema.Level)
             {
@@ -284,7 +320,7 @@ public class PlayerAI
         return true;
     }
 
-    async Task<List<CharacterJob>> GetJobsToFightMonster(MonsterSchema monster)
+    async Task<List<CharacterJob>?> GetJobsToFightMonster(MonsterSchema monster)
     {
         var jobsToGetItems = await Character.PlayerActionService.GetJobsToGetItemsToFightMonster(
             Character,
@@ -292,12 +328,16 @@ public class PlayerAI
             monster
         );
 
-        if (jobsToGetItems is null)
+        if (
+            jobsToGetItems is null
+            || jobsToGetItems.Count == 0
+                && !FightSimulator
+                    .CalculateFightOutcomeWithBestEquipment(Character, monster, gameState)
+                    .ShouldFight
+        )
         {
-            return [];
+            return null;
         }
-
-        // jobsToGetItems.Append(fightMonster);
 
         return jobsToGetItems;
     }
@@ -306,31 +346,149 @@ public class PlayerAI
     {
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
-            var monster = gameState.Monsters.FirstOrDefault(monster =>
-                monster.Code == Character.Schema.Task
-            )!;
+            var monster = gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!;
             var jobs = await GetJobsToFightMonster(monster);
 
-            if (jobs.Count > 0)
+            if (jobs is not null)
             {
-                logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do monster task ({monster.Code})"
-                );
+                if (jobs.Count > 0)
+                {
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do monster task ({monster.Code})"
+                    );
 
-                var nextJob = jobs[0];
+                    var nextJob = jobs[0];
 
-                logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                );
-                // Do the first job in the list, we only do one thing at a time
-                return nextJob;
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                    );
+                    // Do the first job in the list, we only do one thing at a time
+                    return nextJob;
+                }
+                else
+                {
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
+                    );
+                    new MonsterTask(Character, gameState);
+                }
             }
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Has a monster task, don't need more items - going to fight {monster.Code}"
-            );
         }
         return preferMonsterTask && CanHandlePotentialMonsterTasks()
             ? new MonsterTask(Character, gameState)
             : new ItemTask(Character, gameState);
+    }
+
+    async Task<CharacterJob?> GetEventJob()
+    {
+        var activeEvents = gameState.EventService.ActiveEvents;
+
+        if (activeEvents.Count == 0)
+        {
+            return null;
+        }
+
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: GetEventJob: Evaluating active events - there are {activeEvents.Count} active events"
+        );
+
+        foreach (var activeEvent in activeEvents)
+        {
+            var gameEvent = gameState.EventService.EventsDict.GetValueOrNull(activeEvent.Code)!;
+
+            var eventContent = gameEvent.Content;
+
+            CharacterJob? job = null;
+
+            switch (eventContent.Type)
+            {
+                case ContentType.Monster:
+                    job = await GetMonsterEventJob(eventContent);
+                    break;
+                case ContentType.Npc:
+                    job = await GetNpcEventJob(eventContent);
+                    break;
+                case ContentType.Resource:
+                    job = await GetResourceEventJob(eventContent);
+                    break;
+            }
+
+            if (job is not null)
+            {
+                return job;
+            }
+        }
+
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: GetEventJob: No event job scheduled out of {activeEvents.Count} active events"
+        );
+
+        return null;
+    }
+
+    async Task<CharacterJob?> GetMonsterEventJob(MapContentSchema eventContent)
+    {
+        var matchingMonster = gameState.MonstersDict.GetValueOrNull(eventContent.Code);
+
+        if (matchingMonster is not null && matchingMonster.Level <= Character.Schema.Level)
+        {
+            var jobsToFightMonster = await GetJobsToFightMonster(matchingMonster);
+
+            if (jobsToFightMonster is not null)
+            {
+                if (jobsToFightMonster.Count > 0)
+                {
+                    var nextJob = jobsToFightMonster[0];
+
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetEventJob: Doing first job to fight event monster - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                    );
+                    return nextJob;
+                }
+                else
+                {
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
+                    );
+                    return new FightMonster(
+                        Character,
+                        gameState,
+                        matchingMonster.Code,
+                        TrainCombat.AMOUNT_TO_KILL
+                    );
+                }
+            }
+        }
+
+        return null;
+    }
+
+    async Task<CharacterJob?> GetNpcEventJob(MapContentSchema eventContent)
+    {
+        return null;
+    }
+
+    async Task<CharacterJob?> GetResourceEventJob(MapContentSchema eventContent)
+    {
+        var matchingResource = gameState.Resources.FirstOrDefault(resource =>
+            resource.Code == eventContent.Code
+        );
+
+        if (matchingResource is not null)
+        {
+            if (GatherResourceItem.CanGatherResource(matchingResource, Character.Schema))
+            {
+                // A bit wonky, but we don't gather a resource per se, we just try to get the drops from the resource.
+                // We assume that an event is the only way to gather this resource
+                return new GatherResourceItem(
+                    Character,
+                    gameState,
+                    matchingResource.Drops.ElementAt(0).Code,
+                    TrainSkill.AMOUNT_TO_GATHER_PER_JOB,
+                    false
+                );
+            }
+        }
+        return null;
     }
 }

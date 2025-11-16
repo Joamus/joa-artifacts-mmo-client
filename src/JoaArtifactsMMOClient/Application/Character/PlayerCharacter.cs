@@ -31,6 +31,7 @@ public class PlayerCharacter
 
     public CooldownSchema? Cooldown { get; private set; } = null;
 
+    [JsonInclude]
     private Dictionary<string, ItemReservation> itemWishlist { get; set; } = [];
 
     public List<Skill> Roles { get; init; } = [];
@@ -691,7 +692,7 @@ public class PlayerCharacter
 
         string _body = JsonSerializer.Serialize(new { slot, quantity });
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
-        var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/equip", body);
+        var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/unequip", body);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(

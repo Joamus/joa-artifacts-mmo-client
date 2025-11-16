@@ -72,7 +72,7 @@ public class PlayerActionService
 
         if (maps.Count == 0)
         {
-            // TODO: Better handling
+            // TODO: Look at events
             throw new Exception($"Could not find map with code {code}");
         }
 
@@ -474,8 +474,15 @@ public class PlayerActionService
 
         List<ItemSchema> itemsWithoutPotions = [];
 
+        bool itemsAreInWishlist = false;
+
         foreach (var item in gameState.Items)
         {
+            if (item.Subtype == "tool")
+            {
+                continue;
+            }
+
             if (!ItemService.EquipmentItemTypes.Contains(item.Type))
             {
                 continue;
@@ -491,7 +498,9 @@ public class PlayerActionService
                 Logger.LogInformation(
                     $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining fight items - {item.Code} is already in wish list, so we should wait until obtaining more"
                 );
-                return null;
+
+                itemsAreInWishlist = true;
+                continue;
             }
 
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
@@ -509,6 +518,20 @@ public class PlayerActionService
             )
             {
                 continue;
+            }
+
+            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
+
+            if (matchingNpcItem is not null)
+            {
+                // For now, don't try to grind gold or anything for these items.
+                if (
+                    matchingNpcItem.Currency == "gold"
+                    && Character.Schema.Gold < matchingNpcItem.BuyPrice
+                )
+                {
+                    continue;
+                }
             }
 
             itemsWithoutPotions.Add(item);
@@ -546,24 +569,18 @@ public class PlayerActionService
                 continue;
             }
 
-            if (character.ExistsInWishlist(item.Code))
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining fight items - {item.Code} is already in wish list, so we should wait until obtaining more"
-                );
-                return null;
-            }
-
             // Find crafter
             Logger.LogInformation(
                 $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Job found - acquire {item.Code} x {1} for fighting"
             );
 
-            character.AddToWishlist(item.Code, 1);
-
             jobs.Add(new ObtainOrFindItem(character, gameState, item.Code, 1));
         }
 
+        if (jobs.Count == 0 && itemsAreInWishlist)
+        {
+            return null;
+        }
         return jobs;
     }
 
