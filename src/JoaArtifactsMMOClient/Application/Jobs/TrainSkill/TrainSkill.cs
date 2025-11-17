@@ -37,6 +37,8 @@ public class TrainSkill : CharacterJob
 
     public int SkillLevel { get; set; }
 
+    bool firstRun { get; set; } = true;
+
     public TrainSkill(
         PlayerCharacter character,
         GameState gameState,
@@ -55,7 +57,7 @@ public class TrainSkill : CharacterJob
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         // Only runs the first time this job runs, if it's a relative level job. If it queues a job before itself, it shouldn't recalculate the level
-        if (SkillLevel == 0 || !Relative)
+        if (firstRun)
         {
             SkillLevel = Character.GetSkillLevel(skillName);
         }
@@ -65,6 +67,11 @@ public class TrainSkill : CharacterJob
         if (Relative)
         {
             untilLevel = SkillLevel + LevelOffset;
+
+            if (!firstRun && untilLevel <= Character.GetSkillLevel(skillName))
+            {
+                return new None();
+            }
         }
         else
         {
@@ -85,6 +92,7 @@ public class TrainSkill : CharacterJob
 
             if (jobs.Count > 0)
             {
+                firstRun = false;
                 Character.QueueJobsBefore(Id, jobs);
             }
         }
