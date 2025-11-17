@@ -71,14 +71,20 @@ public class PlayerActionService
             return true;
         });
 
-        if (maps.Count == 0)
-        {
-            // TODO: Look at events
-            throw new Exception($"Could not find map with code {code}");
-        }
-
         MapSchema? closestMap = null;
         int closestCost = 0;
+
+        if (maps.Count == 0)
+        {
+            var map = GameState.EventService.WhereIsEntityActive(code);
+
+            if (map is null)
+            {
+                throw new Exception($"Could not find map with code {code}");
+            }
+
+            closestMap = map;
+        }
 
         foreach (var map in maps)
         {

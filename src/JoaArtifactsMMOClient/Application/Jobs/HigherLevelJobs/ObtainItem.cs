@@ -280,6 +280,19 @@ public class ObtainItem : CharacterJob
 
         if (resources.Count > 0)
         {
+            var sampleResource = resources[0];
+            var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(sampleResource.Code);
+
+            if (
+                resourceIsFromEvent
+                && gameState.EventService.WhereIsEntityActive(sampleResource.Code) is null
+            )
+            {
+                return new AppError(
+                    $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
             var gatherJob = new GatherResourceItem(Character, gameState, code, requiredAmount);
             gatherJob.CanTriggerTraining = canTriggerTraining;
 
@@ -358,6 +371,19 @@ public class ObtainItem : CharacterJob
                 );
             }
 
+            var npcIsFromEvent = gameState.EventService.IsEntityFromEvent(matchingNpcItem.Npc);
+
+            if (
+                npcIsFromEvent
+                && gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null
+            )
+            {
+                return new AppError(
+                    $"Cannot buy from NPC \"{matchingNpcItem.Npc}\" - it is from an event, but the event is not active",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
+
             jobs.Add(
                 new ObtainOrFindItem(
                     Character,
@@ -422,6 +448,15 @@ public class ObtainItem : CharacterJob
 
             foreach (var monster in monstersThatDropTheItem)
             {
+                var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
+
+                if (
+                    monsterIsFromEvent
+                    && gameState.EventService.WhereIsEntityActive(monster.Code) is null
+                )
+                {
+                    continue;
+                }
                 if (
                     FightSimulator
                         .GetFightSimWithBestEquipment(Character, monster, gameState)
@@ -457,7 +492,7 @@ public class ObtainItem : CharacterJob
             }
 
             return new AppError(
-                $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose",
+                $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose or there is no such monster (could be an event monster, but the event is not active?)",
                 ErrorStatus.InsufficientSkill
             );
         }

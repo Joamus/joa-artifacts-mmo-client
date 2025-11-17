@@ -1,5 +1,6 @@
 using Application.ArtifactsApi.Schemas;
 using Application.Services.ApiServices;
+using OneOf.Types;
 
 namespace Application.Services;
 
@@ -14,6 +15,7 @@ public class EventService
 
     public List<EventSchema> Events { get; private set; } = [];
     public Dictionary<string, EventSchema> EventsDict { get; private set; } = [];
+    public Dictionary<string, EventSchema> EventEntitiesDict { get; private set; } = [];
     private List<ActiveEventSchema> _activeEvents = [];
     public List<ActiveEventSchema> ActiveEvents
     {
@@ -41,6 +43,7 @@ public class EventService
         bool doneLoading = false;
         List<EventSchema> events = [];
         Dictionary<string, EventSchema> eventsDict = [];
+        Dictionary<string, EventSchema> eventEntitiesDict = [];
         int pageNumber = 1;
 
         try
@@ -53,6 +56,17 @@ public class EventService
                 {
                     events.Add(gameEvent);
                     eventsDict.Add(gameEvent.Code, gameEvent);
+
+                    // var existingEventEntity = eventEntitiesDict.GetValueOrNull(
+                    //     gameEvent.Content.Code
+                    // );
+
+                    eventEntitiesDict.Add(gameEvent.Content.Code, gameEvent);
+
+                    // if (existingEventEntity is not null)
+                    // {
+                    // 	existingEventEntity
+                    // }
                 }
 
                 if (result.Data.Count == 0)
@@ -64,6 +78,7 @@ public class EventService
             }
             Events = events;
             EventsDict = eventsDict;
+            EventEntitiesDict = eventEntitiesDict;
             logger.LogInformation("Loading events - DONE;");
         }
         catch (Exception e)
@@ -106,18 +121,29 @@ public class EventService
         }
     }
 
-    public MapSchema? WhereIsMonsterActive()
+    public MapSchema? WhereIsEntityActive(string code)
     {
-        return null;
+        var gameEvent = EventEntitiesDict.GetValueOrNull(code);
+
+        if (gameEvent is null)
+        {
+            return null;
+        }
+
+        var activeEvent = ActiveEvents.FirstOrDefault(activeEvent =>
+            activeEvent.Code == gameEvent.Code
+        );
+
+        if (activeEvent is null)
+        {
+            return null;
+        }
+
+        return activeEvent.Map;
     }
 
-    public MapSchema? WhereIsResourceActive()
+    public bool IsEntityFromEvent(string code)
     {
-        return null;
-    }
-
-    public MapSchema? WhereIsNpcActive()
-    {
-        return null;
+        return EventEntitiesDict.GetValueOrNull(code) is not null;
     }
 }

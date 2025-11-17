@@ -137,6 +137,11 @@ public static class EffectService
         return effectsToSkip;
     }
 
+    public static bool IsPreFightPotion(ItemSchema item)
+    {
+        return item.Effects.Exists(effect => preFightEffects.Contains(effect.Code));
+    }
+
     public static bool SimpleIsPreFightPotionWorthUsing(FightSimResult fightSim)
     {
         // Pretty rough heuristic, but it will help to avoid gathering dmg boost potions to fight low level monsters
@@ -185,27 +190,32 @@ public static class EffectService
         {
             return true;
         }
+        // For now, we only want to use these potions if it changes whether we should fight or not, or whether we win or not
+        return (!noPotion.ShouldFight && withPotion.ShouldFight)
+            || (noPotion.Result == FightResult.Loss && withPotion.Result == FightResult.Win);
 
         // Now we have to figure out the cost/benefit of using the potion. We don't want to use "boost" potions, if we don't really need to.
-        foreach (var effect in item.Effects)
-        {
-            if (effect.Code.StartsWith("boost_dmg") || effect.Code.StartsWith("boost_res"))
-            {
-                double differenceItShouldMake =
-                    effect.Value * 0.01 * PERCENTAGE_PRE_EFFECT_SHOULD_INFLUENCE;
+        // foreach (var effect in item.Effects)
+        // {
+        //     // if (effect.Code.StartsWith("boost_dmg") || effect.Code.StartsWith("boost_res"))
+        //     // {
+        //     // double differenceItShouldMake =
+        //     //     1 - (effect.Value * 0.01 * PERCENTAGE_PRE_EFFECT_SHOULD_INFLUENCE);
 
-                // If the potion's effect is e.g. 12% more damage, then we should either be around 12% faster or have 12% more HP after the fight is over
-                if (
-                    noPotion.TotalTurns * differenceItShouldMake >= withPotion.TotalTurns
-                    || withPotion.PlayerHp * differenceItShouldMake >= noPotion.PlayerHp
-                )
-                {
-                    return true;
-                }
-            }
-        }
-
-        return true;
+        //     // // If the potion's effect is e.g. 12% more damage, then we should either be around 12% faster or have 12% more HP after the fight is over
+        //     // if (
+        //     //     noPotion.TotalTurns * differenceItShouldMake >= withPotion.TotalTurns
+        //     //     || withPotion.PlayerHp * differenceItShouldMake >= noPotion.PlayerHp
+        //     // )
+        //     // {
+        //     //     return true;
+        //     // }
+        //     // else
+        //     // {
+        //     //     return false;
+        //     // }
+        //     // }
+        // }
     }
 }
 

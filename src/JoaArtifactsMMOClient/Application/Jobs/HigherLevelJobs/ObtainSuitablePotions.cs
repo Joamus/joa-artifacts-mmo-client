@@ -131,43 +131,73 @@ public class ObtainSuitablePotions : CharacterJob
             );
         }
 
-        var fightSim = FightSimulator.FindBestFightEquipment(
+        var originalSchema = character.Schema with { };
+
+        //
+        character.Schema.Utility1Slot = "";
+        character.Schema.Utility1SlotQuantity = 0;
+
+        character.Schema.Utility2Slot = "";
+        character.Schema.Utility2SlotQuantity = 0;
+
+        var fightSimWithoutPotions = FightSimulator.FindBestFightEquipment(
+            character,
+            gameState,
+            monster,
+            potionsForSim.Where(potion => !EffectService.IsPreFightPotion(potion.Item)).ToList()
+        );
+
+        var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
             character,
             gameState,
             monster,
             potionsForSim
         );
 
-        bool avoidPrefightPotions = EffectService.SimpleIsPreFightPotionWorthUsing(fightSim);
+        // Mutating it back, very important
+        character.Schema = originalSchema;
 
-        potionsForSim = potionsForSim.FindAll(potion =>
-        {
-            if (avoidPrefightPotions)
-            {
-                bool isPrefightPotion = potion.Item.Effects.Exists(effect =>
-                    EffectService.preFightEffects.Contains(effect.Code)
-                );
-
-                if (isPrefightPotion)
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        });
+        bool simpleAvoidPrefightPotions = EffectService.SimpleIsPreFightPotionWorthUsing(
+            fightSimWithPotions
+        );
 
         potionCandidates = potionCandidates
             .Where(candidate =>
-                fightSim.ItemsToEquip.Exists(item => item.Code == candidate.item.Code)
+                fightSimWithPotions.Schema.Utility1Slot == candidate.item.Code
+                || fightSimWithPotions.Schema.Utility2Slot == candidate.item.Code
             )
             .ToList();
 
-        // There should only be two
-        if (potionCandidates.Count > 2)
+        potionCandidates = potionCandidates.FindAll(potion =>
         {
-            potionCandidates = potionCandidates.GetRange(0, 2);
-        }
+            if (!EffectService.IsPreFightPotion(potion.item))
+            {
+                return true;
+            }
+
+            if (simpleAvoidPrefightPotions)
+            {
+                return false;
+            }
+
+            // character.Schema.Utility1Slot = "";
+            // character.Schema.Utility1SlotQuantity = 0;
+
+            // character.Schema.Utility2Slot = "";
+            // character.Schema.Utility2SlotQuantity = 0;
+
+            return EffectService.IsPreFightPotionWorthUsing(
+                potion.item,
+                fightSimWithoutPotions.Outcome,
+                fightSimWithPotions.Outcome
+            );
+        });
+
+        // // There should only be two
+        // if (potionCandidates.Count > 2)
+        // {
+        //     potionCandidates = potionCandidates.GetRange(0, 2);
+        // }
 
         List<CharacterJob> resultJobs = [];
 
@@ -176,7 +206,11 @@ public class ObtainSuitablePotions : CharacterJob
 
         foreach (var potion in potionCandidates)
         {
-            if (potion.amountInBank > 0)
+            var amountInInventory = character.GetItemFromInventory(potion.item.Code)?.Quantity ?? 0;
+
+            amountLeft -= Math.Min(amountInInventory, amountLeft);
+
+            if (potion.amountInBank > 0 && amountLeft > 0)
             {
                 var amount = Math.Min(
                     character.GetInventorySpaceLeft() - 1,

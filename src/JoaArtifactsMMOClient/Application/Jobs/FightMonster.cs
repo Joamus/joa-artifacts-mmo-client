@@ -604,6 +604,8 @@ public class FightMonster : CharacterJob
 
         bool samePotions = true;
 
+        List<int> matches = [];
+
         foreach (var job in obtainPotionJobs)
         {
             bool anyMatches = false;
@@ -612,6 +614,7 @@ public class FightMonster : CharacterJob
             {
                 if (util.ItemCode == job.Code)
                 {
+                    matches.Add(util.Slot);
                     anyMatches = true;
                     break;
                 }
@@ -634,12 +637,19 @@ public class FightMonster : CharacterJob
         {
             utilitySlots = [];
 
-            utilitySlots.Add(
-                (1, Character.Schema.Utility1Slot, Character.Schema.Utility1SlotQuantity)
-            );
-            utilitySlots.Add(
-                (2, Character.Schema.Utility2Slot, Character.Schema.Utility2SlotQuantity)
-            );
+            // This is horrible, but I couldn't be bothered to make it better
+            if (!matches.Contains(1))
+            {
+                utilitySlots.Add(
+                    (1, Character.Schema.Utility1Slot, Character.Schema.Utility1SlotQuantity)
+                );
+            }
+            if (!matches.Contains(2))
+            {
+                utilitySlots.Add(
+                    (2, Character.Schema.Utility2Slot, Character.Schema.Utility2SlotQuantity)
+                );
+            }
 
             foreach (var util in utilitySlots)
             {

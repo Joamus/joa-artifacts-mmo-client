@@ -341,7 +341,7 @@ public class FightSimulator
 
         // Amplify damage if needed, e.g. burn rune. Figure out how we handle poisons, because technically it might be easier
         // to handle those outside of this function, because the poison damage can be mitigated
-        if (totalTurns == 1 || totalTurns == 2)
+        if (totalTurns <= 2)
         {
             SimpleEffectSchema? burn = attackerRuneEffects.FirstOrDefault(effect =>
                 effect.Code == Effect.Burn
@@ -349,8 +349,10 @@ public class FightSimulator
 
             if (burn is not null)
             {
+                burn.Value -= (totalTurns + 1) - 1;
+                int turnMultiplier = 2 - (totalTurns - 1);
                 // Decrease burn damage by 10% each turn. So if burn value is 20%, then it's 20, 10, 0.
-                double burnFactor = Math.Max((burn.Value * 0.01) - ((totalTurns - 1) * 0.1), 0);
+                double burnFactor = Math.Max((burn.Value * 0.01) - (turnMultiplier * 0.1), 0);
 
                 int burnDamage =
                     burnFactor > 0 ? (int)Math.Round(damageWithEffects * burnFactor) : 0;
