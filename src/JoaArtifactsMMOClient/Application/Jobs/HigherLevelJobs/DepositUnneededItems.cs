@@ -32,7 +32,7 @@ public class DepositUnneededItems : CharacterJob
 
     // Deposit until hitting this threshold
     private static int MIN_FREE_INVENTORY_SLOTS = 2;
-    private static int MAX_FREE_INVENTORY_SLOTS = 5;
+    private static int MAX_FREE_INVENTORY_SLOTS = 8;
     private static int MIN_FREE_INVENTORY_SPACES = 5;
     private static int MAX_FREE_INVENTORY_SPACES = 30;
 
@@ -422,7 +422,7 @@ public class DepositUnneededItems : CharacterJob
     public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character)
     {
         return character.GetInventorySpaceLeft() < MAX_FREE_INVENTORY_SPACES
-            || character.Schema.Inventory.Count((item) => !string.IsNullOrEmpty(item.Code))
+            && character.Schema.Inventory.Count((item) => !string.IsNullOrEmpty(item.Code))
                 < MAX_FREE_INVENTORY_SLOTS;
     }
 }

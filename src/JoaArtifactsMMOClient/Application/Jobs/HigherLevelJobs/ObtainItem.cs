@@ -314,7 +314,7 @@ public class ObtainItem : CharacterJob
             if (Character.Schema.TaskType == "monsters")
             {
                 var monster = gameState.Monsters.Find(monster =>
-                    monster.Drops.Find(drop => drop.Code == code) is not null
+                    monster.Code == Character.Schema.Task
                 );
                 if (monster is null)
                 {
@@ -377,9 +377,16 @@ public class ObtainItem : CharacterJob
 
         MonsterSchema? lowestLevelMonster = null;
 
+        var foundMonsterThatIsFromEvent = false;
+
         foreach (var monster in monstersThatDropTheItem)
         {
             var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
+
+            if (monsterIsFromEvent)
+            {
+                foundMonsterThatIsFromEvent = true;
+            }
 
             if (
                 monsterIsFromEvent
@@ -413,6 +420,24 @@ public class ObtainItem : CharacterJob
                 {
                     lowestLevelMonster = monster;
                 }
+            }
+        }
+
+        if (monstersThatDropTheItem.Count > 0 && lowestLevelMonster is null)
+        {
+            if (foundMonsterThatIsFromEvent)
+            {
+                return new AppError(
+                    $"The monster that drops {code} is likely from an event, but the event is not active - {Character.Schema.Name} cannot obtain {code}",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
+            else
+            {
+                return new AppError(
+                    $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose",
+                    ErrorStatus.InsufficientSkill
+                );
             }
         }
 
@@ -471,6 +496,8 @@ public class ObtainItem : CharacterJob
                 )
             );
 
+            return new None();
+
             /**
              * Look in our inventory, and see if we have the required gold/items
              * If yes, then buy the item
@@ -485,7 +512,7 @@ public class ObtainItem : CharacterJob
         }
 
         return new AppError(
-            $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose or there is no such monster (could be an event monster, but the event is not active?)",
+            $"This should not happen - we cannot fight any way to obtain item {code} for {Character.Schema.Name}",
             ErrorStatus.InsufficientSkill
         );
     }
