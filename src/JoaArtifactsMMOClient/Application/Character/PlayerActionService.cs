@@ -499,19 +499,6 @@ public class PlayerActionService
 
             var quantityInBank = bankItemDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
 
-            if (matchingItem.Craft is null && quantityInBank <= 0)
-            {
-                continue;
-            }
-
-            if (
-                !await character.PlayerActionService.CanObtainItem(matchingItem)
-                && quantityInBank <= 0
-            )
-            {
-                continue;
-            }
-
             var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
 
             if (matchingNpcItem is not null)
@@ -524,6 +511,23 @@ public class PlayerActionService
                 {
                     continue;
                 }
+
+                if (gameState.EventService.IsItemFromEventMonster(matchingItem.Code, true))
+                {
+                    continue;
+                }
+            }
+            else if (matchingItem.Craft is null && quantityInBank <= 0)
+            {
+                continue;
+            }
+
+            if (
+                !await character.PlayerActionService.CanObtainItem(matchingItem)
+                && quantityInBank <= 0
+            )
+            {
+                continue;
             }
 
             itemsWithoutPotions.Add(item);

@@ -274,6 +274,7 @@ public class ObtainItem : CharacterJob
 
             return new None();
         }
+
         List<ResourceSchema> resources = gameState.Resources.FindAll(resource =>
             resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null
         );
@@ -313,7 +314,7 @@ public class ObtainItem : CharacterJob
             if (Character.Schema.TaskType == "monsters")
             {
                 var monster = gameState.Monsters.Find(monster =>
-                    monster.Drops.Find(drop => drop.Code == code) is not null
+                    monster.Code == Character.Schema.Task
                 );
                 if (monster is null)
                 {
@@ -349,8 +350,98 @@ public class ObtainItem : CharacterJob
                     )
                 );
             }
+            return new None();
         }
-        else if (matchingItem.Subtype == "npc")
+
+        List<MonsterSchema> suitableMonsters = [];
+
+        var monstersThatDropTheItem = gameState.Monsters.FindAll(monster =>
+            monster.Drops.Find(drop => drop.Code == code) is not null
+        );
+
+        if (monstersThatDropTheItem is null)
+        {
+            return new AppError($"The item with code {code} is unobtainable", ErrorStatus.NotFound);
+        }
+
+        monstersThatDropTheItem.Sort(
+            (b, a) =>
+            {
+                int aDropRate = a.Drops.Find(drop => drop.Code == code)!.Rate;
+                int bDropRate = b.Drops.Find(drop => drop.Code == code)!.Rate;
+
+                // The lower the number, the higher the drop rate, so we want to sort them like this;
+                return aDropRate.CompareTo(bDropRate);
+            }
+        );
+
+        MonsterSchema? lowestLevelMonster = null;
+
+        var foundMonsterThatIsFromEvent = false;
+
+        foreach (var monster in monstersThatDropTheItem)
+        {
+            var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
+
+            if (monsterIsFromEvent)
+            {
+                foundMonsterThatIsFromEvent = true;
+            }
+
+            if (
+                monsterIsFromEvent
+                && gameState.EventService.WhereIsEntityActive(monster.Code) is null
+            )
+            {
+                continue;
+            }
+            if (
+                FightSimulator
+                    .GetFightSimWithBestEquipment(Character, monster, gameState)
+                    .Outcome.ShouldFight
+            )
+            {
+                var job = new FightMonster(
+                    Character,
+                    gameState,
+                    monster.Code,
+                    requiredAmount,
+                    code
+                );
+
+                // job.AllowUsingMaterialsFromInventory = true;
+                jobs.Add(job);
+
+                return new None();
+            }
+            else
+            {
+                if (lowestLevelMonster is null || monster.Level < lowestLevelMonster.Level)
+                {
+                    lowestLevelMonster = monster;
+                }
+            }
+        }
+
+        if (monstersThatDropTheItem.Count > 0 && lowestLevelMonster is null)
+        {
+            if (foundMonsterThatIsFromEvent)
+            {
+                return new AppError(
+                    $"The monster that drops {code} is likely from an event, but the event is not active - {Character.Schema.Name} cannot obtain {code}",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
+            else
+            {
+                return new AppError(
+                    $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
+        }
+
+        if (matchingItem.Subtype == "npc")
         {
             var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
 
@@ -405,6 +496,8 @@ public class ObtainItem : CharacterJob
                 )
             );
 
+            return new None();
+
             /**
              * Look in our inventory, and see if we have the required gold/items
              * If yes, then buy the item
@@ -417,87 +510,11 @@ public class ObtainItem : CharacterJob
              * grind gold from the most suitable monster (closest to level that we can beat)
             */
         }
-        else
-        {
-            List<MonsterSchema> suitableMonsters = [];
 
-            var monstersThatDropTheItem = gameState.Monsters.FindAll(monster =>
-                monster.Drops.Find(drop => drop.Code == code) is not null
-            );
-
-            if (monstersThatDropTheItem is null)
-            {
-                return new AppError(
-                    $"The item with code {code} is unobtainable",
-                    ErrorStatus.NotFound
-                );
-            }
-
-            monstersThatDropTheItem.Sort(
-                (b, a) =>
-                {
-                    int aDropRate = a.Drops.Find(drop => drop.Code == code)!.Rate;
-                    int bDropRate = b.Drops.Find(drop => drop.Code == code)!.Rate;
-
-                    // The lower the number, the higher the drop rate, so we want to sort them like this;
-                    return aDropRate.CompareTo(bDropRate);
-                }
-            );
-
-            MonsterSchema? lowestLevelMonster = null;
-
-            foreach (var monster in monstersThatDropTheItem)
-            {
-                var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
-
-                if (
-                    monsterIsFromEvent
-                    && gameState.EventService.WhereIsEntityActive(monster.Code) is null
-                )
-                {
-                    continue;
-                }
-                if (
-                    FightSimulator
-                        .GetFightSimWithBestEquipment(Character, monster, gameState)
-                        .Outcome.ShouldFight
-                )
-                {
-                    var job = new FightMonster(
-                        Character,
-                        gameState,
-                        monster.Code,
-                        requiredAmount,
-                        code
-                    );
-
-                    // job.AllowUsingMaterialsFromInventory = true;
-                    jobs.Add(job);
-
-                    return new None();
-                }
-                else
-                {
-                    if (lowestLevelMonster is null || monster.Level < lowestLevelMonster.Level)
-                    {
-                        lowestLevelMonster = monster;
-                    }
-                }
-            }
-
-            if (canTriggerTraining)
-            {
-                // TODO: Trigger levelling up the character until they can?
-                // return jobs.Add(new Train)
-            }
-
-            return new AppError(
-                $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose or there is no such monster (could be an event monster, but the event is not active?)",
-                ErrorStatus.InsufficientSkill
-            );
-        }
-
-        return new None();
+        return new AppError(
+            $"This should not happen - we cannot fight any way to obtain item {code} for {Character.Schema.Name}",
+            ErrorStatus.InsufficientSkill
+        );
     }
 
     // TODO: Make the iterations into something like "craftPerIteration", so it returns a list of tuples or something,

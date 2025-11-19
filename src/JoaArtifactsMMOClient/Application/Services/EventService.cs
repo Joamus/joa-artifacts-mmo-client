@@ -13,6 +13,7 @@ public class EventService
 
     private readonly ILogger<EventService> logger;
 
+    private GameState gameState { get; set; }
     public List<EventSchema> Events { get; private set; } = [];
     public Dictionary<string, EventSchema> EventsDict { get; private set; } = [];
     public Dictionary<string, EventSchema> EventEntitiesDict { get; private set; } = [];
@@ -31,10 +32,15 @@ public class EventService
         private set { _activeEvents = value; }
     }
 
-    public EventService(ILogger<EventService> logger, AccountRequester accountRequester)
+    public EventService(
+        ILogger<EventService> logger,
+        AccountRequester accountRequester,
+        GameState gameState
+    )
     {
         this.logger = logger;
         this.accountRequester = accountRequester;
+        this.gameState = gameState;
     }
 
     public async Task LoadEvents()
@@ -145,5 +151,34 @@ public class EventService
     public bool IsEntityFromEvent(string code)
     {
         return EventEntitiesDict.GetValueOrNull(code) is not null;
+    }
+
+    public bool IsItemFromEventMonster(string code, bool mustBeActive)
+    {
+        var monstersThatDropTheItem = gameState.Monsters.FindAll(monster =>
+            monster.Drops.Find(drop => drop.Code == code) is not null
+        );
+
+        if (monstersThatDropTheItem.Count > 0)
+        {
+            return false;
+        }
+
+        foreach (var monster in monstersThatDropTheItem)
+        {
+            var monsterIsFromEvent = IsEntityFromEvent(monster.Code);
+
+            if (monsterIsFromEvent && mustBeActive && WhereIsEntityActive(monster.Code) is not null)
+            {
+                return false;
+            }
+
+            if (!monsterIsFromEvent)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -264,7 +264,14 @@ public class FightMonster : CharacterJob
             // }
         }
 
-        await HealIfNotAtFullHp();
+        if (
+            !FightSimulator
+                .CalculateFightOutcome(Character.Schema, monster, gameState, 5, false)
+                .ShouldFight
+        )
+        {
+            await HealIfNotAtFullHp();
+        }
 
         await Character.NavigateTo(Code);
 

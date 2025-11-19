@@ -131,7 +131,7 @@ public static class EffectService
 
         if (!monsterSchema.Effects.Exists(effect => effect.Code == Effect.Poison))
         {
-            effectsToSkip.Add(Effect.Poison);
+            effectsToSkip.Add(Effect.Antipoison);
         }
 
         return effectsToSkip;

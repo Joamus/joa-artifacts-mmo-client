@@ -51,7 +51,8 @@ public class GameState
         BankItemCache = new BankItemCache(accountRequester);
         EventService = new EventService(
             AppLogger.loggerFactory.CreateLogger<EventService>(),
-            accountRequester
+            accountRequester,
+            this
         );
     }
 

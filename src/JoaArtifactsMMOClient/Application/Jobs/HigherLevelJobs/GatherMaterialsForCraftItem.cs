@@ -46,6 +46,9 @@ public class GatherMaterialsForItem : CharacterJob
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] setting up events to have {crafter.Schema.Name} craft {lastJob.Amount} x {lastJob.Code}"
         );
+        // CONSIDER ADDING A DEPOSIT UNNEEDED ITEMS HERE
+        // This should probably be made a high prio job. I think it's gotten apparent that the crafter will spend too much time doing other stuff first.
+        // We could even consider interrupting the job and resuming it, but it probably won't be bug-free :D
 
         var depositItems = GetDepositAllMaterialsToBankJobs(lastJob);
 
@@ -78,7 +81,13 @@ public class GatherMaterialsForItem : CharacterJob
 
             job.ForCharacter(Character);
 
-            crafter.QueueJob(job);
+            crafter.QueueJob(job, true);
+
+            if (DepositUnneededItems.ShouldInitDepositItems(crafter, true))
+            {
+                crafter.QueueJob(new DepositUnneededItems(crafter, gameState));
+            }
+
             return Task.Run(() => { });
         };
     }

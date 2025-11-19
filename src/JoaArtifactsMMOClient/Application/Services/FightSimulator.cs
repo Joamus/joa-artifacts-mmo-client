@@ -123,38 +123,42 @@ public class FightSimulator
                     List<FightSimUtility> potionEffectsForTurn = attacker.isPlayer ? potions : [];
 
                     int poisonDamage = 0;
+                    var poison = attacker.effects.FirstOrDefault(effect =>
+                        effect.Code == Effect.Poison
+                    );
+
+                    if (poison is not null)
+                    {
+                        poisonDamage = poison.Value;
+                    }
 
                     /**
                       The poison effect causes x damage per turn, unless the defender has an antidote. If the defender has an antidote,
                       it subtracts the antidote value from the poison, using only 1 antidote.
                     **/
-                    if (turnNumber == 1)
+                    if (poison is not null)
                     {
-                        var poison = attacker.effects.FirstOrDefault(effect =>
-                            effect.Code == Effect.Poison
-                        );
+                        poisonDamage = poison.Value;
 
-                        if (poison is not null)
+                        foreach (var potion in potions)
                         {
-                            poisonDamage = poison.Value;
+                            var antidote = potion.Item.Effects.FirstOrDefault(effect =>
+                                effect.Code == Effect.Antipoison
+                            );
 
-                            foreach (var potion in potions)
+                            if (antidote is not null)
                             {
-                                var antidote = potion.Item.Effects.FirstOrDefault(effect =>
-                                    effect.Code == Effect.Antipoison
-                                );
+                                poisonDamage -= antidote.Value;
 
-                                if (antidote is not null)
+                                if (poisonDamage < 0)
                                 {
-                                    poisonDamage -= antidote.Value;
-
-                                    if (poisonDamage < 0)
-                                    {
-                                        poisonDamage = 0;
-                                    }
-                                    potion.Quantity--;
-                                    break;
+                                    poisonDamage = 0;
                                 }
+                                if (turnNumber == 1)
+                                {
+                                    potion.Quantity--;
+                                }
+                                break;
                             }
                         }
                     }
@@ -234,6 +238,7 @@ public class FightSimulator
         playerHp = (int)Math.Floor((double)playerHp / fightSimulations);
         monsterHp = (int)Math.Floor((double)monsterHp / fightSimulations);
         totalTurns = (int)Math.Floor((double)totalTurns / fightSimulations);
+        bool shouldFight = (amountShouldFight / fightSimulations) > PERCENTAGE_OF_SIMS_TO_WIN;
 
         FightResult generallyWon =
             (amountWon / fightSimulations) > PERCENTAGE_OF_SIMS_TO_WIN
@@ -243,6 +248,7 @@ public class FightSimulator
         return new FightOutcome
         {
             Result = generallyWon,
+            // ShouldFight = shouldFight,
             ShouldFight = generallyWon == FightResult.Win,
             PlayerHp = playerHp,
             MonsterHp = monsterHp,
@@ -349,10 +355,12 @@ public class FightSimulator
 
             if (burn is not null)
             {
-                burn.Value -= (totalTurns + 1) - 1;
-                int turnMultiplier = 2 - (totalTurns - 1);
                 // Decrease burn damage by 10% each turn. So if burn value is 20%, then it's 20, 10, 0.
-                double burnFactor = Math.Max((burn.Value * 0.01) - (turnMultiplier * 0.1), 0);
+                int subtractFactor = Math.Max(burn.Value - ((totalTurns - 1) * burn.Value), 0);
+
+                int initialDmg = burn.Value - subtractFactor;
+
+                double burnFactor = initialDmg * 0.01;
 
                 int burnDamage =
                     burnFactor > 0 ? (int)Math.Round(damageWithEffects * burnFactor) : 0;

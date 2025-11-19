@@ -14,14 +14,14 @@ public class AppError : SystemException
         : base(message)
     {
         Status = ErrorStatus.Undefined;
-        _logger.LogDebug($"JobError: {message} \nstack: {base.StackTrace}");
+        _logger.LogError($"JobError: {message} \nstack: {base.StackTrace}");
     }
 
     public AppError(string message, ErrorStatus status)
         : base(message)
     {
         Status = status;
-        _logger.LogDebug($"JobError: {message}");
+        _logger.LogError($"JobError: {message}");
     }
 }
 
