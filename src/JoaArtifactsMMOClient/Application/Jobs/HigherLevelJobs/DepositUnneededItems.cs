@@ -313,11 +313,6 @@ public class DepositUnneededItems : CharacterJob
 
         foreach (var item in itemsToDeposit)
         {
-            if (item.Importance > ItemImportance.Low)
-            {
-                continue;
-            }
-
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
             if (
@@ -328,9 +323,17 @@ public class DepositUnneededItems : CharacterJob
                 continue;
             }
 
-            if (!bestFightItems.ContainsKey(item.Code))
+            if (
+                ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
+                && !bestFightItems.ContainsKey(item.Code)
+            )
             {
                 item.Importance = ItemImportance.None;
+            }
+
+            if (item.Importance > ItemImportance.Low)
+            {
+                continue;
             }
         }
 
@@ -422,7 +425,7 @@ public class DepositUnneededItems : CharacterJob
     public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character)
     {
         return character.GetInventorySpaceLeft() < MAX_FREE_INVENTORY_SPACES
-            && character.Schema.Inventory.Count((item) => !string.IsNullOrEmpty(item.Code))
+            && character.Schema.Inventory.Count((item) => string.IsNullOrEmpty(item.Code))
                 < MAX_FREE_INVENTORY_SLOTS;
     }
 }

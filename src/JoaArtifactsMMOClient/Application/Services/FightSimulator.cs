@@ -566,16 +566,27 @@ public class FightSimulator
                     allItems,
                     equipmentTypeMapping,
                     bestFightSimResult
-                // bestFightSimResult with
-                // { }
                 );
 
                 bestSchemaCandiateWithWeapon = result.Schema;
                 bestFightOutcomeWithWeapon = result.Outcome;
                 itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
 
-                // bestFightSimResult = result;
-                // bestFightSimResult.ItemsToEquip = itemsToEquip;
+                // Bit of a hack, but we have to keep track of quantity
+                if (equipmentTypeMapping.ItemType == "ring")
+                {
+                    allItems.ForEach(item =>
+                    {
+                        var matchingItem = itemsToEquip.FirstOrDefault(itemToEquip =>
+                            itemToEquip.Code == item.Item.Code
+                        );
+
+                        if (matchingItem is not null)
+                        {
+                            item.Quantity -= matchingItem.Quantity;
+                        }
+                    });
+                }
             }
 
             // Sim potions afterwards
@@ -665,7 +676,9 @@ public class FightSimulator
         var equipmentType = equipmentTypeMapping.ItemType;
         var equipmentSlot = equipmentTypeMapping.Slot;
         // var items = character.GetItemsFromInventoryWithType(equipmentType);
-        var items = allItems.Where(item => item.Item.Type == equipmentType).ToList();
+        var items = allItems
+            .Where(item => item.Item.Type == equipmentType && item.Quantity > 0)
+            .ToList();
 
         if (items.Count == 0)
         {

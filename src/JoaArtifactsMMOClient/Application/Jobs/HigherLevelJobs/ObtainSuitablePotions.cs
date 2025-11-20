@@ -114,10 +114,12 @@ public class ObtainSuitablePotions : CharacterJob
         }
 
         potionCandidates.Sort(
-            (b, a) =>
-                ItemService
-                    .GetEffect(a.item, "restore")
-                    .CompareTo(ItemService.GetEffect(b.item, "restore"))
+            // Assuming that higher level pots are better
+            (b, a) => a.item.Level - b.item.Level
+        // (b, a) =>
+        //     ItemService
+        //         .GetEffect(a.item, "restore")
+        //         .CompareTo(ItemService.GetEffect(b.item, "restore"))
         );
 
         List<ItemInInventory> potionsForSim = [];
@@ -184,46 +186,91 @@ public class ObtainSuitablePotions : CharacterJob
         //     )
         //     .ToList();
 
-        potionCandidates = potionCandidates.FindAll(potion =>
-        {
-            if (!EffectService.IsPreFightPotion(potion.item))
+        potionCandidates = potionsForSim
+            .Where(potion =>
             {
-                return true;
+                if (!EffectService.IsPreFightPotion(potion.Item))
+                {
+                    return true;
+                }
+
+                // character.Schema.Utility1Slot = "";
+                // character.Schema.Utility1SlotQuantity = 0;
+
+                // character.Schema.Utility2Slot = "";
+                // character.Schema.Utility2SlotQuantity = 0;
+                var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
+                    character,
+                    gameState,
+                    monster,
+                    new List<ItemInInventory>
+                    {
+                        new ItemInInventory
+                        {
+                            Item = potion.Item,
+                            Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+                        },
+                    }
+                );
+
+                bool simpleAvoidPrefightPotions = EffectService.SimpleIsPreFightPotionWorthUsing(
+                    fightSimWithPotions
+                );
+
+                if (simpleAvoidPrefightPotions)
+                {
+                    return false;
+                }
+
+                return EffectService.IsPreFightPotionWorthUsing(
+                    potion.Item,
+                    fightSimWithoutPotions.Outcome,
+                    fightSimWithPotions.Outcome
+                );
+            })
+            .Select(potion =>
+            {
+                var candidate = potionCandidates.FirstOrDefault(_candidate =>
+                    _candidate.item.Code == potion.Item.Code
+                );
+
+                return (item: potion.Item, candidate.canCraft, candidate.amountInBank);
+            })
+            .ToList();
+
+        potionCandidates.Sort((a, b) => b.item.Level - a.item.Level);
+
+        foreach (var candiate in potionCandidates)
+        {
+            bool skipCandidate = false;
+            foreach (var effect in candiate.item.Effects)
+            {
+                // Effects cannot overlap (I think)
+                if (
+                    potionCandidates.Exists(potion =>
+                        potion.item.Effects.Exists(_effect => _effect.Code == effect.Code)
+                    )
+                )
+                {
+                    skipCandidate = true;
+                    break;
+                }
             }
 
-            // character.Schema.Utility1Slot = "";
-            // character.Schema.Utility1SlotQuantity = 0;
+            if (skipCandidate)
+            {
+                continue;
+            }
 
-            // character.Schema.Utility2Slot = "";
-            // character.Schema.Utility2SlotQuantity = 0;
-            var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
-                character,
-                gameState,
-                monster,
-                new List<ItemInInventory>
+            potionsForSim.Add(
+                new ItemInInventory
                 {
-                    new ItemInInventory
-                    {
-                        Item = potion.item,
-                        Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
-                    },
+                    Item = candiate.item,
+
+                    Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
                 }
             );
-
-            bool simpleAvoidPrefightPotions = EffectService.SimpleIsPreFightPotionWorthUsing(
-                fightSimWithPotions
-            );
-            if (simpleAvoidPrefightPotions)
-            {
-                return false;
-            }
-
-            return EffectService.IsPreFightPotionWorthUsing(
-                potion.item,
-                fightSimWithoutPotions.Outcome,
-                fightSimWithPotions.Outcome
-            );
-        });
+        }
 
         // Mutating it back, very important
         character.Schema = originalSchema;

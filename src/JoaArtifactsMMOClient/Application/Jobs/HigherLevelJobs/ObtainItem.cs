@@ -310,6 +310,47 @@ public class ObtainItem : CharacterJob
                     ErrorStatus.InsufficientSkill
                 );
             }
+
+            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code)!;
+
+            // BuyPrice should not be null here - this is how you obtain task items.
+            int taskCoinsNeeded = ((int)(matchingNpcItem.BuyPrice ?? 0)) * requiredAmount;
+
+            var taskCoinsAmount =
+                Character
+                    .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
+                    ?.Quantity ?? 0;
+
+            var taskCoinsInBank =
+                itemsInBank.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
+                ?? 0;
+
+            taskCoinsNeeded -= Math.Min(taskCoinsAmount, taskCoinsNeeded);
+
+            // For now we only care if the bank has all we need - else the CompleteTask job will withdraw needed coins
+            if (taskCoinsAmount < taskCoinsNeeded && taskCoinsInBank >= taskCoinsNeeded)
+            {
+                jobs.Add(
+                    new WithdrawItem(
+                        Character,
+                        gameState,
+                        ItemService.TasksCoin,
+                        Math.Min(taskCoinsNeeded, taskCoinsInBank),
+                        true,
+                        false
+                    )
+                );
+                taskCoinsNeeded = 0;
+            }
+
+            if (taskCoinsNeeded == 0)
+            {
+                jobs.Add(
+                    new BuyItemNpc(Character, gameState, code, requiredAmount, true, true, true)
+                );
+                return new None();
+            }
+
             // Pick up a task, or complete one you have
             if (Character.Schema.TaskType == "monsters")
             {
@@ -423,7 +464,7 @@ public class ObtainItem : CharacterJob
             }
         }
 
-        if (monstersThatDropTheItem.Count > 0 && lowestLevelMonster is null)
+        if (monstersThatDropTheItem.Count > 0)
         {
             if (foundMonsterThatIsFromEvent)
             {
