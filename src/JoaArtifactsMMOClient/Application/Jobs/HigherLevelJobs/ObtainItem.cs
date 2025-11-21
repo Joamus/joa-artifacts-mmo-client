@@ -89,13 +89,13 @@ public class ObtainItem : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        // It's not very elegant that this job is pasted in multiple places, but a lot of jobs want to have their inventory be clean before they start, or in their InnerJob.
-        if (DepositUnneededItems.ShouldInitDepositItems(Character, true))
-        {
-            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
-            Status = JobStatus.Suspend;
-            return new None();
-        }
+        // // It's not very elegant that this job is pasted in multiple places, but a lot of jobs want to have their inventory be clean before they start, or in their InnerJob.
+        // if (DepositUnneededItems.ShouldInitDepositItems(Character, true))
+        // {
+        //     Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+        //     Status = JobStatus.Suspend;
+        //     return new None();
+        // }
 
         List<CharacterJob> jobs = [];
         logger.LogInformation(
@@ -319,7 +319,8 @@ public class ObtainItem : CharacterJob
             var taskCoinsAmount =
                 Character
                     .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity ?? 0;
+                    ?.Quantity
+                ?? 0;
 
             var taskCoinsInBank =
                 itemsInBank.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
