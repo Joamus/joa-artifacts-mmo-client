@@ -112,14 +112,14 @@ public class BankItemCache
         // Maybe lazy cleanup the cache? Do it on an interval of every 30 min or so
         // Allow boolean parameter to get all anyway
 
-        bool useCachedResponse = lastResponse is null || shouldRequestAgain;
+        bool requestAgain = lastResponse is null || shouldRequestAgain;
 
-        var bankItems = useCachedResponse
+        var bankItems = requestAgain
             ? await accountRequester.GetBankItems()
             : lastResponse! with
             { }; // dunno if the cloning really works here, or is necessary
 
-        if (!useCachedResponse)
+        if (requestAgain)
         {
             lastResponse = bankItems with { };
         }
