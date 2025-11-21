@@ -561,6 +561,8 @@ public class PlayerCharacter
             body
         );
 
+        GameState.BankItemCache.shouldRequestAgain = true;
+
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<BankGoldTransactionResponse>(
             content,
@@ -581,6 +583,9 @@ public class PlayerCharacter
         );
 
         var content = await response.Content.ReadAsStringAsync();
+
+        GameState.BankItemCache.shouldRequestAgain = true;
+
         var result = JsonSerializer.Deserialize<BankGoldTransactionResponse>(
             content,
             ApiRequester.getJsonOptions()
@@ -600,6 +605,8 @@ public class PlayerCharacter
             $"/my/{Schema.Name}/action/bank/deposit/item",
             body
         );
+
+        GameState.BankItemCache.shouldRequestAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -622,6 +629,8 @@ public class PlayerCharacter
             $"/my/{Schema.Name}/action/bank/withdraw/item",
             body
         );
+
+        GameState.BankItemCache.shouldRequestAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(

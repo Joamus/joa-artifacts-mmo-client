@@ -7,6 +7,10 @@ using Application.Services.ApiServices;
 
 public class BankItemCache
 {
+    public bool shouldRequestAgain { get; set; } = true;
+
+    BankItemsResponse? lastResponse { get; set; } = null;
+
     AccountRequester accountRequester { get; init; }
 
     DateTime lastCleanUpAt { get; set; } = DateTime.UtcNow;
@@ -107,7 +111,20 @@ public class BankItemCache
         // Apply all reservations to the bank items
         // Maybe lazy cleanup the cache? Do it on an interval of every 30 min or so
         // Allow boolean parameter to get all anyway
-        var bankItems = await accountRequester.GetBankItems();
+
+        bool useCachedResponse = lastResponse is null || shouldRequestAgain;
+
+        var bankItems = useCachedResponse
+            ? await accountRequester.GetBankItems()
+            : lastResponse! with
+            { }; // dunno if the cloning really works here, or is necessary
+
+        if (!useCachedResponse)
+        {
+            lastResponse = bankItems with { };
+        }
+
+        shouldRequestAgain = false;
 
         foreach (var item in bankItems.Data)
         {
