@@ -42,7 +42,7 @@ public class FightSimulator
         CharacterSchema originalSchema,
         MonsterSchema monster,
         GameState gameState,
-        int iterations = 10,
+        int iterations = 20,
         bool playerFullHp = true
     )
     {
