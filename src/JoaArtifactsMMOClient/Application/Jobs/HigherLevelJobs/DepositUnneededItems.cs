@@ -69,6 +69,8 @@ public class DepositUnneededItems : CharacterJob
 
         Dictionary<string, List<DepositItemRecord>> equipmentToKeep = [];
 
+        await BuyBankSpaceIfNeeded();
+
         foreach (var item in Character.Schema.Inventory)
         {
             if (string.IsNullOrEmpty(item.Code))
