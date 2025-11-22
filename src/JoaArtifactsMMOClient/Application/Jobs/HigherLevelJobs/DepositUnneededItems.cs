@@ -31,7 +31,7 @@ public class DepositUnneededItems : CharacterJob
     private static int MIN_FREE_BANK_SLOTS = 10;
 
     // Deposit until hitting this threshold
-    private static int MIN_FREE_INVENTORY_SLOTS = 2;
+    private static int MIN_FREE_INVENTORY_SLOTS = 5;
     private static int MAX_FREE_INVENTORY_SLOTS = 8;
     private static int MIN_FREE_INVENTORY_SPACES = 5;
     private static int MAX_FREE_INVENTORY_SPACES = 30;
@@ -264,7 +264,7 @@ public class DepositUnneededItems : CharacterJob
 
             if (matchingItem.Subtype == "tool")
             {
-                var toolEffect = matchingItem.Effects.FirstOrDefault(effect =>
+                var toolEffect = matchingItem.Effects.Find(effect =>
                     SkillService.GetSkillFromName(effect.Code) is not null
                 );
 
@@ -326,7 +326,8 @@ public class DepositUnneededItems : CharacterJob
             }
 
             if (
-                ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
+                MonsterSchema is not null
+                && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
                 && !bestFightItems.ContainsKey(item.Code)
             )
             {

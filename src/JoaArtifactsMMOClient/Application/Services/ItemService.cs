@@ -483,16 +483,16 @@ public static class ItemService
     {
         if (allItemCandidates is null)
         {
-            // 100 quantity for potions, doesn't really matter
             allItemCandidates = gameState
                 .Items.Where(item => item.Subtype == "tool")
-                .Select(item => new InventorySlot { Code = item.Code, Quantity = 100 })
+                .Select(item => new InventorySlot { Code = item.Code, Quantity = 1 })
                 .ToList();
         }
 
         List<ItemSchema> relevantTools = [];
 
         Dictionary<string, ItemSchema> relevantToolsDict = [];
+
         List<string> skillNames = SkillService
             .GatheringSkills.Select(SkillService.GetSkillName)
             .Where(skill => skill is not null)

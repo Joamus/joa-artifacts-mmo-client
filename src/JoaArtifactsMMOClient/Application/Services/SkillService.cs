@@ -61,7 +61,7 @@ public static class SkillService
                 return Skill.Fishing;
         }
 
-        throw new Exception($"Skill name was {skill} - could not find match for actual skill");
+        return null;
     }
 }
 

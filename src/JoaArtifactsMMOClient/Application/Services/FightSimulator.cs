@@ -5,6 +5,7 @@ using Application.Character;
 using Application.Errors;
 using Application.Records;
 using Application.Services;
+using OneOf.Types;
 
 namespace Applicaton.Services.FightSimulator;
 
@@ -29,6 +30,7 @@ public class FightSimulator
             new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility1Slot" },
             new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility2Slot" },
             new EquipmentTypeMapping { ItemType = "rune", Slot = "RuneSlot" },
+            new EquipmentTypeMapping { ItemType = "artifact", Slot = "ArtifactSlot" },
         };
 
     // We assume that monsters will crit more often than us, just to ensure that we don't take on fights too often, that we will probably not win.
@@ -248,8 +250,7 @@ public class FightSimulator
         return new FightOutcome
         {
             Result = generallyWon,
-            // ShouldFight = shouldFight,
-            ShouldFight = generallyWon == FightResult.Win,
+            ShouldFight = shouldFight,
             PlayerHp = playerHp,
             MonsterHp = monsterHp,
             TotalTurns = totalTurns,
@@ -418,6 +419,22 @@ public class FightSimulator
                 attacker.Hp += heal;
             }
         }
+
+        if (totalTurns % 3 == 0)
+        {
+            SimpleEffectSchema? heal = attackerRuneEffects.FirstOrDefault(effect =>
+                effect.Code == Effect.Healing
+            );
+
+            if (heal is not null)
+            {
+                // We use the raw damage here, don't think lifesteal works with burn
+                var attackerAsPlayer = (CharacterSchema)attacker;
+                int amountToHeal = (int)Math.Round(attackerAsPlayer.MaxHp * (heal.Value * 0.01));
+
+                attacker.Hp += amountToHeal;
+            }
+        }
     }
 
     public static FightSimResult FindBestFightEquipment(
@@ -439,6 +456,9 @@ public class FightSimulator
                 })
                 .ToList();
         }
+
+        allItems = GetItemsWorthSimming(allItems);
+
         // This order should matter somewhat, since e.g. body armor slots typically give more stats than items lower in the list, e.g boots and amulets.
         // List<EquipmentTypeMapping> equipmentTypes = allEquipmentTypes;
         List<EquipmentTypeMapping> tempEquipmentTypes = [];
@@ -588,6 +608,10 @@ public class FightSimulator
                     });
                 }
             }
+            var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(
+                bestSchemaCandiateWithWeapon,
+                monster
+            );
 
             // Sim potions afterwards
             foreach (var equipmentTypeMapping in potionEquipmentTypes)
@@ -596,7 +620,11 @@ public class FightSimulator
                     character,
                     gameState,
                     monster,
-                    allItems,
+                    allItems.FindAll(item =>
+                        !item.Item.Effects.Exists(effect =>
+                            potionEffectsToSkip.Contains(effect.Code)
+                        )
+                    ),
                     equipmentTypeMapping,
                     /**
                         This is kinda hacky, but we do this because we want the second time running,
@@ -608,21 +636,11 @@ public class FightSimulator
                         Outcome = bestFightOutcomeWithWeapon,
                         ItemsToEquip = itemsToEquip,
                     }
-                // bestFightSimResult
-                // bestFightSimResult with
-                // { }
                 );
 
                 bestSchemaCandiateWithWeapon = result.Schema;
                 bestFightOutcomeWithWeapon = result.Outcome;
                 itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
-
-                // bestFightSimResult = result;
-                // bestFightSimResult.ItemsToEquip = itemsToEquip;
-
-                // bestSchemaCandiateWithWeapon = result.Schema;
-                // bestFightOutcomeWithWeapon = result.Outcome;
-                // itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
             }
 
             allCandidates.Add(
@@ -632,11 +650,22 @@ public class FightSimulator
                     Outcome = bestFightOutcomeWithWeapon,
                     ItemsToEquip = itemsToEquip,
                 }
-            // bestFightSimResult
             );
         }
 
-        allCandidates.Sort((a, b) => CompareSimOutcome(a.Outcome, b.Outcome));
+        allCandidates.Sort(
+            (a, b) =>
+            {
+                if (
+                    a.Outcome.PlayerHp == b.Outcome.PlayerHp
+                    && a.Outcome.TotalTurns == b.Outcome.TotalTurns
+                )
+                {
+                    return a.ItemsToEquip.Count < b.ItemsToEquip.Count ? -1 : 1;
+                }
+                return CompareSimOutcome(a.Outcome, b.Outcome);
+            }
+        );
 
         return allCandidates.ElementAt(0);
     }
@@ -810,8 +839,9 @@ public class FightSimulator
             && (
                 b.Result != FightResult.Win
                 || (
-                    a.PlayerHp > b.PlayerHp
-                    || (a.TotalTurns < b.TotalTurns && a.PlayerHp >= b.PlayerHp)
+                    a.TotalTurns < b.TotalTurns
+                // a.PlayerHp > b.PlayerHp
+                // || (a.TotalTurns < b.TotalTurns && a.PlayerHp >= b.PlayerHp)
                 )
             )
         )
@@ -903,6 +933,118 @@ public class FightSimulator
         }
 
         return relevantMonsters;
+    }
+
+    /**
+      * Essentially only take the best of the items, sorting out linear downgrades. If two items have the same effects, only keep the best one
+    **/
+    public static List<ItemInInventory> GetItemsWorthSimming(List<ItemInInventory> items)
+    {
+        List<ItemInInventory> resultList = [];
+
+        Dictionary<string, List<ItemInInventory>> slotItemDict = [];
+
+        foreach (var item in items)
+        {
+            if (
+                !allEquipmentTypes.Exists(type => type.ItemType == item.Item.Type)
+                || item.Item.Subtype == "tool"
+            )
+            {
+                continue;
+            }
+
+            if (slotItemDict.ContainsKey(item.Item.Type))
+            {
+                slotItemDict[item.Item.Type].Add(item);
+            }
+            else
+            {
+                slotItemDict.Add(item.Item.Type, [item]);
+            }
+        }
+
+        foreach (var keyValuePair in slotItemDict)
+        {
+            List<ItemInInventory> itemsToKeep = [];
+
+            List<string> skipList = [];
+
+            foreach (var item in keyValuePair.Value)
+            {
+                if (skipList.Contains(item.Item.Code))
+                {
+                    continue;
+                }
+
+                foreach (var itemToCompareTo in keyValuePair.Value)
+                {
+                    if (item.Item.Code == itemToCompareTo.Item.Code)
+                    {
+                        continue;
+                    }
+
+                    var result = GetBestIfUpgrade(item.Item, itemToCompareTo.Item);
+
+                    if (result is null)
+                    {
+                        // They don't overlap and count as upgrades
+                        itemsToKeep.Add(itemToCompareTo);
+                        continue;
+                    }
+
+                    if (result is not null)
+                    {
+                        if (result.Code == item.Item.Code)
+                        {
+                            itemsToKeep.Add(item);
+                            skipList.Add(itemToCompareTo.Item.Code);
+                        }
+                        else
+                        {
+                            itemsToKeep.Add(itemToCompareTo);
+                            skipList.Add(result.Code);
+                            break; // the other item is better, so disqualify the current one
+                        }
+                    }
+                }
+            }
+
+            var filteredItems = itemsToKeep
+                .Where(item => !skipList.Contains(item.Item.Code))
+                .ToList();
+
+            foreach (var item in filteredItems)
+            {
+                resultList.Add(item);
+            }
+        }
+
+        return resultList;
+    }
+
+    public static ItemSchema? GetBestIfUpgrade(ItemSchema a, ItemSchema b)
+    {
+        var lowestLevelItem = a.Level > b.Level ? b : a;
+
+        var highestLevelItem = lowestLevelItem.Code == a.Code ? b : a;
+
+        foreach (var highLevelEffect in highestLevelItem.Effects)
+        {
+            // Some effects have "minus" effects, e.g. cooldown reduction for gathering tools,
+            // but Obsidian Battleaxe also has minus inventory space, so we don't care for that here.
+            var hasSameEffectButBetterOrEqual = lowestLevelItem.Effects.Exists(lowLevelEffect =>
+                lowLevelEffect.Code == highLevelEffect.Code
+                && (highLevelEffect.Value >= lowLevelEffect.Value)
+            );
+
+            if (!hasSameEffectButBetterOrEqual)
+            {
+                return null;
+            }
+        }
+
+        return highestLevelItem;
     }
 }
 

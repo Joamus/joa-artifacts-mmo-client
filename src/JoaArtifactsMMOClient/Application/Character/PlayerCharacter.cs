@@ -29,6 +29,8 @@ public class PlayerCharacter
     // If on cooldown, but not expected, just wait 5 seconds
     public CharacterSchema Schema { get; set; }
 
+    public string Name { get; set; } = "";
+
     public CooldownSchema? Cooldown { get; private set; } = null;
 
     [JsonInclude]
@@ -379,6 +381,7 @@ public class PlayerCharacter
     )
     {
         Schema = characterSchema;
+        Name = Schema.Name;
         GameState = gameState;
         ApiRequester = apiRequester;
         Logger = AppLogger.loggerFactory.CreateLogger<PlayerCharacter>();

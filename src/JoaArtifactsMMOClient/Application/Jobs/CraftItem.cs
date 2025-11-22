@@ -152,7 +152,7 @@ public class CraftItem : CharacterJob
                         Character,
                         gameState,
                         material.Code,
-                        material.Quantity * Amount
+                        material.Quantity
                     );
                     jobs.Add(job);
                 }

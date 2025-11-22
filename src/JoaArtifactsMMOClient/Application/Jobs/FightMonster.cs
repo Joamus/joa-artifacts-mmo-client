@@ -99,6 +99,44 @@ public class FightMonster : CharacterJob
 
         await Character.PlayerActionService.EquipBestFightEquipment(monster);
 
+        List<CharacterJob> withdrawItemJobs = await GetWithdrawItemJobsIfBetterItemsInBank(monster);
+
+        if (withdrawItemJobs.Count > 0)
+        {
+            logger.LogInformation(
+                $"{JobName}: [{Character.Schema.Name}] found {withdrawItemJobs.Count} x jobs to withdraw better items to fight - {string.Join(",", withdrawItemJobs.Select(item => item.Code).ToList())}"
+            );
+            Character.QueueJobsBefore(Id, withdrawItemJobs);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
+        List<ItemInInventory> itemsToEquip = [];
+
+        if (itemsToEquip.Count > 0)
+        {
+            List<CharacterJob> jobs = [];
+
+            foreach (var item in itemsToEquip)
+            {
+                jobs.Add(
+                    new WithdrawItem(
+                        Character,
+                        gameState,
+                        item.Item.Code,
+                        item.Quantity,
+                        true,
+                        true
+                    )
+                );
+            }
+            Character.QueueJobsBefore(Id, jobs);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
+        // Figure out if the bank has better fight items, if they have, withdraw them and rerun the job
+
         var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
 
         if (obtainPotionJobs.Count > 0)
@@ -707,6 +745,81 @@ public class FightMonster : CharacterJob
                 await Character.Rest();
             }
         }
+    }
+
+    public async Task<List<CharacterJob>> GetWithdrawItemJobsIfBetterItemsInBank(
+        MonsterSchema monster
+    )
+    {
+        List<CharacterJob> jobs = [];
+
+        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+
+        var items = bankResponse
+            .Data.Select(item => new ItemInInventory
+            {
+                Item = gameState.ItemsDict[item.Code],
+                Quantity = item.Quantity,
+            })
+            .ToList();
+
+        foreach (var item in Character.Schema.Inventory)
+        {
+            if (string.IsNullOrWhiteSpace(item.Code))
+            {
+                continue;
+            }
+            items.Add(
+                new ItemInInventory
+                {
+                    Item = gameState.ItemsDict[item.Code],
+                    Quantity = item.Quantity,
+                }
+            );
+        }
+
+        var result = FightSimulator.FindBestFightEquipment(Character, gameState, monster, items);
+
+        foreach (var item in result.ItemsToEquip)
+        {
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            // It's easier for now, we can get into edge cases when withdrawing a lot of potions.
+            // We also don't care, because AcquirePotionJobs should take care of this
+            if (matchingItem.Type == "utility")
+            {
+                continue;
+            }
+
+            if (bankResponse.Data.Exists(bankItem => bankItem.Code == item.Code)
+            // && Character.GetItemFromInventory(item.Code) is null
+            )
+            {
+                int quantityMissing =
+                    item.Quantity - (Character.GetItemFromInventory(item.Code)?.Quantity ?? 0);
+
+                if (quantityMissing < 0)
+                {
+                    quantityMissing = 0;
+                }
+
+                if (quantityMissing > 0)
+                {
+                    jobs.Add(
+                        new WithdrawItem(
+                            Character,
+                            gameState,
+                            item.Code,
+                            quantityMissing,
+                            false,
+                            true
+                        )
+                    );
+                }
+            }
+        }
+
+        return jobs;
     }
 }
 

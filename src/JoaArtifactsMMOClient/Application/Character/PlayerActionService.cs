@@ -74,6 +74,12 @@ public class PlayerActionService
         MapSchema? closestMap = null;
         int closestCost = 0;
 
+        /** Handle navigating across transitions to different layers
+         * Handle Sandwhisper Isle - we always need at least 1k gold to cross, and ideally want a recall potion to get back.
+         * The transition is also "hardcoded", e.g if you want to navigate from a non-Sandwhisper isle map to a sandwhisper one, we need
+         * to go to specific transition points
+        **/
+
         if (maps.Count == 0)
         {
             var map = GameState.EventService.WhereIsEntityActive(code);
@@ -471,6 +477,11 @@ public class PlayerActionService
         foreach (var item in gameState.Items)
         {
             if (item.Subtype == "tool")
+            {
+                continue;
+            }
+
+            if (item.Type == "utility")
             {
                 continue;
             }
