@@ -199,7 +199,7 @@ public class TrainSkill : CharacterJob
 
                         if (!resultA.Item1)
                         {
-                            return 1;
+                            return -1;
                         }
 
                         int resultACost = resultA.Item2 + skillLevel - a.Craft!.Level;
@@ -215,7 +215,7 @@ public class TrainSkill : CharacterJob
 
                         if (!resultB.Item1)
                         {
-                            return -1;
+                            return 1;
                         }
 
                         return resultACost.CompareTo(resultBCost);
@@ -279,15 +279,19 @@ public class TrainSkill : CharacterJob
 
                 if (RecycleItem.CanItemBeRecycled(bestItemToCraft))
                 {
-                    var recycleJob = new RecycleItem(
-                        Character,
-                        gameState,
-                        bestItemToCraft.Code,
-                        craftingAmount
-                    ).SetParent<RecycleItem>(this);
+                    obtainItemJob.onSuccessEndHook = () =>
+                    {
+                        var recycleJob = new RecycleItem(
+                            Character,
+                            gameState,
+                            bestItemToCraft.Code,
+                            craftingAmount
+                        ).SetParent<RecycleItem>(obtainItemJob);
 
-                    recycleJob.ForBank();
-                    trainJobs.Add(recycleJob);
+                        recycleJob.ForBank();
+
+                        return Task.Run(() => { });
+                    };
                 }
                 else
                 {
@@ -353,7 +357,7 @@ public class TrainSkill : CharacterJob
                             .Outcome;
 
                         if (
-                            fightOutcome!.ShouldFight
+                            fightOutcome.ShouldFight
                             && (
                                 monsterWeCanFightOutcome?.TotalTurns is null
                                 || monsterWeCanFightOutcome.TotalTurns > fightOutcome.TotalTurns

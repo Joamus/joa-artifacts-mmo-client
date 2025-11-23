@@ -62,10 +62,11 @@ public class RecycleItem : CharacterJob
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
-            Character.QueueJobsBefore(
-                Id,
-                [new DepositUnneededItems(Character, gameState).SetParent<RecycleItem>(this)]
-            );
+            var job = new DepositUnneededItems(
+                Character,
+                gameState
+            ).SetParent<DepositUnneededItems>(this);
+            Character.QueueJobsBefore(Id, [job]);
             Status = JobStatus.Suspend;
             return new None();
         }

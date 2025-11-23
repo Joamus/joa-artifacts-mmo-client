@@ -3,6 +3,7 @@ using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
+using Application.Records;
 using Application.Services;
 using Applicaton.Jobs;
 using Applicaton.Services.FightSimulator;
@@ -301,6 +302,8 @@ public class ObtainItem : CharacterJob
             return new None();
         }
 
+        var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
+
         if (matchingItem.Subtype == "task")
         {
             if (matchingItem.Code == ItemService.TasksCoin)
@@ -311,16 +314,13 @@ public class ObtainItem : CharacterJob
                 );
             }
 
-            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code)!;
-
             // BuyPrice should not be null here - this is how you obtain task items.
-            int taskCoinsNeeded = ((int)(matchingNpcItem.BuyPrice ?? 0)) * requiredAmount;
+            int taskCoinsNeeded = (matchingNpcItem!.BuyPrice ?? 0) * requiredAmount;
 
             var taskCoinsAmount =
                 Character
                     .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity
-                ?? 0;
+                    ?.Quantity ?? 0;
 
             var taskCoinsInBank =
                 itemsInBank.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
@@ -423,6 +423,12 @@ public class ObtainItem : CharacterJob
 
         foreach (var monster in monstersThatDropTheItem)
         {
+            // For now, we assume that we cannot fight monsters a few levels above us.
+            if (monster.Level > Character.Schema.Level + 2)
+            {
+                continue;
+            }
+
             var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
 
             if (monsterIsFromEvent)
@@ -458,10 +464,71 @@ public class ObtainItem : CharacterJob
             }
             else
             {
-                if (lowestLevelMonster is null || monster.Level < lowestLevelMonster.Level)
+                List<CharacterJob> withdrawItemJobs =
+                    await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
+                        Character,
+                        gameState,
+                        monster
+                    );
+
+                if (withdrawItemJobs.Count > 0)
                 {
-                    lowestLevelMonster = monster;
+                    var fightSimIfUsingWithdrawnItems = FightSimulator.FindBestFightEquipment(
+                        Character,
+                        gameState,
+                        monster,
+                        withdrawItemJobs
+                            .Select(job => new ItemInInventory
+                            {
+                                Item = gameState.ItemsDict[job.Code],
+                                Quantity = job.Amount,
+                            })
+                            .ToList()
+                    );
+
+                    if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
+                    {
+                        foreach (var job in withdrawItemJobs)
+                        {
+                            jobs.Add(job);
+                        }
+                        var fightMonsterJob = new FightMonster(
+                            Character,
+                            gameState,
+                            monster.Code,
+                            requiredAmount,
+                            code
+                        );
+
+                        // job.AllowUsingMaterialsFromInventory = true;
+                        jobs.Add(fightMonsterJob);
+                        return new None();
+                    }
+
+                    if (lowestLevelMonster is null || monster.Level < lowestLevelMonster.Level)
+                    {
+                        lowestLevelMonster = monster;
+                    }
                 }
+            }
+        }
+
+        if (lowestLevelMonster is not null)
+        {
+            List<CharacterJob> withdrawItemJobs =
+                await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
+                    Character,
+                    gameState,
+                    lowestLevelMonster
+                );
+
+            if (withdrawItemJobs.Count > 0)
+            {
+                foreach (var job in withdrawItemJobs)
+                {
+                    jobs.Add(job);
+                }
+                return new None();
             }
         }
 
@@ -483,19 +550,8 @@ public class ObtainItem : CharacterJob
             }
         }
 
-        if (matchingItem.Subtype == "npc")
+        if (matchingNpcItem is not null)
         {
-            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
-
-            if (matchingNpcItem is null)
-            {
-                // something is wrong
-                return new AppError(
-                    $"The item with code {code} is an NPC item, but cannot find it in NPC items list",
-                    ErrorStatus.NotFound
-                );
-            }
-
             if (matchingNpcItem.BuyPrice is null)
             {
                 return new AppError(

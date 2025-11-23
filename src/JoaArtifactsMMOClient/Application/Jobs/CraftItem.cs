@@ -141,10 +141,6 @@ public class CraftItem : CharacterJob
         {
             if (CanTriggerObtain)
             {
-                logger.LogWarning(
-                    $"{JobName}: [{Character.Schema.Name}]: {missingMaterials.Count} materials were missing from inventory - triggering an obtain of them"
-                );
-
                 List<CharacterJob> jobs = [];
                 foreach (var material in missingMaterials)
                 {
@@ -155,6 +151,9 @@ public class CraftItem : CharacterJob
                         material.Quantity
                     );
                     jobs.Add(job);
+                    logger.LogWarning(
+                        $"{JobName}: [{Character.Schema.Name}]: {missingMaterials.Count} materials were missing from inventory - triggering an obtain of {material.Quantity} x {material.Code}"
+                    );
                 }
 
                 Character.QueueJobsBefore(Id, jobs);

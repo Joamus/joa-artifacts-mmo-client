@@ -3,6 +3,7 @@ using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Application.Jobs;
 using Application.Records;
 using Application.Services;
 using OneOf.Types;
@@ -977,6 +978,8 @@ public class FightSimulator
                     continue;
                 }
 
+                itemsToKeep.Add(item);
+
                 foreach (var itemToCompareTo in keyValuePair.Value)
                 {
                     if (item.Item.Code == itemToCompareTo.Item.Code)
@@ -984,7 +987,7 @@ public class FightSimulator
                         continue;
                     }
 
-                    var result = GetBestIfUpgrade(item.Item, itemToCompareTo.Item);
+                    var result = ItemService.GetBestItemIfUpgrade(item.Item, itemToCompareTo.Item);
 
                     if (result is null)
                     {
@@ -1023,28 +1026,40 @@ public class FightSimulator
         return resultList;
     }
 
-    public static ItemSchema? GetBestIfUpgrade(ItemSchema a, ItemSchema b)
+    public static async Task<List<CharacterJob>?> GetJobsToFightMonster(
+        PlayerCharacter character,
+        GameState gameState,
+        MonsterSchema monster
+    )
     {
-        var lowestLevelItem = a.Level > b.Level ? b : a;
+        var jobsToGetItems = await character.PlayerActionService.GetJobsToGetItemsToFightMonster(
+            character,
+            gameState,
+            monster
+        );
 
-        var highestLevelItem = lowestLevelItem.Code == a.Code ? b : a;
-
-        foreach (var highLevelEffect in highestLevelItem.Effects)
+        // Return null if they shouldn't fight, return list of jobs if they should, return empty list if they have optimal items
+        if (
+            jobsToGetItems is null
+            || jobsToGetItems.Count == 0
+                && !GetFightSimWithBestEquipment(character, monster, gameState).Outcome.ShouldFight
+        )
         {
-            // Some effects have "minus" effects, e.g. cooldown reduction for gathering tools,
-            // but Obsidian Battleaxe also has minus inventory space, so we don't care for that here.
-            var hasSameEffectButBetterOrEqual = lowestLevelItem.Effects.Exists(lowLevelEffect =>
-                lowLevelEffect.Code == highLevelEffect.Code
-                && (highLevelEffect.Value >= lowLevelEffect.Value)
-            );
-
-            if (!hasSameEffectButBetterOrEqual)
-            {
-                return null;
-            }
+            return null;
         }
 
-        return highestLevelItem;
+        // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
+        // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
+        jobsToGetItems.Sort(
+            (a, b) =>
+            {
+                var aLevel = gameState.ItemsDict.GetValueOrNull(a.Code)!.Level;
+                var bLevel = gameState.ItemsDict.GetValueOrNull(b.Code)!.Level;
+
+                return aLevel.CompareTo(bLevel);
+            }
+        );
+        return jobsToGetItems;
     }
 }
 

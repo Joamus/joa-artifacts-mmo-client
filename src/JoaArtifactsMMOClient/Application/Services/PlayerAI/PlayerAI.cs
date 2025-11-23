@@ -21,6 +21,8 @@ public class PlayerAI
 
     private GameState gameState { get; set; }
 
+    bool hasDoneItemTask { get; set; } = false;
+
     [JsonIgnore]
     public ILogger<CharacterJob> logger { get; init; } =
         AppLogger.loggerFactory.CreateLogger<CharacterJob>();
@@ -35,9 +37,19 @@ public class PlayerAI
     public async Task<CharacterJob> GetNextJob()
     {
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating next job");
+
+        hasDoneItemTask =
+            gameState.AccountAchievements.FirstOrDefault(achiev =>
+                achiev.Code == "tasks_farmer" && achiev.CompletedAt is not null
+            )
+                is not null;
         var job =
-            await GetEventJob()
+            await EnsureWeapon()
+            ?? await GetEventJob()
             ?? await GetIndividualHighPrioJob()
+            ?? await EnsureFightGear()
+            ?? await EnsureBag()
+            ?? GetSkillJob()
             ?? GetRoleJob()
             ?? await GetIndividualLowPrioJob();
 
@@ -45,17 +57,264 @@ public class PlayerAI
         return job!;
     }
 
+    // Implement backpacks
+    async Task<CharacterJob?> EnsureFightGear()
+    {
+        var tasks = gameState.Tasks.ToList();
+
+        // Loop from highest to lowest, and get the equipment we can get
+        tasks.Sort((a, b) => b.Level - a.Level);
+
+        MonsterSchema? firstMonsterWeCanFight = null;
+
+        foreach (var task in tasks)
+        {
+            if (task.Type != TaskType.monsters)
+            {
+                continue;
+            }
+
+            if (task.Level <= Character.Schema.Level)
+            {
+                var matchingMonster = gameState.MonstersDict[task.Code]!;
+
+                var fightSimResult = FightSimulator.GetFightSimWithBestEquipment(
+                    Character,
+                    matchingMonster,
+                    gameState
+                );
+
+                if (!fightSimResult.Outcome.ShouldFight)
+                {
+                    var jobs = await FightSimulator.GetJobsToFightMonster(
+                        Character,
+                        gameState,
+                        matchingMonster
+                    );
+
+                    if (jobs is null)
+                    {
+                        logger.LogInformation(
+                            $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but cannot get a list of jobs, to get the necessary items - skipping"
+                        );
+                        continue;
+                    }
+
+                    if (jobs.Count > 0)
+                    {
+                        var firstJob = jobs.ElementAt(0);
+
+                        logger.LogInformation(
+                            $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but found a list of {jobs.Count} x jobs, to get the necessary items - obtaining or finding \"{firstJob.Code}\""
+                        );
+
+                        return firstJob;
+                    }
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but found no jobs, to get the necessary items - skipping"
+                    );
+
+                    continue;
+                }
+
+                if (firstMonsterWeCanFight is null)
+                {
+                    firstMonsterWeCanFight = matchingMonster;
+                }
+            }
+        }
+
+        if (firstMonsterWeCanFight is not null)
+        {
+            if (Character.Schema.Level - firstMonsterWeCanFight.Level < 5)
+            {
+                // we are probably good? We should have up to date gear
+                return null;
+            }
+
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - the highest level monster we can fight is \"{firstMonsterWeCanFight.Code}\" - trying to get jobs to fight it"
+            );
+
+            var jobs = await FightSimulator.GetJobsToFightMonster(
+                Character,
+                gameState,
+                firstMonsterWeCanFight
+            );
+
+            if (jobs is null)
+            {
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but cannot get a list of jobs, to get the necessary items - skipping"
+                );
+                return null;
+            }
+
+            if (jobs.Count > 0)
+            {
+                var firstJob = jobs.ElementAt(0);
+
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but found a list of {jobs.Count} x jobs, to get the necessary items - obtaining or finding \"{firstJob.Code}\""
+                );
+
+                return firstJob;
+            }
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but found no jobs, to get the necessary items - skipping"
+            );
+        }
+
+        return null;
+    }
+
+    async Task<CharacterJob?> EnsureBag()
+    {
+        // All bags need task crystals
+        if (!hasDoneItemTask)
+        {
+            return null;
+        }
+        var tasks = gameState.Tasks;
+
+        // A bit of a hack - we know that backpack is the first bag item,
+        // so we just want to return early if our characters cannot even use it
+        var backpack = gameState.ItemsDict["backpack"]!;
+
+        if (!ItemService.CanUseItem(backpack, Character.Schema))
+        {
+            return null;
+        }
+
+        var bagItems = gameState.Items.FindAll(item => item.Type == "bag").ToList();
+
+        // Take highest level first, and prioritize seeing if we can equip those
+        bagItems.Sort((a, b) => b.Level - a.Level);
+
+        var equippedBag = gameState.ItemsDict.GetValueOrNull(Character.Schema.BagSlot);
+
+        foreach (var item in bagItems)
+        {
+            if (!ItemService.CanUseItem(item, Character.Schema))
+            {
+                continue;
+            }
+
+            var result = Character.GetEquippedItemOrInInventory(item.Code);
+
+            (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+                result.Count > 0 ? result.ElementAt(0)! : null;
+
+            if (itemInInventory is not null)
+            {
+                continue;
+            }
+
+            if (equippedBag is not null)
+            {
+                // We can be cheeky - level is probably the easiest way to determine which bag is better
+                if (equippedBag.Level >= item.Level)
+                {
+                    return null;
+                }
+            }
+
+            var otherBagsInInventory = Character.GetItemsFromInventoryWithSubtype("item");
+
+            foreach (var inventoryBag in otherBagsInInventory)
+            {
+                if (!ItemService.CanUseItem(inventoryBag.Item, Character.Schema))
+                {
+                    continue;
+                }
+                var bestUpgrade = ItemService.GetBestItemIfUpgrade(inventoryBag.Item, item);
+
+                if (bestUpgrade is not null)
+                {
+                    if (bestUpgrade.Code == inventoryBag.Item.Code)
+                    {
+                        // No reason for us to just have it in our inventory - this code will run again, if the bag isn't the best
+                        await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
+                        return null;
+                    }
+                }
+            }
+
+            if (!await Character.PlayerActionService.CanObtainItem(item))
+            {
+                continue;
+            }
+
+            return new ObtainOrFindItem(Character, gameState, item.Code, 1);
+        }
+
+        return null;
+    }
+
+    async Task<CharacterJob?> EnsureWeapon()
+    {
+        var currentWeapon = gameState.ItemsDict.GetValueOrNull(Character.Schema.WeaponSlot);
+
+        if (currentWeapon is not null && currentWeapon.Subtype != "tool")
+        {
+            return null;
+        }
+
+        var weaponsInInventory = Character.GetItemsFromInventoryWithType("weapon");
+
+        bool hasUsableWeapon = weaponsInInventory.Exists(weapon =>
+            weapon.Item.Subtype != "tool" && ItemService.CanUseItem(weapon.Item, Character.Schema)
+        );
+
+        if (hasUsableWeapon)
+        {
+            return null;
+        }
+
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+
+        ItemSchema? bestCandidate = null;
+
+        foreach (var item in bankItems.Data)
+        {
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            if (matchingItem.Type != "weapon" || matchingItem.Subtype == "tool")
+            {
+                continue;
+            }
+
+            if (!ItemService.CanUseItem(matchingItem, Character.Schema))
+            {
+                continue;
+            }
+
+            if (bestCandidate is null || matchingItem.Level > bestCandidate.Level)
+            {
+                bestCandidate = matchingItem;
+            }
+        }
+
+        if (bestCandidate is not null)
+        {
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: Current weapon was {currentWeapon?.Code ?? "n/a"} - withdrawing 1 x {bestCandidate.Code}"
+            );
+            return new WithdrawItem(Character, gameState, bestCandidate.Code, 1, false, true);
+        }
+
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: Could not find weapon from bank - cannot handle at the moment"
+        );
+
+        return null;
+    }
+
     async Task<CharacterJob?> GetIndividualHighPrioJob()
     {
         logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Start"
         );
-        var hasDoneItemTask =
-            gameState.AccountAchievements.FirstOrDefault(achiev =>
-                achiev.Code == "tasks_farmer" && achiev.CompletedAt is not null
-            )
-                is not null;
-        // Evaluate if tools are up to date
 
         var bestTools = await ItemService.GetBestTools(Character, gameState, null, hasDoneItemTask);
 
@@ -65,6 +324,10 @@ public class PlayerAI
                 $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Tasks farmer achievement is not completed yet - evaluating best tools, which don't require task materials"
             );
         }
+
+        ItemSchema? equippedWeapon = gameState.ItemsDict.GetValueOrNull(
+            Character.Schema.WeaponSlot
+        );
 
         foreach (var tool in bestTools)
         {
@@ -86,12 +349,50 @@ public class PlayerAI
                 continue;
             }
 
-            var item = gameState.ItemsDict.GetValueOrNull(
-                tool.Code
-            // itemInInventory!.Value.inventorySlot.Code
-            )!;
+            if (!await Character.PlayerActionService.CanObtainItem(tool))
+            {
+                continue;
+            }
 
-            if (!await Character.PlayerActionService.CanObtainItem(item))
+            if (equippedWeapon is not null)
+            {
+                var bestUpgrade = ItemService.GetBestItemIfUpgrade(equippedWeapon, tool);
+
+                if (bestUpgrade is not null)
+                {
+                    if (bestUpgrade.Code == equippedWeapon.Code)
+                    {
+                        // We have a better tool, so don't care about getting another one
+                        continue;
+                    }
+                }
+            }
+
+            var otherToolsInInventory = Character.GetItemsFromInventoryWithSubtype("tool");
+
+            bool hasBetterTool = false;
+
+            foreach (var inventoryTool in otherToolsInInventory)
+            {
+                if (!ItemService.CanUseItem(inventoryTool.Item, Character.Schema))
+                {
+                    continue;
+                }
+
+                var bestUpgrade = ItemService.GetBestItemIfUpgrade(inventoryTool.Item, tool);
+
+                if (bestUpgrade is not null)
+                {
+                    if (bestUpgrade.Code == inventoryTool.Item.Code)
+                    {
+                        // We have a better tool, so don't care about getting another one
+                        hasBetterTool = true;
+                        break;
+                    }
+                }
+            }
+
+            if (hasBetterTool)
             {
                 continue;
             }
@@ -101,8 +402,6 @@ public class PlayerAI
             logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - get {itemCode}"
             );
-
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(itemCode)!;
 
             int itemAmount = 1;
 
@@ -115,18 +414,15 @@ public class PlayerAI
             return await GetTaskJob(false);
         }
 
-        if (Character.Schema.AlchemyLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
-        {
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Training Alchemy - current level is {Character.Schema.AlchemyLevel}, compared to character level {Character.Schema.Level}"
-            );
-            return new TrainSkill(Character, gameState, Skill.Alchemy, 1, true);
-        }
+        return null;
+    }
 
+    CharacterJob? GetSkillJob()
+    {
         if (Character.Schema.FishingLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
         {
             logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Training Fishing - current level is {Character.Schema.FishingLevel}, compared to character level {Character.Schema.Level}"
+                $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Fishing - current level is {Character.Schema.FishingLevel}, compared to character level {Character.Schema.Level}"
             );
             return new TrainSkill(Character, gameState, Skill.Fishing, 1, true);
         }
@@ -134,12 +430,18 @@ public class PlayerAI
         if (Character.Schema.CookingLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
         {
             logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Training Cooking - current level is {Character.Schema.CookingLevel}, compared to character level {Character.Schema.Level}"
+                $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Cooking - current level is {Character.Schema.CookingLevel}, compared to character level {Character.Schema.Level}"
             );
             return new TrainSkill(Character, gameState, Skill.Cooking, 1, true);
         }
 
-        // Evaluate if equipment is up to date
+        if (Character.Schema.AlchemyLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
+        {
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Alchemy - current level is {Character.Schema.AlchemyLevel}, compared to character level {Character.Schema.Level}"
+            );
+            return new TrainSkill(Character, gameState, Skill.Alchemy, 1, true);
+        }
 
         return null;
     }
@@ -194,6 +496,8 @@ public class PlayerAI
 
     async Task<CharacterJob> GetIndividualLowPrioJob()
     {
+        bool hasNoTask = string.IsNullOrWhiteSpace(Character.Schema.Task);
+
         if (Character.Schema.TaskType == TaskType.items.ToString())
         {
             logger.LogInformation(
@@ -203,7 +507,9 @@ public class PlayerAI
         }
         else if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
-            var jobs = await GetJobsToFightMonster(
+            var jobs = await FightSimulator.GetJobsToFightMonster(
+                Character,
+                gameState,
                 gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!
             );
 
@@ -219,10 +525,11 @@ public class PlayerAI
                     // Do the first job in the list, we only do one thing at a time
                     return nextJob;
                 }
-                else
-                {
-                    return new MonsterTask(Character, gameState);
-                }
+                // else
+                // {
+                // Monster tasks aren't that good, because you can get monsters that don't give XP.
+                // return new MonsterTask(Character, gameState);
+                // }
             }
             else
             {
@@ -231,14 +538,14 @@ public class PlayerAI
                 );
             }
         }
-        else
-        {
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Got no task - take monster task"
-            );
+        // else
+        // {
+        //     logger.LogInformation(
+        //         $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Got no task - take item task"
+        //     );
 
-            return new AcceptNewTask(Character, gameState, TaskType.monsters);
-        }
+        //     return new AcceptNewTask(Character, gameState, TaskType.items);
+        // }
 
         logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fall through - cannot handle the current task of type \"{Character.Schema.TaskType}\" for {Character.Schema.Task}"
@@ -260,7 +567,9 @@ public class PlayerAI
                 logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting  {fightMonster.Amount} x {fightMonster.Code}"
                 );
-                var jobs = await GetJobsToFightMonster(
+                var jobs = await FightSimulator.GetJobsToFightMonster(
+                    Character,
+                    gameState,
                     gameState.MonstersDict.GetValueOrNull(fightMonster.Code)!
                 );
 
@@ -291,12 +600,22 @@ public class PlayerAI
             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job"
         );
 
-        if (string.IsNullOrEmpty(Character.Schema.Task))
+        // if (string.IsNullOrEmpty(Character.Schema.Task))
+        // {
+        //     logger.LogInformation(
+        //         $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job - taking a new task"
+        //     );
+        //     return await GetTaskJob(false);
+        // }
+
+
+        if (hasNoTask)
         {
             logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job - taking a new task"
+                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Got no task - take item task"
             );
-            return await GetTaskJob(false);
+
+            return new AcceptNewTask(Character, gameState, TaskType.items);
         }
 
         logger.LogInformation(
@@ -339,45 +658,12 @@ public class PlayerAI
         return true;
     }
 
-    async Task<List<CharacterJob>?> GetJobsToFightMonster(MonsterSchema monster)
-    {
-        var jobsToGetItems = await Character.PlayerActionService.GetJobsToGetItemsToFightMonster(
-            Character,
-            gameState,
-            monster
-        );
-
-        if (
-            jobsToGetItems is null
-            || jobsToGetItems.Count == 0
-                && !FightSimulator
-                    .GetFightSimWithBestEquipment(Character, monster, gameState)
-                    .Outcome.ShouldFight
-        )
-        {
-            return null;
-        }
-
-        // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
-        // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
-        jobsToGetItems.Sort(
-            (a, b) =>
-            {
-                var aLevel = gameState.ItemsDict.GetValueOrNull(a.Code)!.Level;
-                var bLevel = gameState.ItemsDict.GetValueOrNull(b.Code)!.Level;
-
-                return aLevel.CompareTo(bLevel);
-            }
-        );
-        return jobsToGetItems;
-    }
-
     async Task<CharacterJob> GetTaskJob(bool preferMonsterTask = true)
     {
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
             var monster = gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!;
-            var jobs = await GetJobsToFightMonster(monster);
+            var jobs = await FightSimulator.GetJobsToFightMonster(Character, gameState, monster);
 
             if (jobs is not null)
             {
@@ -462,7 +748,11 @@ public class PlayerAI
 
         if (matchingMonster is not null && matchingMonster.Level <= Character.Schema.Level)
         {
-            var jobsToFightMonster = await GetJobsToFightMonster(matchingMonster);
+            var jobsToFightMonster = await FightSimulator.GetJobsToFightMonster(
+                Character,
+                gameState,
+                matchingMonster
+            );
 
             if (jobsToFightMonster is not null)
             {

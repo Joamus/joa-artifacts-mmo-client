@@ -159,7 +159,7 @@ public class EventService
             monster.Drops.Find(drop => drop.Code == code) is not null
         );
 
-        if (monstersThatDropTheItem.Count > 0)
+        if (monstersThatDropTheItem.Count == 0)
         {
             return false;
         }

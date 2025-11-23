@@ -608,4 +608,28 @@ public static class ItemService
         }
         return job;
     }
+
+    public static ItemSchema? GetBestItemIfUpgrade(ItemSchema a, ItemSchema b)
+    {
+        var lowestLevelItem = a.Level > b.Level ? b : a;
+
+        var highestLevelItem = lowestLevelItem.Code == a.Code ? b : a;
+
+        foreach (var highLevelEffect in highestLevelItem.Effects)
+        {
+            // Some effects have "minus" effects, e.g. cooldown reduction for gathering tools,
+            // but Obsidian Battleaxe also has minus inventory space, so we don't care for that here.
+            var hasSameEffectButBetterOrEqual = lowestLevelItem.Effects.Exists(lowLevelEffect =>
+                lowLevelEffect.Code == highLevelEffect.Code
+                && (highLevelEffect.Value >= lowLevelEffect.Value)
+            );
+
+            if (!hasSameEffectButBetterOrEqual)
+            {
+                return null;
+            }
+        }
+
+        return highestLevelItem;
+    }
 }

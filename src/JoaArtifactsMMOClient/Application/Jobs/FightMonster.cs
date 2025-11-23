@@ -99,7 +99,11 @@ public class FightMonster : CharacterJob
 
         await Character.PlayerActionService.EquipBestFightEquipment(monster);
 
-        List<CharacterJob> withdrawItemJobs = await GetWithdrawItemJobsIfBetterItemsInBank(monster);
+        List<CharacterJob> withdrawItemJobs = await GetWithdrawItemJobsIfBetterItemsInBank(
+            Character,
+            gameState,
+            monster
+        );
 
         if (withdrawItemJobs.Count > 0)
         {
@@ -747,13 +751,15 @@ public class FightMonster : CharacterJob
         }
     }
 
-    public async Task<List<CharacterJob>> GetWithdrawItemJobsIfBetterItemsInBank(
+    public static async Task<List<CharacterJob>> GetWithdrawItemJobsIfBetterItemsInBank(
+        PlayerCharacter character,
+        GameState gameState,
         MonsterSchema monster
     )
     {
         List<CharacterJob> jobs = [];
 
-        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+        var bankResponse = await gameState.BankItemCache.GetBankItems(character);
 
         var items = bankResponse
             .Data.Select(item => new ItemInInventory
@@ -763,7 +769,7 @@ public class FightMonster : CharacterJob
             })
             .ToList();
 
-        foreach (var item in Character.Schema.Inventory)
+        foreach (var item in character.Schema.Inventory)
         {
             if (string.IsNullOrWhiteSpace(item.Code))
             {
@@ -778,7 +784,7 @@ public class FightMonster : CharacterJob
             );
         }
 
-        var result = FightSimulator.FindBestFightEquipment(Character, gameState, monster, items);
+        var result = FightSimulator.FindBestFightEquipment(character, gameState, monster, items);
 
         foreach (var item in result.ItemsToEquip)
         {
@@ -796,7 +802,7 @@ public class FightMonster : CharacterJob
             )
             {
                 int quantityMissing =
-                    item.Quantity - (Character.GetItemFromInventory(item.Code)?.Quantity ?? 0);
+                    item.Quantity - (character.GetItemFromInventory(item.Code)?.Quantity ?? 0);
 
                 if (quantityMissing < 0)
                 {
@@ -807,7 +813,7 @@ public class FightMonster : CharacterJob
                 {
                     jobs.Add(
                         new WithdrawItem(
-                            Character,
+                            character,
                             gameState,
                             item.Code,
                             quantityMissing,
