@@ -2,6 +2,7 @@ namespace Application.ArtifactsApi.Schemas;
 
 public record MapSchema
 {
+    public int MapId { get; set; }
     public string Name { get; set; } = "";
 
     public string Skin { get; set; } = "";

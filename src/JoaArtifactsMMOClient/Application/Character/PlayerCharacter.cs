@@ -461,6 +461,22 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
+    public async Task Transition()
+    {
+        await PreTaskHandler();
+
+        var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/transition", null);
+
+        var content = await response.Content.ReadAsStringAsync();
+
+        var result = JsonSerializer.Deserialize<MoveResponse>(
+            content,
+            ApiRequester.getJsonOptions()
+        )!;
+
+        PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+    }
+
     public async Task ReloadCharacterSchema()
     {
         var result = await GameState.AccountRequester.GetCharacter(Schema.Name);

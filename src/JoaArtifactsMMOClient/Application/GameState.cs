@@ -34,6 +34,7 @@ public class GameState
 
     public List<MapSchema> Maps { get; set; } = [];
 
+    public Dictionary<int, MapSchema> MapsDict { get; set; } = [];
     public List<ResourceSchema> Resources { get; set; } = [];
     public List<NpcSchema> Npcs { get; set; } = [];
     public List<AccountAchievementSchema> AccountAchievements { get; set; } = [];
@@ -233,6 +234,7 @@ public class GameState
         logger.LogInformation("Loading maps...");
         bool doneLoading = false;
         List<MapSchema> maps = [];
+        Dictionary<int, MapSchema> mapsDict = [];
         int pageNumber = 1;
 
         while (!doneLoading)
@@ -242,6 +244,7 @@ public class GameState
             foreach (var map in result.Data)
             {
                 maps.Add(map);
+                mapsDict.Add(map.MapId, map);
             }
 
             if (result.Data.Count == 0)
@@ -252,6 +255,7 @@ public class GameState
             pageNumber++;
         }
         Maps = maps;
+        MapsDict = mapsDict;
         logger.LogInformation("Loading maps - DONE;");
     }
 

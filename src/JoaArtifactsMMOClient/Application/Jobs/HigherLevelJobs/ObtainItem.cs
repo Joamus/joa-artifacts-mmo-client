@@ -304,16 +304,23 @@ public class ObtainItem : CharacterJob
 
         var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
 
+        if (matchingItem.Code == ItemService.TasksCoin)
+        {
+            jobs.Add(
+                new DoTaskUntilObtainedItem(
+                    Character,
+                    gameState,
+                    TaskType.items,
+                    matchingItem.Code,
+                    amount
+                )
+            );
+
+            return new None();
+        }
+
         if (matchingItem.Subtype == "task")
         {
-            if (matchingItem.Code == ItemService.TasksCoin)
-            {
-                return new AppError(
-                    $"Cannot handle that we need to obtain \"tasks_coins\"",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-
             // BuyPrice should not be null here - this is how you obtain task items.
             int taskCoinsNeeded = (matchingNpcItem!.BuyPrice ?? 0) * requiredAmount;
 
@@ -610,7 +617,7 @@ public class ObtainItem : CharacterJob
         }
 
         return new AppError(
-            $"This should not happen - we cannot fight any way to obtain item {code} for {Character.Schema.Name}",
+            $"This should not happen - we cannot find any way to obtain item {code} for {Character.Schema.Name}",
             ErrorStatus.InsufficientSkill
         );
     }

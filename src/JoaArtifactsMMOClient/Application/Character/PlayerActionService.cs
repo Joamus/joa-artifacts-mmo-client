@@ -18,6 +18,8 @@ namespace Application.Character;
 */
 public class PlayerActionService
 {
+    public static string SandwhisperIsle = "Sandwhisper Isle";
+
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
     private readonly GameState GameState;
 
@@ -71,7 +73,7 @@ public class PlayerActionService
             return true;
         });
 
-        MapSchema? closestMap = null;
+        MapSchema? destinationMap = null;
         int closestCost = 0;
 
         /** Handle navigating across transitions to different layers
@@ -89,14 +91,14 @@ public class PlayerActionService
                 throw new Exception($"Could not find map with code {code}");
             }
 
-            closestMap = map;
+            destinationMap = map;
         }
 
         foreach (var map in maps)
         {
-            if (closestMap is null)
+            if (destinationMap is null)
             {
-                closestMap = map;
+                destinationMap = map;
                 closestCost = CalculationService.CalculateDistanceToMap(
                     Character.Schema.X,
                     Character.Schema.Y,
@@ -115,7 +117,7 @@ public class PlayerActionService
 
             if (cost < closestCost)
             {
-                closestMap = map;
+                destinationMap = map;
                 closestCost = cost;
             }
 
@@ -126,13 +128,66 @@ public class PlayerActionService
             }
         }
 
-        if (closestMap is null)
+        if (destinationMap is null)
         {
             // TODO: Better handling
             return new AppError("Could not find closest map", ErrorStatus.NotFound);
         }
 
-        await Character.Move(closestMap.X, closestMap.Y);
+        var currentMap = GameState.MapsDict[Character.Schema.MapId];
+
+        // Going to Sandwhisper
+        if (destinationMap.Name == SandwhisperIsle && currentMap.Name != SandwhisperIsle)
+        {
+            // We are going to Sandwhisper
+        }
+        else if (destinationMap.Name != SandwhisperIsle && currentMap.Name == SandwhisperIsle)
+        {
+            // We are going back
+        }
+
+        if (destinationMap.Layer != Character.Schema.Layer)
+        {
+            // Find closest transition on our current map
+
+            int closestCostToTransition = 0;
+
+            MapSchema? closestTransition = null;
+
+            foreach (var map in GameState.Maps)
+            {
+                if (map.Layer != Character.Schema.Layer && map.Interactions.Transition is not null)
+                {
+                    continue;
+                }
+
+                int cost = CalculationService.CalculateDistanceToMap(
+                    Character.Schema.X,
+                    Character.Schema.Y,
+                    destinationMap.X,
+                    destinationMap.Y
+                );
+
+                if (closestTransition is null || cost < closestCostToTransition)
+                {
+                    closestTransition = map;
+                }
+            }
+
+            if (closestTransition is null)
+            {
+                // wtf
+                return new AppError(
+                    $"Could not find transition to get to {destinationMap.Name} - x = {destinationMap.X} y = {destinationMap.Y}",
+                    ErrorStatus.NotFound
+                );
+            }
+
+            await Character.Move(closestTransition.X, closestTransition.Y);
+            await Character.Transition();
+        }
+
+        await Character.Move(destinationMap.X, destinationMap.Y);
 
         return new None();
     }
