@@ -136,16 +136,6 @@ public class PlayerActionService
 
         var currentMap = GameState.MapsDict[Character.Schema.MapId];
 
-        // Going to Sandwhisper
-        if (destinationMap.Name == SandwhisperIsle && currentMap.Name != SandwhisperIsle)
-        {
-            // We are going to Sandwhisper
-        }
-        else if (destinationMap.Name != SandwhisperIsle && currentMap.Name == SandwhisperIsle)
-        {
-            // We are going back
-        }
-
         if (destinationMap.Layer != Character.Schema.Layer)
         {
             // Find closest transition on our current map
@@ -156,7 +146,12 @@ public class PlayerActionService
 
             foreach (var map in GameState.Maps)
             {
-                if (map.Layer != Character.Schema.Layer && map.Interactions.Transition is not null)
+                if (map.Layer != Character.Schema.Layer || map.Interactions.Transition is null)
+                {
+                    continue;
+                }
+
+                if (map.Interactions.Transition.Layer != destinationMap.Layer)
                 {
                     continue;
                 }
@@ -185,6 +180,26 @@ public class PlayerActionService
 
             await Character.Move(closestTransition.X, closestTransition.Y);
             await Character.Transition();
+            return await NavigateTo(code);
+        }
+
+        // Going to Sandwhisper
+        if (destinationMap.Name == SandwhisperIsle && currentMap.Name != SandwhisperIsle)
+        {
+            // TODO: Should check if we have enough money etc
+            await Character.Move(-2, 21);
+            await Character.Transition();
+            return await NavigateTo(code);
+            // We are going to Sandwhisper
+        }
+        else if (destinationMap.Name != SandwhisperIsle && currentMap.Name == SandwhisperIsle)
+        {
+            // We are going back
+            // Boat to Sandwhisper Isle
+            await Character.Move(2, 16);
+            // TODO: Consider using a recall potion if you have one
+            await Character.Transition();
+            return await NavigateTo(code);
         }
 
         await Character.Move(destinationMap.X, destinationMap.Y);

@@ -49,51 +49,57 @@ public class DoTaskUntilObtainedItem : CharacterJob
             return new None();
         }
 
-        int tasksCoinsInInventory = Character.GetItemFromInventory(Code)?.Quantity ?? 0;
-
-        int tasksCoinsInBank =
-            bankResponse.Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
-            ?? 0;
-
-        int priceToBuyItem = (int)gameState.NpcItemsDict.GetValueOrNull(Code)!.BuyPrice! * Amount;
-
-        if (tasksCoinsInInventory + tasksCoinsInBank >= priceToBuyItem)
+        if (Code != ItemService.TasksCoin)
         {
-            if (tasksCoinsInInventory < priceToBuyItem)
+            int tasksCoinsInInventory =
+                Character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
+
+            int tasksCoinsInBank =
+                bankResponse
+                    .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
+                    ?.Quantity ?? 0;
+
+            int priceToBuyItem =
+                (int)gameState.NpcItemsDict.GetValueOrNull(Code)!.BuyPrice! * Amount;
+
+            if (tasksCoinsInInventory + tasksCoinsInBank >= priceToBuyItem)
             {
-                int amountNeededFromBank = priceToBuyItem - tasksCoinsInInventory;
-                await Character.NavigateTo("bank");
+                if (tasksCoinsInInventory < priceToBuyItem)
+                {
+                    int amountNeededFromBank = priceToBuyItem - tasksCoinsInInventory;
+                    await Character.NavigateTo("bank");
 
-                // Just to be careful
-                gameState.BankItemCache.ReserveItem(
-                    Character,
-                    ItemService.TasksCoin,
-                    amountNeededFromBank
-                );
+                    // Just to be careful
+                    gameState.BankItemCache.ReserveItem(
+                        Character,
+                        ItemService.TasksCoin,
+                        amountNeededFromBank
+                    );
 
-                await Character.WithdrawBankItem(
-                    [
-                        new WithdrawOrDepositItemRequest
-                        {
-                            Code = ItemService.TasksCoin,
-                            Quantity = amountNeededFromBank,
-                        },
-                    ]
-                );
+                    await Character.WithdrawBankItem(
+                        [
+                            new WithdrawOrDepositItemRequest
+                            {
+                                Code = ItemService.TasksCoin,
+                                Quantity = amountNeededFromBank,
+                            },
+                        ]
+                    );
 
-                gameState.BankItemCache.RemoveReservation(
-                    Character,
-                    ItemService.TasksCoin,
-                    amountNeededFromBank
-                );
+                    gameState.BankItemCache.RemoveReservation(
+                        Character,
+                        ItemService.TasksCoin,
+                        amountNeededFromBank
+                    );
 
-                await Character.NavigateTo("tasks_trader");
-                await Character.NpcBuyItem(Code, Amount);
-                logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] completed - found all of the tasks coins in inventory ({tasksCoinsInInventory}) and bank ({tasksCoinsInBank}), and bought {Amount} x {Code}"
-                );
+                    await Character.NavigateTo("tasks_trader");
+                    await Character.NpcBuyItem(Code, Amount);
+                    logger.LogInformation(
+                        $"{JobName}: [{Character.Schema.Name}] completed - found all of the tasks coins in inventory ({tasksCoinsInInventory}) and bank ({tasksCoinsInBank}), and bought {Amount} x {Code}"
+                    );
 
-                return new None();
+                    return new None();
+                }
             }
         }
 
