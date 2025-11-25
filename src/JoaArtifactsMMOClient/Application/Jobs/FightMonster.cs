@@ -278,23 +278,6 @@ public class FightMonster : CharacterJob
 
         if (hasRunOutOfPotions)
         {
-            // var shouldFindPotions = await ShouldGetNewPotionsAndEquipExisting(monster);
-
-            // if (shouldFindPotions)
-            // {
-            // var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
-            //     Character,
-            //     gameState,
-            //     ObtainSuitablePotions.GetPotionsToObtain(Character),
-            //     monster
-            // );
-
-            // if (obtainPotionJobs.Count > 0)
-            // {
-            //     Character.QueueJobsBefore(Id, obtainPotionJobs);
-            //     Status = JobStatus.Suspend;
-            //     return new None();
-            // }
             var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
 
             if (obtainPotionJobs.Count > 0)
@@ -303,17 +286,9 @@ public class FightMonster : CharacterJob
                 Status = JobStatus.Suspend;
                 return new None();
             }
-            // }
         }
 
-        if (
-            !FightSimulator
-                .CalculateFightOutcome(Character.Schema, monster, gameState, 5, false)
-                .ShouldFight
-        )
-        {
-            await HealIfNotAtFullHp();
-        }
+        await HealIfNotAtFullHp();
 
         await Character.NavigateTo(Code);
 
