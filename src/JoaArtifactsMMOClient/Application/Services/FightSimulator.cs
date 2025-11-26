@@ -502,8 +502,10 @@ public class FightSimulator
           which can handle that the air weapon might be best with the +air dmg set.
         */
 
-        var initialSchema = character.Schema with
+        var originalSchemaDontTouch = character.Schema with
         { };
+
+        var initialSchema = character.Schema with { };
 
         initialSchema.Hp = initialSchema.MaxHp;
 
@@ -580,6 +582,8 @@ public class FightSimulator
 
             foreach (var equipmentTypeMapping in nonWeaponEquipmentTypes)
             {
+                character.Schema = bestSchemaCandiateWithWeapon;
+
                 var result = SimItemsForEquipmentType(
                     character,
                     gameState,
@@ -617,6 +621,8 @@ public class FightSimulator
             // Sim potions afterwards
             foreach (var equipmentTypeMapping in potionEquipmentTypes)
             {
+                character.Schema = bestSchemaCandiateWithWeapon;
+
                 var result = SimItemsForEquipmentType(
                     character,
                     gameState,
@@ -667,6 +673,8 @@ public class FightSimulator
                 return CompareSimOutcome(a.Outcome, b.Outcome);
             }
         );
+
+        character.Schema = originalSchemaDontTouch;
 
         return allCandidates.ElementAt(0);
     }
