@@ -76,7 +76,6 @@ public class GatherMaterialsForItem : CharacterJob
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing ObtainItem for crafter {crafter.Schema.Name} with ForCharacter({Character}) - {depositItems.Count} jobs, so they can craft {lastJob.Amount} x {lastJob.Code}"
             );
             var job = new ObtainItem(crafter, gameState, lastJob.Code, lastJob.Amount);
-            // job.AllowFindingItemInBank = true;
             job.AllowUsingMaterialsFromBank = true;
 
             job.ForCharacter(Character);
@@ -85,7 +84,7 @@ public class GatherMaterialsForItem : CharacterJob
 
             if (DepositUnneededItems.ShouldInitDepositItems(crafter, true))
             {
-                crafter.QueueJob(new DepositUnneededItems(crafter, gameState));
+                crafter.QueueJob(new DepositUnneededItems(crafter, gameState), true);
             }
 
             return Task.Run(() => { });

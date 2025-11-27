@@ -1,3 +1,4 @@
+using System.Formats.Tar;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
@@ -288,7 +289,10 @@ public class FightMonster : CharacterJob
             }
         }
 
-        await HealIfNotAtFullHp();
+        if (ShouldHealBeforeFight(Character, gameState, monster))
+        {
+            await HealIfNotAtFullHp();
+        }
 
         await Character.NavigateTo(Code);
 
@@ -801,6 +805,35 @@ public class FightMonster : CharacterJob
         }
 
         return jobs;
+    }
+
+    public static bool ShouldHealBeforeFight(
+        PlayerCharacter character,
+        GameState gameState,
+        MonsterSchema monster
+    )
+    {
+        if (character.Schema.Hp >= character.Schema.MaxHp * 0.75)
+        {
+            var schemaWithoutPots = character.Schema with { };
+
+            var fightSimAtCurrentHpWithoutPots = FightSimulator.CalculateFightOutcome(
+                schemaWithoutPots,
+                monster,
+                gameState,
+                false
+            );
+
+            if (
+                fightSimAtCurrentHpWithoutPots.ShouldFight
+                && fightSimAtCurrentHpWithoutPots.PlayerHp >= character.Schema.MaxHp * 0.60
+            )
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 

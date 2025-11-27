@@ -240,37 +240,45 @@ public class ObtainSuitablePotions : CharacterJob
 
         potionCandidates.Sort((a, b) => b.item.Level - a.item.Level);
 
-        foreach (var candiate in potionCandidates)
-        {
-            bool skipCandidate = false;
-            foreach (var effect in candiate.item.Effects)
+        potionCandidates = potionCandidates
+            .Where(candidate =>
             {
-                // Effects cannot overlap (I think)
-                if (
-                    potionCandidates.Exists(potion =>
-                        potion.item.Effects.Exists(_effect => _effect.Code == effect.Code)
+                // foreach (var candiate in potionCandidates)
+                // {
+                bool skipCandidate = false;
+
+                foreach (var effect in candidate.item.Effects)
+                {
+                    // Effects cannot overlap (I think)
+                    if (
+                        potionCandidates.Exists(potion =>
+                            potion.item.Effects.Exists(_effect => _effect.Code == effect.Code)
+                            && potion.item.Code != candidate.item.Code
+                        )
                     )
-                )
-                {
-                    skipCandidate = true;
-                    break;
+                    {
+                        skipCandidate = true;
+                        break;
+                    }
                 }
-            }
 
-            if (skipCandidate)
-            {
-                continue;
-            }
-
-            potionsForSim.Add(
-                new ItemInInventory
+                if (skipCandidate)
                 {
-                    Item = candiate.item,
-
-                    Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+                    return false;
                 }
-            );
-        }
+
+                return true;
+
+                // potionsForSim.Add(
+                //     new ItemInInventory
+                //     {
+                //         Item = candiate.item,
+
+                //         Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+                //     }
+                // );
+            })
+            .ToList();
 
         // Mutating it back, very important
         character.Schema = originalSchema;

@@ -436,6 +436,12 @@ public class ObtainItem : CharacterJob
                 continue;
             }
 
+            // TODO: For now, assume that we cannot kill bosses
+            if (monster.Type == MonsterType.Boss)
+            {
+                continue;
+            }
+
             var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
 
             if (monsterIsFromEvent)

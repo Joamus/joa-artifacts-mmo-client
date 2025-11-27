@@ -397,7 +397,30 @@ public static class ItemService
 
             // TODO: In most cases, it's probably better to just craft something instead of grinding out drops from mobs with low drop rate.
             // Only allow non-crafted items if we already have them
-            if (matchingItem.Craft is null && !alwaysAllNonCrafted)
+            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
+
+            if (matchingNpcItem is not null)
+            {
+                // For now, don't try to grind gold or anything for these items.
+                if (
+                    matchingNpcItem.Currency != "gold"
+                    || matchingNpcItem.Currency == "gold"
+                        && character.Schema.Gold < matchingNpcItem.BuyPrice
+                )
+                {
+                    continue;
+                }
+
+                if (gameState.EventService.IsItemFromEventMonster(matchingItem.Code, true))
+                {
+                    continue;
+                }
+            }
+            // else if (matchingItem.Craft is null && quantityInBank <= 0)
+            // {
+            //     continue;
+            // }
+            else if (matchingItem.Craft is null && !alwaysAllNonCrafted)
             {
                 bool foundInInventory =
                     allowNonCraftedFromInventory
@@ -421,13 +444,13 @@ public static class ItemService
 
             // Just a heuristic - there is probably better equipment to use for "normal equipment", e.g weapons, helmets, etc,
             // but the more "utility"-oriented slots might be worth it, e.g. many of the boost pots are sort of low level, runes as well, etc.
-            if (
-                !new[] { "utility", "artifact", "rune", "amulet" }.Contains(matchingItem.Type)
-                && matchingItem.Level + 10 < character.Schema.Level
-            )
-            {
-                continue;
-            }
+            // if (
+            //     !new[] { "utility", "artifact", "rune", "amulet" }.Contains(matchingItem.Type)
+            //     && character.Schema.Level - matchingItem.Level < 20
+            // )
+            // {
+            //     continue;
+            // }
 
             itemsForSimming.Add(
                 new ItemInInventory

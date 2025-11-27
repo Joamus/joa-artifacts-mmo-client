@@ -57,7 +57,6 @@ public class PlayerAI
         return job!;
     }
 
-    // Implement backpacks
     async Task<CharacterJob?> EnsureFightGear()
     {
         var tasks = gameState.Tasks.ToList();
@@ -177,11 +176,11 @@ public class PlayerAI
         }
         var tasks = gameState.Tasks;
 
-        // A bit of a hack - we know that backpack is the first bag item,
+        // A bit of a hack - we know that satchel is the first bag item,
         // so we just want to return early if our characters cannot even use it
-        var backpack = gameState.ItemsDict["backpack"]!;
+        var satchel = gameState.ItemsDict["satchel"]!;
 
-        if (!ItemService.CanUseItem(backpack, Character.Schema))
+        if (!ItemService.CanUseItem(satchel, Character.Schema))
         {
             return null;
         }
@@ -219,7 +218,7 @@ public class PlayerAI
                 }
             }
 
-            var otherBagsInInventory = Character.GetItemsFromInventoryWithSubtype("item");
+            var otherBagsInInventory = Character.GetItemsFromInventoryWithType("bag");
 
             foreach (var inventoryBag in otherBagsInInventory)
             {

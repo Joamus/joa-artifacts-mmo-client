@@ -45,14 +45,23 @@ public class FightSimulator
         CharacterSchema originalSchema,
         MonsterSchema monster,
         GameState gameState,
-        int iterations = 20,
+        // int addedCritChance = 0,
         bool playerFullHp = true
     )
     {
         List<FightOutcome> outcomes = [];
 
+        /**
+          * Really hacky, but we want to calculate multiple outcomes - one with normal starting values, and others where we add onto the crit chance.
+          * This is an attempt at making the crit calculations deterministic, so the outcome always is the same
+        **/
+        int iterations = 4;
+
+        int addedCritChance = -25;
+
         for (int i = 0; i < iterations; i++)
         {
+            addedCritChance += 25;
             List<FightSimUtility> potions = [];
 
             var monsterClone = monster with { };
@@ -103,12 +112,26 @@ public class FightSimulator
 
             List<(
                 FightEntity entity,
+                ICritCalculator critCalculator,
                 List<SimpleEffectSchema> effects,
                 bool isPlayer
             )> participants =
             [
-                (monsterClone, monsterClone.Effects, false),
-                (characterSchema, runeEffects, true),
+                (
+                    monsterClone,
+                    new DeterministicCritCalculator(monsterClone.CriticalStrike, addedCritChance),
+                    monsterClone.Effects,
+                    false
+                ),
+                (
+                    characterSchema,
+                    new DeterministicCritCalculator(
+                        characterSchema.CriticalStrike,
+                        addedCritChance
+                    ),
+                    runeEffects,
+                    true
+                ),
             ];
 
             participants.Sort((a, b) => b.entity.Initiative.CompareTo(a.entity.Initiative));
@@ -172,6 +195,7 @@ public class FightSimulator
 
                     ProcessParticipantTurn(
                         attacker.entity,
+                        attacker.critCalculator,
                         runeEffects,
                         potionEffectsForTurn,
                         defender.entity,
@@ -271,12 +295,14 @@ public class FightSimulator
 
     private static (int damage, bool wasCrit) CalculateTurnDamage(
         FightEntity attacker,
+        ICritCalculator attackerCritCalculator,
         FightEntity defender
     )
     {
         bool isCrit = false;
 
-        if (new Random().NextDouble() <= attacker.CriticalStrike)
+        if (attackerCritCalculator.CalculateIsCriticalStrike())
+        // if (new Random().NextDouble() <= attacker.CriticalStrike)
         {
             isCrit = true;
         }
@@ -327,7 +353,7 @@ public class FightSimulator
 
         if (isCrit)
         {
-            damage *= (int)(1 + CRIT_DAMAGE_MODIFIER);
+            damage = (int)(damage * (1 + CRIT_DAMAGE_MODIFIER));
         }
 
         damage = (int)Math.Round(damage / (1 + resistance * 0.01));
@@ -337,13 +363,14 @@ public class FightSimulator
 
     public static void ProcessParticipantTurn(
         FightEntity attacker,
+        ICritCalculator critCalculator,
         List<SimpleEffectSchema> attackerRuneEffects,
         List<FightSimUtility> attackerPotionEffects,
         FightEntity defender,
         int totalTurns
     )
     {
-        var attackerDamage = CalculateTurnDamage(attacker, defender);
+        var attackerDamage = CalculateTurnDamage(attacker, critCalculator, defender);
 
         var damageWithEffects = attackerDamage.damage;
 
@@ -502,10 +529,11 @@ public class FightSimulator
           which can handle that the air weapon might be best with the +air dmg set.
         */
 
-        var originalSchemaDontTouch = character.Schema with
-        { };
+        // var originalSchemaDontTouch = character.Schema with
+        // { };
 
-        var initialSchema = character.Schema with { };
+        var initialSchema = character.Schema with
+        { };
 
         initialSchema.Hp = initialSchema.MaxHp;
 
@@ -582,8 +610,6 @@ public class FightSimulator
 
             foreach (var equipmentTypeMapping in nonWeaponEquipmentTypes)
             {
-                character.Schema = bestSchemaCandiateWithWeapon;
-
                 var result = SimItemsForEquipmentType(
                     character,
                     gameState,
@@ -621,8 +647,6 @@ public class FightSimulator
             // Sim potions afterwards
             foreach (var equipmentTypeMapping in potionEquipmentTypes)
             {
-                character.Schema = bestSchemaCandiateWithWeapon;
-
                 var result = SimItemsForEquipmentType(
                     character,
                     gameState,
@@ -663,18 +687,20 @@ public class FightSimulator
         allCandidates.Sort(
             (a, b) =>
             {
-                if (
-                    a.Outcome.PlayerHp == b.Outcome.PlayerHp
-                    && a.Outcome.TotalTurns == b.Outcome.TotalTurns
-                )
+                int sortValue = CompareSimOutcome(a.Outcome, b.Outcome);
+
+                if (sortValue == 0)
                 {
                     return a.ItemsToEquip.Count < b.ItemsToEquip.Count ? -1 : 1;
                 }
-                return CompareSimOutcome(a.Outcome, b.Outcome);
+                else
+                {
+                    return sortValue;
+                }
             }
         );
 
-        character.Schema = originalSchemaDontTouch;
+        // character.Schema = originalSchemaDontTouch;
 
         return allCandidates.ElementAt(0);
     }
@@ -794,18 +820,6 @@ public class FightSimulator
 
             bool fightOutcomeIsBetter = CompareSimOutcome(bestFightOutcome, fightOutcome) == 1;
 
-            // if (
-            //     bestItemCandidate is null
-            //     || fightOutcome.Result == FightResult.Win
-            //         && (
-            //             bestFightOutcome is null
-            //             || bestFightOutcome.Result != FightResult.Win
-            //             || (
-            //                 fightOutcome.PlayerHp > bestFightOutcome.PlayerHp
-            //                 || bestFightOutcome.TotalTurns < fightOutcome.TotalTurns
-            //             )
-            //         )
-            // )
             if (fightOutcomeIsBetter)
             {
                 bestFightOutcome = fightOutcome;
@@ -843,24 +857,50 @@ public class FightSimulator
 
     public static int CompareSimOutcome(FightOutcome a, FightOutcome b)
     {
-        if (
-            a.Result == FightResult.Win
-            && (
-                b.Result != FightResult.Win
-                || (
-                    a.TotalTurns < b.TotalTurns
-                // a.PlayerHp > b.PlayerHp
-                // || (a.TotalTurns < b.TotalTurns && a.PlayerHp >= b.PlayerHp)
-                )
-            )
-        )
+        int aWinsValue = -1;
+        int bWinsValue = 1;
+
+        if (a.Result == FightResult.Win && b.Result == FightResult.Loss)
         {
-            return -1;
+            return aWinsValue;
         }
-        else
+
+        if (a.Result == FightResult.Loss && b.Result == FightResult.Win)
         {
-            return 1;
+            return bWinsValue;
         }
+
+        if (a.TotalTurns < b.TotalTurns)
+        {
+            return aWinsValue;
+        }
+
+        if (a.TotalTurns > b.TotalTurns)
+        {
+            return bWinsValue;
+        }
+
+        if (a.PlayerHp > b.PlayerHp)
+        {
+            return aWinsValue;
+        }
+
+        if (a.PlayerHp < b.PlayerHp)
+        {
+            return bWinsValue;
+        }
+
+        if (a.MonsterHp < b.MonsterHp)
+        {
+            return aWinsValue;
+        }
+
+        if (a.MonsterHp > b.MonsterHp)
+        {
+            return bWinsValue;
+        }
+
+        return 0;
     }
 
     static void ApplyPreFightEffects(CharacterSchema characterSchema, List<FightSimUtility> potions)
@@ -949,7 +989,7 @@ public class FightSimulator
     **/
     public static List<ItemInInventory> GetItemsWorthSimming(List<ItemInInventory> items)
     {
-        List<ItemInInventory> resultList = [];
+        Dictionary<string, ItemInInventory> resultList = [];
 
         Dictionary<string, List<ItemInInventory>> slotItemDict = [];
 
@@ -1027,11 +1067,11 @@ public class FightSimulator
 
             foreach (var item in filteredItems)
             {
-                resultList.Add(item);
+                resultList.TryAdd(item.Item.Code, item);
             }
         }
 
-        return resultList;
+        return resultList.Select(element => element.Value).ToList();
     }
 
     public static async Task<List<CharacterJob>?> GetJobsToFightMonster(
