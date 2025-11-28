@@ -251,6 +251,12 @@ public class PlayerActionService
         }
         else if (matchingItem.Type == "ring")
         {
+            if (quantity == 2)
+            {
+                await Character.EquipItem(code, "ring1", 1);
+                await Character.EquipItem(code, "ring2", 1);
+                return new None();
+            }
             List<string> itemSlotCodes = new List<string>
             {
                 PlayerItemSlot.Ring1Slot,

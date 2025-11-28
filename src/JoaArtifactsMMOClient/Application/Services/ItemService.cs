@@ -28,6 +28,12 @@ public static class ItemService
 
     public const string TasksCoin = "tasks_coin";
 
+    /**
+      * The complexity of creating a wooden_staff, with edge cases of accidentally putting it on etc.,
+      * means that we will just skip simming/crafting it.
+    **/
+    public static string[] ItemSimBlacklist = ["wooden_staff"];
+
     public static List<ItemSchema> CraftsInto(List<ItemSchema> items, ItemSchema ingredientItem)
     {
         List<ItemSchema> crafts = [];
@@ -383,6 +389,11 @@ public static class ItemService
 
         foreach (var item in allItemCandidates)
         {
+            if (ItemSimBlacklist.Contains(item.Code))
+            {
+                continue;
+            }
+
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
             if (matchingItem.Subtype == "tool")
@@ -568,16 +579,29 @@ public static class ItemService
             }
 
             var currentBestTool = relevantToolsDict.GetValueOrNull(gatheringEffect.Code);
+            bool isInBank = bankData.Data.Exists(bankItem =>
+                bankItem.Code == item.Code && item.Quantity > 0
+            );
 
             if (
                 (character.GetItemFromInventory(item.Code)?.Quantity ?? 0) == 0
-                && !bankData.Data.Exists(bankItem =>
-                    bankItem.Code == item.Code && item.Quantity > 0
-                )
+                && !isInBank
                 && !await character.PlayerActionService.CanObtainItem(matchingItem)
             )
             {
                 continue;
+            }
+
+            if (
+                !isInBank
+                && matchingItem.Level > character.Schema.Level
+                && matchingItem.Craft is not null
+            )
+            {
+                // Essentially we don't watch to spend time crafting super high level items yet,
+                // since it usually requires high level materials, and/or high level mob drops.
+                // it's good enough to just use worse tools until then,
+                // unless maybe a char has enough money to buy really good tools
             }
 
             // The gathering effects have an effect express in negative numbers, e.g. 10% lower cooldown when mining will be -10,

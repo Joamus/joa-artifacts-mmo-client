@@ -813,6 +813,10 @@ public class FightMonster : CharacterJob
         MonsterSchema monster
     )
     {
+        if (character.Schema.Hp == character.Schema.MaxHp)
+        {
+            return false;
+        }
         if (character.Schema.Hp >= character.Schema.MaxHp * 0.75)
         {
             var schemaWithoutPots = character.Schema with { };

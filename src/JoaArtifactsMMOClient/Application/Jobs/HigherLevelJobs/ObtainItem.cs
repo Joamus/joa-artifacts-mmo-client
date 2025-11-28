@@ -282,13 +282,27 @@ public class ObtainItem : CharacterJob
 
         if (resources.Count > 0)
         {
-            var sampleResource = resources[0];
-            var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(sampleResource.Code);
+            bool allResourcesAreFromEvents = true;
 
-            if (
-                resourceIsFromEvent
-                && gameState.EventService.WhereIsEntityActive(sampleResource.Code) is null
-            )
+            foreach (var resource in resources)
+            {
+                var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
+
+                if (
+                    resourceIsFromEvent
+                    && gameState.EventService.WhereIsEntityActive(resource.Code) is null
+                )
+                {
+                    continue;
+                }
+                else
+                {
+                    allResourcesAreFromEvents = false;
+                    break;
+                }
+            }
+
+            if (allResourcesAreFromEvents)
             {
                 return new AppError(
                     $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",

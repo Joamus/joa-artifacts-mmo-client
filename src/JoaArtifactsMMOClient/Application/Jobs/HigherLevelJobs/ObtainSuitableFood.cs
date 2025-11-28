@@ -82,13 +82,7 @@ public class ObtainSuitableFood : CharacterJob
 
         foreach (var item in bankItemsResponse.Data)
         {
-            var matchingItem = gameState.Items.FirstOrDefault(_item => _item.Code == item.Code);
-
-            // Should not happen, but handle later maybe
-            if (matchingItem is null)
-            {
-                continue;
-            }
+            var matchingItem = gameState.ItemsDict[item.Code];
 
             // int levelDifference = _playerCharacter._character.Level - matchingItem.Level;
             // If item is null, then it has been deleted from the game or something
@@ -116,6 +110,61 @@ public class ObtainSuitableFood : CharacterJob
             if (amountFound >= Amount)
             {
                 break;
+            }
+        }
+
+        if (amountFound < Amount)
+        {
+            // Check if there are uncooked fish, also low level fish - we can end up having a lot of them,
+            // and we might as well it eat.
+            foreach (var item in bankItemsResponse.Data)
+            {
+                if (amountFound >= Amount)
+                {
+                    break;
+                }
+                var matchingItem = gameState.ItemsDict[item.Code];
+
+                if (matchingItem.Subtype == "fishing")
+                {
+                    List<ItemSchema>? cookedInto = gameState.CraftingLookupDict.GetValueOrNull(
+                        matchingItem.Code
+                    );
+
+                    if (cookedInto is not null)
+                    {
+                        var probablyCookedFishItem = cookedInto.FirstOrDefault(item =>
+                            item.Craft is not null
+                            && item.Craft?.Items.Count == 0
+                            && ItemService.CanUseItem(matchingItem, Character.Schema)
+                        );
+
+                        if (probablyCookedFishItem is not null)
+                        {
+                            int amountToCook = (int)
+                                Math.Floor(
+                                    (decimal)(
+                                        item.Quantity
+                                        / probablyCookedFishItem.Craft!.Items[0].Quantity
+                                    )
+                                );
+
+                            amountToCook = Math.Min(amountToCook, Amount);
+
+                            if (amountToCook > 0)
+                            {
+                                jobs.Add(
+                                    new ObtainItem(
+                                        Character,
+                                        gameState,
+                                        probablyCookedFishItem.Code,
+                                        amountToCook
+                                    )
+                                );
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -154,10 +203,10 @@ public class ObtainSuitableFood : CharacterJob
                 return jobs;
             }
 
-            if (jobs.Count > 0)
-            {
-                Character.QueueJobsAfter(Id, jobs);
-            }
+            // if (jobs.Count > 0)
+            // {
+            //     Character.QueueJobsAfter(Id, jobs);
+            // }
             var mostSuitableFood = GetMostSuitableFood();
 
             var obtainJob = new ObtainOrFindItem(

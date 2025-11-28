@@ -239,7 +239,7 @@ public class FightSimulator
                     TotalTurns = turnNumber,
                     ShouldFight =
                         outcome == FightResult.Win
-                        && remainingPlayerHp >= (characterSchema.MaxHp * 0.30),
+                        && remainingPlayerHp >= (characterSchema.MaxHp * 0.35),
                 }
             );
         }

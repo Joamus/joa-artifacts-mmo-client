@@ -124,7 +124,7 @@ public class ItemTask : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}]: Found {amountInInventory} x {Code} in inventory - trading in those"
                 );
                 await Character.NavigateTo("items");
-                await Character.TaskTrade(itemCode, amountToObtain);
+                await Character.TaskTrade(itemCode, Math.Min(amountInInventory, amountToObtain));
 
                 amountToObtain = 0;
             }

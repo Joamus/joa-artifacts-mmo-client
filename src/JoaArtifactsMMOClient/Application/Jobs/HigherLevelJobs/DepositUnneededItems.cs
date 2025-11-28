@@ -71,6 +71,27 @@ public class DepositUnneededItems : CharacterJob
 
         await BuyBankSpaceIfNeeded();
 
+        var bestFightItems = MonsterSchema is not null
+            ? (
+                await ItemService.GetBestFightItems(
+                    Character,
+                    gameState,
+                    MonsterSchema,
+                    Character
+                        .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+                        .ToList()
+                )
+            ).ToDictionary(item => item.Code)
+            : [];
+
+        if (bestFightItems.Count > 0)
+        {
+            foreach (var item in bestFightItems)
+            {
+                await Character.PlayerActionService.SmartItemEquip(item.Key, item.Value.Quantity);
+            }
+        }
+
         foreach (var item in Character.Schema.Inventory)
         {
             if (string.IsNullOrEmpty(item.Code))
@@ -131,8 +152,6 @@ public class DepositUnneededItems : CharacterJob
                 {
                     itemImportance = ItemImportance.VeryHigh;
                 }
-
-                // TODO: Introduce logic to deposit equipment that isn't needed anymore
 
                 itemsToDeposit.Add(
                     new DepositItemRecord
@@ -300,19 +319,6 @@ public class DepositUnneededItems : CharacterJob
             }
         }
 
-        var bestFightItems = MonsterSchema is not null
-            ? (
-                await ItemService.GetBestFightItems(
-                    Character,
-                    gameState,
-                    MonsterSchema,
-                    Character
-                        .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
-                        .ToList()
-                )
-            ).ToDictionary(item => item.Code)
-            : [];
-
         foreach (var item in itemsToDeposit)
         {
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
@@ -402,9 +408,7 @@ public class DepositUnneededItems : CharacterJob
         {
             var itemsInBank = await gameState.AccountRequester.GetBankItems();
 
-            int amountFree =
-                result.Data.Slots
-                - itemsInBank.Data.FindAll(item => string.IsNullOrEmpty(item.Code)).Count();
+            int amountFree = result.Data.Slots - itemsInBank.Data.Count();
 
             if (amountFree <= MIN_FREE_BANK_SLOTS)
             {
@@ -412,6 +416,7 @@ public class DepositUnneededItems : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got ${Character.Schema.Gold} gold, next expansion costs ${result.Data.NextExpansionCost}"
                 );
                 // Buy bank expansion
+                await Character.NavigateTo("bank");
                 await Character.BuyBankExpansion(Character.Schema.Name);
             }
         }
@@ -419,10 +424,25 @@ public class DepositUnneededItems : CharacterJob
 
     public static bool ShouldInitDepositItems(PlayerCharacter character, bool preJob = true)
     {
-        return character.GetInventorySpaceLeft()
-                < (preJob ? MAX_FREE_INVENTORY_SPACES - 1 : MIN_FREE_INVENTORY_SPACES)
-            || character.Schema.Inventory.Count((item) => !string.IsNullOrEmpty(item.Code))
-                >= character.Schema.Inventory.Count() - MIN_FREE_INVENTORY_SLOTS;
+        bool hasTooLittleInventorySpace =
+            character.GetInventorySpaceLeft()
+            < (preJob ? MAX_FREE_INVENTORY_SPACES - 1 : MIN_FREE_INVENTORY_SPACES);
+
+        if (hasTooLittleInventorySpace)
+        {
+            return true;
+        }
+
+        bool hasTooFewInventorySlots =
+            character.Schema.Inventory.Count((item) => !string.IsNullOrEmpty(item.Code))
+            >= character.Schema.Inventory.Count() - MIN_FREE_INVENTORY_SLOTS;
+
+        if (hasTooFewInventorySlots)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character)

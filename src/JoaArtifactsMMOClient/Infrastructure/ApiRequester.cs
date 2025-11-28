@@ -72,7 +72,16 @@ public class ApiRequester
     public async Task<HttpResponseMessage> GetAsync(string requestUri)
     {
         await ThrottleRequest();
-        return await _httpClient.GetAsync(requestUri);
+        var response = await _httpClient.GetAsync(requestUri);
+
+        if (response is not null && (int)response.StatusCode >= 400)
+        {
+            logger.LogWarning(
+                $"GET Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {response.Content}"
+            );
+        }
+
+        return response!;
     }
 
     public async Task<HttpResponseMessage> PostAsync(string requestUri, HttpContent? content)
@@ -98,7 +107,7 @@ public class ApiRequester
         if (response is not null && (int)response.StatusCode >= 400)
         {
             logger.LogWarning(
-                $"Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {response.Content}"
+                $"POST Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {response.Content}"
             );
         }
 
