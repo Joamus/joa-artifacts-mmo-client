@@ -1,9 +1,6 @@
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
-using Application.Services.ApiServices;
-using Infrastructure;
-using Moq;
 
 namespace JoaArtifactsMMOClientTests.Helpers;
 
@@ -18,6 +15,7 @@ public static class PlayerCharacterHelper
         CharacterSchema schema = new CharacterSchema
         {
             Name = "TestChar",
+            Level = 1,
             Hp = 100,
             MaxHp = 100,
             X = 1,

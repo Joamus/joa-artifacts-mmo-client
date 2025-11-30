@@ -140,10 +140,11 @@ public class FightSimulator
 
             FightResult? outcome = null;
 
-            int turnNumber = 1;
+            int turnNumber = 0;
 
             while (outcome is null)
             {
+                turnNumber++;
                 foreach (var attacker in participants)
                 {
                     List<FightSimUtility> potionEffectsForTurn = attacker.isPlayer ? potions : [];
@@ -227,7 +228,6 @@ public class FightSimulator
                         break;
                     }
                 }
-                turnNumber++;
             }
 
             outcomes.Add(
@@ -288,9 +288,7 @@ public class FightSimulator
         GameState gameState
     )
     {
-        var result = FindBestFightEquipment(character, gameState, monster);
-
-        return result;
+        return FindBestFightEquipment(character, gameState, monster);
     }
 
     private static (int damage, bool wasCrit) CalculateTurnDamage(
@@ -820,6 +818,8 @@ public class FightSimulator
 
             bool fightOutcomeIsBetter = CompareSimOutcome(bestFightOutcome, fightOutcome) == 1;
 
+            bool outcomeTest = CompareSimOutcome(bestFightOutcome, fightOutcome) == 1;
+
             if (fightOutcomeIsBetter)
             {
                 bestFightOutcome = fightOutcome;
@@ -870,34 +870,41 @@ public class FightSimulator
             return bWinsValue;
         }
 
-        if (a.TotalTurns < b.TotalTurns)
+        // It's only if we are winning that we care about amount of turns - if we are losing,
+        // it could mean that we have good survivability
+        if (a.Result == FightResult.Win && b.Result == FightResult.Win)
         {
-            return aWinsValue;
-        }
+            if (a.TotalTurns < b.TotalTurns)
+            {
+                return aWinsValue;
+            }
 
-        if (a.TotalTurns > b.TotalTurns)
-        {
-            return bWinsValue;
-        }
+            if (a.TotalTurns > b.TotalTurns)
+            {
+                return bWinsValue;
+            }
 
-        if (a.PlayerHp > b.PlayerHp)
-        {
-            return aWinsValue;
-        }
+            if (a.PlayerHp > b.PlayerHp)
+            {
+                return aWinsValue;
+            }
 
-        if (a.PlayerHp < b.PlayerHp)
-        {
-            return bWinsValue;
+            if (a.PlayerHp < b.PlayerHp)
+            {
+                return bWinsValue;
+            }
         }
-
-        if (a.MonsterHp < b.MonsterHp)
+        else
         {
-            return aWinsValue;
-        }
+            if (a.MonsterHp < b.MonsterHp)
+            {
+                return aWinsValue;
+            }
 
-        if (a.MonsterHp > b.MonsterHp)
-        {
-            return bWinsValue;
+            if (a.MonsterHp > b.MonsterHp)
+            {
+                return bWinsValue;
+            }
         }
 
         return 0;

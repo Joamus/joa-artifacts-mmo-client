@@ -1,7 +1,7 @@
 using Application;
 using Application.Services.ApiServices;
 using Infrastructure;
-using Moq;
+using NSubstitute;
 
 namespace JoaArtifactsMMOClientTests.Helpers;
 
@@ -9,7 +9,7 @@ public static class ServiceHelper
 {
     public static ApiRequester GetTestApiRequester()
     {
-        return new Mock<ApiRequester>("dummy_token").Object;
+        return Substitute.For<ApiRequester>("dummy_token");
     }
 
     public static GameState GetEmptyGameState()
@@ -17,7 +17,7 @@ public static class ServiceHelper
         var apiRequester = GetTestApiRequester();
 
         GameState gameState = new GameState(
-            new Mock<AccountRequester>(apiRequester, "dummy_account_name").Object,
+            Substitute.For<AccountRequester>(apiRequester, "dummy_account_name"),
             apiRequester
         );
 

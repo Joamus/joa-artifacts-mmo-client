@@ -548,6 +548,25 @@ public class ObtainItem : CharacterJob
                     gameState,
                     lowestLevelMonster
                 );
+            var fightSimIfUsingWithdrawnItems = FightSimulator.FindBestFightEquipment(
+                Character,
+                gameState,
+                lowestLevelMonster,
+                withdrawItemJobs
+                    .Select(job => new ItemInInventory
+                    {
+                        Item = gameState.ItemsDict[job.Code],
+                        Quantity = job.Amount,
+                    })
+                    .ToList()
+            );
+
+            if (!fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
+            {
+                return new AppError(
+                    $"Cannot fight {lowestLevelMonster.Code} to obtain item with code {code}"
+                );
+            }
 
             if (withdrawItemJobs.Count > 0)
             {
