@@ -353,7 +353,7 @@ public class TrainSkill : CharacterJob
                     foreach (var monster in monstersThatDropTheItem)
                     {
                         var fightOutcome = FightSimulator
-                            .GetFightSimWithBestEquipment(Character, monster, gameState)
+                            .FindBestFightEquipment(Character, gameState, monster)
                             .Outcome;
 
                         if (

@@ -169,7 +169,8 @@ public class ObtainSuitablePotions : CharacterJob
             character,
             gameState,
             monster,
-            potionsForSim.Where(potion => !EffectService.IsPreFightPotion(potion.Item)).ToList()
+            // potionsForSim.Where(potion => !EffectService.IsPreFightPotion(potion.Item)).ToList()
+            []
         );
 
         // var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
@@ -189,10 +190,10 @@ public class ObtainSuitablePotions : CharacterJob
         potionCandidates = potionsForSim
             .Where(potion =>
             {
-                if (!EffectService.IsPreFightPotion(potion.Item))
-                {
-                    return true;
-                }
+                // if (!EffectService.IsPreFightPotion(potion.Item))
+                // {
+                //     return true;
+                // }
 
                 // character.Schema.Utility1Slot = "";
                 // character.Schema.Utility1SlotQuantity = 0;
@@ -222,7 +223,7 @@ public class ObtainSuitablePotions : CharacterJob
                     return false;
                 }
 
-                return EffectService.IsPreFightPotionWorthUsing(
+                return EffectService.IsPotionWorthUsing(
                     potion.Item,
                     fightSimWithoutPotions.Outcome,
                     fightSimWithPotions.Outcome

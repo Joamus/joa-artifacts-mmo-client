@@ -106,7 +106,7 @@ public class MonsterTask : CharacterJob
                 );
             }
             var outcome = FightSimulator
-                .GetFightSimWithBestEquipment(Character, monster, gameState)
+                .FindBestFightEquipment(Character, gameState, monster)
                 .Outcome;
 
             if (!outcome.ShouldFight)

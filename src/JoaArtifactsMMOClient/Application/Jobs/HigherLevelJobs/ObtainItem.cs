@@ -472,7 +472,7 @@ public class ObtainItem : CharacterJob
             }
             if (
                 FightSimulator
-                    .GetFightSimWithBestEquipment(Character, monster, gameState)
+                    .FindBestFightEquipment(Character, gameState, monster)
                     .Outcome.ShouldFight
             )
             {

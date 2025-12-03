@@ -79,11 +79,7 @@ public class FightMonster : CharacterJob
             return new AppError($"Monster with code {Code} could not be found");
         }
 
-        var fightSimResult = FightSimulator.GetFightSimWithBestEquipment(
-            Character,
-            monster,
-            gameState
-        );
+        var fightSimResult = FightSimulator.FindBestFightEquipment(Character, gameState, monster);
 
         if (!fightSimResult.Outcome.ShouldFight)
         {

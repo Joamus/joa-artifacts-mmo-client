@@ -149,7 +149,7 @@ public static class EffectService
             > ObtainSuitablePotions.AMOUNT_OF_TURNS_TO_NOT_USE_PREFIGHT_POTS;
     }
 
-    public static bool IsPreFightPotionWorthUsing(
+    public static bool IsPotionWorthUsing(
         ItemSchema item,
         FightOutcome noPotion,
         FightOutcome withPotion

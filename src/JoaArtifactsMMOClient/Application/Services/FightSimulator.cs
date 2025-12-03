@@ -37,15 +37,12 @@ public class FightSimulator
     // We assume that monsters will crit more often than us, just to ensure that we don't take on fights too often, that we will probably not win.
     // private static readonly double MONSTER_CRIT_BIAS = 1.25;
 
-    private static ILogger<FightSimulator> logger = LoggerFactory
-        .Create(AppLogger.options)
-        .CreateLogger<FightSimulator>();
+    private static ILogger logger = AppLogger.GetLogger();
 
     public static FightOutcome CalculateFightOutcome(
         CharacterSchema originalSchema,
         MonsterSchema monster,
         GameState gameState,
-        // int addedCritChance = 0,
         bool playerFullHp = true
     )
     {
@@ -145,6 +142,7 @@ public class FightSimulator
             while (outcome is null)
             {
                 turnNumber++;
+
                 foreach (var attacker in participants)
                 {
                     List<FightSimUtility> potionEffectsForTurn = attacker.isPlayer ? potions : [];
@@ -221,6 +219,7 @@ public class FightSimulator
                         remainingMonsterHp = participants
                             .FirstOrDefault(participant => !participant.isPlayer)
                             .entity.Hp;
+
                         remainingPlayerHp = participants
                             .FirstOrDefault(participant => participant.isPlayer)
                             .entity.Hp;
@@ -280,15 +279,6 @@ public class FightSimulator
             MonsterHp = monsterHp,
             TotalTurns = totalTurns,
         };
-    }
-
-    public static FightSimResult GetFightSimWithBestEquipment(
-        PlayerCharacter character,
-        MonsterSchema monster,
-        GameState gameState
-    )
-    {
-        return FindBestFightEquipment(character, gameState, monster);
     }
 
     private static (int damage, bool wasCrit) CalculateTurnDamage(
@@ -818,7 +808,7 @@ public class FightSimulator
 
             bool fightOutcomeIsBetter = CompareSimOutcome(bestFightOutcome, fightOutcome) == 1;
 
-            bool outcomeTest = CompareSimOutcome(bestFightOutcome, fightOutcome) == 1;
+            var fightOutcomeTest = CalculateFightOutcome(characterSchema, monster, gameState);
 
             if (fightOutcomeIsBetter)
             {
@@ -902,6 +892,16 @@ public class FightSimulator
             }
 
             if (a.MonsterHp > b.MonsterHp)
+            {
+                return bWinsValue;
+            }
+
+            if (a.PlayerHp > b.PlayerHp)
+            {
+                return aWinsValue;
+            }
+
+            if (a.PlayerHp < b.PlayerHp)
             {
                 return bWinsValue;
             }
@@ -1097,7 +1097,7 @@ public class FightSimulator
         if (
             jobsToGetItems is null
             || jobsToGetItems.Count == 0
-                && !GetFightSimWithBestEquipment(character, monster, gameState).Outcome.ShouldFight
+                && !FindBestFightEquipment(character, gameState, monster).Outcome.ShouldFight
         )
         {
             return null;
@@ -1108,6 +1108,20 @@ public class FightSimulator
         jobsToGetItems.Sort(
             (a, b) =>
             {
+                // If we can buy an item straight away, then let us do that first
+                var aMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(a.Code);
+
+                var bMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(b.Code);
+
+                if (aMatchingNpcItem && !bMatchingNpcItem)
+                {
+                    return -1;
+                }
+                else if (!aMatchingNpcItem && bMatchingNpcItem)
+                {
+                    return 1;
+                }
+
                 var aLevel = gameState.ItemsDict.GetValueOrNull(a.Code)!.Level;
                 var bLevel = gameState.ItemsDict.GetValueOrNull(b.Code)!.Level;
 

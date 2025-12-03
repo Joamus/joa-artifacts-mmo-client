@@ -77,10 +77,10 @@ public class PlayerAI
             {
                 var matchingMonster = gameState.MonstersDict[task.Code]!;
 
-                var fightSimResult = FightSimulator.GetFightSimWithBestEquipment(
+                var fightSimResult = FightSimulator.FindBestFightEquipment(
                     Character,
-                    matchingMonster,
-                    gameState
+                    gameState,
+                    matchingMonster
                 );
 
                 if (!fightSimResult.Outcome.ShouldFight)
@@ -646,7 +646,7 @@ public class PlayerAI
 
             if (
                 !FightSimulator
-                    .GetFightSimWithBestEquipment(Character, matchingMonster, gameState)
+                    .FindBestFightEquipment(Character, gameState, matchingMonster)
                     .Outcome.ShouldFight
             )
             {
