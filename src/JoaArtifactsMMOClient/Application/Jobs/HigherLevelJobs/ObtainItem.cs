@@ -207,7 +207,7 @@ public class ObtainItem : CharacterJob
 
             if (amountToTakeFromBank > 0)
             {
-                jobs.Add(new WithdrawItem(Character, gameState, code, amountToTakeFromBank));
+                jobs.Add(new WithdrawItem(Character, gameState, code, amountToTakeFromBank, false));
 
                 amount -= amountToTakeFromBank;
             }

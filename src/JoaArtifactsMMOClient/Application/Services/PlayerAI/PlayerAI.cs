@@ -226,17 +226,20 @@ public class PlayerAI
                 {
                     continue;
                 }
-                var bestUpgrade = ItemService.GetBestItemIfUpgrade(inventoryBag.Item, item);
 
-                if (bestUpgrade is not null)
-                {
-                    if (bestUpgrade.Code == inventoryBag.Item.Code)
-                    {
-                        // No reason for us to just have it in our inventory - this code will run again, if the bag isn't the best
-                        await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
-                        return null;
-                    }
-                }
+                await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
+                continue;
+                // var bestUpgrade = ItemService.GetBestItemIfUpgrade(inventoryBag.Item, item);
+
+                // if (bestUpgrade is not null)
+                // {
+                //     if (bestUpgrade.Code == inventoryBag.Item.Code)
+                //     {
+                //         // No reason for us to just have it in our inventory - this code will run again, if the bag isn't the best
+                //         await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
+                //         return null;
+                //     }
+                // }
             }
 
             if (!await Character.PlayerActionService.CanObtainItem(item))

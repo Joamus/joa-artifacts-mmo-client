@@ -284,6 +284,21 @@ public class ObtainSuitablePotions : CharacterJob
         // Mutating it back, very important
         character.Schema = originalSchema;
 
+        // If we can fight without the potions, then don't get new ones
+        if (fightSimWithoutPotions.Outcome.ShouldFight)
+        {
+            if (!string.IsNullOrEmpty(originalSchema.Utility1Slot))
+            {
+                await character.UnequipItem("utility1", originalSchema.Utility1SlotQuantity);
+            }
+            if (!string.IsNullOrEmpty(originalSchema.Utility2Slot))
+            {
+                await character.UnequipItem("utility2", originalSchema.Utility2SlotQuantity);
+            }
+
+            return [];
+        }
+
         // There should only be two
         if (potionCandidates.Count > 2)
         {
