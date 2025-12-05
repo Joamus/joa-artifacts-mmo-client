@@ -720,6 +720,18 @@ public class FightSimulator
 
         bestSchemaCandiate.Hp = bestSchemaCandiate.MaxHp;
 
+        /**
+         * If we are not simming potions, then we want to do simulations without potions,
+         * because restore HP pots can skew the outcome, e.g. a worse item setup might have
+         * the character HP pots earlier, which can end up with them having a higher amount of
+         * remaining HP, but they also used more potions.
+         *
+        **/
+        if (equipmentTypeMapping.ItemType != "utility")
+        {
+            RemovePotions(bestSchemaCandiate);
+        }
+
         int bestItemAmount = 1;
 
         // TODO: Loop through all weapons, and find the best combination with each weapon.
@@ -796,6 +808,18 @@ public class FightSimulator
 
             var characterSchema = bestSchemaCandiate with { };
 
+            /**
+             * If we are not simming potions, then we want to do simulations without potions,
+             * because restore HP pots can skew the outcome, e.g. a worse item setup might have
+             * the character HP pots earlier, which can end up with them having a higher amount of
+             * remaining HP, but they also used more potions.
+             *
+            **/
+            if (equipmentTypeMapping.ItemType != "utility")
+            {
+                RemovePotions(characterSchema);
+            }
+
             characterSchema = PlayerActionService.SimulateItemEquip(
                 characterSchema,
                 bestItemCandidate,
@@ -807,8 +831,6 @@ public class FightSimulator
             var fightOutcome = CalculateFightOutcome(characterSchema, monster, gameState);
 
             bool fightOutcomeIsBetter = CompareSimOutcome(bestFightOutcome, fightOutcome) == 1;
-
-            var fightOutcomeTest = CalculateFightOutcome(characterSchema, monster, gameState);
 
             if (fightOutcomeIsBetter)
             {
@@ -1129,6 +1151,14 @@ public class FightSimulator
             }
         );
         return jobsToGetItems;
+    }
+
+    public static void RemovePotions(CharacterSchema characterSchema)
+    {
+        characterSchema.Utility1Slot = "";
+        characterSchema.Utility1SlotQuantity = 0;
+        characterSchema.Utility2Slot = "";
+        characterSchema.Utility2SlotQuantity = 0;
     }
 }
 

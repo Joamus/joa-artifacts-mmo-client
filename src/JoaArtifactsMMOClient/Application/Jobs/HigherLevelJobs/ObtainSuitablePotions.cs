@@ -98,7 +98,8 @@ public class ObtainSuitablePotions : CharacterJob
             int amountInBank =
                 bankItemsResponse
                     .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                    ?.Quantity ?? 0;
+                    ?.Quantity
+                ?? 0;
 
             if (!canCraftItem && amountInBank == 0)
             {
@@ -287,13 +288,22 @@ public class ObtainSuitablePotions : CharacterJob
         // If we can fight without the potions, then don't get new ones
         if (fightSimWithoutPotions.Outcome.ShouldFight)
         {
-            if (!string.IsNullOrEmpty(originalSchema.Utility1Slot))
+            List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
+
+            utilitySlots.Add(
+                (1, character.Schema.Utility1Slot, character.Schema.Utility1SlotQuantity)
+            );
+            utilitySlots.Add(
+                (2, character.Schema.Utility2Slot, character.Schema.Utility2SlotQuantity)
+            );
+
+            foreach (var util in utilitySlots)
             {
-                await character.UnequipItem("utility1", originalSchema.Utility1SlotQuantity);
-            }
-            if (!string.IsNullOrEmpty(originalSchema.Utility2Slot))
-            {
-                await character.UnequipItem("utility2", originalSchema.Utility2SlotQuantity);
+                await character.PlayerActionService.DepositPotions(
+                    util.Slot,
+                    util.ItemCode,
+                    util.Amount
+                );
             }
 
             return [];
