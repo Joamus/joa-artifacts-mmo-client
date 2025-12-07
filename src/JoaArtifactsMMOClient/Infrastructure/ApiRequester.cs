@@ -107,7 +107,7 @@ public class ApiRequester
         if (response is not null && (int)response.StatusCode >= 400)
         {
             logger.LogWarning(
-                $"POST Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {response.Content}"
+                $"POST Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {await response.Content.ReadAsStringAsync()}"
             );
         }
 

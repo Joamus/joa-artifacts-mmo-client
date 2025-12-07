@@ -352,6 +352,11 @@ public class TrainSkill : CharacterJob
 
                     foreach (var monster in monstersThatDropTheItem)
                     {
+                        if (gameState.EventService.IsEntityFromEvent(monster.Code))
+                        {
+                            score += 100;
+                            continue;
+                        }
                         var fightOutcome = FightSimulator
                             .FindBestFightEquipment(Character, gameState, monster)
                             .Outcome;

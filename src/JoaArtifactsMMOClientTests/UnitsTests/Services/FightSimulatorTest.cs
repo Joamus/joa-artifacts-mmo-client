@@ -307,5 +307,7 @@ public class FightSimulatorTest
         Assert.True(result.Schema.BodyArmorSlot == dmgJacket.Code);
     }
 }
+// Make explicit test - why are they putting on a copper helmet instead of wolf ears. The sim is in favor of the copper helmet for some reason
+// both take 10 less dmg and do 10 less damage, which makes no sense
 
 // }

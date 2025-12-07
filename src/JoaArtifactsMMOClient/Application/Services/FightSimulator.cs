@@ -337,7 +337,7 @@ public class FightSimulator
     )
     {
         int damage = (int)
-            Math.Round(baseDamage + baseDamage * (elementalMultiplier + damageMultiplier) * 0.01); // Not sure where the 0.01 is from
+            Math.Round(baseDamage + baseDamage * ((elementalMultiplier + damageMultiplier) * 0.01)); // Not sure where the 0.01 is from
 
         if (isCrit)
         {
