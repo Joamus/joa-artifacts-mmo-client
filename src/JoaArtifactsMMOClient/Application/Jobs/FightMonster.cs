@@ -79,7 +79,11 @@ public class FightMonster : CharacterJob
             return new AppError($"Monster with code {Code} could not be found");
         }
 
-        var fightSimResult = FightSimulator.FindBestFightEquipment(Character, gameState, monster);
+        var fightSimResult = FightSimulator.FindBestFightEquipmentWithUsablePotions(
+            Character,
+            gameState,
+            monster
+        );
 
         if (!fightSimResult.Outcome.ShouldFight)
         {
@@ -121,14 +125,7 @@ public class FightMonster : CharacterJob
             foreach (var item in itemsToEquip)
             {
                 jobs.Add(
-                    new WithdrawItem(
-                        Character,
-                        gameState,
-                        item.Item.Code,
-                        item.Quantity,
-                        true,
-                        true
-                    )
+                    new WithdrawItem(Character, gameState, item.Item.Code, item.Quantity, true)
                 );
             }
             Character.QueueJobsBefore(Id, jobs);
@@ -759,7 +756,12 @@ public class FightMonster : CharacterJob
             );
         }
 
-        var result = FightSimulator.FindBestFightEquipment(character, gameState, monster, items);
+        var result = FightSimulator.FindBestFightEquipmentWithUsablePotions(
+            character,
+            gameState,
+            monster,
+            items
+        );
 
         foreach (var item in result.ItemsToEquip)
         {
@@ -787,14 +789,7 @@ public class FightMonster : CharacterJob
                 if (quantityMissing > 0)
                 {
                     jobs.Add(
-                        new WithdrawItem(
-                            character,
-                            gameState,
-                            item.Code,
-                            quantityMissing,
-                            false,
-                            true
-                        )
+                        new WithdrawItem(character, gameState, item.Code, quantityMissing, false)
                     );
                 }
             }

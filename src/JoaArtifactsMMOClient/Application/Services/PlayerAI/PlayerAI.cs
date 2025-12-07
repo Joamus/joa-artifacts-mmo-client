@@ -302,7 +302,7 @@ public class PlayerAI
             logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: Current weapon was {currentWeapon?.Code ?? "n/a"} - withdrawing 1 x {bestCandidate.Code}"
             );
-            return new WithdrawItem(Character, gameState, bestCandidate.Code, 1, false, true);
+            return new WithdrawItem(Character, gameState, bestCandidate.Code, 1, false);
         }
 
         logger.LogInformation(
@@ -649,7 +649,7 @@ public class PlayerAI
 
             if (
                 !FightSimulator
-                    .FindBestFightEquipment(Character, gameState, matchingMonster)
+                    .FindBestFightEquipmentWithUsablePotions(Character, gameState, matchingMonster)
                     .Outcome.ShouldFight
             )
             {

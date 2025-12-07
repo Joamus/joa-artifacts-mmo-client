@@ -78,6 +78,11 @@ public class ObtainSuitableFood : CharacterJob
             return jobs;
         }
 
+        if (amountFound < Amount)
+        {
+            var fishJobs = GetFoodJobsFromBankFish(amountFound, Amount, bankItemsResponse);
+        }
+
         List<ItemInInventory> foodCandidates = [];
 
         foreach (var item in bankItemsResponse.Data)
@@ -110,60 +115,6 @@ public class ObtainSuitableFood : CharacterJob
             if (amountFound >= Amount)
             {
                 break;
-            }
-        }
-
-        if (amountFound < Amount)
-        {
-            // Check if there are uncooked fish, also low level fish - we can end up having a lot of them,
-            // and we might as well it eat.
-            foreach (var item in bankItemsResponse.Data)
-            {
-                if (amountFound >= Amount)
-                {
-                    break;
-                }
-                var matchingItem = gameState.ItemsDict[item.Code];
-
-                if (matchingItem.Subtype == "fishing")
-                {
-                    List<ItemSchema>? cookedInto = gameState.CraftingLookupDict.GetValueOrNull(
-                        matchingItem.Code
-                    );
-
-                    if (cookedInto is not null)
-                    {
-                        var probablyCookedFishItem = cookedInto.FirstOrDefault(item =>
-                            item.Craft is not null
-                            && ItemService.CanUseItem(matchingItem, Character.Schema)
-                        );
-
-                        if (probablyCookedFishItem is not null)
-                        {
-                            int amountToCook = (int)
-                                Math.Floor(
-                                    (decimal)(
-                                        item.Quantity
-                                        / probablyCookedFishItem.Craft!.Items[0].Quantity
-                                    )
-                                );
-
-                            amountToCook = Math.Min(amountToCook, Amount);
-
-                            if (amountToCook > 0)
-                            {
-                                jobs.Add(
-                                    new ObtainItem(
-                                        Character,
-                                        gameState,
-                                        probablyCookedFishItem.Code,
-                                        amountToCook
-                                    )
-                                );
-                            }
-                        }
-                    }
-                }
             }
         }
 
@@ -259,5 +210,69 @@ public class ObtainSuitableFood : CharacterJob
         }
 
         return gatherableFood ?? fightableFood ?? gameState.ItemsDict["cooked_gudgeon"]!; // You can cook this from level 1, but this should probably never occur
+    }
+
+    public List<CharacterJob> GetFoodJobsFromBankFish(
+        int amountFound,
+        int amountNeeded,
+        BankItemsResponse bankItemsResponse
+    )
+    {
+        List<CharacterJob> jobs = [];
+
+        // Check if there are uncooked fish, also low level fish - we can end up having a lot of them,
+        // and we might as well it eat.
+        foreach (var item in bankItemsResponse.Data)
+        {
+            if (amountFound >= amountNeeded)
+            {
+                break;
+            }
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            if (matchingItem.Subtype == "fishing")
+            {
+                List<ItemSchema>? cookedInto = gameState.CraftingLookupDict.GetValueOrNull(
+                    matchingItem.Code
+                );
+
+                if (cookedInto is not null)
+                {
+                    var probablyCookedFishItem = cookedInto.FirstOrDefault(item =>
+                        item.Craft is not null
+                        && ItemService.CanUseItem(matchingItem, Character.Schema)
+                    );
+
+                    if (probablyCookedFishItem is not null)
+                    {
+                        int amountToCook = (int)
+                            Math.Floor(
+                                (decimal)(
+                                    item.Quantity / probablyCookedFishItem.Craft!.Items[0].Quantity
+                                )
+                            );
+
+                        amountToCook = Math.Min(amountToCook, amountNeeded);
+
+                        if (amountToCook > 0)
+                        {
+                            jobs.Add(
+                                new ObtainItem(
+                                    Character,
+                                    gameState,
+                                    probablyCookedFishItem.Code,
+                                    amountToCook
+                                )
+                            );
+
+                            amountFound += amountToCook;
+                            amountNeeded -= amountToCook;
+                        }
+                    }
+                }
+            }
+        }
+
+        return jobs;
     }
 }

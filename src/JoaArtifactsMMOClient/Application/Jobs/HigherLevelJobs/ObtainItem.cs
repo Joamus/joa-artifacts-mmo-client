@@ -207,9 +207,7 @@ public class ObtainItem : CharacterJob
 
             if (amountToTakeFromBank > 0)
             {
-                jobs.Add(
-                    new WithdrawItem(Character, gameState, code, amountToTakeFromBank, false, false)
-                );
+                jobs.Add(new WithdrawItem(Character, gameState, code, amountToTakeFromBank, false));
 
                 amount -= amountToTakeFromBank;
             }
@@ -360,8 +358,7 @@ public class ObtainItem : CharacterJob
                         gameState,
                         ItemService.TasksCoin,
                         Math.Min(taskCoinsNeeded, taskCoinsInBank),
-                        true,
-                        false
+                        true
                     )
                 );
                 taskCoinsNeeded = 0;
@@ -472,11 +469,14 @@ public class ObtainItem : CharacterJob
             {
                 continue;
             }
-            if (
-                FightSimulator
-                    .FindBestFightEquipment(Character, gameState, monster)
-                    .Outcome.ShouldFight
-            )
+
+            var fightSim = FightSimulator.FindBestFightEquipmentWithUsablePotions(
+                Character,
+                gameState,
+                monster
+            );
+
+            if (fightSim.Outcome.ShouldFight)
             {
                 var job = new FightMonster(
                     Character,
@@ -550,18 +550,19 @@ public class ObtainItem : CharacterJob
                     gameState,
                     lowestLevelMonster
                 );
-            var fightSimIfUsingWithdrawnItems = FightSimulator.FindBestFightEquipment(
-                Character,
-                gameState,
-                lowestLevelMonster,
-                withdrawItemJobs
-                    .Select(job => new ItemInInventory
-                    {
-                        Item = gameState.ItemsDict[job.Code],
-                        Quantity = job.Amount,
-                    })
-                    .ToList()
-            );
+            var fightSimIfUsingWithdrawnItems =
+                FightSimulator.FindBestFightEquipmentWithUsablePotions(
+                    Character,
+                    gameState,
+                    lowestLevelMonster,
+                    withdrawItemJobs
+                        .Select(job => new ItemInInventory
+                        {
+                            Item = gameState.ItemsDict[job.Code],
+                            Quantity = job.Amount,
+                        })
+                        .ToList()
+                );
 
             if (!fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
             {

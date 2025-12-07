@@ -88,7 +88,9 @@ public class TrainCombat : CharacterJob
 
             var outcome = canCurrentlyDefeat
                 ? FightSimulator.CalculateFightOutcome(character.Schema, monster, gameState)
-                : FightSimulator.FindBestFightEquipment(character, gameState, monster).Outcome;
+                : FightSimulator
+                    .FindBestFightEquipmentWithUsablePotions(character, gameState, monster)
+                    .Outcome;
 
             var candidate = new OutcomeCandidate
             {

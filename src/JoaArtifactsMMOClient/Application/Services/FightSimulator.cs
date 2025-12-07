@@ -229,6 +229,13 @@ public class FightSimulator
                 }
             }
 
+            int potionsUsed = 0;
+
+            foreach (var potion in potions)
+            {
+                potionsUsed += potion.OriginalQuantity - potion.Quantity;
+            }
+
             outcomes.Add(
                 new FightOutcome
                 {
@@ -239,6 +246,7 @@ public class FightSimulator
                     ShouldFight =
                         outcome == FightResult.Win
                         && remainingPlayerHp >= (characterSchema.MaxHp * 0.35),
+                    PotionsUsed = potionsUsed,
                 }
             );
         }
@@ -463,14 +471,7 @@ public class FightSimulator
     {
         if (allItems is null)
         {
-            allItems = character
-                .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
-                .Select(item => new ItemInInventory
-                {
-                    Item = gameState.ItemsDict[item.Code],
-                    Quantity = item.Quantity,
-                })
-                .ToList();
+            allItems = GetItemsFromInventoryForSim(character.Schema, gameState);
         }
 
         allItems = allItems
@@ -697,6 +698,33 @@ public class FightSimulator
         return allCandidates.ElementAt(0);
     }
 
+    /**
+      * Fight sim, where we assume the character can obtain the needed potions, even if they don't have them currently
+    **/
+    public static FightSimResult FindBestFightEquipmentWithUsablePotions(
+        PlayerCharacter character,
+        GameState gameState,
+        MonsterSchema monster,
+        List<ItemInInventory>? allItems = null
+    )
+    {
+        var allPotions = gameState
+            .UtilityItemsDict.Where(item => item.Value.Type == "utility")
+            .Select(item => new ItemInInventory { Item = item.Value, Quantity = 100 })
+            .ToList();
+
+        var itemsInInventoryForSimming = GetItemsFromInventoryForSim(character.Schema, gameState);
+
+        var itemCandidates = allPotions.Union(itemsInInventoryForSimming).ToList();
+
+        if (allItems is not null)
+        {
+            itemCandidates = itemCandidates.Union(allItems).ToList();
+        }
+
+        return FindBestFightEquipment(character, gameState, monster);
+    }
+
     public static FightSimResult SimItemsForEquipmentType(
         PlayerCharacter character,
         GameState gameState,
@@ -823,11 +851,7 @@ public class FightSimulator
                 **/
                 if (equipmentTypeMapping.ItemType != "utility")
                 {
-                    if (
-                        characterSchema.Utility1SlotQuantity + character.Schema.Utility2SlotQuantity
-                        < bestSchemaCandiate.Utility1SlotQuantity
-                            + bestSchemaCandiate.Utility2SlotQuantity
-                    )
+                    if (fightOutcome.PotionsUsed > bestFightOutcome.PotionsUsed)
                     {
                         continue;
                     }
@@ -1152,12 +1176,19 @@ public class FightSimulator
         return jobsToGetItems;
     }
 
-    public static void RemovePotions(CharacterSchema characterSchema)
+    public static List<ItemInInventory> GetItemsFromInventoryForSim(
+        CharacterSchema characterSchema,
+        GameState gameState
+    )
     {
-        characterSchema.Utility1Slot = "";
-        characterSchema.Utility1SlotQuantity = 0;
-        characterSchema.Utility2Slot = "";
-        characterSchema.Utility2SlotQuantity = 0;
+        return characterSchema
+            .Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+            .Select(item => new ItemInInventory
+            {
+                Item = gameState.ItemsDict[item.Code],
+                Quantity = item.Quantity,
+            })
+            .ToList();
     }
 }
 
@@ -1172,6 +1203,8 @@ public record FightOutcome
     public int TotalTurns { get; init; }
 
     public bool ShouldFight { get; init; }
+
+    public int PotionsUsed = 0;
 }
 
 record AttackResult

@@ -159,6 +159,8 @@ public class PlayerCharacter
         {
             Jobs.Add(job);
         }
+
+        job.onJobQueuedHook();
         Busy = false;
     }
 

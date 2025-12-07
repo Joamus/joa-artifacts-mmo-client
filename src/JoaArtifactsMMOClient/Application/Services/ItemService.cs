@@ -666,9 +666,16 @@ public static class ItemService
         {
             // Some effects have "minus" effects, e.g. cooldown reduction for gathering tools,
             // but Obsidian Battleaxe also has minus inventory space, so we don't care for that here.
+
+            bool hasMinusEffect = a.Subtype == "tool" && b.Subtype == "tool";
+
             var hasSameEffectButBetterOrEqual = lowestLevelItem.Effects.Exists(lowLevelEffect =>
                 lowLevelEffect.Code == highLevelEffect.Code
-                && (highLevelEffect.Value >= lowLevelEffect.Value)
+                && (
+                    hasMinusEffect
+                        ? highLevelEffect.Value < lowLevelEffect.Value
+                        : highLevelEffect.Value >= lowLevelEffect.Value
+                )
             );
 
             if (!hasSameEffectButBetterOrEqual)

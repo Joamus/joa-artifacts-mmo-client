@@ -35,6 +35,10 @@ public abstract class CharacterJob
 
     public OnSuccessEndHook? onSuccessEndHook = null;
 
+    public delegate void OnQueuedHook();
+
+    public OnQueuedHook onJobQueuedHook = () => { };
+
     public virtual CharacterJob Clone()
     {
         return (CharacterJob)MemberwiseClone();

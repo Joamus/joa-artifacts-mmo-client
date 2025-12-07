@@ -3,6 +3,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -199,7 +200,7 @@ public class TrainSkill : CharacterJob
 
                         if (!resultA.Item1)
                         {
-                            return -1;
+                            return 1;
                         }
 
                         int resultACost = resultA.Item2 + skillLevel - a.Craft!.Level;
@@ -215,7 +216,7 @@ public class TrainSkill : CharacterJob
 
                         if (!resultB.Item1)
                         {
-                            return 1;
+                            return -1;
                         }
 
                         return resultACost.CompareTo(resultBCost);
@@ -354,11 +355,10 @@ public class TrainSkill : CharacterJob
                     {
                         if (gameState.EventService.IsEntityFromEvent(monster.Code))
                         {
-                            score += 100;
                             continue;
                         }
                         var fightOutcome = FightSimulator
-                            .FindBestFightEquipment(Character, gameState, monster)
+                            .FindBestFightEquipmentWithUsablePotions(Character, gameState, monster)
                             .Outcome;
 
                         if (

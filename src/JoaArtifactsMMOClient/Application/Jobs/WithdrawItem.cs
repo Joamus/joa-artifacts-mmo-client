@@ -20,8 +20,8 @@ public class WithdrawItem : CharacterJob
         GameState gameState,
         string code,
         int amount,
-        bool canTriggerObtain = true,
-        bool shouldReserve = true
+        bool canTriggerObtain = true
+    // bool shouldReserve = true
     )
         : base(character, gameState)
     {
@@ -30,10 +30,13 @@ public class WithdrawItem : CharacterJob
         CanTriggerObtain = canTriggerObtain;
 
         // Reserve when we create this job - less chance of collision
-        if (shouldReserve)
+        // if (shouldReserve)
+        // {
+        onJobQueuedHook = () =>
         {
             gameState.BankItemCache.ReserveItem(character, code, amount);
-        }
+        };
+        // }
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()

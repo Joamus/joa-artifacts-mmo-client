@@ -368,10 +368,20 @@ public class DepositUnneededItems : CharacterJob
             }
             else
             {
-                amountToDeposit = Math.Min(
-                    item.Quantity,
-                    MAX_FREE_INVENTORY_SPACES - Character.GetInventorySpaceLeft()
-                );
+                int amountNeededToDeposit =
+                    MAX_FREE_INVENTORY_SPACES - Character.GetInventorySpaceLeft();
+
+                if (amountNeededToDeposit <= 0)
+                {
+                    amountNeededToDeposit = item.Quantity;
+                }
+
+                amountToDeposit = amountNeededToDeposit;
+
+                // amountToDeposit = Math.Min(
+                //     item.Quantity,
+                //     Math.Max(MAX_FREE_INVENTORY_SPACES - Character.GetInventorySpaceLeft(), 0)
+                // );
 
                 if (amountToDeposit <= 0)
                 {
@@ -447,9 +457,14 @@ public class DepositUnneededItems : CharacterJob
 
     public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character)
     {
-        return character.GetInventorySpaceLeft() < MAX_FREE_INVENTORY_SPACES
-            && character.Schema.Inventory.Count((item) => string.IsNullOrEmpty(item.Code))
-                < MAX_FREE_INVENTORY_SLOTS;
+        bool hasEnoughInventorySpace =
+            character.GetInventorySpaceLeft() < MAX_FREE_INVENTORY_SPACES;
+
+        bool hasEnoughInventorySlots =
+            character.Schema.Inventory.Count((item) => string.IsNullOrEmpty(item.Code))
+            < MAX_FREE_INVENTORY_SLOTS;
+
+        return hasEnoughInventorySlots && hasEnoughInventorySlots;
     }
 }
 
