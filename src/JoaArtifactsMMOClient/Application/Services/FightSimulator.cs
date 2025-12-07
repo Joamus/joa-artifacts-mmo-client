@@ -473,6 +473,10 @@ public class FightSimulator
                 .ToList();
         }
 
+        allItems = allItems
+            .Where(item => ItemService.CanUseItem(item.Item, character.Schema))
+            .ToList();
+
         allItems = GetItemsWorthSimming(allItems);
 
         // This order should matter somewhat, since e.g. body armor slots typically give more stats than items lower in the list, e.g boots and amulets.
@@ -720,18 +724,6 @@ public class FightSimulator
 
         bestSchemaCandiate.Hp = bestSchemaCandiate.MaxHp;
 
-        /**
-         * If we are not simming potions, then we want to do simulations without potions,
-         * because restore HP pots can skew the outcome, e.g. a worse item setup might have
-         * the character HP pots earlier, which can end up with them having a higher amount of
-         * remaining HP, but they also used more potions.
-         *
-        **/
-        if (equipmentTypeMapping.ItemType != "utility")
-        {
-            RemovePotions(bestSchemaCandiate);
-        }
-
         int bestItemAmount = 1;
 
         // TODO: Loop through all weapons, and find the best combination with each weapon.
@@ -808,18 +800,6 @@ public class FightSimulator
 
             var characterSchema = bestSchemaCandiate with { };
 
-            /**
-             * If we are not simming potions, then we want to do simulations without potions,
-             * because restore HP pots can skew the outcome, e.g. a worse item setup might have
-             * the character HP pots earlier, which can end up with them having a higher amount of
-             * remaining HP, but they also used more potions.
-             *
-            **/
-            if (equipmentTypeMapping.ItemType != "utility")
-            {
-                RemovePotions(characterSchema);
-            }
-
             characterSchema = PlayerActionService.SimulateItemEquip(
                 characterSchema,
                 bestItemCandidate,
@@ -834,6 +814,25 @@ public class FightSimulator
 
             if (fightOutcomeIsBetter)
             {
+                /**
+                 * If we are not simming potions, then we want to do simulations without potions,
+                 * because restore HP pots can skew the outcome, e.g. a worse item setup might have
+                 * the character HP pots earlier, which can end up with them having a higher amount of
+                 * remaining HP, but they also used more potions.
+                 *
+                **/
+                if (equipmentTypeMapping.ItemType != "utility")
+                {
+                    if (
+                        characterSchema.Utility1SlotQuantity + character.Schema.Utility2SlotQuantity
+                        < bestSchemaCandiate.Utility1SlotQuantity
+                            + bestSchemaCandiate.Utility2SlotQuantity
+                    )
+                    {
+                        continue;
+                    }
+                }
+
                 bestFightOutcome = fightOutcome;
                 bestItemCandidate = item.Item;
                 bestSchemaCandiate = characterSchema;

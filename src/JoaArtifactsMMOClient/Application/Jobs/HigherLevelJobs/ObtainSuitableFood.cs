@@ -135,7 +135,6 @@ public class ObtainSuitableFood : CharacterJob
                     {
                         var probablyCookedFishItem = cookedInto.FirstOrDefault(item =>
                             item.Craft is not null
-                            && item.Craft?.Items.Count == 0
                             && ItemService.CanUseItem(matchingItem, Character.Schema)
                         );
 
