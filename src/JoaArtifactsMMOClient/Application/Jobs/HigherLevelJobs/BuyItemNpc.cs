@@ -43,18 +43,11 @@ public class BuyItemNpc : CharacterJob
             return new AppError($"Could not find item \"{Code}\" in NpcItemsDict");
         }
 
-        var matchingCurrency = gameState.ItemsDict.GetValueOrNull(itemToBuy.Currency);
-
-        if (matchingCurrency is null)
-        {
-            return new AppError(
-                $"Could not find matching currency item \"{itemToBuy.Currency}\" in items dict"
-            );
-        }
-
         bool isGold = itemToBuy.Currency == "gold";
 
         int amountLeft = Amount * itemToBuy.BuyPrice ?? 0;
+
+        var matchingCurrency = gameState.ItemsDict.GetValueOrNull(itemToBuy.Currency);
 
         if (UseBank)
         {
@@ -69,6 +62,12 @@ public class BuyItemNpc : CharacterJob
             }
             else
             {
+                if (matchingCurrency is null)
+                {
+                    return new AppError(
+                        $"Could not find matching currency item \"{itemToBuy.Currency}\" in items dict"
+                    );
+                }
                 var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
                 var itemInBank = bankResponse.Data.Find(item => item.Code == matchingCurrency.Code);
@@ -91,7 +90,7 @@ public class BuyItemNpc : CharacterJob
             }
             else
             {
-                var itemInInventory = Character.GetItemFromInventory(matchingCurrency.Code);
+                var itemInInventory = Character.GetItemFromInventory(matchingCurrency!.Code);
 
                 if (itemInInventory is not null)
                 {

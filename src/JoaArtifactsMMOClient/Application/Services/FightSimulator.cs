@@ -161,7 +161,7 @@ public class FightSimulator
                       The poison effect causes x damage per turn, unless the defender has an antidote. If the defender has an antidote,
                       it subtracts the antidote value from the poison, using only 1 antidote.
                     **/
-                    if (poison is not null)
+                    if (poison is not null && turnNumber == 1)
                     {
                         poisonDamage = poison.Value;
 
@@ -174,16 +174,12 @@ public class FightSimulator
                             if (antidote is not null)
                             {
                                 poisonDamage -= antidote.Value;
+                                potion.Quantity--;
 
                                 if (poisonDamage < 0)
                                 {
                                     poisonDamage = 0;
                                 }
-                                if (turnNumber == 1)
-                                {
-                                    potion.Quantity--;
-                                }
-                                break;
                             }
                         }
                     }
@@ -229,11 +225,11 @@ public class FightSimulator
                 }
             }
 
-            int potionsUsed = 0;
+            int potionsUsedInSim = 0;
 
             foreach (var potion in potions)
             {
-                potionsUsed += potion.OriginalQuantity - potion.Quantity;
+                potionsUsedInSim += potion.OriginalQuantity - potion.Quantity;
             }
 
             outcomes.Add(
@@ -246,7 +242,7 @@ public class FightSimulator
                     ShouldFight =
                         outcome == FightResult.Win
                         && remainingPlayerHp >= (characterSchema.MaxHp * 0.35),
-                    PotionsUsed = potionsUsed,
+                    PotionsUsed = potionsUsedInSim,
                 }
             );
         }
@@ -257,6 +253,7 @@ public class FightSimulator
         int playerHp = 0;
         int monsterHp = 0;
         int totalTurns = 0;
+        int potionsUsed = 0;
 
         int fightSimulations = outcomes.Count;
 
@@ -267,11 +264,14 @@ public class FightSimulator
             playerHp += outcome.PlayerHp;
             monsterHp += outcome.MonsterHp;
             totalTurns += outcome.TotalTurns;
+            potionsUsed += outcome.PotionsUsed;
         }
 
         playerHp = (int)Math.Floor((double)playerHp / fightSimulations);
         monsterHp = (int)Math.Floor((double)monsterHp / fightSimulations);
         totalTurns = (int)Math.Floor((double)totalTurns / fightSimulations);
+        potionsUsed = (int)Math.Floor((double)potionsUsed / fightSimulations);
+
         bool shouldFight = (amountShouldFight / fightSimulations) > PERCENTAGE_OF_SIMS_TO_WIN;
 
         FightResult generallyWon =
@@ -286,6 +286,7 @@ public class FightSimulator
             PlayerHp = playerHp,
             MonsterHp = monsterHp,
             TotalTurns = totalTurns,
+            PotionsUsed = potionsUsed,
         };
     }
 
@@ -723,7 +724,7 @@ public class FightSimulator
             itemCandidates = itemCandidates.Union(allItems).ToList();
         }
 
-        return FindBestFightEquipment(character, gameState, monster);
+        return FindBestFightEquipment(character, gameState, monster, allItems);
     }
 
     public static FightSimResult SimItemsForEquipmentType(
@@ -834,7 +835,7 @@ public class FightSimulator
                 bestItemCandidate,
                 itemSchema,
                 equipmentSlot,
-                1
+                item.Quantity
             );
 
             var fightOutcome = CalculateFightOutcome(characterSchema, monster, gameState);
@@ -1205,7 +1206,7 @@ public record FightOutcome
 
     public bool ShouldFight { get; init; }
 
-    public int PotionsUsed = 0;
+    public int PotionsUsed { get; set; } = 0;
 }
 
 record AttackResult

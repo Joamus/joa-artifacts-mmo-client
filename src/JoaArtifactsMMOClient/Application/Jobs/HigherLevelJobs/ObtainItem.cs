@@ -622,14 +622,30 @@ public class ObtainItem : CharacterJob
                 );
             }
 
-            jobs.Add(
-                new ObtainOrFindItem(
-                    Character,
-                    gameState,
-                    matchingNpcItem.Currency,
-                    (int)matchingNpcItem.BuyPrice * requiredAmount
-                )
-            );
+            int amountOfCurrency =
+                matchingNpcItem.Currency == "gold"
+                    ? Character.Schema.Gold
+                    : Character.GetItemFromInventory(matchingNpcItem.Currency)?.Quantity ?? 0;
+
+            if (matchingNpcItem.Currency == "gold" && matchingNpcItem.BuyPrice > amountOfCurrency)
+            {
+                return new AppError(
+                    $"Matching item costs more gold than the character currently has - cannot obtain",
+                    ErrorStatus.Undefined
+                );
+            }
+
+            int neededCurrency = (int)matchingNpcItem.BuyPrice * requiredAmount;
+
+            if (amountOfCurrency < neededCurrency)
+                jobs.Add(
+                    new ObtainOrFindItem(
+                        Character,
+                        gameState,
+                        matchingNpcItem.Currency,
+                        neededCurrency - amountOfCurrency
+                    )
+                );
 
             jobs.Add(
                 new BuyItemNpc(
