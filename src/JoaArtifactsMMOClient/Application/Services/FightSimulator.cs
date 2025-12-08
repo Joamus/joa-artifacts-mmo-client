@@ -75,7 +75,7 @@ public class FightSimulator
 
             if (matchingRuneItem is not null)
             {
-                foreach (var effect in runeEffects)
+                foreach (var effect in matchingRuneItem.Effects)
                 {
                     runeEffects.Add(effect);
                 }
@@ -195,7 +195,7 @@ public class FightSimulator
                     ProcessParticipantTurn(
                         attacker.entity,
                         attacker.critCalculator,
-                        runeEffects,
+                        attacker.effects,
                         potionEffectsForTurn,
                         defender.entity,
                         turnNumber
@@ -381,11 +381,12 @@ public class FightSimulator
             if (burn is not null)
             {
                 // Decrease burn damage by 10% each turn. So if burn value is 20%, then it's 20, 10, 0.
-                int subtractFactor = Math.Max(burn.Value - ((totalTurns - 1) * burn.Value), 0);
+                int multiplicationFactor = Math.Max(burn.Value - (totalTurns - 1), 0);
 
-                int initialDmg = burn.Value - subtractFactor;
+                // int initialDmg = burn.Value - multiplicationFactor;
 
-                double burnFactor = initialDmg * 0.01;
+                // double burnFactor = initialDmg * 0.01;
+                double burnFactor = multiplicationFactor * 0.01;
 
                 int burnDamage =
                     burnFactor > 0 ? (int)Math.Round(damageWithEffects * burnFactor) : 0;
@@ -432,7 +433,7 @@ public class FightSimulator
         if (attackerDamage.wasCrit)
         {
             SimpleEffectSchema? lifesteal = attackerRuneEffects.FirstOrDefault(effect =>
-                effect.Code == Effect.Burn
+                effect.Code == Effect.Lifesteal
             );
 
             if (lifesteal is not null)

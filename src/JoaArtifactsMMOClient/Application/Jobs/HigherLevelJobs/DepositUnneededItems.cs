@@ -443,9 +443,13 @@ public class DepositUnneededItems : CharacterJob
             return true;
         }
 
+        int amountOfEmptyInventorySlots = character.Schema.Inventory.Count(
+            (item) => string.IsNullOrEmpty(item.Code)
+        );
+
         bool hasTooFewInventorySlots =
-            character.Schema.Inventory.Count((item) => !string.IsNullOrEmpty(item.Code))
-            >= character.Schema.Inventory.Count() - MIN_FREE_INVENTORY_SLOTS;
+            amountOfEmptyInventorySlots
+            <= (preJob ? MIN_FREE_INVENTORY_SLOTS : MAX_FREE_INVENTORY_SLOTS);
 
         if (hasTooFewInventorySlots)
         {
