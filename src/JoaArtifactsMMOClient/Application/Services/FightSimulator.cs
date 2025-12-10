@@ -31,7 +31,9 @@ public class FightSimulator
             new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility1Slot" },
             new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility2Slot" },
             new EquipmentTypeMapping { ItemType = "rune", Slot = "RuneSlot" },
-            new EquipmentTypeMapping { ItemType = "artifact", Slot = "ArtifactSlot" },
+            new EquipmentTypeMapping { ItemType = "artifact", Slot = "ArtifactSlot1" },
+            new EquipmentTypeMapping { ItemType = "artifact", Slot = "ArtifactSlot2" },
+            new EquipmentTypeMapping { ItemType = "artifact", Slot = "ArtifactSlot3" },
         };
 
     // We assume that monsters will crit more often than us, just to ensure that we don't take on fights too often, that we will probably not win.
@@ -1150,11 +1152,23 @@ public class FightSimulator
             return null;
         }
 
+        var bankItems = await gameState.BankItemCache.GetBankItems(character);
+
         // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
         // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
         jobsToGetItems.Sort(
             (a, b) =>
             {
+                if (bankItems.Data.Exists(item => item.Code == a.Code && item.Quantity >= a.Amount))
+                {
+                    return -1;
+                }
+                else if (
+                    bankItems.Data.Exists(item => item.Code == b.Code && item.Quantity >= b.Amount)
+                )
+                {
+                    return 1;
+                }
                 // If we can buy an item straight away, then let us do that first
                 var aMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(a.Code);
 
