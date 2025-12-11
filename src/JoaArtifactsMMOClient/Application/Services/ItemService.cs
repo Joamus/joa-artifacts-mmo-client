@@ -311,12 +311,15 @@ public static class ItemService
                     return drop.Code == code && drop.Rate > 0;
                 }
 
+                var skillLevel = character.GetSkillLevel(SkillService.GetSkillName(resource.Skill));
+
                 bool betterDropRate =
                     drop.Code == code && drop.Rate < resourceWithDropRate.Value.dropRate;
 
                 bool sameDropRateButHigherLevel =
                     drop.Rate == resourceWithDropRate.Value.dropRate
-                    && resource.Level > resourceWithDropRate.Value.resource.Level;
+                    && resource.Level > resourceWithDropRate.Value.resource.Level
+                    && skillLevel >= resource.Level;
 
                 return betterDropRate || sameDropRateButHigherLevel;
             });
