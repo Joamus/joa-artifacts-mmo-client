@@ -106,9 +106,7 @@ public class GatherResourceItem : CharacterJob
 
             Skill skill = resource.Skill;
 
-            await Character.PlayerActionService.EquipBestGatheringEquipment(skill);
-
-            var result = await InnerJobAsync(matchingItem, resource);
+            var result = await InnerJobAsync(matchingItem, resource, skill);
 
             switch (result.Value)
             {
@@ -136,7 +134,8 @@ public class GatherResourceItem : CharacterJob
 
     protected async Task<OneOf<AppError, None>> InnerJobAsync(
         ItemSchema matchingItem,
-        ResourceSchema resource
+        ResourceSchema resource,
+        Skill skill
     )
     {
         logger.LogInformation(
@@ -177,7 +176,6 @@ public class GatherResourceItem : CharacterJob
                 );
                 // Skill skill = (Skill)SkillService.GetSkillFromName(matchingItem.Subtype)!;
 
-
                 Character.QueueJobsBefore(
                     Id,
                     [new TrainSkill(Character, gameState, resource.Skill, matchingItem.Level)]
@@ -208,6 +206,7 @@ public class GatherResourceItem : CharacterJob
         // }
         await Character.NavigateTo(resource.Code);
 
+        await Character.PlayerActionService.EquipBestGatheringEquipment(skill);
         var result = await Character.Gather();
 
         switch (result.Value)

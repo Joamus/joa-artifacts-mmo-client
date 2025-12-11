@@ -293,9 +293,7 @@ public static class ItemService
         {
             bool hasDrop = resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null;
 
-            return hasDrop
-                && character.GetSkillLevel(SkillService.GetSkillName(resource.Skill))
-                    >= resource.Level;
+            return hasDrop;
         });
 
         (ResourceSchema resource, int dropRate)? resourceWithDropRate = null;
