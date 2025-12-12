@@ -108,8 +108,6 @@ public class GameState
 
         foreach (var characterSchema in result.Data)
         {
-            PlayerCharacter.ProcessCharacterSchema(characterSchema);
-
             var matchingConfig = characterConfigs.FirstOrDefault(config =>
                 config.Name == characterSchema.Name
             );

@@ -487,7 +487,6 @@ public class PlayerCharacter
         if (result?.Data is not null)
         {
             Schema = result.Data;
-            PlayerCharacter.ProcessCharacterSchema(Schema);
         }
     }
 
@@ -1095,10 +1094,5 @@ public class PlayerCharacter
         var value = (int)prop!.GetValue(Schema)!;
 
         return value;
-    }
-
-    public static void ProcessCharacterSchema(CharacterSchema characterSchema)
-    {
-        // characterSchema.MaxXp = characterSchema.OriginalMaxHp;
     }
 }
