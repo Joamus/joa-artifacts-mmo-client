@@ -59,8 +59,6 @@ public record CharacterSchema : FightEntity
 
     public int JewelrycraftingMaxXp { get; set; }
 
-    public int MaxHp { get; set; }
-
     public int Haste { get; set; }
 
     public int Wisdom { get; set; }

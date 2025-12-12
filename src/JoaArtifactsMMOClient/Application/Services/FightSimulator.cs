@@ -31,9 +31,9 @@ public class FightSimulator
             new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility1Slot" },
             new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility2Slot" },
             new EquipmentTypeMapping { ItemType = "rune", Slot = "RuneSlot" },
-            new EquipmentTypeMapping { ItemType = "artifact", Slot = "ArtifactSlot1" },
-            new EquipmentTypeMapping { ItemType = "artifact", Slot = "ArtifactSlot2" },
-            new EquipmentTypeMapping { ItemType = "artifact", Slot = "ArtifactSlot3" },
+            new EquipmentTypeMapping { ItemType = "artifact", Slot = "Artifact1Slot" },
+            new EquipmentTypeMapping { ItemType = "artifact", Slot = "Artifact2Slot" },
+            new EquipmentTypeMapping { ItemType = "artifact", Slot = "Artifact3Slot" },
         };
 
     // We assume that monsters will crit more often than us, just to ensure that we don't take on fights too often, that we will probably not win.
@@ -723,7 +723,7 @@ public class FightSimulator
             itemCandidates = itemCandidates.Union(allItems).ToList();
         }
 
-        return FindBestFightEquipment(character, gameState, monster, allItems);
+        return FindBestFightEquipment(character, gameState, monster, itemCandidates);
     }
 
     public static FightSimResult SimItemsForEquipmentType(

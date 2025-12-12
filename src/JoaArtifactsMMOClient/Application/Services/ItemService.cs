@@ -365,10 +365,7 @@ public static class ItemService
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster,
-        List<InventorySlot>? allItemCandidates = null,
-        bool allowNonCraftedFromInventory = true,
-        bool allowNonCraftedFromBank = false,
-        bool alwaysAllNonCrafted = false
+        List<InventorySlot>? allItemCandidates = null
     )
     {
         if (allItemCandidates is null)
@@ -380,120 +377,210 @@ public static class ItemService
                 .ToList();
         }
 
-        var bankItems = allowNonCraftedFromBank
-            ? (await gameState.BankItemCache.GetBankItems(character, true)).Data
-            : [];
-
-        var bankItemDict = new Dictionary<string, DropSchema>();
-
-        foreach (var item in bankItems)
-        {
-            // Cloning for changing the quantity
-            bankItemDict.Add(item.Code, item with { });
-        }
-
         // var relevantMonsters = FightSimulator.GetRelevantMonstersForCharacter(character);
 
-        List<ItemInInventory> itemsForSimming = [];
-
-        foreach (var item in allItemCandidates)
-        {
-            if (ItemSimBlacklist.Contains(item.Code))
-            {
-                continue;
-            }
-
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
-
-            if (matchingItem.Subtype == "tool")
-            {
-                continue;
-            }
-
-            if (!EquipmentItemTypes.Contains(matchingItem.Type))
-            {
-                continue;
-            }
-
-            // TODO: In most cases, it's probably better to just craft something instead of grinding out drops from mobs with low drop rate.
-            // Only allow non-crafted items if we already have them
-            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
-
-            if (matchingNpcItem is not null)
-            {
-                // For now, don't try to grind gold or anything for these items.
-                if (
-                    matchingNpcItem.Currency != "gold"
-                    || matchingNpcItem.Currency == "gold"
-                        && character.Schema.Gold < matchingNpcItem.BuyPrice
-                )
+        List<ItemInInventory> itemsForSimming = await GetItemsThatCanBeSimmed(
+            character,
+            gameState,
+            allItemCandidates
+                .Select(item => new ItemInInventory
                 {
-                    continue;
-                }
+                    Item = gameState.ItemsDict[item.Code],
+                    Quantity = item.Quantity,
+                })
+                .ToList()
+            ?? []
+        );
 
-                if (gameState.EventService.IsItemFromEventMonster(matchingItem.Code, true))
-                {
-                    continue;
-                }
-            }
-            // else if (matchingItem.Craft is null && quantityInBank <= 0)
-            // {
-            //     continue;
-            // }
-            else if (matchingItem.Craft is null && !alwaysAllNonCrafted)
-            {
-                bool foundInInventory =
-                    allowNonCraftedFromInventory
-                    && character.GetItemFromInventory(item.Code) is not null;
+        // foreach (var item in allItemCandidates)
+        // {
+        //     if (ItemSimBlacklist.Contains(item.Code))
+        //     {
+        //         continue;
+        //     }
 
-                bool foundInBank =
-                    !foundInInventory
-                    && allowNonCraftedFromBank
-                    && bankItems.FirstOrDefault(bankItem => bankItem.Code == item.Code) is not null;
+        //     var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
-                if (!foundInInventory && !foundInBank)
-                {
-                    continue;
-                }
-            }
+        //     if (matchingItem.Subtype == "tool")
+        //     {
+        //         continue;
+        //     }
 
-            if (!CanUseItem(matchingItem, character.Schema))
-            {
-                continue;
-            }
+        //     if (!EquipmentItemTypes.Contains(matchingItem.Type))
+        //     {
+        //         continue;
+        //     }
 
-            var quantityInBank = bankItemDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
+        //     // TODO: In most cases, it's probably better to just craft something instead of grinding out drops from mobs with low drop rate.
+        //     // Only allow non-crafted items if we already have them
+        //     var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
 
-            if (
-                !await character.PlayerActionService.CanObtainItem(matchingItem)
-                && quantityInBank <= 0
-            )
-            {
-                continue;
-            }
+        //     if (matchingNpcItem is not null)
+        //     {
+        //         // For now, don't try to grind gold or anything for these items.
+        //         if (
+        //             matchingNpcItem.Currency != "gold"
+        //             || matchingNpcItem.Currency == "gold"
+        //                 && character.Schema.Gold < matchingNpcItem.BuyPrice
+        //         )
+        //         {
+        //             continue;
+        //         }
 
-            // Just a heuristic - there is probably better equipment to use for "normal equipment", e.g weapons, helmets, etc,
-            // but the more "utility"-oriented slots might be worth it, e.g. many of the boost pots are sort of low level, runes as well, etc.
-            // if (
-            //     !new[] { "utility", "artifact", "rune", "amulet" }.Contains(matchingItem.Type)
-            //     && character.Schema.Level - matchingItem.Level < 20
-            // )
-            // {
-            //     continue;
-            // }
+        //         if (gameState.EventService.IsItemFromEventMonster(matchingItem.Code, true))
+        //         {
+        //             continue;
+        //         }
+        //     }
+        //     // else if (matchingItem.Craft is null && quantityInBank <= 0)
+        //     // {
+        //     //     continue;
+        //     // }
+        //     else if (matchingItem.Craft is null && !alwaysAllNonCrafted)
+        //     {
+        //         bool foundInInventory =
+        //             allowNonCraftedFromInventory
+        //             && character.GetItemFromInventory(item.Code) is not null;
 
-            itemsForSimming.Add(
-                new ItemInInventory
-                {
-                    Item = matchingItem,
-                    // Could just always set it to 100, but who cares
-                    Quantity =
-                        matchingItem.Type == "utility" ? 100
-                        : matchingItem.Type == "ring" ? 2
-                        : 1,
-                }
-            );
-        }
+        //         bool foundInBank =
+        //             !foundInInventory
+        //             && allowNonCraftedFromBank
+        //             && bankItems.FirstOrDefault(bankItem => bankItem.Code == item.Code) is not null;
+
+        //         if (!foundInInventory && !foundInBank)
+        //         {
+        //             continue;
+        //         }
+        //     }
+
+        //     if (!CanUseItem(matchingItem, character.Schema))
+        //     {
+        //         continue;
+        //     }
+
+        //     var quantityInBank = bankItemDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
+
+        //     if (
+        //         !await character.PlayerActionService.CanObtainItem(matchingItem)
+        //         && quantityInBank <= 0
+        //     )
+        //     {
+        //         continue;
+        //     }
+
+        //     // Just a heuristic - there is probably better equipment to use for "normal equipment", e.g weapons, helmets, etc,
+        //     // but the more "utility"-oriented slots might be worth it, e.g. many of the boost pots are sort of low level, runes as well, etc.
+        //     // if (
+        //     //     !new[] { "utility", "artifact", "rune", "amulet" }.Contains(matchingItem.Type)
+        //     //     && character.Schema.Level - matchingItem.Level < 20
+        //     // )
+        //     // {
+        //     //     continue;
+        //     // }
+
+        //     itemsForSimming.Add(
+        //         new ItemInInventory
+        //         {
+        //             Item = matchingItem,
+        //             // Could just always set it to 100, but who cares
+        //             Quantity =
+        //                 matchingItem.Type == "utility" ? 100
+        //                 : matchingItem.Type == "ring" ? 2
+        //                 : 1,
+        //         }
+        //     );
+        // }
+
+        // foreach (var item in allItemCandidates)
+        // {
+        //     var matchingItem = gameState.ItemsDict[item.Code];
+
+        //     if (ItemSimBlacklist.Contains(matchingItem.Code))
+        //     {
+        //         continue;
+        //     }
+
+        //     if (matchingItem.Subtype == "tool")
+        //     {
+        //         continue;
+        //     }
+
+        //     if (!EquipmentItemTypes.Contains(matchingItem.Type))
+        //     {
+        //         continue;
+        //     }
+
+        //     if (!CanUseItem(matchingItem, character.Schema))
+        //     {
+        //         continue;
+        //     }
+
+        //     var quantityInBank = bankItemDict.GetValueOrNull(matchingItem.Code)?.Quantity ?? 0;
+
+        //     var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
+
+        //     if (quantityInBank == 0)
+        //     {
+        //         if (matchingNpcItem is not null)
+        //         {
+        //             // For now, don't try to grind gold or anything for these items.
+        //             if (
+        //                 matchingNpcItem.Currency == "gold"
+        //                 && character.Schema.Gold < matchingNpcItem.BuyPrice
+        //             )
+        //             {
+        //                 continue;
+        //             }
+
+        //             if (gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null)
+        //             {
+        //                 continue;
+        //             }
+        //         }
+        //         else if (matchingItem.Craft is null && !alwaysAllNonCrafted)
+        //         {
+        //             bool foundInInventory =
+        //                 allowNonCraftedFromInventory
+        //                 && character.GetItemFromInventory(matchingItem.Code) is not null;
+
+        //             bool foundInBank =
+        //                 !foundInInventory
+        //                 && allowNonCraftedFromBank
+        //                 && bankItems.FirstOrDefault(bankItem => bankItem.Code == matchingItem.Code)
+        //                     is not null;
+
+        //             if (!foundInInventory && !foundInBank)
+        //             {
+        //                 continue;
+        //             }
+        //         }
+        //         else if (matchingItem.Craft is null && quantityInBank <= 0)
+        //         {
+        //             continue;
+        //         }
+
+        //         if (!await character.PlayerActionService.CanObtainItem(matchingItem))
+        //         {
+        //             continue;
+        //         }
+        //         else if (gameState.EventService.IsItemFromEventMonster(matchingItem.Code, true))
+        //         {
+        //             continue;
+        //         }
+        //     }
+
+        //     itemsForSimming.Add(
+        //         new ItemInInventory
+        //         {
+        //             Item = matchingItem,
+        //             // Could just always set it to 100, but who cares
+        //             Quantity =
+        //                 matchingItem.Type == "utility" ? 100
+        //                 : matchingItem.Type == "ring" ? 1 // We just get one at a time
+        //                 : 1,
+        //         }
+        //     );
+        // }
 
         Dictionary<string, DropSchema> relevantItemsDict = [];
 
@@ -704,5 +791,111 @@ public static class ItemService
         }
 
         return highestLevelItem;
+    }
+
+    public static async Task<List<ItemInInventory>> GetItemsThatCanBeSimmed(
+        PlayerCharacter character,
+        GameState gameState,
+        List<ItemInInventory> allItemCandidates
+    )
+    {
+        List<ItemInInventory> items = [];
+
+        var bankItems = await gameState.BankItemCache.GetBankItems(character, true);
+
+        var bankItemDict = new Dictionary<string, DropSchema>();
+
+        foreach (var item in bankItems.Data)
+        {
+            // Cloning for changing the quantity
+            bankItemDict.Add(item.Code, item with { });
+        }
+        foreach (var item in allItemCandidates)
+        {
+            var matchingItem = item.Item;
+
+            if (ItemSimBlacklist.Contains(matchingItem.Code))
+            {
+                continue;
+            }
+
+            if (matchingItem.Subtype == "tool")
+            {
+                continue;
+            }
+
+            if (!EquipmentItemTypes.Contains(matchingItem.Type))
+            {
+                continue;
+            }
+
+            if (!CanUseItem(matchingItem, character.Schema))
+            {
+                continue;
+            }
+
+            int amountInBank = bankItemDict.GetValueOrNull(matchingItem.Code)?.Quantity ?? 0;
+
+            int amountInInventory =
+                character.GetItemFromInventory(matchingItem.Code)?.Quantity ?? 0;
+
+            int amountAvailable = amountInBank + amountInInventory;
+
+            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
+
+            if (amountAvailable == 0)
+            {
+                if (matchingNpcItem is not null)
+                {
+                    // For now, don't try to grind gold or anything for these items.
+                    if (
+                        matchingNpcItem.Currency == "gold"
+                        && character.Schema.Gold < matchingNpcItem.BuyPrice
+                    )
+                    {
+                        continue;
+                    }
+
+                    if (gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null)
+                    {
+                        continue;
+                    }
+                }
+                else if (matchingItem.Craft is null)
+                {
+                    continue;
+                }
+
+                if (!await character.PlayerActionService.CanObtainItem(matchingItem))
+                {
+                    continue;
+                }
+                else if (gameState.EventService.IsItemFromEventMonster(matchingItem.Code, true))
+                {
+                    continue;
+                }
+            }
+
+            items.Add(new ItemInInventory { Item = matchingItem, Quantity = item.Quantity });
+        }
+
+        return items;
+    }
+
+    public static void OtherFunc()
+    {
+        // int amount = amountAvailable > 0 ? amountAvailable : 1;
+
+        // if (matchingItem.Type == "utility")
+        // {
+        //     amount = 100;
+        // }
+        // else if (matchingItem.Type == "ring")
+        // {
+        //     if (amountAvailable <= 2)
+        //     {
+        //         amount = Math.Max(amount, 2);
+        //     }
+        // }
     }
 }

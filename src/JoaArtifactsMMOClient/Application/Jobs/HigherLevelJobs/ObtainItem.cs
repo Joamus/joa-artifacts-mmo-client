@@ -128,15 +128,14 @@ public class ObtainItem : CharacterJob
             CanTriggerTraining
         );
 
-        logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code}"
-        );
-
         switch (result.Value)
         {
             case AppError jobError:
                 return jobError;
         }
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code}"
+        );
 
         /**
         * The onSuccessEndHook is a bit funky for ObtainItems, because actually don't want it to run when the ObtainItem job ends,
@@ -584,13 +583,6 @@ public class ObtainItem : CharacterJob
                 }
                 return new None();
             }
-        }
-        else
-        {
-            return new AppError(
-                $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose - this is in an else, and should not be necessary",
-                ErrorStatus.InsufficientSkill
-            );
         }
 
         if (monstersThatDropTheItem.Count > 0)

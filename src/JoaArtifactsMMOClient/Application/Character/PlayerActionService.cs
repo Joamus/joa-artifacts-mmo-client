@@ -551,21 +551,6 @@ public class PlayerActionService
 
         foreach (var item in gameState.Items)
         {
-            if (item.Subtype == "tool")
-            {
-                continue;
-            }
-
-            if (!ItemService.EquipmentItemTypes.Contains(item.Type))
-            {
-                continue;
-            }
-
-            if (!ItemService.CanUseItem(item, character.Schema))
-            {
-                continue;
-            }
-
             if (character.ExistsInWishlist(item.Code))
             {
                 Logger.LogInformation(
@@ -573,36 +558,6 @@ public class PlayerActionService
                 );
 
                 itemsAreInWishlist = true;
-                continue;
-            }
-
-            var quantityInBank = bankItemDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
-
-            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(item.Code);
-
-            if (matchingNpcItem is not null)
-            {
-                // For now, don't try to grind gold or anything for these items.
-                if (
-                    matchingNpcItem.Currency == "gold"
-                    && Character.Schema.Gold < matchingNpcItem.BuyPrice
-                )
-                {
-                    continue;
-                }
-
-                if (gameState.EventService.IsItemFromEventMonster(item.Code, true))
-                {
-                    continue;
-                }
-            }
-            else if (item.Craft is null && quantityInBank <= 0)
-            {
-                continue;
-            }
-
-            if (!await character.PlayerActionService.CanObtainItem(item) && quantityInBank <= 0)
-            {
                 continue;
             }
 
