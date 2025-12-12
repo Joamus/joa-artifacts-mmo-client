@@ -341,7 +341,8 @@ public class ObtainItem : CharacterJob
             var taskCoinsAmount =
                 Character
                     .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity ?? 0;
+                    ?.Quantity
+                ?? 0;
 
             var taskCoinsInBank =
                 itemsInBank.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
@@ -502,18 +503,19 @@ public class ObtainItem : CharacterJob
 
                 if (withdrawItemJobs.Count > 0)
                 {
-                    var fightSimIfUsingWithdrawnItems = FightSimulator.FindBestFightEquipment(
-                        Character,
-                        gameState,
-                        monster,
-                        withdrawItemJobs
-                            .Select(job => new ItemInInventory
-                            {
-                                Item = gameState.ItemsDict[job.Code],
-                                Quantity = job.Amount,
-                            })
-                            .ToList()
-                    );
+                    var fightSimIfUsingWithdrawnItems =
+                        FightSimulator.FindBestFightEquipmentWithUsablePotions(
+                            Character,
+                            gameState,
+                            monster,
+                            withdrawItemJobs
+                                .Select(job => new ItemInInventory
+                                {
+                                    Item = gameState.ItemsDict[job.Code],
+                                    Quantity = job.Amount,
+                                })
+                                .ToList()
+                        );
 
                     if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
                     {

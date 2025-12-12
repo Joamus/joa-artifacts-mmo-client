@@ -463,7 +463,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -544,18 +545,13 @@ public class PlayerActionService
             bankItemDict.Add(item.Code, item with { });
         }
 
-        List<ItemSchema> itemsWithoutPotions = [];
+        List<ItemSchema> items = [];
 
         bool itemsAreInWishlist = false;
 
         foreach (var item in gameState.Items)
         {
             if (item.Subtype == "tool")
-            {
-                continue;
-            }
-
-            if (item.Type == "utility")
             {
                 continue;
             }
@@ -580,11 +576,9 @@ public class PlayerActionService
                 continue;
             }
 
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
-
             var quantityInBank = bankItemDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
 
-            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
+            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(item.Code);
 
             if (matchingNpcItem is not null)
             {
@@ -597,40 +591,43 @@ public class PlayerActionService
                     continue;
                 }
 
-                if (gameState.EventService.IsItemFromEventMonster(matchingItem.Code, true))
+                if (gameState.EventService.IsItemFromEventMonster(item.Code, true))
                 {
                     continue;
                 }
             }
-            else if (matchingItem.Craft is null && quantityInBank <= 0)
+            else if (item.Craft is null && quantityInBank <= 0)
             {
                 continue;
             }
 
-            if (
-                !await character.PlayerActionService.CanObtainItem(matchingItem)
-                && quantityInBank <= 0
-            )
+            if (!await character.PlayerActionService.CanObtainItem(item) && quantityInBank <= 0)
             {
                 continue;
             }
 
-            itemsWithoutPotions.Add(item);
+            items.Add(item);
         }
 
         var bestFightItems = await ItemService.GetBestFightItems(
             character,
             gameState,
             monster,
-            itemsWithoutPotions
-                .Select(item => new InventorySlot { Code = item.Code, Quantity = 1 })
-                .ToList()
+            items.Select(item => new InventorySlot { Code = item.Code, Quantity = 1 }).ToList()
         );
 
         List<CharacterJob> jobs = [];
 
         foreach (var item in bestFightItems)
         {
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            // We don't want to obtain the potions here - the FightMonster job should take care of it
+            if (matchingItem.Type == "utility")
+            {
+                continue;
+            }
+
             var result = character.GetEquippedItemOrInInventory(item.Code);
 
             (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =

@@ -408,18 +408,13 @@ public class FightSimulator
                 effect.Code == Effect.Restore
             );
 
-            if (
-                restoreEffect is not null
-                && attacker is CharacterSchema // Should always be true
-            )
+            if (restoreEffect is not null)
             {
-                var attackerAsPlayer = (CharacterSchema)attacker;
-
-                if (attackerAsPlayer.Hp <= attackerAsPlayer.MaxHp / 2)
+                if (attacker.Hp <= attacker.MaxHp / 2)
                 {
-                    attackerAsPlayer.Hp += restoreEffect.Value;
+                    attacker.Hp += restoreEffect.Value;
 
-                    attackerAsPlayer.Hp = Math.Min(attackerAsPlayer.Hp, attackerAsPlayer.MaxHp);
+                    attacker.Hp = Math.Min(attacker.Hp, attacker.MaxHp);
 
                     effect.Quantity--;
                 }
@@ -457,8 +452,7 @@ public class FightSimulator
             if (heal is not null)
             {
                 // We use the raw damage here, don't think lifesteal works with burn
-                var attackerAsPlayer = (CharacterSchema)attacker;
-                int amountToHeal = (int)Math.Round(attackerAsPlayer.MaxHp * (heal.Value * 0.01));
+                int amountToHeal = (int)Math.Round(attacker.MaxHp * (heal.Value * 0.01));
 
                 attacker.Hp += amountToHeal;
             }
@@ -713,8 +707,11 @@ public class FightSimulator
     )
     {
         var allPotions = gameState
-            .UtilityItemsDict.Where(item => item.Value.Type == "utility")
-            .Select(item => new ItemInInventory { Item = item.Value, Quantity = 100 })
+            .UtilityItemsDict.Select(item => new ItemInInventory
+            {
+                Item = item.Value,
+                Quantity = 100,
+            })
             .ToList();
 
         var itemsInInventoryForSimming = GetItemsFromInventoryForSim(character.Schema, gameState);

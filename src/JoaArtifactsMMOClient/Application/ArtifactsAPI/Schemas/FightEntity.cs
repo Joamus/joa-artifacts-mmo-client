@@ -5,6 +5,7 @@ public record FightEntity
     public int Level { get; set; }
 
     public int Hp { get; set; }
+    public int MaxHp { get; set; }
 
     public int AttackFire { get; set; }
 

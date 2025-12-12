@@ -365,6 +365,7 @@ public class GameState
 
             foreach (var monster in result.Data)
             {
+                monster.MaxHp = monster.Hp;
                 monsters.Add(monster);
                 monstersDict.Add(monster.Code, monster);
             }
