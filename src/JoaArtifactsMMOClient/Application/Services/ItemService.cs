@@ -454,6 +454,11 @@ public static class ItemService
                 continue;
             }
 
+            if (!await character.PlayerActionService.CanObtainItem(matchingItem))
+            {
+                continue;
+            }
+
             // Just a heuristic - there is probably better equipment to use for "normal equipment", e.g weapons, helmets, etc,
             // but the more "utility"-oriented slots might be worth it, e.g. many of the boost pots are sort of low level, runes as well, etc.
             // if (
