@@ -384,6 +384,14 @@ public static class ItemService
             ? (await gameState.BankItemCache.GetBankItems(character, true)).Data
             : [];
 
+        var bankItemDict = new Dictionary<string, DropSchema>();
+
+        foreach (var item in bankItems)
+        {
+            // Cloning for changing the quantity
+            bankItemDict.Add(item.Code, item with { });
+        }
+
         // var relevantMonsters = FightSimulator.GetRelevantMonstersForCharacter(character);
 
         List<ItemInInventory> itemsForSimming = [];
@@ -454,7 +462,12 @@ public static class ItemService
                 continue;
             }
 
-            if (!await character.PlayerActionService.CanObtainItem(matchingItem))
+            var quantityInBank = bankItemDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
+
+            if (
+                !await character.PlayerActionService.CanObtainItem(matchingItem)
+                && quantityInBank <= 0
+            )
             {
                 continue;
             }

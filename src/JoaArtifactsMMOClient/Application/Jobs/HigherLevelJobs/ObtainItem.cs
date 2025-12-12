@@ -566,7 +566,10 @@ public class ObtainItem : CharacterJob
                         .ToList()
                 );
 
-            if (!fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
+            if (
+                fightSimIfUsingWithdrawnItems is null
+                || !fightSimIfUsingWithdrawnItems.Outcome.ShouldFight
+            )
             {
                 return new AppError(
                     $"Cannot fight {lowestLevelMonster.Code} to obtain item with code {code}"
@@ -581,6 +584,13 @@ public class ObtainItem : CharacterJob
                 }
                 return new None();
             }
+        }
+        else
+        {
+            return new AppError(
+                $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose - this is in an else, and should not be necessary",
+                ErrorStatus.InsufficientSkill
+            );
         }
 
         if (monstersThatDropTheItem.Count > 0)
