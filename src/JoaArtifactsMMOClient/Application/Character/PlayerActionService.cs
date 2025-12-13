@@ -19,6 +19,9 @@ namespace Application.Character;
 public class PlayerActionService
 {
     public static string SandwhisperIsle = "Sandwhisper Isle";
+    public static string ChristmasIsland = "Christmas Island";
+
+    public static List<string> Islands = new List<string> { SandwhisperIsle, ChristmasIsland };
 
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
     private readonly GameState GameState;
@@ -130,14 +133,34 @@ public class PlayerActionService
 
         if (destinationMap is null)
         {
-            // TODO: Better handling
-            return new AppError("Could not find closest map", ErrorStatus.NotFound);
+            return new AppError(
+                $"Could not find closest map to find \"{code}\"",
+                ErrorStatus.NotFound
+            );
         }
 
         var currentMap = GameState.MapsDict[Character.Schema.MapId];
 
         if (destinationMap.Layer != Character.Schema.Layer)
         {
+            /*
+              So we have a few scenarios:
+              - We are moving from the overworld to underground/interior - in that case, we want to find the transition closest
+                which leads to the closest coordinate on that layer, to the destination.
+              - If we are moving from the underground/interior to the overworld, we want to just find the closest transition to
+                where we are currently.
+              - We are on a landmass, and have to take a transition to another one, on the same layer.
+
+              Normally, we probably are moving from one land, to another landmass, e.g. the "main land" to the Sandwhisper Isle or Christmas Island.
+              We could technically also be moving from one "cave" on the mainland, to another one.
+              Worst case scenario, we might be moving from an underground Sandwhisper Isle cell, to an underground Christmas Island cell.
+
+              This means that we have to basically be able to handle all transitions and separate steps, with a prioritization system
+              - We don't want to implement a pathfinding algorithm, because we are lazy. What we would need it for is to know if
+                we are underground/interior, and have to move to another
+              - We can assume
+            */
+
             // Find closest transition on our current map
 
             int closestCostToTransition = 0;
@@ -184,7 +207,7 @@ public class PlayerActionService
         }
 
         // Going to Sandwhisper
-        if (destinationMap.Name == SandwhisperIsle && currentMap.Name != SandwhisperIsle)
+        if (Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name))
         {
             // TODO: Should check if we have enough money etc
             await Character.Move(-2, 21);
@@ -192,7 +215,7 @@ public class PlayerActionService
             return await NavigateTo(code);
             // We are going to Sandwhisper
         }
-        else if (destinationMap.Name != SandwhisperIsle && currentMap.Name == SandwhisperIsle)
+        else if (!Islands.Contains(destinationMap.Name) && Islands.Contains(currentMap.Name))
         {
             // We are going back
             // Boat to Sandwhisper Isle

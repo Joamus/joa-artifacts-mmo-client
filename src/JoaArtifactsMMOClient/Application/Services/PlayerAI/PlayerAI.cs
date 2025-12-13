@@ -206,12 +206,17 @@ public class PlayerAI
 
             if (itemInInventory is not null)
             {
+                if (!itemInInventory.Value.isEquipped)
+                {
+                    await Character.EquipItem(itemInInventory.Value.inventorySlot.Code, "bag", 1);
+                }
                 continue;
             }
 
             if (equippedBag is not null)
             {
                 // We can be cheeky - level is probably the easiest way to determine which bag is better
+                // could also look at the inventory space effect, but eh...
                 if (equippedBag.Level >= item.Level)
                 {
                     return null;
@@ -229,17 +234,6 @@ public class PlayerAI
 
                 await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
                 continue;
-                // var bestUpgrade = ItemService.GetBestItemIfUpgrade(inventoryBag.Item, item);
-
-                // if (bestUpgrade is not null)
-                // {
-                //     if (bestUpgrade.Code == inventoryBag.Item.Code)
-                //     {
-                //         // No reason for us to just have it in our inventory - this code will run again, if the bag isn't the best
-                //         await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
-                //         return null;
-                //     }
-                // }
             }
 
             if (!await Character.PlayerActionService.CanObtainItem(item))
@@ -609,7 +603,6 @@ public class PlayerAI
         //     );
         //     return await GetTaskJob(false);
         // }
-
 
         if (hasNoTask)
         {
