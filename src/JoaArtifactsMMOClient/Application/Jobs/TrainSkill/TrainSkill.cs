@@ -282,6 +282,9 @@ public class TrainSkill : CharacterJob
                 {
                     obtainItemJob.onSuccessEndHook = () =>
                     {
+                        logger.LogInformation(
+                            $"{JobName}: [{Character.Name}]: onSuccessEndHook: Adding job to recycle {craftingAmount} x {bestItemToCraft.Code}"
+                        );
                         var recycleJob = new RecycleItem(
                             Character,
                             gameState,
@@ -290,6 +293,8 @@ public class TrainSkill : CharacterJob
                         ).SetParent<RecycleItem>(obtainItemJob);
 
                         recycleJob.ForBank();
+
+                        Character.QueueJob(recycleJob, true);
 
                         return Task.Run(() => { });
                     };

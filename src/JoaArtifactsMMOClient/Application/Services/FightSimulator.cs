@@ -528,6 +528,35 @@ public class FightSimulator
 
         initialSchema.Hp = initialSchema.MaxHp;
 
+        // We essentially remove the potions from the sim, until they naturally will be simulated.
+
+
+        if (!string.IsNullOrWhiteSpace(initialSchema.Utility1Slot))
+        {
+            allItems.Add(
+                new ItemInInventory
+                {
+                    Item = gameState.ItemsDict[initialSchema.Utility1Slot],
+                    Quantity = 100,
+                }
+            );
+            initialSchema.Utility1Slot = "";
+            initialSchema.Utility1SlotQuantity = 0;
+        }
+
+        if (!string.IsNullOrWhiteSpace(initialSchema.Utility2Slot))
+        {
+            allItems.Add(
+                new ItemInInventory
+                {
+                    Item = gameState.ItemsDict[initialSchema.Utility2Slot],
+                    Quantity = 100,
+                }
+            );
+            initialSchema.Utility2Slot = "";
+            initialSchema.Utility2SlotQuantity = 0;
+        }
+
         string initialWeaponCode = initialSchema.WeaponSlot;
 
         var initialFightOutcome = CalculateFightOutcome(initialSchema, monster, gameState);
@@ -536,7 +565,10 @@ public class FightSimulator
             .Where(item => item.Item.Type == "weapon" && item.Item.Subtype != "tool")
             .ToList();
 
-        if (!string.IsNullOrWhiteSpace(initialSchema.WeaponSlot))
+        if (
+            !string.IsNullOrWhiteSpace(initialSchema.WeaponSlot)
+            && !weapons.Exists(item => item.Item.Code == initialSchema.WeaponSlot)
+        )
         {
             weapons.Add(
                 new ItemInInventory
@@ -648,10 +680,6 @@ public class FightSimulator
                         )
                     ),
                     equipmentTypeMapping,
-                    /**
-                        This is kinda hacky, but we do this because we want the second time running,
-                        to know which potion we put in Util1
-                    **/
                     new FightSimResult
                     {
                         Schema = bestSchemaCandiateWithWeapon,
@@ -746,12 +774,12 @@ public class FightSimulator
         which can handle that the air weapon might be best with the +air dmg set.
         */
 
-        var bestSchemaCandiate = originalResult.Schema with
+        var bestSchemaCandidate = originalResult.Schema with
         { };
         var bestFightOutcome = originalResult.Outcome with { };
         var itemsToEquip = originalResult.ItemsToEquip.Select(item => item).ToList();
 
-        bestSchemaCandiate.Hp = bestSchemaCandiate.MaxHp;
+        bestSchemaCandidate.Hp = bestSchemaCandidate.MaxHp;
 
         int bestItemAmount = 1;
 
@@ -769,7 +797,7 @@ public class FightSimulator
         {
             return new FightSimResult
             {
-                Schema = bestSchemaCandiate,
+                Schema = bestSchemaCandidate,
                 Outcome = bestFightOutcome,
                 ItemsToEquip = itemsToEquip,
             };
@@ -811,8 +839,8 @@ public class FightSimulator
             {
                 string otherItemSlot = (
                     equipmentSlot == "Utility1Slot"
-                        ? bestSchemaCandiate.Utility2Slot
-                        : bestSchemaCandiate.Utility1Slot
+                        ? bestSchemaCandidate.Utility2Slot
+                        : bestSchemaCandidate.Utility1Slot
                 );
 
                 if (
@@ -827,7 +855,7 @@ public class FightSimulator
                 }
             }
 
-            var characterSchema = bestSchemaCandiate with { };
+            var characterSchema = bestSchemaCandidate with { };
 
             characterSchema = PlayerActionService.SimulateItemEquip(
                 characterSchema,
@@ -844,23 +872,25 @@ public class FightSimulator
             if (fightOutcomeIsBetter)
             {
                 /**
-                 * If we are not simming potions, then we want to do simulations without potions,
-                 * because restore HP pots can skew the outcome, e.g. a worse item setup might have
-                 * the character HP pots earlier, which can end up with them having a higher amount of
-                 * remaining HP, but they also used more potions.
+                 *
+                 * A worse item setup might have the u secharacter HP pots earlier,
+                 * which can end up with them having a higher amount of * remaining HP,
+                 * but they also used more potions.
+                 *
+                 * Essentially we don't want to choose to use more potions, if we already can beat the monster without them.
                  *
                 **/
-                if (equipmentTypeMapping.ItemType != "utility")
+                if (
+                    equipmentTypeMapping.ItemType != "utility"
+                    && fightOutcome.PotionsUsed > bestFightOutcome.PotionsUsed
+                )
                 {
-                    if (fightOutcome.PotionsUsed > bestFightOutcome.PotionsUsed)
-                    {
-                        continue;
-                    }
+                    continue;
                 }
 
                 bestFightOutcome = fightOutcome;
                 bestItemCandidate = item.Item;
-                bestSchemaCandiate = characterSchema;
+                bestSchemaCandidate = characterSchema;
                 bestItemAmount = item.Item.Type == "utility" ? item.Quantity : 1;
             }
         }
@@ -885,7 +915,7 @@ public class FightSimulator
 
         return new FightSimResult
         {
-            Schema = bestSchemaCandiate,
+            Schema = bestSchemaCandidate,
             Outcome = bestFightOutcome,
             ItemsToEquip = itemsToEquip,
         };
@@ -926,6 +956,16 @@ public class FightSimulator
             }
 
             if (a.PlayerHp < b.PlayerHp)
+            {
+                return bWinsValue;
+            }
+
+            if (a.MonsterHp < b.MonsterHp)
+            {
+                return aWinsValue;
+            }
+
+            if (a.MonsterHp > b.MonsterHp)
             {
                 return bWinsValue;
             }
@@ -1092,7 +1132,7 @@ public class FightSimulator
 
                     if (result is null)
                     {
-                        // They don't overlap and count as upgrades
+                        // They don't overlap
                         itemsToKeep.Add(itemToCompareTo);
                         continue;
                     }

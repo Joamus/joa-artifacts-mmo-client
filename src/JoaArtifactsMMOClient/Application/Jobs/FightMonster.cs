@@ -779,7 +779,12 @@ public class FightMonster : CharacterJob
             )
             {
                 int quantityMissing =
-                    item.Quantity - (character.GetItemFromInventory(item.Code)?.Quantity ?? 0);
+                    item.Quantity
+                    - (
+                        character
+                            .GetEquippedItemOrInInventory(item.Code)
+                            .Sum(_item => _item.inventorySlot.Quantity)
+                    );
 
                 if (quantityMissing < 0)
                 {

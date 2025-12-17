@@ -1,13 +1,10 @@
-using System.Security.Permissions;
 using System.Text.Json.Serialization;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
-using Application.Errors;
 using Application.Jobs;
 using Applicaton.Services.FightSimulator;
-using OneOf.Types;
 
 namespace Application.Services;
 
@@ -43,6 +40,7 @@ public class PlayerAI
                 achiev.Code == "tasks_farmer" && achiev.CompletedAt is not null
             )
                 is not null;
+
         var job =
             await EnsureWeapon()
             ?? await GetEventJob()
@@ -55,6 +53,67 @@ public class PlayerAI
 
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName}");
         return job!;
+    }
+
+    async Task<CharacterJob?> EnsureAccessories()
+    {
+        /* Check if the character has empty slots (start with artifacts), that might not be related to combat (because they give prospecting/wisdom),
+         * purchase them if possible (later on artifacts will give combat stats)
+         *
+        */
+        return null;
+    }
+
+    async Task<CharacterJob?> RecycleOldItems()
+    {
+        /*
+         * Recycle items that are no longer relevant (check if)
+         * - Check if recycleable, and more than 13-ish lvls below the lowest lvl char
+         * - Could techically check if the item is not the BiS item for any relevant monsters for all characters, but probably not needed
+         * - We can still recycle better items, as long as we have a minimum of 5 in the bank (10 for rings), so all chars can get one if needed
+         * - To keep it easy, let only e.g. the wep crafter recycle weapons, gear crafter recycle gear, etc.
+
+        */
+        return null;
+    }
+
+    async Task<CharacterJob?> SellItems()
+    {
+        /*
+         * Sell items, primarily focused on items that have no other purpose (craft is null, and no effects).
+         * - Loop through all NPCs, check they are active if needed, and for each NPC, find all items in the bank (or inventory) that we can sell
+         * - Can be expanded to sell materials that might have purpose, but are not used in any item tasks, and is 13-ish lvls below lowest char lvl.
+         *   e.g, sell old ore, wood, etc., if they are never used in item tasks, and we won't need them.
+            This can be expanded to selling items on the GE
+
+        */
+        return null;
+    }
+
+    async Task<CharacterJob?> RestockOnPurchasableItems()
+    {
+        /*
+         * Restock on select items, that can be purchased
+         * - Restock from a static list of items, could be recall potions, etc. Could enforce some conditions, to only restock if relevant.
+         * - Would work something like "restock on recall potions, if we have below 10 in our bank, then restock up until 100"
+         * - Can be expanded to allow buying materials for gold if available, e.g. buying algae instead of gathering it, buying copper ore.
+         *   This is a bit more advanced, because it's difficult to know when we want to do that.
+         *   It could depend on how much gold each character is allowed to spend, e.g. don't spend more than x% of your total gold.
+         *   But it could significantly accelerate progression. It could in the future also allow for purchasing from the GE.
+
+        */
+        return null;
+    }
+
+    async Task<CharacterJob?> RestockOnCraftItems()
+    {
+        /*
+         * Restock on select
+         * - Loop through all NPCs, check they are active if needed, and for each NPC, find all items in the bank (or inventory) that we can sell
+         * - Can be expanded to sell materials that might have purpose, but are not used in any item tasks, and is 13-ish lvls below lowest char lvl.
+
+        */
+        return null;
     }
 
     async Task<CharacterJob?> EnsureFightGear()

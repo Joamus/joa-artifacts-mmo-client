@@ -29,14 +29,10 @@ public class WithdrawItem : CharacterJob
         Amount = amount;
         CanTriggerObtain = canTriggerObtain;
 
-        // Reserve when we create this job - less chance of collision
-        // if (shouldReserve)
-        // {
         onJobQueuedHook = () =>
         {
             gameState.BankItemCache.ReserveItem(character, code, amount);
         };
-        // }
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()

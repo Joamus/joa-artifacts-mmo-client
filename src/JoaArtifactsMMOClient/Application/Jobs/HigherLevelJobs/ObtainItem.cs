@@ -145,7 +145,7 @@ public class ObtainItem : CharacterJob
 
         if (jobs.Count > 0)
         {
-            jobs.Last()!.onSuccessEndHook = onSuccessEndHook;
+            jobs.Last().onSuccessEndHook = onSuccessEndHook;
 
             foreach (var job in jobs)
             {
@@ -340,8 +340,7 @@ public class ObtainItem : CharacterJob
             var taskCoinsAmount =
                 Character
                     .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity
-                ?? 0;
+                    ?.Quantity ?? 0;
 
             var taskCoinsInBank =
                 itemsInBank.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity

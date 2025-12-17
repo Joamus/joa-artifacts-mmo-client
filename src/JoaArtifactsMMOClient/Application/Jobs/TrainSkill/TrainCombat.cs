@@ -79,6 +79,7 @@ public class TrainCombat : CharacterJob
         foreach (var monster in gameState.Monsters)
         {
             // Our character might be able to punch above their weight
+            // if (monster.Level > playerLevel || playerLevel > monster.Level + 10)
             if (playerLevel > monster.Level + 10 || playerLevel + 5 < monster.Level)
             {
                 continue;

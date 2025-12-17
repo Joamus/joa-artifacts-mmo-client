@@ -899,7 +899,7 @@ public class PlayerCharacter
 
     public async Task<OneOf<AppError, None>> NavigateTo(string code)
     {
-        return await PlayerActionService.NavigateTo(code);
+        return await PlayerActionService.NavigationService.NavigateTo(code);
     }
 
     public InventorySlot? GetItemFromInventory(string code)

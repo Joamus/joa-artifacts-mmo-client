@@ -388,15 +388,14 @@ public static class ItemService
                     Item = gameState.ItemsDict[item.Code],
                     Quantity = item.Quantity,
                 })
-                .ToList()
-            ?? []
+                .ToList() ?? []
         );
 
         Dictionary<string, DropSchema> relevantItemsDict = [];
 
         // foreach (var monster in relevantMonsters)
         // {
-        var result = FightSimulator.FindBestFightEquipment(
+        var result = FightSimulator.FindBestFightEquipmentWithUsablePotions(
             character,
             gameState,
             monster,
@@ -421,7 +420,10 @@ public static class ItemService
         // We don't care if we win or not, we just want to get the best outcome
         // }
 
-        return relevantItemsDict.Select(item => item.Value).ToList();
+        return relevantItemsDict
+            .Where(item => gameState.ItemsDict[item.Value.Code].Type != "utility")
+            .Select(item => item.Value)
+            .ToList();
     }
 
     public static async Task<List<ItemSchema>> GetBestTools(
@@ -620,6 +622,7 @@ public static class ItemService
             // Cloning for changing the quantity
             bankItemDict.Add(item.Code, item with { });
         }
+
         foreach (var item in allItemCandidates)
         {
             var matchingItem = item.Item;
