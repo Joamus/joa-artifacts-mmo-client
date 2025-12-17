@@ -168,8 +168,8 @@ public class NavigationService
 
         while (
             character.Schema.X != destinationMap.X
-            && character.Schema.Y != destinationMap.Y
-            && character.Schema.Layer != destinationMap.Layer
+            || character.Schema.Y != destinationMap.Y
+            || character.Schema.Layer != destinationMap.Layer
         )
         {
             await NavigateNextStep(destinationMap);

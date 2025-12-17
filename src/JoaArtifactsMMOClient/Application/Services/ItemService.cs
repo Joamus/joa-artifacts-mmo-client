@@ -520,6 +520,7 @@ public static class ItemService
                 // since it usually requires high level materials, and/or high level mob drops.
                 // it's good enough to just use worse tools until then,
                 // unless maybe a char has enough money to buy really good tools
+                continue;
             }
 
             // The gathering effects have an effect express in negative numbers, e.g. 10% lower cooldown when mining will be -10,

@@ -403,6 +403,11 @@ public class PlayerActionService
 
         foreach (var item in character.Schema.Inventory)
         {
+            if (string.IsNullOrWhiteSpace(item.Code))
+            {
+                continue;
+            }
+
             var matchingItem = gameState.ItemsDict[item.Code];
 
             if (
