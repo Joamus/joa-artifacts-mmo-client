@@ -58,7 +58,7 @@ public class TrainSkill : CharacterJob
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         // Only runs the first time this job runs, if it's a relative level job. If it queues a job before itself, it shouldn't recalculate the level
-        if (firstRun)
+        if (Relative && firstRun || !Relative)
         {
             SkillLevel = Character.GetSkillLevel(skillName);
         }
