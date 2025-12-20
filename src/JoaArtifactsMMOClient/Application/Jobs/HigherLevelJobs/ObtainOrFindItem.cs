@@ -65,7 +65,28 @@ public class ObtainOrFindItem : CharacterJob
             );
         }
 
-        Character.QueueJobsAfter(Id, jobs);
+        /**
+        * The onSuccessEndHook is a bit funky for ObtainItems (which this kinda is), because actually don't want it to run when the ObtainItem job ends,
+        * because the job doesn't do anything, but just queues other jobs. So we want it to run, when the last job in the list is done,
+        * usually when the last item is crafted
+        */
+
+        if (jobs.Count > 0)
+        {
+            jobs.Last().onSuccessEndHook = onSuccessEndHook;
+            jobs.Last().onAfterSuccessEndHook = onAfterSuccessEndHook;
+
+            foreach (var job in jobs)
+            {
+                job.SetParent<CharacterJob>(this);
+            }
+
+            Character.QueueJobsAfter(Id, jobs);
+        }
+
+        // Reset it
+        onSuccessEndHook = null;
+        onAfterSuccessEndHook = null;
 
         return new None();
     }

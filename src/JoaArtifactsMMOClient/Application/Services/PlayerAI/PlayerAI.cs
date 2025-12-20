@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
 using Application.Jobs;
@@ -60,7 +61,122 @@ public class PlayerAI
         /* Check if the character has empty slots (start with artifacts), that might not be related to combat (because they give prospecting/wisdom),
          * purchase them if possible (later on artifacts will give combat stats)
          *
+         * For now, we just want to ensure that the artifact slots aren't empty.
+         * The logic is a bit simple for now, but we just try to gather unique artifacts in eacah slot, if possible
+         *
+         *
         */
+        List<ItemSchema> nonCombatArtifacts = gameState
+            .Items.Where(item =>
+                // Don't really care for the seasonal stuff at the moment, but maybe we should
+                item.Type == "artifact"
+                && ItemService.CanUseItem(item, Character.Schema)
+                && !item.Name.Contains("Christmas")
+            )
+            .ToList();
+
+        if (nonCombatArtifacts.Count == 0)
+        {
+            return null;
+        }
+
+        List<(string ItemCode, string Slot)> slots =
+        [
+            (Character.Schema.Artifact1Slot, "Artifact1Slot"),
+            (Character.Schema.Artifact2Slot, "Artifact2Slot"),
+            (Character.Schema.Artifact3Slot, "Artifact3Slot"),
+        ];
+
+        // List<SimpleEffectSchema> currentEffects =
+        // [
+        //     new SimpleEffectSchema { Code = Effect.Wisdom, Value = Character.Schema.Wisdom },
+        //     new SimpleEffectSchema
+        //     {
+        //         Code = Effect.Prospecting,
+        //         Value = Character.Schema.Prospecting,
+        //     },
+        //     // new SimpleEffectSchema { Code = Effect.Wisdom, Value = Character.Schema. },
+        // ];
+
+        // currentEffects.Sort((a, b) => a.Value.CompareTo(b.Value));
+
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+
+        var bankItemsDict = bankItems.Data.ToDictionary((item) => item.Code);
+
+        foreach (var slot in slots)
+        {
+            // For now, only bother getting artifacts for empty slots. Later on, most artifacts are combat related anyway, so we will automatically find better artifacts then.
+            if (!string.IsNullOrWhiteSpace(slot.ItemCode))
+            {
+                continue;
+            }
+
+            // var mostDesiredEffect = currentEffects.ElementAt(0);
+
+            foreach (var artifact in nonCombatArtifacts)
+            {
+                // if (
+                //     !artifact.Effects.Exists(artifactEffect =>
+                //         artifactEffect.Code == mostDesiredEffect.Code
+                //     )
+                // )
+                // {
+                //     continue;
+                // }
+
+                var result = Character.GetEquippedItemOrInInventory(artifact.Code);
+
+                (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+                    result.Count > 0 ? result.ElementAt(0)! : null;
+
+                if (itemInInventory is not null)
+                {
+                    await Character.EquipItem(
+                        itemInInventory.Value.inventorySlot.Code,
+                        slot.Slot.FromPascalToSnakeCase(),
+                        1
+                    );
+                    return null;
+                }
+
+                var matchInBank = bankItemsDict.GetValueOrNull(artifact.Code);
+
+                if (matchInBank is not null)
+                {
+                    var withdrawItem = new WithdrawItem(Character, gameState, artifact.Code, 1);
+
+                    withdrawItem.onAfterSuccessEndHook = async () =>
+                    {
+                        await Character.EquipItem(
+                            artifact.Code,
+                            slot.Slot.FromPascalToSnakeCase(),
+                            1
+                        );
+                    };
+
+                    return withdrawItem;
+                }
+
+                if (!await Character.PlayerActionService.CanObtainItem(artifact))
+                {
+                    continue;
+                }
+
+                /**
+                ** TODO: This is very rudimentary artifact logic - we for now just want unique non-combat artifacts,
+                ** hoping that it will give us well-banaced characters. In the future, we should optimize for having
+                ** the best possible non-combat artifacts for specific jobs.
+                */
+                if (slots.Exists(slot => slot.ItemCode == artifact.Code))
+                {
+                    continue;
+                }
+
+                return new ObtainOrFindItem(Character, gameState, artifact.Code, 1);
+            }
+        }
+
         return null;
     }
 
@@ -144,11 +260,7 @@ public class PlayerAI
 
                 if (!fightSimResult.Outcome.ShouldFight)
                 {
-                    var jobs = await FightSimulator.GetJobsToFightMonster(
-                        Character,
-                        gameState,
-                        matchingMonster
-                    );
+                    var jobs = await GetNextJobToFightMonster(matchingMonster);
 
                     if (jobs is null)
                     {
@@ -158,15 +270,15 @@ public class PlayerAI
                         continue;
                     }
 
-                    if (jobs.Count > 0)
+                    if (jobs.Job is not null)
                     {
-                        var firstJob = jobs.ElementAt(0);
+                        var nextJob = jobs.Job;
 
                         logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but found a list of {jobs.Count} x jobs, to get the necessary items - obtaining or finding \"{firstJob.Code}\""
+                            $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but found a job, to get the next item - obtaining or finding \"{nextJob.Code}\""
                         );
 
-                        return firstJob;
+                        return nextJob;
                     }
                     logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but found no jobs, to get the necessary items - skipping"
@@ -194,13 +306,9 @@ public class PlayerAI
                 $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - the highest level monster we can fight is \"{firstMonsterWeCanFight.Code}\" - trying to get jobs to fight it"
             );
 
-            var jobs = await FightSimulator.GetJobsToFightMonster(
-                Character,
-                gameState,
-                firstMonsterWeCanFight
-            );
+            var nextJobResult = await GetNextJobToFightMonster(firstMonsterWeCanFight);
 
-            if (jobs is null)
+            if (nextJobResult is null)
             {
                 logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but cannot get a list of jobs, to get the necessary items - skipping"
@@ -208,12 +316,12 @@ public class PlayerAI
                 return null;
             }
 
-            if (jobs.Count > 0)
+            if (nextJobResult.Job is not null)
             {
-                var firstJob = jobs.ElementAt(0);
+                var firstJob = nextJobResult.Job;
 
                 logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but found a list of {jobs.Count} x jobs, to get the necessary items - obtaining or finding \"{firstJob.Code}\""
+                    $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but found a job, to get the next item - obtaining or finding \"{firstJob.Code}\""
                 );
 
                 return firstJob;
@@ -233,6 +341,7 @@ public class PlayerAI
         {
             return null;
         }
+
         var tasks = gameState.Tasks;
 
         // A bit of a hack - we know that satchel is the first bag item,
@@ -250,6 +359,10 @@ public class PlayerAI
         bagItems.Sort((a, b) => b.Level - a.Level);
 
         var equippedBag = gameState.ItemsDict.GetValueOrNull(Character.Schema.BagSlot);
+
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+
+        var bankItemsDict = bankItems.Data.ToDictionary((item) => item.Code);
 
         foreach (var item in bagItems)
         {
@@ -282,6 +395,20 @@ public class PlayerAI
                 }
             }
 
+            var matchInBank = bankItemsDict.GetValueOrNull(item.Code);
+
+            if (matchInBank is not null)
+            {
+                var withdrawItem = new WithdrawItem(Character, gameState, item.Code, 1);
+
+                withdrawItem.onAfterSuccessEndHook = async () =>
+                {
+                    await Character.SmartItemEquip(item.Code, 1);
+                };
+
+                return withdrawItem;
+            }
+
             var otherBagsInInventory = Character.GetItemsFromInventoryWithType("bag");
 
             foreach (var inventoryBag in otherBagsInInventory)
@@ -300,7 +427,14 @@ public class PlayerAI
                 continue;
             }
 
-            return new ObtainOrFindItem(Character, gameState, item.Code, 1);
+            var job = new ObtainOrFindItem(Character, gameState, item.Code, 1);
+
+            job.onAfterSuccessEndHook = async () =>
+            {
+                await Character.SmartItemEquip(item.Code, 1);
+            };
+
+            return job;
         }
 
         return null;
@@ -562,17 +696,15 @@ public class PlayerAI
         }
         else if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
-            var jobs = await FightSimulator.GetJobsToFightMonster(
-                Character,
-                gameState,
+            var nextJobResult = await GetNextJobToFightMonster(
                 gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!
             );
 
-            if (jobs is not null)
+            if (nextJobResult is not null)
             {
-                if (jobs.Count > 0)
+                if (nextJobResult.Job is not null)
                 {
-                    var nextJob = jobs[0];
+                    var nextJob = nextJobResult.Job;
 
                     logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight monster from monster task: {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {Character.Schema.Task} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
@@ -622,17 +754,15 @@ public class PlayerAI
                 logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting  {fightMonster.Amount} x {fightMonster.Code}"
                 );
-                var jobs = await FightSimulator.GetJobsToFightMonster(
-                    Character,
-                    gameState,
+                var nextJobResult = await GetNextJobToFightMonster(
                     gameState.MonstersDict.GetValueOrNull(fightMonster.Code)!
                 );
 
-                if (jobs is not null)
+                if (nextJobResult is not null)
                 {
-                    if (jobs.Count > 0)
+                    if (nextJobResult.Job is not null)
                     {
-                        var nextJob = jobs[0];
+                        var nextJob = nextJobResult.Job;
 
                         logger.LogInformation(
                             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
@@ -717,17 +847,17 @@ public class PlayerAI
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
             var monster = gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!;
-            var jobs = await FightSimulator.GetJobsToFightMonster(Character, gameState, monster);
+            var nextJobResult = await GetNextJobToFightMonster(monster);
 
-            if (jobs is not null)
+            if (nextJobResult is not null)
             {
-                if (jobs.Count > 0)
+                if (nextJobResult.Job is not null)
                 {
                     logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do monster task ({monster.Code})"
                     );
 
-                    var nextJob = jobs[0];
+                    var nextJob = nextJobResult.Job;
 
                     logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
@@ -802,35 +932,28 @@ public class PlayerAI
 
         if (matchingMonster is not null && matchingMonster.Level <= Character.Schema.Level)
         {
-            var jobsToFightMonster = await FightSimulator.GetJobsToFightMonster(
-                Character,
-                gameState,
-                matchingMonster
-            );
+            var jobsToFightMonster = await GetNextJobToFightMonster(matchingMonster);
 
-            if (jobsToFightMonster is not null)
+            if (jobsToFightMonster?.Job is not null)
             {
-                if (jobsToFightMonster.Count > 0)
-                {
-                    var nextJob = jobsToFightMonster[0];
+                var nextJob = jobsToFightMonster.Job;
 
-                    logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetEventJob: Doing first job to fight event monster - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                    );
-                    return nextJob;
-                }
-                else
-                {
-                    logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
-                    );
-                    return new FightMonster(
-                        Character,
-                        gameState,
-                        matchingMonster.Code,
-                        TrainCombat.AMOUNT_TO_KILL
-                    );
-                }
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetEventJob: Doing first job to fight event monster - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                );
+                return nextJob;
+            }
+            else if (jobsToFightMonster is not null && jobsToFightMonster.Job is null)
+            {
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
+                );
+                return new FightMonster(
+                    Character,
+                    gameState,
+                    matchingMonster.Code,
+                    TrainCombat.AMOUNT_TO_KILL
+                );
             }
         }
 
@@ -839,6 +962,16 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetNpcEventJob(MapContentSchema eventContent)
     {
+        /**
+        ** TODO: Simple handling - we know that the nomadic merchant sells artifacts, so we want to trigger the artifacts logic,
+        ** when he is active
+        */
+
+        if (eventContent.Code == "nomadic_merchant")
+        {
+            return await EnsureAccessories();
+        }
+
         return null;
     }
 
@@ -865,4 +998,94 @@ public class PlayerAI
         }
         return null;
     }
+
+    async Task<NextJobToFightResult?> GetNextJobToFightMonster(MonsterSchema monster)
+    {
+        var jobsToGetItems = await Character.PlayerActionService.GetJobsToGetItemsToFightMonster(
+            Character,
+            gameState,
+            monster
+        );
+
+        // Return null if they shouldn't fight, return list of jobs if they should, return empty list if they have optimal items
+        if (
+            jobsToGetItems is null
+            || jobsToGetItems.Count == 0
+                && !FightSimulator
+                    .FindBestFightEquipment(Character, gameState, monster)
+                    .Outcome.ShouldFight
+        )
+        {
+            return null;
+        }
+
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+
+        // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
+        // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
+        jobsToGetItems.Sort(
+            (a, b) =>
+            {
+                if (
+                    bankItems.Data.Exists(item =>
+                        item.Code == a.Job.Code && item.Quantity >= a.Job.Amount
+                    )
+                )
+                {
+                    return -1;
+                }
+                else if (
+                    bankItems.Data.Exists(item =>
+                        item.Code == b.Job.Code && item.Quantity >= b.Job.Amount
+                    )
+                )
+                {
+                    return 1;
+                }
+                // If we can buy an item straight away, then let us do that first
+                var aMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(a.Job.Code);
+
+                var bMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(b.Job.Code);
+
+                if (aMatchingNpcItem && !bMatchingNpcItem)
+                {
+                    return -1;
+                }
+                else if (!aMatchingNpcItem && bMatchingNpcItem)
+                {
+                    return 1;
+                }
+
+                var aLevel = gameState.ItemsDict.GetValueOrNull(a.Job.Code)!.Level;
+                var bLevel = gameState.ItemsDict.GetValueOrNull(b.Job.Code)!.Level;
+
+                return aLevel.CompareTo(bLevel);
+            }
+        );
+
+        var nextJob = jobsToGetItems.ElementAtOrDefault(0);
+
+        if (nextJob is not null)
+        {
+            nextJob.Job.onAfterSuccessEndHook = async () =>
+            {
+                logger.LogInformation(
+                    $"{Name}: [{Character.Name}]: onAfterSuccessEndHook: Equipping {nextJob.Job.Amount} x {nextJob.Job.Code}"
+                );
+                // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?
+                await Character.EquipItem(
+                    nextJob.Job.Code,
+                    nextJob.Slot.Slot.FromPascalToSnakeCase(),
+                    nextJob.Job.Amount
+                );
+            };
+        }
+
+        return new NextJobToFightResult { Job = nextJob?.Job };
+    }
+}
+
+record NextJobToFightResult
+{
+    public required CharacterJob? Job;
 }

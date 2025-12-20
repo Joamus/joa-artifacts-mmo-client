@@ -32,6 +32,8 @@ public class WithdrawItem : CharacterJob
         onJobQueuedHook = () =>
         {
             gameState.BankItemCache.ReserveItem(character, code, amount);
+
+            return Task.Run(() => { });
         };
     }
 
@@ -53,12 +55,12 @@ public class WithdrawItem : CharacterJob
             foundQuantity = Math.Min(Amount, matchingItemInBank.Quantity);
         }
 
-        // if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
-        // {
-        //     Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
-        //     Status = JobStatus.Suspend;
-        //     return new None();
-        // }
+        if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
+        {
+            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
 
         if (
             Character.GetInventorySpaceLeft() <= foundQuantity

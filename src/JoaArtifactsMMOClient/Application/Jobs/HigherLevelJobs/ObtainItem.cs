@@ -40,7 +40,7 @@ public class ObtainItem : CharacterJob
             return;
         }
 
-        onSuccessEndHook = () =>
+        onSuccessEndHook = async () =>
         {
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to deposit {Amount} x {Code} to the bank"
@@ -53,23 +53,20 @@ public class ObtainItem : CharacterJob
                 Amount
             ).SetParent<DepositItems>(this);
 
-            depositItemJob.onSuccessEndHook = () =>
+            depositItemJob.onSuccessEndHook = async () =>
             {
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to withdraw {Amount} x {Code} from the bank"
                 );
                 recipient.RemoveFromWishlist(Code, Amount);
 
-                recipient.QueueJob(
+                await recipient.QueueJob(
                     new WithdrawItem(recipient, gameState, Code, Amount, false),
                     true
                 );
-                return Task.Run(() => { });
             };
 
-            Character.QueueJob(depositItemJob, true);
-
-            return Task.Run(() => { });
+            await Character.QueueJob(depositItemJob, true);
         };
     }
 
@@ -146,6 +143,7 @@ public class ObtainItem : CharacterJob
         if (jobs.Count > 0)
         {
             jobs.Last().onSuccessEndHook = onSuccessEndHook;
+            jobs.Last().onAfterSuccessEndHook = onAfterSuccessEndHook;
 
             foreach (var job in jobs)
             {
@@ -157,6 +155,7 @@ public class ObtainItem : CharacterJob
 
         // Reset it
         onSuccessEndHook = null;
+        onAfterSuccessEndHook = null;
 
         return new None();
     }
@@ -166,6 +165,38 @@ public class ObtainItem : CharacterJob
      * We mutate a list to recursively add all the required jobs to the list
     */
     public static async Task<OneOf<AppError, None>> GetJobsRequired(
+        PlayerCharacter Character,
+        GameState gameState,
+        bool allowUsingItemFromBank,
+        List<DropSchema> itemsInBank,
+        List<CharacterJob> jobs,
+        string code,
+        int amount,
+        bool allowUsingItemFromInventory = false,
+        bool canTriggerTraining = false
+    )
+    {
+        var result = await InnerGetJobsRequired(
+            Character,
+            gameState,
+            allowUsingItemFromBank,
+            itemsInBank,
+            jobs,
+            code,
+            amount,
+            allowUsingItemFromInventory,
+            canTriggerTraining,
+            true
+        );
+
+        return result;
+    }
+
+    /**
+     * Get all the jobs required to obtain an item
+     * We mutate a list to recursively add all the required jobs to the list
+    */
+    static async Task<OneOf<AppError, None>> InnerGetJobsRequired(
         PlayerCharacter Character,
         GameState gameState,
         bool allowUsingItemFromBank,
@@ -256,8 +287,7 @@ public class ObtainItem : CharacterJob
                         item.Code,
                         itemAmount,
                         true,
-                        canTriggerTraining,
-                        false
+                        canTriggerTraining
                     );
 
                     switch (result.Value)
@@ -340,7 +370,8 @@ public class ObtainItem : CharacterJob
             var taskCoinsAmount =
                 Character
                     .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity ?? 0;
+                    ?.Quantity
+                ?? 0;
 
             var taskCoinsInBank =
                 itemsInBank.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
@@ -440,106 +471,17 @@ public class ObtainItem : CharacterJob
 
         var foundMonsterThatIsFromEvent = false;
 
-        foreach (var monster in monstersThatDropTheItem)
+        monstersThatDropTheItem = await GetDefeatableMonstersFromList(
+            Character,
+            gameState,
+            monstersThatDropTheItem
+        );
+
+        if (monstersThatDropTheItem.Count > 0)
         {
-            // For now, we assume that we cannot fight monsters a few levels above us.
-            if (monster.Level > Character.Schema.Level + 2)
-            {
-                continue;
-            }
+            monstersThatDropTheItem.Sort((a, b) => a.Level - b.Level);
 
-            // TODO: For now, assume that we cannot kill bosses
-            if (monster.Type == MonsterType.Boss)
-            {
-                continue;
-            }
-
-            var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
-
-            if (monsterIsFromEvent)
-            {
-                foundMonsterThatIsFromEvent = true;
-            }
-
-            if (
-                monsterIsFromEvent
-                && gameState.EventService.WhereIsEntityActive(monster.Code) is null
-            )
-            {
-                continue;
-            }
-
-            var fightSim = FightSimulator.FindBestFightEquipmentWithUsablePotions(
-                Character,
-                gameState,
-                monster
-            );
-
-            if (fightSim.Outcome.ShouldFight)
-            {
-                var job = new FightMonster(
-                    Character,
-                    gameState,
-                    monster.Code,
-                    requiredAmount,
-                    code
-                );
-
-                // job.AllowUsingMaterialsFromInventory = true;
-                jobs.Add(job);
-
-                return new None();
-            }
-            else
-            {
-                List<CharacterJob> withdrawItemJobs =
-                    await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
-                        Character,
-                        gameState,
-                        monster
-                    );
-
-                if (withdrawItemJobs.Count > 0)
-                {
-                    var fightSimIfUsingWithdrawnItems =
-                        FightSimulator.FindBestFightEquipmentWithUsablePotions(
-                            Character,
-                            gameState,
-                            monster,
-                            withdrawItemJobs
-                                .Select(job => new ItemInInventory
-                                {
-                                    Item = gameState.ItemsDict[job.Code],
-                                    Quantity = job.Amount,
-                                })
-                                .ToList()
-                        );
-
-                    if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
-                    {
-                        foreach (var job in withdrawItemJobs)
-                        {
-                            jobs.Add(job);
-                        }
-                        var fightMonsterJob = new FightMonster(
-                            Character,
-                            gameState,
-                            monster.Code,
-                            requiredAmount,
-                            code
-                        );
-
-                        // job.AllowUsingMaterialsFromInventory = true;
-                        jobs.Add(fightMonsterJob);
-                        return new None();
-                    }
-
-                    if (lowestLevelMonster is null || monster.Level < lowestLevelMonster.Level)
-                    {
-                        lowestLevelMonster = monster;
-                    }
-                }
-            }
+            lowestLevelMonster = monstersThatDropTheItem.ElementAt(0);
         }
 
         if (lowestLevelMonster is not null)
@@ -580,6 +522,23 @@ public class ObtainItem : CharacterJob
                 {
                     jobs.Add(job);
                 }
+                return new None();
+            }
+
+            // Don't really care if the sim uses the withdrawn items or not, we can fight them
+            if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
+            {
+                var job = new FightMonster(
+                    Character,
+                    gameState,
+                    lowestLevelMonster.Code,
+                    requiredAmount,
+                    code
+                );
+
+                // job.AllowUsingMaterialsFromInventory = true;
+                jobs.Add(job);
+
                 return new None();
             }
         }
@@ -641,6 +600,43 @@ public class ObtainItem : CharacterJob
             int neededCurrency = (int)matchingNpcItem.BuyPrice * requiredAmount;
 
             if (amountOfCurrency < neededCurrency)
+            {
+                bool canObtainCurrencyFromMonsters = true;
+
+                if (matchingNpcItem.Currency != "gold")
+                {
+                    var monstersThatDropCurrency = gameState.Monsters.FindAll(monster =>
+                        monster.Drops.Exists(drop => drop.Code == matchingNpcItem.Currency)
+                    );
+
+                    if (monstersThatDropCurrency.Count == 0)
+                    {
+                        return new AppError(
+                            $"Currency \"{matchingNpcItem.Currency}\" cannot be obtained - there are no monsters that drop the currency",
+                            ErrorStatus.Undefined
+                        );
+                    }
+
+                    monstersThatDropCurrency = await GetDefeatableMonstersFromList(
+                        Character,
+                        gameState,
+                        monstersThatDropCurrency
+                    );
+
+                    if (monstersThatDropCurrency.Count == 0)
+                    {
+                        canObtainCurrencyFromMonsters = false;
+                    }
+                }
+
+                if (!canObtainCurrencyFromMonsters)
+                {
+                    return new AppError(
+                        $"Currency \"{matchingNpcItem.Currency}\" cannot be obtained - there are monsters that drop it, but they are either not defeatable or from events which are not active",
+                        ErrorStatus.Undefined
+                    );
+                }
+
                 jobs.Add(
                     new ObtainOrFindItem(
                         Character,
@@ -649,6 +645,7 @@ public class ObtainItem : CharacterJob
                         neededCurrency - amountOfCurrency
                     )
                 );
+            }
 
             jobs.Add(
                 new BuyItemNpc(
@@ -746,5 +743,82 @@ public class ObtainItem : CharacterJob
         }
 
         return iterations;
+    }
+
+    public static async Task<List<MonsterSchema>> GetDefeatableMonstersFromList(
+        PlayerCharacter Character,
+        GameState gameState,
+        List<MonsterSchema> monsters
+    )
+    {
+        List<MonsterSchema> monstersThatCanBeDefeated = [];
+
+        foreach (var monster in monsters)
+        {
+            // For now, we assume that we cannot fight monsters a few levels above us.
+            if (monster.Level > Character.Schema.Level + 2)
+            {
+                continue;
+            }
+
+            // TODO: For now, assume that we cannot kill bosses
+            if (monster.Type == MonsterType.Boss)
+            {
+                continue;
+            }
+
+            var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
+
+            if (
+                monsterIsFromEvent
+                && gameState.EventService.WhereIsEntityActive(monster.Code) is null
+            )
+            {
+                continue;
+            }
+
+            var fightSim = FightSimulator.FindBestFightEquipmentWithUsablePotions(
+                Character,
+                gameState,
+                monster
+            );
+
+            if (fightSim.Outcome.ShouldFight)
+            {
+                monstersThatCanBeDefeated.Add(monster);
+                continue;
+            }
+            List<CharacterJob> withdrawItemJobs =
+                await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
+                    Character,
+                    gameState,
+                    monster
+                );
+
+            if (withdrawItemJobs.Count > 0)
+            {
+                var fightSimIfUsingWithdrawnItems =
+                    FightSimulator.FindBestFightEquipmentWithUsablePotions(
+                        Character,
+                        gameState,
+                        monster,
+                        withdrawItemJobs
+                            .Select(job => new ItemInInventory
+                            {
+                                Item = gameState.ItemsDict[job.Code],
+                                Quantity = job.Amount,
+                            })
+                            .ToList()
+                    );
+
+                if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
+                {
+                    monstersThatCanBeDefeated.Add(monster);
+                    continue;
+                }
+            }
+        }
+
+        return monstersThatCanBeDefeated;
     }
 }

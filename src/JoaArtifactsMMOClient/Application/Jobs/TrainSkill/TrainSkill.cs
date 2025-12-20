@@ -17,16 +17,6 @@ public class TrainSkill : CharacterJob
 
     public static int LEVEL_DIFF_FOR_NO_XP = 10;
 
-    public static readonly string[] GatheringSkills = ["fishing", "mining", "woodcutting"];
-    public static readonly string[] CraftingSkills =
-    [
-        "weaponcrafting",
-        "gearcrafting",
-        "jewelrycrafting",
-        "cooking",
-        "alchemy",
-    ];
-
     // public static readonly string[] JobTypesToAvoidWhenCrafting = ["FightMonster", "CompleteTask"];
     public static readonly string[] JobTypesToAvoidWhenCrafting = [];
     public Skill Skill { get; init; }
@@ -83,7 +73,7 @@ public class TrainSkill : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - training {skillName} until level {untilLevel}"
         );
 
-        SkillKind skillKind = GatheringSkills.Contains(skillName)
+        SkillKind skillKind = SkillService.GatheringSkills.Contains(Skill)
             ? SkillKind.Gathering
             : SkillKind.Crafting;
 

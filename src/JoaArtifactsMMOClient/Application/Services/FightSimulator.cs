@@ -530,7 +530,6 @@ public class FightSimulator
 
         // We essentially remove the potions from the sim, until they naturally will be simulated.
 
-
         if (!string.IsNullOrWhiteSpace(initialSchema.Utility1Slot))
         {
             allItems.Add(
@@ -867,17 +866,22 @@ public class FightSimulator
 
             var fightOutcome = CalculateFightOutcome(characterSchema, monster, gameState);
 
-            bool fightOutcomeIsBetter = CompareSimOutcome(bestFightOutcome, fightOutcome) == 1;
+            int simOutcome = CompareSimOutcome(bestFightOutcome, fightOutcome);
+
+            bool fightOutcomeIsBetter = simOutcome == 1;
 
             if (fightOutcomeIsBetter)
             {
                 /**
                  *
-                 * A worse item setup might have the u secharacter HP pots earlier,
+                 * A worse item setup might have us use character HP pots earlier,
                  * which can end up with them having a higher amount of * remaining HP,
                  * but they also used more potions.
                  *
                  * Essentially we don't want to choose to use more potions, if we already can beat the monster without them.
+                 *
+                 * This logic shouldn't be necessary anymore, as we simulate unequipping potions before simming equipment,
+                 * and then sim the potions after, so the potions won't affect the equipment choice.
                  *
                 **/
                 if (
@@ -1165,68 +1169,6 @@ public class FightSimulator
         }
 
         return resultList.Select(element => element.Value).ToList();
-    }
-
-    public static async Task<List<CharacterJob>?> GetJobsToFightMonster(
-        PlayerCharacter character,
-        GameState gameState,
-        MonsterSchema monster
-    )
-    {
-        var jobsToGetItems = await character.PlayerActionService.GetJobsToGetItemsToFightMonster(
-            character,
-            gameState,
-            monster
-        );
-
-        // Return null if they shouldn't fight, return list of jobs if they should, return empty list if they have optimal items
-        if (
-            jobsToGetItems is null
-            || jobsToGetItems.Count == 0
-                && !FindBestFightEquipment(character, gameState, monster).Outcome.ShouldFight
-        )
-        {
-            return null;
-        }
-
-        var bankItems = await gameState.BankItemCache.GetBankItems(character);
-
-        // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
-        // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
-        jobsToGetItems.Sort(
-            (a, b) =>
-            {
-                if (bankItems.Data.Exists(item => item.Code == a.Code && item.Quantity >= a.Amount))
-                {
-                    return -1;
-                }
-                else if (
-                    bankItems.Data.Exists(item => item.Code == b.Code && item.Quantity >= b.Amount)
-                )
-                {
-                    return 1;
-                }
-                // If we can buy an item straight away, then let us do that first
-                var aMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(a.Code);
-
-                var bMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(b.Code);
-
-                if (aMatchingNpcItem && !bMatchingNpcItem)
-                {
-                    return -1;
-                }
-                else if (!aMatchingNpcItem && bMatchingNpcItem)
-                {
-                    return 1;
-                }
-
-                var aLevel = gameState.ItemsDict.GetValueOrNull(a.Code)!.Level;
-                var bLevel = gameState.ItemsDict.GetValueOrNull(b.Code)!.Level;
-
-                return aLevel.CompareTo(bLevel);
-            }
-        );
-        return jobsToGetItems;
     }
 
     public static List<ItemInInventory> GetItemsFromInventoryForSim(

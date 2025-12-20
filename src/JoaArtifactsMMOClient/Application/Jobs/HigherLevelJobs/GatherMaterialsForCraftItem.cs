@@ -2,6 +2,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Application.Services;
 using Applicaton.Jobs;
 using OneOf;
 using OneOf.Types;
@@ -37,7 +38,7 @@ public class GatherMaterialsForItem : CharacterJob
         Amount = amount;
     }
 
-    private void SetupMakeCharacterCraftEvents(
+    private async Task SetupMakeCharacterCraftEvents(
         PlayerCharacter crafter,
         CharacterJob? jobBeforeCraft,
         CraftItem lastJob
@@ -62,7 +63,7 @@ public class GatherMaterialsForItem : CharacterJob
             // I think this scenario is caused by a bug
             foreach (var job in depositItems)
             {
-                Character.QueueJob(job);
+                await Character.QueueJob(job);
             }
         }
 
@@ -70,7 +71,13 @@ public class GatherMaterialsForItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] queued {depositItems.Count} x deposit item jobs - last job before crafting ID: {(jobBeforeCraft is null ? "n/a" : jobBeforeCraft.Id)}"
         );
 
-        depositItems.Last().onSuccessEndHook = () =>
+        // JobHook? currentOnSuccessEndHook = onSuccessEndHook;
+        JobHook? currentAfterSuccessEndHook = onAfterSuccessEndHook;
+
+        // onSuccessEndHook = null;
+        onAfterSuccessEndHook = null;
+
+        depositItems.Last().onSuccessEndHook = async () =>
         {
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: last deposit job ran - queueing ObtainItem for crafter {crafter.Schema.Name} with ForCharacter({Character}) - {depositItems.Count} jobs, so they can craft {lastJob.Amount} x {lastJob.Code}"
@@ -80,14 +87,14 @@ public class GatherMaterialsForItem : CharacterJob
 
             job.ForCharacter(Character);
 
-            crafter.QueueJob(job, true);
+            job.onAfterSuccessEndHook = currentAfterSuccessEndHook;
+
+            await crafter.QueueJob(job, true);
 
             if (DepositUnneededItems.ShouldInitDepositItems(crafter, true))
             {
-                crafter.QueueJob(new DepositUnneededItems(crafter, gameState), true);
+                await crafter.QueueJob(new DepositUnneededItems(crafter, gameState), true);
             }
-
-            return Task.Run(() => { });
         };
     }
 
@@ -161,9 +168,6 @@ public class GatherMaterialsForItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
         );
 
-        // if (AllowFindingItemInBank)
-        // {
-
         var bankResult = await gameState.BankItemCache.GetBankItems(Character);
 
         if (bankResult is not BankItemsResponse bankItemsResponse)
@@ -172,10 +176,6 @@ public class GatherMaterialsForItem : CharacterJob
         }
 
         itemsInBank = bankItemsResponse.Data;
-        // }
-        // useItemIfInInventory is set to the job's value at first, so we can allow obtaining an item we already have.
-        // But if we have the ingredients in our inventory, then we should always use them (for now).
-        // Having this variable will allow us to e.g craft multiple copper daggers, else we could only have 1 in our inventory
 
         var result = await ObtainItem.GetJobsRequired(
             Character,
@@ -188,6 +188,25 @@ public class GatherMaterialsForItem : CharacterJob
             AllowUsingMaterialsFromInventory,
             CanTriggerTraining
         );
+
+        // If we
+        var preReqJob = await GetPreReqCraftedItemIfNeeded(
+            Character,
+            gameState,
+            gameState.ItemsDict[Code],
+            Amount
+        );
+
+        if (preReqJob is not null)
+        {
+            logger.LogInformation(
+                $"{JobName}: [{Character.Schema.Name}] We need to obtain {preReqJob.Amount} x {preReqJob.Code} to get {Amount} x {Code}, but we shouldn't craft that ourselves - queueing this job first"
+            );
+
+            Character.QueueJobsBefore(Id, [preReqJob]);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
 
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code}"
@@ -231,9 +250,76 @@ public class GatherMaterialsForItem : CharacterJob
         else if (Crafter is not null)
         {
             var jobBeforeCraft = jobs.Count > 0 ? jobs.Last() : null;
-            SetupMakeCharacterCraftEvents(Crafter, jobBeforeCraft, craftJob);
+            await SetupMakeCharacterCraftEvents(Crafter, jobBeforeCraft, craftJob);
         }
 
         return new None();
+    }
+
+    /**
+    ** We want to be able to handle if an item (like greater_dreadful_staff) requires having another item that requires a "crafting skill",
+    ** because we want our crafter to craft both of those items, and not only the greater version. If we don't handle this, then the character
+    ** that starts the job will craft the dreadful_staff, which we don't want them to.
+    */
+    async static Task<CharacterJob?> GetPreReqCraftedItemIfNeeded(
+        PlayerCharacter character,
+        GameState gameState,
+        ItemSchema item,
+        int itemQuantity
+    )
+    {
+        if (item.Craft is null)
+        {
+            return null;
+        }
+
+        foreach (var craftIngredient in item.Craft.Items)
+        {
+            var matchingItem = gameState.ItemsDict[craftIngredient.Code];
+
+            if (
+                matchingItem.Craft is not null
+                && SkillService.CraftingSkills.Contains(matchingItem.Craft.Skill)
+                && !character.Roles.Contains(matchingItem.Craft.Skill)
+            )
+            {
+                var result = character.GetEquippedItemOrInInventory(item.Code);
+
+                (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+                    result.Count > 0 ? result.ElementAt(0)! : null;
+
+                int amountToObtain = craftIngredient.Quantity * itemQuantity;
+
+                if (itemInInventory is not null)
+                {
+                    // We can unequip the item here - we assume that we are getting the better version crafted to use ourselves.
+                    if (itemInInventory.Value.isEquipped)
+                    {
+                        await character.UnequipItem(
+                            itemInInventory.Value.inventorySlot.Code,
+                            itemInInventory.Value.inventorySlot.Quantity
+                        );
+                    }
+                    if (itemInInventory.Value.inventorySlot.Quantity >= amountToObtain)
+                    {
+                        continue;
+                    }
+
+                    amountToObtain -= itemInInventory.Value.inventorySlot.Quantity;
+                }
+
+                if (amountToObtain > 0)
+                {
+                    return new ObtainOrFindItem(
+                        character,
+                        gameState,
+                        matchingItem.Code,
+                        amountToObtain
+                    );
+                }
+            }
+        }
+
+        return null;
     }
 }

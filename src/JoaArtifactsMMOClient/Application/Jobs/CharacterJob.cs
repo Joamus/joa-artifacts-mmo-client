@@ -31,13 +31,13 @@ public abstract class CharacterJob
 
     public int Amount { get; set; }
 
-    public delegate Task OnSuccessEndHook();
+    public delegate Task JobHook();
 
-    public OnSuccessEndHook? onSuccessEndHook = null;
+    public JobHook? onSuccessEndHook = null;
 
-    public delegate void OnQueuedHook();
+    public JobHook? onAfterSuccessEndHook = null;
 
-    public OnQueuedHook onJobQueuedHook = () => { };
+    public JobHook? onJobQueuedHook = null;
 
     public virtual CharacterJob Clone()
     {
@@ -92,6 +92,12 @@ public abstract class CharacterJob
             {
                 await onSuccessEndHook.Invoke();
                 onSuccessEndHook = null;
+            }
+
+            if (onAfterSuccessEndHook is not null)
+            {
+                await onAfterSuccessEndHook.Invoke();
+                onAfterSuccessEndHook = null;
             }
         }
         return new None();

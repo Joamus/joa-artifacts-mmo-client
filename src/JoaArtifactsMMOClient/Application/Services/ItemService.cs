@@ -1,7 +1,9 @@
+using System.Security.Principal;
 using System.Threading.Tasks;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
+using Application.Errors;
 using Application.Jobs;
 using Application.Records;
 using Applicaton.Services.FightSimulator;
@@ -361,7 +363,7 @@ public static class ItemService
         return false;
     }
 
-    public static async Task<List<DropSchema>> GetBestFightItems(
+    public static async Task<List<EquipmentSlot>> GetBestFightItems(
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster,
@@ -388,10 +390,11 @@ public static class ItemService
                     Item = gameState.ItemsDict[item.Code],
                     Quantity = item.Quantity,
                 })
-                .ToList() ?? []
+                .ToList()
+            ?? []
         );
 
-        Dictionary<string, DropSchema> relevantItemsDict = [];
+        Dictionary<string, EquipmentSlot> relevantItemsDict = [];
 
         // foreach (var monster in relevantMonsters)
         // {
@@ -406,10 +409,7 @@ public static class ItemService
         {
             if (!relevantItemsDict.ContainsKey(item.Code))
             {
-                relevantItemsDict.Add(
-                    item.Code,
-                    new DropSchema { Code = item.Code, Quantity = item.Quantity }
-                );
+                relevantItemsDict.Add(item.Code, item);
             }
             else
             {
@@ -697,5 +697,44 @@ public static class ItemService
         }
 
         return items;
+    }
+
+    public static string GetBestUtilityEffect(
+        PlayerCharacter character,
+        GameState gameState,
+        string entityCode
+    )
+    {
+        int entityLevel;
+        int characterLevel;
+
+        var matchingMonster = gameState.MonstersDict.GetValueOrNull(entityCode);
+
+        if (matchingMonster is not null)
+        {
+            entityLevel = matchingMonster.Level;
+            characterLevel = character.Schema.Level;
+        }
+        else
+        {
+            var matchingResource = FindBestResourceToGatherItem(character, gameState, entityCode);
+
+            if (matchingResource is null)
+            {
+                throw new AppError($"Could not find resource for code \"{entityCode}\"");
+            }
+
+            entityLevel = matchingResource.Level;
+            characterLevel = character.GetSkillLevel(
+                SkillService.GetSkillName(matchingResource.Skill)
+            );
+        }
+
+        if (characterLevel > entityLevel + PlayerActionService.LEVEL_DIFF_NO_XP)
+        {
+            return Effect.Prospecting;
+        }
+
+        return Effect.Wisdom;
     }
 }

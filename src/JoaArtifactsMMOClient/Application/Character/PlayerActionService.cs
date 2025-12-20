@@ -5,6 +5,7 @@ using Application.ArtifactsApi.Schemas.Requests;
 using Application.Errors;
 using Application.Jobs;
 using Application.Services;
+using Applicaton.Jobs;
 using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
@@ -24,6 +25,7 @@ public class PlayerActionService
     public static List<string> Islands = new List<string> { SandwhisperIsle, ChristmasIsland };
 
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
+    public static readonly int LEVEL_DIFF_NO_XP = 10;
     private readonly GameState gameState;
 
     private const string Name = "PlayerActionService";
@@ -301,7 +303,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -366,7 +369,7 @@ public class PlayerActionService
         return true;
     }
 
-    public async Task<List<CharacterJob>?> GetJobsToGetItemsToFightMonster(
+    public async Task<List<CharacterJobAndEquipmentSlot>?> GetJobsToGetItemsToFightMonster(
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster
@@ -426,7 +429,7 @@ public class PlayerActionService
             items.Select(item => new InventorySlot { Code = item.Code, Quantity = 100 }).ToList()
         );
 
-        List<CharacterJob> jobs = [];
+        List<CharacterJobAndEquipmentSlot> jobs = [];
 
         foreach (var item in bestFightItems)
         {
@@ -460,13 +463,29 @@ public class PlayerActionService
                 $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Job found - acquire {item.Code} x {1} for fighting"
             );
 
-            jobs.Add(new ObtainOrFindItem(character, gameState, item.Code, amountToObtain));
+            jobs.Add(
+                new CharacterJobAndEquipmentSlot
+                {
+                    Job = new ObtainOrFindItem(character, gameState, item.Code, amountToObtain),
+                    Slot = item,
+                }
+            );
         }
 
         if (jobs.Count == 0 && itemsAreInWishlist)
         {
             return null;
         }
+
+        int itemsAmount = 0;
+        int slotAmount = 0;
+
+        foreach (var job in jobs)
+        {
+            itemsAmount += job.Job.Amount;
+            slotAmount += 1;
+        }
+
         return jobs;
     }
 
@@ -748,4 +767,10 @@ public class PlayerActionService
 
         return closestTransition;
     }
+}
+
+public record CharacterJobAndEquipmentSlot
+{
+    public required CharacterJob Job;
+    public required EquipmentSlot Slot;
 }

@@ -6,10 +6,20 @@ public static class SkillService
 {
     public static readonly List<Skill> GatheringSkills =
     [
-        Skill.Alchemy,
+        // Skill.Alchemy,
         Skill.Fishing,
         Skill.Mining,
         Skill.Woodcutting,
+    ];
+
+    // public static readonly string[] GatheringSkills = ["fishing", "mining", "woodcutting"];
+    public static readonly List<Skill> CraftingSkills =
+    [
+        Skill.Weaponcrafting,
+        Skill.Gearcrafting,
+        Skill.Jewelrycrafting,
+        Skill.Cooking,
+        Skill.Alchemy,
     ];
 
     public static string GetSkillName(Skill skill)

@@ -88,7 +88,11 @@ public class DepositUnneededItems : CharacterJob
         {
             foreach (var item in bestFightItems)
             {
-                await Character.PlayerActionService.SmartItemEquip(item.Key, item.Value.Quantity);
+                await Character.EquipItem(
+                    item.Key,
+                    item.Value.Slot.FromPascalToSnakeCase(),
+                    item.Value.Quantity
+                );
             }
         }
 

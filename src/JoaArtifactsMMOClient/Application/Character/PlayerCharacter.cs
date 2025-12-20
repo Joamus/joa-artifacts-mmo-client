@@ -149,7 +149,7 @@ public class PlayerCharacter
         }
     }
 
-    public void QueueJob(CharacterJob job, bool highestPriority = false)
+    public async Task QueueJob(CharacterJob job, bool highestPriority = false)
     {
         Busy = true;
         if (highestPriority)
@@ -161,7 +161,10 @@ public class PlayerCharacter
             Jobs.Add(job);
         }
 
-        job.onJobQueuedHook();
+        if (job.onJobQueuedHook is not null)
+        {
+            await job.onJobQueuedHook.Invoke();
+        }
         Busy = false;
     }
 
