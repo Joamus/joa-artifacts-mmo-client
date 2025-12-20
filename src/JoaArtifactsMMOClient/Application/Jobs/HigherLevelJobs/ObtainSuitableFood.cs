@@ -78,10 +78,7 @@ public class ObtainSuitableFood : CharacterJob
             return jobs;
         }
 
-        if (amountFound < Amount)
-        {
-            var fishJobs = GetFoodJobsFromBankFish(amountFound, Amount, bankItemsResponse);
-        }
+        var fishJobs = GetFoodJobsFromBankFish(amountFound, Amount, bankItemsResponse);
 
         List<ItemInInventory> foodCandidates = [];
 
@@ -153,20 +150,25 @@ public class ObtainSuitableFood : CharacterJob
                 return jobs;
             }
 
-            // if (jobs.Count > 0)
-            // {
-            //     Character.QueueJobsAfter(Id, jobs);
-            // }
-            var mostSuitableFood = GetMostSuitableFood();
+            foreach (var job in fishJobs)
+            {
+                jobs.Add(job);
+            }
 
-            var obtainJob = new ObtainOrFindItem(
-                Character,
-                gameState,
-                mostSuitableFood.Code,
-                Amount - amountFound
-            );
+            // // if (jobs.Count > 0)
+            // // {
+            // //     Character.QueueJobsAfter(Id, jobs);
+            // // }
+            // var mostSuitableFood = GetMostSuitableFood();
 
-            jobs.Add(obtainJob);
+            // var obtainJob = new ObtainOrFindItem(
+            //     Character,
+            //     gameState,
+            //     mostSuitableFood.Code,
+            //     Amount - amountFound
+            // );
+
+            // jobs.Add(obtainJob);
         }
 
         return jobs;
