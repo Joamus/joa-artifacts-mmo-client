@@ -62,7 +62,7 @@ public class CompleteTask : CharacterJob
 
             if (
                 matchingItem.Currency == ItemService.TasksCoin
-                && matchingItem.BuyPrice * ItemAmount >= taskCoinsAmount
+                && matchingItem.BuyPrice * ItemAmount <= taskCoinsAmount
             )
             {
                 logger.LogInformation(

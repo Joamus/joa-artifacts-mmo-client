@@ -254,6 +254,11 @@ public static class ItemService
                 }
             }
 
+            if (!hasAllIngredients)
+            {
+                continue; // We would rather fish if we don't have all items
+            }
+
             List<InventorySlot> ingredientsToSubtract = [];
 
             if (hasAllIngredients && amountThatCanBeCooked is not null && amountThatCanBeCooked > 0) // always should be
@@ -390,8 +395,7 @@ public static class ItemService
                     Item = gameState.ItemsDict[item.Code],
                     Quantity = item.Quantity,
                 })
-                .ToList()
-            ?? []
+                .ToList() ?? []
         );
 
         Dictionary<string, EquipmentSlot> relevantItemsDict = [];

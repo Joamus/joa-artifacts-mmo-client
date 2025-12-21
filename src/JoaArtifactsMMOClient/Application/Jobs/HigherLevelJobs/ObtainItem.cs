@@ -278,7 +278,7 @@ public class ObtainItem : CharacterJob
                 {
                     int itemAmount = item.Quantity * iterationAmount;
 
-                    var result = await GetJobsRequired(
+                    var result = await InnerGetJobsRequired(
                         Character,
                         gameState,
                         allowUsingItemFromBank,
@@ -287,7 +287,8 @@ public class ObtainItem : CharacterJob
                         item.Code,
                         itemAmount,
                         true,
-                        canTriggerTraining
+                        canTriggerTraining,
+                        false
                     );
 
                     switch (result.Value)
@@ -370,8 +371,7 @@ public class ObtainItem : CharacterJob
             var taskCoinsAmount =
                 Character
                     .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity
-                ?? 0;
+                    ?.Quantity ?? 0;
 
             var taskCoinsInBank =
                 itemsInBank.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity

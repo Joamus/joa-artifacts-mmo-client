@@ -1,3 +1,10 @@
+using Application;
+using Application.Character;
+using Application.Errors;
+using Application.Jobs;
+using OneOf;
+using OneOf.Types;
+
 /**
 * This job should basically tidy up the bank and inventory of the character.
 * This includes converting items in the bank into crafted items, e.g cooking food, etc, so we get enough deposit space.
@@ -24,3 +31,17 @@
 * --
 *
 */
+public class HouseKeeping : CharacterJob
+{
+    public HouseKeeping(PlayerCharacter playerCharacter, GameState gameState)
+        : base(playerCharacter, gameState) { }
+
+    protected override Task<OneOf<AppError, None>> ExecuteAsync()
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task RecycleItems() { }
+
+    public async Task SellUnneededItems() { }
+}

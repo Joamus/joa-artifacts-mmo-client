@@ -274,11 +274,8 @@ public class DepositUnneededItems : CharacterJob
 
         foreach (var item in itemsToDeposit)
         {
-            if (item.Importance > ItemImportance.Low)
-            {
-                continue;
-            }
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
             // We want to skip non-equipment, but also equipment we have deemed low prio anyway
             if (!ItemService.EquipmentItemTypes.Contains(matchingItem.Type))
             {
@@ -313,13 +310,26 @@ public class DepositUnneededItems : CharacterJob
                     )
                 )
                 {
-                    bestToolDictionary.Add(toolEffect.Code, item);
-                }
+                    if (currentBestItem is not null)
+                    {
+                        bestToolDictionary.Remove(toolEffect.Code);
+                    }
 
-                if (currentBest is not null)
-                {
-                    currentBest.Importance = ItemImportance.None;
+                    bestToolDictionary.Add(toolEffect.Code, item);
+
+                    if (currentBest is not null)
+                    {
+                        currentBest.Importance = ItemImportance.None;
+                    }
                 }
+                else
+                {
+                    item.Importance = ItemImportance.None;
+                }
+            }
+            else if (item.Importance > ItemImportance.Low)
+            {
+                continue;
             }
         }
 

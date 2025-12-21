@@ -153,22 +153,29 @@ public class ObtainSuitableFood : CharacterJob
             foreach (var job in fishJobs)
             {
                 jobs.Add(job);
+                amountFound += job.Amount;
+
+                if (amountFound >= Amount)
+                {
+                    return jobs;
+                }
             }
 
-            // // if (jobs.Count > 0)
-            // // {
-            // //     Character.QueueJobsAfter(Id, jobs);
-            // // }
-            // var mostSuitableFood = GetMostSuitableFood();
+            if (amountFound >= Amount)
+            {
+                return jobs;
+            }
 
-            // var obtainJob = new ObtainOrFindItem(
-            //     Character,
-            //     gameState,
-            //     mostSuitableFood.Code,
-            //     Amount - amountFound
-            // );
+            var mostSuitableFood = GetMostSuitableFood();
 
-            // jobs.Add(obtainJob);
+            var obtainJob = new ObtainOrFindItem(
+                Character,
+                gameState,
+                mostSuitableFood.Code,
+                Amount - amountFound
+            );
+
+            jobs.Add(obtainJob);
         }
 
         return jobs;
