@@ -142,11 +142,13 @@ public static class EffectService
         return item.Effects.Exists(effect => preFightEffects.Contains(effect.Code));
     }
 
-    public static bool SimpleIsPreFightPotionWorthUsing(FightSimResult fightSim)
+    public static bool SimpleIsPreFightPotionWorthUsing(FightSimResult fightSimWithoutPotions)
     {
         // Pretty rough heuristic, but it will help to avoid gathering dmg boost potions to fight low level monsters
-        return fightSim.Outcome.TotalTurns
-            > ObtainSuitablePotions.AMOUNT_OF_TURNS_TO_NOT_USE_PREFIGHT_POTS;
+        // Update: Our reasoning now is just that we only use potions, if it helps us win a fight
+        return !fightSimWithoutPotions.Outcome.ShouldFight;
+        // && fightSimWithoutPotions.Outcome.TotalTurns
+        //     > ObtainSuitablePotions.AMOUNT_OF_TURNS_TO_NOT_USE_PREFIGHT_POTS;
     }
 
     public static bool IsPotionWorthUsing(
@@ -155,22 +157,8 @@ public static class EffectService
         FightOutcome withPotion
     )
     {
-        bool allEffectsArePreFight = true;
-
-        foreach (var effect in item.Effects)
-        {
-            if (!preFightEffects.Contains(effect.Code))
-            {
-                allEffectsArePreFight = false;
-                break;
-            }
-        }
         // Potions don't have multiple effects at the time of writing this, but we basically only want to use
         // this method for "pre fight potions", e.g. boost potions, because we might end up wasting a lot of them.
-        if (!allEffectsArePreFight)
-        {
-            return true;
-        }
         // If the potion makes us win the fight, then we should consider using it
         if (!noPotion.ShouldFight && withPotion.ShouldFight)
         {
