@@ -130,7 +130,7 @@ public class PlayerAI
                 (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
                     result.Count > 0 ? result.ElementAt(0)! : null;
 
-                if (itemInInventory is not null)
+                if (itemInInventory is not null && !itemInInventory.Value.isEquipped)
                 {
                     await Character.EquipItem(
                         itemInInventory.Value.inventorySlot.Code,
@@ -173,7 +173,12 @@ public class PlayerAI
                     continue;
                 }
 
-                return new ObtainOrFindItem(Character, gameState, artifact.Code, 1);
+                var job = new ObtainOrFindItem(Character, gameState, artifact.Code, 1);
+
+                job.onAfterSuccessEndHook = async () =>
+                {
+                    await Character.EquipItem(artifact.Code, slot.Slot.FromPascalToSnakeCase(), 1);
+                };
             }
         }
 

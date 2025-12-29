@@ -231,7 +231,7 @@ public class NavigationService
             {
                 // TODO: Should check if we have enough money etc
 
-                var matchingTransition = transitionsToIslandFromMainland[currentMap.Name];
+                var matchingTransition = transitionsToIslandFromMainland[destinationMap.Name];
 
                 await character.Move(matchingTransition.X, matchingTransition.Y);
                 await character.Transition();

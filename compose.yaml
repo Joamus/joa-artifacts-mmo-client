@@ -8,3 +8,8 @@ services:
       - DOTNET_GCHeapHardLimitPercent=75
     mem_limit: 150MB
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
