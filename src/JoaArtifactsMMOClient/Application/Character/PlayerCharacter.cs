@@ -25,6 +25,9 @@ public class PlayerCharacter
     public static readonly int MIN_AMOUNT_OF_FOOD_TO_KEEP = 20;
 
     [JsonIgnore]
+    public static readonly int MAX_LEVEL = 50;
+
+    [JsonIgnore]
     public static readonly int PREFERED_FOOD_LEVEL_DIFFERENCE = 5;
 
     // If on cooldown, but not expected, just wait 5 seconds

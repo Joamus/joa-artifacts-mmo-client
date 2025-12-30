@@ -286,10 +286,8 @@ public class PlayerAI
                         return nextJob;
                     }
                     logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but found no jobs, to get the necessary items - skipping"
+                        $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: We can obtain the optimal gear to fight monster \"{matchingMonster.Code}\""
                     );
-
-                    continue;
                 }
 
                 if (firstMonsterWeCanFight is null)
@@ -332,7 +330,7 @@ public class PlayerAI
                 return firstJob;
             }
             logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but found no jobs, to get the necessary items - skipping"
+                $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - we can fight monster \"{firstMonsterWeCanFight.Code}\", and we have the optimal items"
             );
         }
 
@@ -1012,16 +1010,15 @@ public class PlayerAI
             monster
         );
 
-        // Return null if they shouldn't fight, return list of jobs if they should, return empty list if they have optimal items
-        if (
-            jobsToGetItems is null
-            || jobsToGetItems.Count == 0
-                && !FightSimulator
-                    .FindBestFightEquipment(Character, gameState, monster)
-                    .Outcome.ShouldFight
-        )
+        // Return null if they shouldn't fight, return list of jobs if they should, return empty NextJobToFightResult
+        if (jobsToGetItems is null)
         {
             return null;
+        }
+
+        if (jobsToGetItems.Count == 0)
+        {
+            return new NextJobToFightResult { Job = null };
         }
 
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);

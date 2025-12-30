@@ -361,27 +361,6 @@ public class NavigationService
         }
 
         throw new AppError($"Should never get here");
-
-        // // Going to Sandwhisper
-        // if (Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name))
-        // {
-        //     // TODO: Should check if we have enough money etc
-        //     await Character.Move(-2, 21);
-        //     await Character.Transition();
-        //     return await NavigateTo(code);
-        //     // We are going to Sandwhisper
-        // }
-        // else if (!Islands.Contains(destinationMap.Name) && Islands.Contains(currentMap.Name))
-        // {
-        //     // We are going back
-        //     // Boat to Sandwhisper Isle
-        //     await Character.Move(2, 16);
-        //     // TODO: Consider using a recall potion if you have one
-        //     await Character.Transition();
-        //     return await NavigateTo(code);
-        // }
-
-        // await character.Move(destinationMap.X, destinationMap.Y);
     }
 
     public async Task<OneOf<AppError, None>> MoveToMap(string code)

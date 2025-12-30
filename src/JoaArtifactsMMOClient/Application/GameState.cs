@@ -61,7 +61,6 @@ public class GameState
     {
         cacheReload = DateTime.UtcNow;
 
-        await LoadCharacters(characterConfigs);
         await LoadItems();
         await LoadNpcItems();
         await LoadMaps();
@@ -72,6 +71,7 @@ public class GameState
         await LoadTasksList();
         await EventService.LoadEvents();
         await EventService.LoadActiveEvents();
+        await LoadCharacters(characterConfigs);
     }
 
     public bool ShouldReload()

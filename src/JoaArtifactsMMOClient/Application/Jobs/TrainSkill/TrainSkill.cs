@@ -69,6 +69,11 @@ public class TrainSkill : CharacterJob
             untilLevel = LevelOffset;
         }
 
+        if (untilLevel > PlayerCharacter.MAX_LEVEL)
+        {
+            untilLevel = PlayerCharacter.MAX_LEVEL;
+        }
+
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] run started - training {skillName} until level {untilLevel}"
         );
