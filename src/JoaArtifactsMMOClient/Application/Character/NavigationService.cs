@@ -183,7 +183,7 @@ public class NavigationService
         MapSchema currentMap = gameState.MapsDict[character.Schema.MapId];
 
         bool goingFromIslandToMainland =
-            Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name);
+            !Islands.Contains(destinationMap.Name) && Islands.Contains(currentMap.Name);
 
         bool goingToIslandFromMainland =
             Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name);

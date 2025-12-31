@@ -273,17 +273,6 @@ public class GatherMaterialsForItem : CharacterJob
             return null;
         }
 
-        List<(InventorySlot inventorySlot, bool isEquipped)> matchesInInventory =
-            character.GetEquippedItemOrInInventory(item.Code);
-
-        // TODO: Handle equipped items, not a big deal for now
-        var inventoryMatch = matchesInInventory.FirstOrDefault(match => !match.isEquipped);
-
-        if (inventoryMatch.inventorySlot is not null)
-        {
-            return null;
-        }
-
         foreach (var craftIngredient in item.Craft.Items)
         {
             var matchingItem = gameState.ItemsDict[craftIngredient.Code];
@@ -294,7 +283,7 @@ public class GatherMaterialsForItem : CharacterJob
                 && !character.Roles.Contains(matchingItem.Craft.Skill)
             )
             {
-                var result = character.GetEquippedItemOrInInventory(item.Code);
+                var result = character.GetEquippedItemOrInInventory(matchingItem.Code);
 
                 (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
                     result.Count > 0 ? result.ElementAt(0)! : null;
