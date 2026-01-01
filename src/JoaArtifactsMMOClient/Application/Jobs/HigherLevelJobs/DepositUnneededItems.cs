@@ -32,7 +32,7 @@ public class DepositUnneededItems : CharacterJob
 
     // Deposit until hitting this threshold
     private static int MIN_FREE_INVENTORY_SLOTS = 3;
-    private static int MAX_FREE_INVENTORY_SLOTS = 5;
+    private static int MAX_FREE_INVENTORY_SLOTS = 10;
     private static int MIN_FREE_INVENTORY_SPACES = 5;
     private static int MAX_FREE_INVENTORY_SPACES = 30;
 
@@ -463,7 +463,7 @@ public class DepositUnneededItems : CharacterJob
 
         bool hasTooFewInventorySlots =
             amountOfEmptyInventorySlots
-            <= (preJob ? MIN_FREE_INVENTORY_SLOTS : MAX_FREE_INVENTORY_SLOTS);
+            <= (preJob ? MAX_FREE_INVENTORY_SLOTS : MIN_FREE_INVENTORY_SLOTS);
 
         if (hasTooFewInventorySlots)
         {
