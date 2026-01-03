@@ -178,6 +178,28 @@ public static class EffectService
         {
             return true;
         }
+
+        // We are assuming here that we have another potion equipped, apart from this one. If we are saving more than 5
+        // of the other potion, then this one is probably worth using, e.g. a boost potion that means that we use less HP pots.
+        if (FightSimulator.CompareSimOutcome(noPotion, withPotion) == 1)
+        {
+            bool potionLeadToSignificantlyLessOtherPotionUsage =
+                noPotion.PotionsUsed > 0 && noPotion.PotionsUsed - withPotion.PotionsUsed >= 5;
+
+            if (potionLeadToSignificantlyLessOtherPotionUsage)
+            {
+                return true;
+            }
+
+            bool potionLeadsToSignificantlyFasterCombat =
+                noPotion.TotalTurns > withPotion.TotalTurns
+                && withPotion.TotalTurns - noPotion.TotalTurns > 5;
+
+            if (potionLeadsToSignificantlyFasterCombat)
+            {
+                return true;
+            }
+        }
         // For now, we only want to use these potions if it changes whether we should fight or not, or whether we win or not
         return (!noPotion.ShouldFight && withPotion.ShouldFight)
             || (noPotion.Result == FightResult.Loss && withPotion.Result == FightResult.Win);

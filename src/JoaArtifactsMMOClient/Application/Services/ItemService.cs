@@ -368,7 +368,7 @@ public static class ItemService
         return false;
     }
 
-    public static async Task<List<EquipmentSlot>> GetBestFightItems(
+    public static async Task<BestFightItemsResult> GetBestFightItems(
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster,
@@ -423,11 +423,14 @@ public static class ItemService
 
         // We don't care if we win or not, we just want to get the best outcome
         // }
-
-        return relevantItemsDict
-            .Where(item => gameState.ItemsDict[item.Value.Code].Type != "utility")
-            .Select(item => item.Value)
-            .ToList();
+        return new BestFightItemsResult
+        {
+            Items = relevantItemsDict
+                .Where(item => gameState.ItemsDict[item.Value.Code].Type != "utility")
+                .Select(item => item.Value)
+                .ToList(),
+            FightSimResult = result,
+        };
     }
 
     public static async Task<List<ItemSchema>> GetBestTools(
@@ -741,4 +744,11 @@ public static class ItemService
 
         return Effect.Wisdom;
     }
+}
+
+public record BestFightItemsResult
+{
+    public required List<EquipmentSlot> Items { get; set; } = [];
+
+    public required FightSimResult FightSimResult { get; set; }
 }

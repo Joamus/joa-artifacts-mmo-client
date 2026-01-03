@@ -695,7 +695,10 @@ public class PlayerAI
             logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Already has an item task - beginning/resuming item task"
             );
-            return new ItemTask(Character, gameState);
+            if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+            {
+                return new ItemTask(Character, gameState);
+            }
         }
         else if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {

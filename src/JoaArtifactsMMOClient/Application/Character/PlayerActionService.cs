@@ -420,7 +420,7 @@ public class PlayerActionService
             }
         }
 
-        var bestFightItems = await ItemService.GetBestFightItems(
+        var bestFightItemsResult = await ItemService.GetBestFightItems(
             character,
             gameState,
             monster,
@@ -429,7 +429,7 @@ public class PlayerActionService
 
         List<CharacterJobAndEquipmentSlot> jobs = [];
 
-        foreach (var item in bestFightItems)
+        foreach (var item in bestFightItemsResult.Items)
         {
             var matchingItem = gameState.ItemsDict[item.Code];
 
@@ -475,6 +475,15 @@ public class PlayerActionService
             return null;
         }
 
+        /**
+        ** This is usually if we are just too low level to fight the monster,
+        ** and we therefore cannot get the required equipment yet.
+        */
+        if (jobs.Count == 0 && !bestFightItemsResult.FightSimResult.Outcome.ShouldFight)
+        {
+            return null;
+        }
+
         int itemsAmount = 0;
         int slotAmount = 0;
 
@@ -487,7 +496,7 @@ public class PlayerActionService
         return jobs;
     }
 
-    public async void BuyItemFromNpc(string code, int quantity) { }
+    // public async void BuyItemFromNpc(string code, int quantity) { }
 
     public async Task DepositPotions(int utilitySlot, string itemCode, int amount)
     {
@@ -764,6 +773,26 @@ public class PlayerActionService
         }
 
         return closestTransition;
+    }
+
+    /**
+    ** Item tasks require you to gather items from events, which might not currently be ongoing.
+    */
+    public async Task<bool> CanItemFromItemTaskBeObtained()
+    {
+        if (string.IsNullOrWhiteSpace(character.Schema.TaskType))
+        {
+            return true;
+        }
+
+        if (character.Schema.TaskType != "items")
+        {
+            return false;
+        }
+
+        ItemSchema itemFromTask = gameState.ItemsDict[character.Schema.Task];
+
+        return await CanObtainItem(itemFromTask);
     }
 }
 

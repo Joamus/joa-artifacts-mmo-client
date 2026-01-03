@@ -363,8 +363,14 @@ public class PlayerCharacter
             if (failed)
             {
                 Jobs = Jobs.Where(job =>
-                        job.ParentJob?.Id != CurrentJob.Id && job.Id != CurrentJob.Id
-                    )
+                    {
+                        bool sameParentJob =
+                            job.ParentJob?.Id == CurrentJob.Id
+                            || job.ParentJob?.Id == CurrentJob.ParentJob?.Id
+                            || job.Id != CurrentJob.Id;
+
+                        return !sameParentJob;
+                    })
                     .ToList();
             }
 

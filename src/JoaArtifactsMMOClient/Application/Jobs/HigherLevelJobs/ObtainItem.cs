@@ -72,28 +72,26 @@ public class ObtainItem : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook = () =>
+        onSuccessEndHook = async () =>
         {
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
 
             var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
-            Character.QueueJob(depositItemJob, true);
-
-            return Task.Run(() => { });
+            await Character.QueueJob(depositItemJob, true);
         };
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         // // It's not very elegant that this job is pasted in multiple places, but a lot of jobs want to have their inventory be clean before they start, or in their InnerJob.
-        // if (DepositUnneededItems.ShouldInitDepositItems(Character, true))
-        // {
-        //     Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
-        //     Status = JobStatus.Suspend;
-        //     return new None();
-        // }
+        if (DepositUnneededItems.ShouldInitDepositItems(Character, true))
+        {
+            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
 
         List<CharacterJob> jobs = [];
         logger.LogInformation(
@@ -303,6 +301,14 @@ public class ObtainItem : CharacterJob
                 jobs.Add(craftItemJob);
             }
 
+            // if (iterations.Count == 0)
+            // {
+            //     var craftItemJob = new CraftItem(Character, gameState, code, amount);
+            //     craftItemJob.CanTriggerTraining = canTriggerTraining;
+
+            //     jobs.Add(craftItemJob);
+            // }
+
             return new None();
         }
 
@@ -430,7 +436,10 @@ public class ObtainItem : CharacterJob
                     ErrorStatus.InsufficientSkill
                 );
             }
-            else
+            else if (
+                string.IsNullOrEmpty(Character.Schema.Task)
+                || await Character.PlayerActionService.CanItemFromItemTaskBeObtained()
+            )
             {
                 jobs.Add(
                     new DoTaskUntilObtainedItem(
@@ -440,6 +449,13 @@ public class ObtainItem : CharacterJob
                         matchingItem.Code,
                         amount
                     )
+                );
+            }
+            else
+            {
+                return new AppError(
+                    $"You cannot obtain item with code {code}, because the current item task cannot be completed, since it requires items from an event that is not active",
+                    ErrorStatus.InsufficientSkill
                 );
             }
             return new None();

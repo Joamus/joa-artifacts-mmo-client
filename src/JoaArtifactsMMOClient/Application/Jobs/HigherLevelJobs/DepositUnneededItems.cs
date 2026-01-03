@@ -32,7 +32,7 @@ public class DepositUnneededItems : CharacterJob
 
     // Deposit until hitting this threshold
     private static int MIN_FREE_INVENTORY_SLOTS = 3;
-    private static int MAX_FREE_INVENTORY_SLOTS = 10;
+    private static int MAX_FREE_INVENTORY_SLOTS = 6;
     private static int MIN_FREE_INVENTORY_SPACES = 5;
     private static int MAX_FREE_INVENTORY_SPACES = 30;
 
@@ -81,7 +81,7 @@ public class DepositUnneededItems : CharacterJob
                         .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
                         .ToList()
                 )
-            ).ToDictionary(item => item.Code)
+            ).Items.ToDictionary(item => item.Code)
             : [];
 
         if (bestFightItems.Count > 0)
@@ -102,14 +102,38 @@ public class DepositUnneededItems : CharacterJob
             {
                 continue;
             }
+
             int amountInInventory = item.Quantity;
+
+            // Looking through all of the jobs is a bit iffy, because a job queued far ahead can need some item,
+
+            var jobsWithItem = Character.Jobs.Where(job => IsJobRelatedToItem(job, item.Code));
+
+            foreach (var job in jobsWithItem)
+            {
+                int amountToDeposit =
+                    job.Amount >= amountInInventory ? 0 : amountInInventory - job.Amount;
+
+                if (amountToDeposit > 0)
+                {
+                    itemsToDeposit.Add(
+                        new DepositItemRecord
+                        {
+                            Code = item.Code,
+                            Quantity = amountToDeposit,
+                            Importance = ItemImportance.High,
+                        }
+                    );
+                    amountInInventory -= amountToDeposit;
+                }
+            }
 
             ItemSchema matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
             bool isEquipment = ItemService.EquipmentItemTypes.Contains(matchingItem.Type);
 
             int amountEquipped = isEquipment
-                ? Character.GetEquippedItem(item.Code).Select(item => item.Quantity).Sum()
+                ? Character.GetEquippedItem(item.Code).Sum(item => item.Quantity)
                 : 0;
 
             bool isRing = matchingItem.Type == "ring";
@@ -127,7 +151,7 @@ public class DepositUnneededItems : CharacterJob
                     new DepositItemRecord
                     {
                         Code = item.Code,
-                        Quantity = item.Quantity,
+                        Quantity = amountInInventory,
                         Importance = ItemImportance.None,
                     }
                 );
@@ -135,10 +159,6 @@ public class DepositUnneededItems : CharacterJob
                 continue;
             }
 
-            if (item.Code == "")
-            {
-                continue;
-            }
             bool itemIsUsedForTask = item.Code == Character.Schema.Task;
 
             if (itemIsUsedForTask)
@@ -150,22 +170,26 @@ public class DepositUnneededItems : CharacterJob
 
             if (ItemService.EquipmentItemTypes.Contains(matchingItem.Type))
             {
-                var itemImportance = ItemImportance.High;
+                // We should have equipped it if it had high importance - we can always withdraw it again
+                var itemImportance = ItemImportance.Low;
 
                 if (matchingItem.Subtype == "tool")
                 {
                     itemImportance = ItemImportance.VeryHigh;
                 }
 
-                itemsToDeposit.Add(
-                    new DepositItemRecord
-                    {
-                        Code = item.Code,
-                        Quantity = item.Quantity,
-                        Importance = itemImportance,
-                    }
-                );
-                continue;
+                if (amountInInventory > 0)
+                {
+                    itemsToDeposit.Add(
+                        new DepositItemRecord
+                        {
+                            Code = item.Code,
+                            Quantity = amountInInventory,
+                            Importance = itemImportance,
+                        }
+                    );
+                    continue;
+                }
             }
 
             if (
@@ -188,54 +212,12 @@ public class DepositUnneededItems : CharacterJob
                         new DepositItemRecord
                         {
                             Code = item.Code,
-                            Quantity = item.Quantity,
+                            Quantity = amountToDeposit,
                             Importance = ItemImportance.Medium,
                         }
                     );
                 }
                 continue;
-            }
-
-            // Looking through all of the jobs is a bit iffy, because a job queued far ahead can need some item,
-            // but we should probably just obtain it again if we don't have it. Changed this, because my character,
-            // kept refusing to deposit sap, but didn't need it until later.
-
-            var jobsWithItem = Character.Jobs.Where(job =>
-            {
-                bool hasJobRelatedToIt = job.Code == item.Code;
-
-                if (hasJobRelatedToIt)
-                {
-                    return hasJobRelatedToIt;
-                }
-
-                // Good enough, but it could technically go deeper - we might a job related to item C, but we have item A in our inventory
-                // and item A is an ingredient for item B, which is an ingredient for item C.
-                bool isIngredientOf =
-                    gameState
-                        .CraftingLookupDict?.GetValueOrNull(job.Code)
-                        ?.FirstOrDefault(ingredient => ingredient.Code == item.Code)
-                        is not null;
-
-                return isIngredientOf;
-            });
-
-            foreach (var job in jobsWithItem)
-            {
-                int amountToDeposit =
-                    job.Amount >= amountInInventory ? 0 : amountInInventory - job.Amount;
-                if (amountToDeposit > 0)
-                {
-                    itemsToDeposit.Add(
-                        new DepositItemRecord
-                        {
-                            Code = item.Code,
-                            Quantity = amountToDeposit,
-                            Importance = ItemImportance.High,
-                        }
-                    );
-                    amountInInventory -= amountToDeposit;
-                }
             }
 
             var quantityInBank = bankItems.ContainsKey(item.Code) ? bankItems[item.Code] : 0;
@@ -248,7 +230,7 @@ public class DepositUnneededItems : CharacterJob
                 new DepositItemRecord
                 {
                     Code = item.Code,
-                    Quantity = item.Quantity,
+                    Quantity = amountInInventory,
                     Importance = importance,
                 }
             );
@@ -483,6 +465,26 @@ public class DepositUnneededItems : CharacterJob
             > MAX_FREE_INVENTORY_SLOTS;
 
         return !hasEnoughInventorySlots || !hasEnoughInventorySlots;
+    }
+
+    public bool IsJobRelatedToItem(CharacterJob job, string itemCode)
+    {
+        bool hasJobRelatedToIt = job.Code == itemCode;
+
+        if (hasJobRelatedToIt)
+        {
+            return hasJobRelatedToIt;
+        }
+
+        // Good enough, but it could technically go deeper - we might a job related to item C, but we have item A in our inventory
+        // and item A is an ingredient for item B, which is an ingredient for item C.
+        bool isIngredientOf =
+            gameState
+                .CraftingLookupDict?.GetValueOrNull(job.Code)
+                ?.FirstOrDefault(ingredient => ingredient.Code == itemCode)
+                is not null;
+
+        return isIngredientOf;
     }
 }
 
