@@ -375,6 +375,8 @@ public static class ItemService
         List<InventorySlot>? allItemCandidates = null
     )
     {
+        bool wasAllItemCandidatesNull = allItemCandidates is null;
+
         if (allItemCandidates is null)
         {
             // 100 quantity for potions, doesn't really matter
@@ -384,24 +386,21 @@ public static class ItemService
                 .ToList();
         }
 
-        // var relevantMonsters = FightSimulator.GetRelevantMonstersForCharacter(character);
-
-        List<ItemInInventory> itemsForSimming = await GetItemsThatCanBeSimmed(
-            character,
-            gameState,
+        var allItemCandidatesCasted =
             allItemCandidates
                 .Select(item => new ItemInInventory
                 {
                     Item = gameState.ItemsDict[item.Code],
                     Quantity = item.Quantity,
                 })
-                .ToList() ?? []
-        );
+                .ToList() ?? [];
+
+        List<ItemInInventory> itemsForSimming = wasAllItemCandidatesNull
+            ? await GetItemsThatCanBeSimmed(character, gameState, allItemCandidatesCasted)
+            : allItemCandidatesCasted;
 
         Dictionary<string, EquipmentSlot> relevantItemsDict = [];
 
-        // foreach (var monster in relevantMonsters)
-        // {
         var result = FightSimulator.FindBestFightEquipmentWithUsablePotions(
             character,
             gameState,
@@ -422,7 +421,6 @@ public static class ItemService
         }
 
         // We don't care if we win or not, we just want to get the best outcome
-        // }
         return new BestFightItemsResult
         {
             Items = relevantItemsDict
@@ -659,9 +657,9 @@ public static class ItemService
 
             var itemOnCharacter = character.GetEquippedItemOrInInventory(matchingItem.Code);
 
-            int amountEquippedOrInInventory = itemOnCharacter is null
-                ? 0
-                : itemOnCharacter.Sum(item => item.inventorySlot.Quantity);
+            int amountEquippedOrInInventory = itemOnCharacter.Sum(item =>
+                item.inventorySlot.Quantity
+            );
 
             int amountAvailable = amountInBank + amountEquippedOrInInventory;
 
@@ -700,7 +698,7 @@ public static class ItemService
                 }
             }
 
-            items.Add(new ItemInInventory { Item = matchingItem, Quantity = item.Quantity });
+            items.Add(new ItemInInventory { Item = matchingItem, Quantity = amountAvailable });
         }
 
         return items;

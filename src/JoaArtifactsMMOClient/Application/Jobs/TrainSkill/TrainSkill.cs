@@ -164,6 +164,11 @@ public class TrainSkill : CharacterJob
                     // && ()
                     )
                     {
+                        if (!await Character.PlayerActionService.CanObtainItem(item))
+                        {
+                            continue;
+                        }
+
                         if (bestItemToCraft is null || bestItemToCraft.Level < item.Level)
                         {
                             itemToCraftCandidates.Add(item);

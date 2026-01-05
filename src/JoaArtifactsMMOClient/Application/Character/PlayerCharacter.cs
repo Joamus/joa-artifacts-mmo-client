@@ -463,6 +463,8 @@ public class PlayerCharacter
 
         if (((int)response.StatusCode) == 490)
         {
+            Schema.X = x;
+            Schema.Y = y;
             return;
         }
 
