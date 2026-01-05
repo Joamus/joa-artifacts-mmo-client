@@ -383,48 +383,48 @@ public class PlayerActionService
             bankItemDict.Add(item.Code, item with { });
         }
 
-        List<ItemSchema> items = [];
+        // List<ItemSchema> items = [];
 
         bool itemsAreInWishlist = false;
 
-        foreach (var item in gameState.Items)
-        {
-            if (character.ExistsInWishlist(item.Code))
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining fight items - {item.Code} is already in wish list, so we should wait until obtaining more"
-                );
+        // foreach (var item in gameState.Items)
+        // {
+        //     if (character.ExistsInWishlist(item.Code))
+        //     {
+        //         Logger.LogInformation(
+        //             $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining fight items - {item.Code} is already in wish list, so we should wait until obtaining more"
+        //         );
 
-                itemsAreInWishlist = true;
-                continue;
-            }
+        //         itemsAreInWishlist = true;
+        //         continue;
+        //     }
 
-            items.Add(item);
-        }
+        //     items.Add(item);
+        // }
 
-        foreach (var item in character.Schema.Inventory)
-        {
-            if (string.IsNullOrWhiteSpace(item.Code))
-            {
-                continue;
-            }
+        // foreach (var item in character.Schema.Inventory)
+        // {
+        //     if (string.IsNullOrWhiteSpace(item.Code))
+        //     {
+        //         continue;
+        //     }
 
-            var matchingItem = gameState.ItemsDict[item.Code];
+        //     var matchingItem = gameState.ItemsDict[item.Code];
 
-            if (
-                matchingItem.Subtype != "tool"
-                && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
-            )
-            {
-                items.Add(matchingItem);
-            }
-        }
+        //     if (
+        //         matchingItem.Subtype != "tool"
+        //         && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
+        //     )
+        //     {
+        //         items.Add(matchingItem);
+        //     }
+        // }
 
         var bestFightItemsResult = await ItemService.GetBestFightItems(
             character,
             gameState,
-            monster,
-            items.Select(item => new InventorySlot { Code = item.Code, Quantity = 100 }).ToList()
+            monster
+        // items.Select(item => new InventorySlot { Code = item.Code, Quantity = 100 }).ToList()
         );
 
         List<CharacterJobAndEquipmentSlot> jobs = [];

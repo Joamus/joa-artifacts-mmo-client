@@ -1109,4 +1109,15 @@ public class PlayerCharacter
 
         return value;
     }
+
+    public int GetSkillLevel(Skill skill)
+    {
+        var prop = Schema
+            .GetType()
+            .GetProperty((SkillService.GetSkillName(skill) + "_level").FromSnakeToPascalCase());
+
+        var value = (int)prop!.GetValue(Schema)!;
+
+        return value;
+    }
 }

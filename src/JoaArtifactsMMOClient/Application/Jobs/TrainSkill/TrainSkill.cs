@@ -78,25 +78,37 @@ public class TrainSkill : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - training {skillName} until level {untilLevel}"
         );
 
-        SkillKind skillKind = SkillService.GatheringSkills.Contains(Skill)
-            ? SkillKind.Gathering
-            : SkillKind.Crafting;
+        SkillKind skillKind = SkillService.GetSkillKind(Skill);
 
         if (SkillLevel < untilLevel)
         {
-            var jobs = await GetJobsRequired(Skill, skillKind, SkillLevel);
+            OneOf<List<CharacterJob>, AppError> result = await GetJobsRequired(
+                Character,
+                gameState,
+                Skill,
+                skillKind,
+                SkillLevel
+            );
 
-            if (jobs.Count > 0)
-            {
-                firstRun = false;
-                Character.QueueJobsBefore(Id, jobs);
-            }
+            result.Switch(
+                jobs =>
+                {
+                    if (jobs.Count > 0)
+                    {
+                        firstRun = false;
+                        Character.QueueJobsBefore(Id, jobs);
+                    }
+                },
+                _ => { }
+            );
         }
 
         return new None();
     }
 
-    public async Task<List<CharacterJob>> GetJobsRequired(
+    public static async Task<OneOf<List<CharacterJob>, AppError>> GetJobsRequired(
+        PlayerCharacter Character,
+        GameState gameState,
         Skill skill,
         SkillKind skillKind,
         int skillLevel
@@ -180,7 +192,7 @@ public class TrainSkill : CharacterJob
 
                 if (bankItemsResponse is null)
                 {
-                    throw new AppError("Failed to get bank items");
+                    return new AppError("Failed to get bank items");
                 }
 
                 // The difference in skill level is essentially a cost, because we get less XP.
@@ -231,7 +243,7 @@ public class TrainSkill : CharacterJob
 
                 if (bestItemToCraft is null)
                 {
-                    if (Skill == Skill.Alchemy)
+                    if (skill == Skill.Alchemy)
                     {
                         // TODO: Hardcoded - you can't craft anything in Alchemy before being level 5, so you need to gather sunflowers until then.
 
@@ -247,7 +259,7 @@ public class TrainSkill : CharacterJob
                         return trainJobs;
                     }
 
-                    throw new AppError(
+                    return new AppError(
                         $"Could not find best item for training \"{skill}\" at skill level \"{skillLevel}\" for \"{Character.Schema.Name}\""
                     );
                 }
@@ -256,14 +268,16 @@ public class TrainSkill : CharacterJob
                 // Cooking and alchemy rarely do, so we can cook/make potions in bigger batches.
                 int craftingAmount = 1;
 
-                if (Skill == Skill.Alchemy || Skill == Skill.Cooking)
+                if (skill == Skill.Alchemy || skill == Skill.Cooking)
                 {
                     craftingAmount = 20;
                 }
 
-                logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skill} until level {skillLevel}"
-                );
+                AppLogger
+                    .GetLogger()
+                    .LogInformation(
+                        $"TrainSkill: [{Character.Schema.Name}] will be crafting {craftingAmount} x {bestItemToCraft.Code} to train {skill} until level {skillLevel}"
+                    );
 
                 var obtainItemJob = new ObtainItem(
                     Character,
@@ -280,11 +294,13 @@ public class TrainSkill : CharacterJob
 
                 if (RecycleItem.CanItemBeRecycled(bestItemToCraft))
                 {
-                    obtainItemJob.onSuccessEndHook = () =>
+                    obtainItemJob.onSuccessEndHook = async () =>
                     {
-                        logger.LogInformation(
-                            $"{JobName}: [{Character.Name}]: onSuccessEndHook: Adding job to recycle {craftingAmount} x {bestItemToCraft.Code}"
-                        );
+                        AppLogger
+                            .GetLogger()
+                            .LogInformation(
+                                $"TrainSkill: [{Character.Name}]: onSuccessEndHook: Adding job to recycle {craftingAmount} x {bestItemToCraft.Code}"
+                            );
                         var recycleJob = new RecycleItem(
                             Character,
                             gameState,
@@ -294,9 +310,7 @@ public class TrainSkill : CharacterJob
 
                         recycleJob.ForBank();
 
-                        Character.QueueJob(recycleJob, true);
-
-                        return Task.Run(() => { });
+                        await Character.QueueJob(recycleJob, true);
                     };
                 }
                 else
@@ -310,10 +324,29 @@ public class TrainSkill : CharacterJob
         {
             return trainJobs;
         }
-        else
-        {
-            throw new AppError($"Could not find a way to train skill \"{skill}\" to {skillLevel}");
-        }
+
+        return new AppError($"Could not find a way to train skill \"{skill}\" to {skillLevel}");
+    }
+
+    public static async Task<bool> CanDoJob(
+        PlayerCharacter character,
+        GameState gameState,
+        Skill skill
+    )
+    {
+        int skillLevel = character.GetSkillLevel(skill);
+
+        SkillKind skillKind = SkillService.GetSkillKind(skill);
+
+        var result = await GetJobsRequired(character, gameState, skill, skillKind, skillLevel);
+
+        return result.Match(
+            jobs =>
+            {
+                return jobs.Count > 0;
+            },
+            _ => false
+        );
     }
 
     public static (bool, int) GetInconvenienceCostCraftItem(

@@ -49,7 +49,7 @@ public class PlayerAI
             ?? await EnsureFightGear()
             ?? await EnsureBag()
             ?? GetSkillJob()
-            ?? GetRoleJob()
+            ?? await GetRoleJob()
             ?? await GetIndividualLowPrioJob();
 
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName}");
@@ -638,7 +638,7 @@ public class PlayerAI
         return null;
     }
 
-    CharacterJob? GetRoleJob()
+    async Task<CharacterJob?> GetRoleJob()
     {
         foreach (var role in Character.Roles)
         {
@@ -653,7 +653,22 @@ public class PlayerAI
                         logger.LogInformation(
                             $"{Name}: [{Character.Schema.Name}]: GetRoleJob: Training Weaponcrafting - current level is {Character.Schema.WeaponcraftingLevel}, compared to character level {Character.Schema.Level}"
                         );
-                        return new TrainSkill(Character, gameState, Skill.Weaponcrafting, 1, true);
+                        bool canTrainWepCrafting = await TrainSkill.CanDoJob(
+                            Character,
+                            gameState,
+                            Skill.Weaponcrafting
+                        );
+
+                        if (canTrainWepCrafting)
+                        {
+                            return new TrainSkill(
+                                Character,
+                                gameState,
+                                Skill.Weaponcrafting,
+                                1,
+                                true
+                            );
+                        }
                     }
                     break;
                 case Skill.Gearcrafting:
@@ -665,7 +680,22 @@ public class PlayerAI
                         logger.LogInformation(
                             $"{Name}: [{Character.Schema.Name}]: GetRoleJob: Training Gearcrafting - current level is {Character.Schema.GearcraftingLevel}, compared to character level {Character.Schema.Level}"
                         );
-                        return new TrainSkill(Character, gameState, Skill.Gearcrafting, 1, true);
+                        bool canTrainGearCrafting = await TrainSkill.CanDoJob(
+                            Character,
+                            gameState,
+                            Skill.Gearcrafting
+                        );
+
+                        if (canTrainGearCrafting)
+                        {
+                            return new TrainSkill(
+                                Character,
+                                gameState,
+                                Skill.Gearcrafting,
+                                1,
+                                true
+                            );
+                        }
                     }
                     break;
                 case Skill.Jewelrycrafting:
@@ -677,7 +707,22 @@ public class PlayerAI
                         logger.LogInformation(
                             $"{Name}: [{Character.Schema.Name}]: GetRoleJob: Training Jewelrycrafting - current level is {Character.Schema.JewelrycraftingLevel}, compared to character level {Character.Schema.Level}"
                         );
-                        return new TrainSkill(Character, gameState, Skill.Jewelrycrafting, 1, true);
+                        bool canTrainJewelryCrafting = await TrainSkill.CanDoJob(
+                            Character,
+                            gameState,
+                            Skill.Jewelrycrafting
+                        );
+
+                        if (canTrainJewelryCrafting)
+                        {
+                            return new TrainSkill(
+                                Character,
+                                gameState,
+                                Skill.Jewelrycrafting,
+                                1,
+                                true
+                            );
+                        }
                     }
                     break;
             }
@@ -731,18 +776,6 @@ public class PlayerAI
                 );
             }
         }
-        // else
-        // {
-        //     logger.LogInformation(
-        //         $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Got no task - take item task"
-        //     );
-
-        //     return new AcceptNewTask(Character, gameState, TaskType.items);
-        // }
-
-        logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fall through - cannot handle the current task of type \"{Character.Schema.TaskType}\" for {Character.Schema.Task}"
-        );
 
         // A bit dirty - we first want to try to find something to fight, allowing the character get better equipment.
         // After that, we will try without allowing it, in case items are on the wish list.
@@ -790,14 +823,6 @@ public class PlayerAI
         logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job"
         );
-
-        // if (string.IsNullOrEmpty(Character.Schema.Task))
-        // {
-        //     logger.LogInformation(
-        //         $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job - taking a new task"
-        //     );
-        //     return await GetTaskJob(false);
-        // }
 
         if (hasNoTask)
         {

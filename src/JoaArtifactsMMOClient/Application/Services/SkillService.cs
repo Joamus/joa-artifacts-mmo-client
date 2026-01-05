@@ -73,6 +73,11 @@ public static class SkillService
 
         return null;
     }
+
+    public static SkillKind GetSkillKind(Skill skill)
+    {
+        return GatheringSkills.Contains(skill) ? SkillKind.Gathering : SkillKind.Crafting;
+    }
 }
 
 public enum SkillKind
