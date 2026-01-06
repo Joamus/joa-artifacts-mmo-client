@@ -245,13 +245,16 @@ public class DepositUnneededItems : CharacterJob
 
             int amountLeft = Character.Schema.TaskTotal - Character.Schema.TaskProgress;
 
-            await Character.TaskTrade(
-                itemToTurnIn.Value.Code,
-                Math.Min(
-                    Character.Schema.TaskTotal - Character.Schema.TaskProgress,
-                    itemToTurnIn.Value.Quantity
-                )
-            );
+            if (amountLeft > 0)
+            {
+                await Character.TaskTrade(
+                    itemToTurnIn.Value.Code,
+                    Math.Min(
+                        Character.Schema.TaskTotal - Character.Schema.TaskProgress,
+                        itemToTurnIn.Value.Quantity
+                    )
+                );
+            }
         }
 
         foreach (var item in itemsToDeposit)
