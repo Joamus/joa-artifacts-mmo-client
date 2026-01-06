@@ -372,6 +372,9 @@ public class PlayerCharacter
                         return !sameParentJob;
                     })
                     .ToList();
+
+                // If position is wrong or anything gets out of whack, this is the safe bet.
+                await ReloadCharacterSchema();
             }
 
             if (result is not null)
