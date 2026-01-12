@@ -176,9 +176,18 @@ public class ObtainItem : CharacterJob
     {
         var result = await InnerGetJobsRequired(
             Character,
+            Character
+                .Schema.Inventory.Select(item => new DropSchema
+                {
+                    Code = item.Code,
+                    Quantity = item.Quantity,
+                })
+                .ToList(),
             gameState,
             allowUsingItemFromBank,
-            itemsInBank,
+            itemsInBank
+                .Select(item => new DropSchema { Code = item.Code, Quantity = item.Quantity })
+                .ToList(),
             jobs,
             code,
             amount,
@@ -196,9 +205,10 @@ public class ObtainItem : CharacterJob
     */
     static async Task<OneOf<AppError, None>> InnerGetJobsRequired(
         PlayerCharacter Character,
+        List<DropSchema> itemsInInventory,
         GameState gameState,
         bool allowUsingItemFromBank,
-        List<DropSchema> itemsInBank,
+        List<DropSchema> itemsInBankClone,
         List<CharacterJob> jobs,
         string code,
         int amount,
@@ -216,19 +226,19 @@ public class ObtainItem : CharacterJob
 
         // We have the item already, no need to get it again
 
-        int amountInInventory =
+        DropSchema? itemFromInventory =
             !firstIteration && allowUsingItemFromInventory
-                ? (Character.GetItemFromInventory(code)?.Quantity ?? 0)
-                : 0;
+                ? itemsInInventory.FirstOrDefault(item => item.Code == code)
+                : null;
 
-        if (!firstIteration && allowUsingItemFromInventory && amountInInventory >= amount)
+        if (!firstIteration && allowUsingItemFromInventory && itemFromInventory?.Quantity >= amount)
         {
             return new None();
         }
 
         if (!firstIteration && allowUsingItemFromBank)
         {
-            var matchingItemInBank = itemsInBank.FirstOrDefault(item => item.Code == code);
+            var matchingItemInBank = itemsInBankClone.FirstOrDefault(item => item.Code == code);
             int amountInBank = matchingItemInBank?.Quantity ?? 0;
 
             int amountToTakeFromBank = Math.Min(amountInBank, amount);
@@ -236,12 +246,13 @@ public class ObtainItem : CharacterJob
             if (amountToTakeFromBank > 0)
             {
                 jobs.Add(new WithdrawItem(Character, gameState, code, amountToTakeFromBank, false));
+                matchingItemInBank!.Quantity -= amountToTakeFromBank;
 
                 amount -= amountToTakeFromBank;
             }
         }
 
-        int requiredAmount = amount - amountInInventory;
+        int requiredAmount = amount - (itemFromInventory?.Quantity ?? 0);
 
         if (requiredAmount <= 0)
         {
@@ -278,9 +289,10 @@ public class ObtainItem : CharacterJob
 
                     var result = await InnerGetJobsRequired(
                         Character,
+                        itemsInInventory,
                         gameState,
                         allowUsingItemFromBank,
-                        itemsInBank,
+                        itemsInBankClone,
                         jobs,
                         item.Code,
                         itemAmount,
@@ -300,14 +312,6 @@ public class ObtainItem : CharacterJob
 
                 jobs.Add(craftItemJob);
             }
-
-            // if (iterations.Count == 0)
-            // {
-            //     var craftItemJob = new CraftItem(Character, gameState, code, amount);
-            //     craftItemJob.CanTriggerTraining = canTriggerTraining;
-
-            //     jobs.Add(craftItemJob);
-            // }
 
             return new None();
         }
@@ -373,31 +377,46 @@ public class ObtainItem : CharacterJob
         {
             // BuyPrice should not be null here - this is how you obtain task items.
             int taskCoinsNeeded = (matchingNpcItem!.BuyPrice ?? 0) * requiredAmount;
+            int taskCoinsNeededFromInventory = taskCoinsNeeded;
 
-            var taskCoinsAmount =
-                Character
-                    .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity ?? 0;
+            var taskCoinsInInventory = itemsInInventory.FirstOrDefault(item =>
+                item.Code == ItemService.TasksCoin
+            );
 
-            var taskCoinsInBank =
-                itemsInBank.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
-                ?? 0;
+            var taskCoinsInBank = itemsInBankClone.FirstOrDefault(item =>
+                item.Code == ItemService.TasksCoin
+            );
 
-            taskCoinsNeeded -= Math.Min(taskCoinsAmount, taskCoinsNeeded);
+            taskCoinsNeeded -= Math.Min(taskCoinsInInventory?.Quantity ?? 0, taskCoinsNeeded);
 
             // For now we only care if the bank has all we need - else the CompleteTask job will withdraw needed coins
-            if (taskCoinsAmount < taskCoinsNeeded && taskCoinsInBank >= taskCoinsNeeded)
+            if (
+                (taskCoinsInInventory?.Quantity ?? 0) < taskCoinsNeeded
+                && (taskCoinsInBank?.Quantity ?? 0) >= taskCoinsNeeded
+            )
             {
+                int amountToWithdraw = Math.Min(taskCoinsNeeded, taskCoinsInBank?.Quantity ?? 0);
+
                 jobs.Add(
                     new WithdrawItem(
                         Character,
                         gameState,
                         ItemService.TasksCoin,
-                        Math.Min(taskCoinsNeeded, taskCoinsInBank),
+                        amountToWithdraw,
                         true
                     )
                 );
+
+                taskCoinsInBank!.Quantity -= amountToWithdraw;
                 taskCoinsNeeded = 0;
+                taskCoinsNeededFromInventory -= amountToWithdraw;
+            }
+            if (
+                taskCoinsInInventory is not null
+                && taskCoinsInInventory.Quantity >= taskCoinsNeededFromInventory
+            )
+            {
+                taskCoinsInInventory.Quantity -= taskCoinsNeededFromInventory;
             }
 
             if (taskCoinsNeeded == 0)

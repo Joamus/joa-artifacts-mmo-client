@@ -2,8 +2,6 @@ namespace Application.ArtifactsApi.Schemas;
 
 public record CharacterSchema : FightEntity
 {
-    public string Name { get; set; } = "";
-
     public int Xp { get; set; }
 
     public int MaxXp { get; set; }

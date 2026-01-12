@@ -4,6 +4,7 @@ namespace Application.ArtifactsApi.Schemas;
 
 public record FightEntity
 {
+    public required string Name { get; set; }
     public int Level { get; set; }
 
     public int Hp { get; set; }

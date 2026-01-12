@@ -103,13 +103,13 @@ public class GatherMaterialsForItem : CharacterJob
         IsForBank = true;
     }
 
-    private void SetupForBankEvents(CraftItem lastJob)
+    private async Task SetupForBankEvents(CraftItem lastJob)
     {
         var jobs = GetDepositAllMaterialsToBankJobs(lastJob);
 
         foreach (var job in jobs)
         {
-            Character.QueueJob(job);
+            await Character.QueueJob(job);
         }
     }
 
@@ -245,7 +245,7 @@ public class GatherMaterialsForItem : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] error - last job is null or not a CraftItem job"
                 );
             }
-            SetupForBankEvents(craftJob);
+            await SetupForBankEvents(craftJob);
         }
         else if (Crafter is not null)
         {

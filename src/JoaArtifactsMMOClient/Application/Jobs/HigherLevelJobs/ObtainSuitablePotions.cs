@@ -169,124 +169,15 @@ public class ObtainSuitablePotions : CharacterJob
             character,
             gameState,
             monster,
-            // potionsForSim.Where(potion => !EffectService.IsPreFightPotion(potion.Item)).ToList()
             []
         );
-
-        // var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
-        //     character,
-        //     gameState,
-        //     monster,
-        //     potionsForSim
-        // );
-
-        // potionCandidates = potionCandidates
-        //     .Where(candidate =>
-        //         fightSimWithPotions.Schema.Utility1Slot == candidate.item.Code
-        //         || fightSimWithPotions.Schema.Utility2Slot == candidate.item.Code
-        //     )
-        //     .ToList();
-
-        potionCandidates = potionsForSim
-            .Where(potion =>
-            {
-                // if (!EffectService.IsPreFightPotion(potion.Item))
-                // {
-                //     return true;
-                // }
-
-                // character.Schema.Utility1Slot = "";
-                // character.Schema.Utility1SlotQuantity = 0;
-
-                // character.Schema.Utility2Slot = "";
-                // character.Schema.Utility2SlotQuantity = 0;
-                var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
-                    character,
-                    gameState,
-                    monster,
-                    new List<ItemInInventory>
-                    {
-                        new ItemInInventory
-                        {
-                            Item = potion.Item,
-                            Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
-                        },
-                    }
-                );
-
-                bool simpleAvoidPrefightPotions = EffectService.SimpleIsPreFightPotionWorthUsing(
-                    fightSimWithPotions
-                );
-
-                if (simpleAvoidPrefightPotions)
-                {
-                    return false;
-                }
-
-                return EffectService.IsPotionWorthUsing(
-                    potion.Item,
-                    fightSimWithoutPotions.Outcome,
-                    fightSimWithPotions.Outcome
-                );
-            })
-            .Select(potion =>
-            {
-                var candidate = potionCandidates.FirstOrDefault(_candidate =>
-                    _candidate.item.Code == potion.Item.Code
-                );
-
-                return (item: potion.Item, candidate.canCraft, candidate.amountInBank);
-            })
-            .ToList();
-
-        potionCandidates.Sort((a, b) => b.item.Level - a.item.Level);
-
-        potionCandidates = potionCandidates
-            .Where(candidate =>
-            {
-                // foreach (var candiate in potionCandidates)
-                // {
-                bool skipCandidate = false;
-
-                foreach (var effect in candidate.item.Effects)
-                {
-                    // Effects cannot overlap (I think)
-                    if (
-                        potionCandidates.Exists(potion =>
-                            potion.item.Effects.Exists(_effect => _effect.Code == effect.Code)
-                            && potion.item.Code != candidate.item.Code
-                        )
-                    )
-                    {
-                        skipCandidate = true;
-                        break;
-                    }
-                }
-
-                if (skipCandidate)
-                {
-                    return false;
-                }
-
-                return true;
-
-                // potionsForSim.Add(
-                //     new ItemInInventory
-                //     {
-                //         Item = candiate.item,
-
-                //         Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
-                //     }
-                // );
-            })
-            .ToList();
-
-        // Mutating it back, very important
-        character.Schema = originalSchema;
 
         // If we can fight without the potions, then don't get new ones
         if (fightSimWithoutPotions.Outcome.ShouldFight)
         {
+            // Mutating it back, very important
+            character.Schema = originalSchema;
+
             List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
 
             utilitySlots.Add(
@@ -307,6 +198,167 @@ public class ObtainSuitablePotions : CharacterJob
 
             return [];
         }
+
+        /**
+        ** Change the logic so we rank all the best potions to use for the character,
+        ** and then we find the first potion that is worth using, and we put that one in Util slot 1.
+        ** After that, we find the second potion, but our logic should be a bit different.
+        ** It's not mandatory for the potion to change the outcome, but if it makes a difference that's big enough, we should use it.
+        ** But we should evaluate non-pre fight pots in slot 1, and pre-fight AND non-pre fight pots in slot 2, although we should
+        ** not overlap effects in both slots.
+
+        ** The logic should be that we only want to use potions if they change the outcome, else it's a waste and the fight is easy enough.
+        ** We would rather eat more food, than use HP pots, because it's more time/resource intensive. But if we are using e.g a HP restore pot,
+        ** it should mean that we couldn't reliably defeat the monster without it. If we have already decided this, then we want to minimize the pot usage.
+
+        ** E.g. we are dedicing to use HP pots against a mob, but we are using 10 per fight. At this point, if we can use 1 pre-effect pot (could be dmg boost),
+        ** and that potion means that we are only using 7 restore HP pots, then it's economical for us to do. This also assumes that the cost of obtaining
+        ** a potion is roughly the same, no matter which one.
+        */
+
+        List<(int Slot, string ItemCode, int Amount)> simUtilSlots = [];
+
+        simUtilSlots.Add((1, "", 0));
+        simUtilSlots.Add((2, "", 0));
+
+        List<FightSimResult> simsWithPotions = [];
+
+        // We should sim all potion combinations in each slot, but no duplicate pot effects in the slots
+        //
+        //
+
+        foreach (var potion in potionsForSim)
+        {
+            foreach (var utilSlot in simUtilSlots) { }
+        }
+
+        foreach (var utilSlot in simUtilSlots)
+        {
+            foreach (var potion in potionsForSim)
+            {
+                var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
+                    character,
+                    gameState,
+                    monster,
+                    new List<ItemInInventory>
+                    {
+                        new ItemInInventory
+                        {
+                            Item = potion.Item,
+                            Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+                        },
+                    }
+                );
+
+                bool simpleAvoidPrefightPotions = EffectService.SimpleIsPreFightPotionWorthUsing(
+                    fightSimWithPotions
+                );
+
+                if (simpleAvoidPrefightPotions)
+                {
+                    continue;
+                }
+
+                simsWithPotions.Add(fightSimWithoutPotions);
+            }
+        }
+
+        potionCandidates = potionsForSim
+            // .Where(potion =>
+            // {
+            //     // if (!EffectService.IsPreFightPotion(potion.Item))
+            //     // {
+            //     //     return true;
+            //     // }
+
+            //     // character.Schema.Utility1Slot = "";
+            //     // character.Schema.Utility1SlotQuantity = 0;
+
+            //     // character.Schema.Utility2Slot = "";
+            //     // character.Schema.Utility2SlotQuantity = 0;
+            //     var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
+            //         character,
+            //         gameState,
+            //         monster,
+            //         new List<ItemInInventory>
+            //         {
+            //             new ItemInInventory
+            //             {
+            //                 Item = potion.Item,
+            //                 Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+            //             },
+            //         }
+            //     );
+
+            //     return true;
+            // })
+            .Select(potion =>
+            {
+                var candidate = potionCandidates.FirstOrDefault(_candidate =>
+                    _candidate.item.Code == potion.Item.Code
+                );
+
+                return (item: potion.Item, candidate.canCraft, candidate.amountInBank);
+            })
+            .ToList();
+
+        potionCandidates.Sort((a, b) => b.item.Level - a.item.Level);
+
+        List<ItemSchema> potionsToAcquire = GetMostEfficientPotionCandidates(
+            character.Schema,
+            monster,
+            gameState,
+            potionCandidates.Select(potion => potion.item).ToList()
+        );
+
+        // potionCandidates = potionCandidates
+        //     .Where(candidate =>
+        //     {
+        //         // foreach (var candiate in potionCandidates)
+        //         // {
+        //         bool skipCandidate = false;
+
+        //         foreach (var effect in candidate.item.Effects)
+        //         {
+        //             // Effects cannot overlap (I think)
+        //             if (
+        //                 potionCandidates.Exists(potion =>
+        //                     potion.item.Effects.Exists(_effect => _effect.Code == effect.Code)
+        //                     && potion.item.Code != candidate.item.Code
+        //                 )
+        //             )
+        //             {
+        //                 skipCandidate = true;
+        //                 break;
+        //             }
+        //         }
+
+        //         if (skipCandidate)
+        //         {
+        //             return false;
+        //         }
+
+        //         return true;
+
+        //         // potionsForSim.Add(
+        //         //     new ItemInInventory
+        //         //     {
+        //         //         Item = candiate.item,
+
+        //         //         Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+        //         //     }
+        //         // );
+        //     })
+        //     .ToList();
+
+        // Mutating it back, very important
+        character.Schema = originalSchema;
+
+        potionCandidates = potionCandidates
+            .Where(candidate =>
+                potionsToAcquire.Exists(potion => candidate.item.Code == potion.Code)
+            )
+            .ToList();
 
         // There should only be two
         if (potionCandidates.Count > 2)
@@ -448,5 +500,96 @@ public class ObtainSuitablePotions : CharacterJob
         }
 
         return resultJobs;
+    }
+
+    public static List<ItemSchema> GetMostEfficientPotionCandidates(
+        CharacterSchema characterSchema,
+        MonsterSchema monster,
+        GameState gameState,
+        List<ItemSchema> potions
+    )
+    {
+        int amountOfUtilSlots = 2;
+
+        List<(FightOutcome Outcome, List<DropSchema> Potions)> fightSimResults = [];
+
+        for (int i = 0; i < amountOfUtilSlots; i++)
+        {
+            List<DropSchema> simUtilSlots = [];
+
+            simUtilSlots.Add(new DropSchema { Code = "", Quantity = 0 });
+            simUtilSlots.Add(new DropSchema { Code = "", Quantity = 0 });
+
+            for (int j = 0; j < amountOfUtilSlots; j++)
+            {
+                foreach (var potion in potions)
+                {
+                    simUtilSlots[j] = new DropSchema
+                    {
+                        Code = potion.Code,
+                        Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+                    };
+
+                    if (
+                        ItemService.ArePotionEffectsOverlapping(
+                            gameState,
+                            simUtilSlots[0].Code,
+                            simUtilSlots[1].Code
+                        )
+                    )
+                    {
+                        simUtilSlots[j] = new DropSchema { Code = "", Quantity = 0 };
+                        continue;
+                    }
+
+                    var characterSchemaClone = characterSchema with { };
+
+                    characterSchemaClone = PlayerActionService.SimulateItemEquip(
+                        characterSchemaClone,
+                        null,
+                        gameState.ItemsDict.GetValueOrNull(simUtilSlots[j].Code)!,
+                        $"Utility{j + 1}Slot",
+                        simUtilSlots[j].Quantity
+                    );
+
+                    var fightSimResult = FightSimulator.CalculateFightOutcome(
+                        characterSchemaClone,
+                        monster,
+                        gameState
+                    );
+
+                    if (fightSimResult.ShouldFight)
+                    {
+                        fightSimResults.Add((fightSimResult, simUtilSlots));
+                    }
+                }
+            }
+        }
+
+        if (fightSimResults.Count == 0)
+        {
+            return [];
+        }
+
+        fightSimResults.Sort(
+            (a, b) =>
+            {
+                int potionDiff = a.Outcome.PotionsUsed - b.Outcome.PotionsUsed;
+
+                if (potionDiff != 0)
+                {
+                    return potionDiff;
+                }
+
+                return FightSimulator.CompareSimOutcome(a.Outcome, b.Outcome);
+            }
+        );
+
+        var bestResult = fightSimResults.ElementAt(0);
+
+        return bestResult
+            .Potions.Where(potion => !string.IsNullOrEmpty(potion.Code) && potion.Quantity > 0)
+            .Select(potion => gameState.ItemsDict[potion.Code])
+            .ToList();
     }
 }

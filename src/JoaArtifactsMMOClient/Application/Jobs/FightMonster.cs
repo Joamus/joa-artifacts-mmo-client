@@ -774,17 +774,15 @@ public class FightMonster : CharacterJob
                 continue;
             }
 
-            if (bankResponse.Data.Exists(bankItem => bankItem.Code == item.Code)
-            // && Character.GetItemFromInventory(item.Code) is null
-            )
+            int amountInInventory = character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
+
+            int amountInBank =
+                bankResponse.Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)?.Quantity
+                ?? 0;
+
+            if (amountInBank > 0 && item.Quantity > amountInInventory)
             {
-                int quantityMissing =
-                    item.Quantity
-                    - (
-                        character
-                            .GetEquippedItemOrInInventory(item.Code)
-                            .Sum(_item => _item.inventorySlot.Quantity)
-                    );
+                int quantityMissing = item.Quantity - amountInInventory;
 
                 if (quantityMissing < 0)
                 {

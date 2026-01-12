@@ -421,8 +421,11 @@ public class PlayerAI
                     continue;
                 }
 
-                await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
-                continue;
+                if (inventoryBag.Item.Level > equippedBag?.Level)
+                {
+                    await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
+                    return null;
+                }
             }
 
             if (!await Character.PlayerActionService.CanObtainItem(item))

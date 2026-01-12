@@ -2,7 +2,6 @@ namespace Application.ArtifactsApi.Schemas;
 
 public record MonsterSchema : FightEntity
 {
-    public string Name { get; set; } = "";
     public MonsterType Type { get; set; }
 
     public string Code { get; set; } = "";

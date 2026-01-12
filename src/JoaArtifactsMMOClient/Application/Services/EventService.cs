@@ -62,17 +62,7 @@ public class EventService
                 {
                     events.Add(gameEvent);
                     eventsDict.Add(gameEvent.Code, gameEvent);
-
-                    // var existingEventEntity = eventEntitiesDict.GetValueOrNull(
-                    //     gameEvent.Content.Code
-                    // );
-
                     eventEntitiesDict.Add(gameEvent.Content.Code, gameEvent);
-
-                    // if (existingEventEntity is not null)
-                    // {
-                    // 	existingEventEntity
-                    // }
                 }
 
                 if (result.Data.Count == 0)

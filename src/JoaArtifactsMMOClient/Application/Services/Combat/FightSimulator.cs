@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Linq.Expressions;
 using Application;
 using Application.ArtifactsApi.Schemas;
@@ -6,6 +7,7 @@ using Application.Errors;
 using Application.Jobs;
 using Application.Records;
 using Application.Services;
+using Application.Services.Combat;
 using OneOf.Types;
 
 namespace Applicaton.Services.FightSimulator;
@@ -16,6 +18,7 @@ public class FightSimulator
     private static readonly int MAX_LEVEL = 50;
     private static readonly double PERCENTAGE_OF_SIMS_TO_WIN = 0.85;
 
+    private static readonly int MAX_AMOUNT_OF_USED_POTIONS = 10;
     private static List<EquipmentTypeMapping> allEquipmentTypes { get; } =
         new List<EquipmentTypeMapping>
         {
@@ -57,6 +60,8 @@ public class FightSimulator
         int iterations = 4;
 
         int addedCritChance = -25;
+
+        CombatLog? firstCombatLog = null;
 
         for (int i = 0; i < iterations; i++)
         {
@@ -141,12 +146,25 @@ public class FightSimulator
 
             int turnNumber = 0;
 
+            int individualTurn = 0;
+
+            CombatLog combatLog = new CombatLog(
+                participants.ElementAt(0).entity,
+                participants.ElementAt(1).entity
+            );
+
             while (outcome is null)
             {
                 turnNumber++;
 
                 foreach (var attacker in participants)
                 {
+                    individualTurn++;
+                    // Elaborate for boss fights, e.g. boss will attack different players
+                    var defender = participants.FirstOrDefault(participant =>
+                        participant.isPlayer != attacker.isPlayer
+                    );
+
                     List<FightSimUtility> potionEffectsForTurn = attacker.isPlayer ? potions : [];
 
                     int poisonDamage = 0;
@@ -167,6 +185,13 @@ public class FightSimulator
                     {
                         poisonDamage = poison.Value;
 
+                        combatLog.Log(
+                            individualTurn,
+                            attacker.entity,
+                            defender.entity,
+                            $"[{attacker.entity.Name}] has poison effect for {poisonDamage} damage"
+                        );
+
                         foreach (var potion in potions)
                         {
                             var antidote = potion.Item.Effects.FirstOrDefault(effect =>
@@ -182,48 +207,71 @@ public class FightSimulator
                                 {
                                     poisonDamage = 0;
                                 }
+
+                                combatLog.Log(
+                                    individualTurn,
+                                    attacker.entity,
+                                    defender.entity,
+                                    $"[{attacker.entity.Name}] has their poison effect mitigated with {antidote.Value} points of antidote - damage is {poisonDamage}"
+                                );
                             }
                         }
                     }
-                    // Elaborate for boss fights, e.g. boss will attack different players
-                    var defender = participants.FirstOrDefault(participant =>
-                        participant.isPlayer != attacker.isPlayer
-                    );
+
+                    defender.entity.Hp -= poisonDamage;
+
+                    if (poisonDamage > 0)
+                    {
+                        combatLog.Log(
+                            individualTurn,
+                            attacker.entity,
+                            defender.entity,
+                            $"[{attacker.entity.Name}] deals {poisonDamage} poison damage"
+                        );
+                    }
 
                     ProcessParticipantTurn(
                         attacker.entity,
                         attacker.critCalculator,
+                        combatLog,
                         attacker.effects,
                         potionEffectsForTurn,
                         defender.entity,
-                        turnNumber
+                        turnNumber,
+                        individualTurn
                     );
-
-                    defender.entity.Hp -= poisonDamage;
 
                     bool attackerWon = defender.entity.Hp <= 0;
 
                     if (attackerWon)
                     {
+                        combatLog.Log(
+                            individualTurn,
+                            attacker.entity,
+                            defender.entity,
+                            $"[{attacker.entity.Name}] won."
+                        );
+
                         if (attacker.isPlayer)
                         {
                             outcome = FightResult.Win;
+                            remainingPlayerHp = attacker.entity.Hp;
+                            remainingMonsterHp = defender.entity.Hp;
                         }
                         else
                         {
                             outcome = FightResult.Loss;
+                            remainingMonsterHp = attacker.entity.Hp;
+                            remainingPlayerHp = defender.entity.Hp;
                         }
-
-                        remainingMonsterHp = participants
-                            .FirstOrDefault(participant => !participant.isPlayer)
-                            .entity.Hp;
-
-                        remainingPlayerHp = participants
-                            .FirstOrDefault(participant => participant.isPlayer)
-                            .entity.Hp;
 
                         break;
                     }
+                }
+
+                if (i == 0)
+                {
+                    firstCombatLog = combatLog;
                 }
             }
 
@@ -241,10 +289,13 @@ public class FightSimulator
                     PlayerHp = Math.Min(remainingPlayerHp, originalSchema.MaxHp), // in case of HP boost pots
                     MonsterHp = remainingMonsterHp,
                     TotalTurns = turnNumber,
+                    IndvidualTurns = individualTurn,
                     ShouldFight =
                         outcome == FightResult.Win
-                        && remainingPlayerHp >= (characterSchema.MaxHp * 0.35),
+                        && remainingPlayerHp >= (characterSchema.MaxHp * 0.35)
+                        && potionsUsedInSim <= MAX_AMOUNT_OF_USED_POTIONS,
                     PotionsUsed = potionsUsedInSim,
+                    FirstSimCombatLog = firstCombatLog!,
                 }
             );
         }
@@ -255,6 +306,7 @@ public class FightSimulator
         int playerHp = 0;
         int monsterHp = 0;
         int totalTurns = 0;
+        int individualTurns = 0;
         int potionsUsed = 0;
 
         int fightSimulations = outcomes.Count;
@@ -266,12 +318,14 @@ public class FightSimulator
             playerHp += outcome.PlayerHp;
             monsterHp += outcome.MonsterHp;
             totalTurns += outcome.TotalTurns;
+            individualTurns += outcome.IndvidualTurns;
             potionsUsed += outcome.PotionsUsed;
         }
 
         playerHp = (int)Math.Floor((double)playerHp / fightSimulations);
         monsterHp = (int)Math.Floor((double)monsterHp / fightSimulations);
         totalTurns = (int)Math.Floor((double)totalTurns / fightSimulations);
+        individualTurns = (int)Math.Floor((double)individualTurns / fightSimulations);
         potionsUsed = (int)Math.Floor((double)potionsUsed / fightSimulations);
 
         bool shouldFight = (amountShouldFight / fightSimulations) > PERCENTAGE_OF_SIMS_TO_WIN;
@@ -288,55 +342,85 @@ public class FightSimulator
             PlayerHp = playerHp,
             MonsterHp = monsterHp,
             TotalTurns = totalTurns,
+            IndvidualTurns = individualTurns,
             PotionsUsed = potionsUsed,
+            FirstSimCombatLog = firstCombatLog!,
         };
     }
 
-    private static (int damage, bool wasCrit) CalculateTurnDamage(
+    private static TurnDamageResult CalculateTurnDamage(
         FightEntity attacker,
         ICritCalculator attackerCritCalculator,
         FightEntity defender
     )
     {
-        bool isCrit = false;
+        TurnDamageResult result = new TurnDamageResult
+        {
+            ElementalAttacks = [],
+            TotalDamage = 0,
+            IsCrit = false,
+        };
 
         if (attackerCritCalculator.CalculateIsCriticalStrike())
-        // if (new Random().NextDouble() <= attacker.CriticalStrike)
         {
-            isCrit = true;
+            result.IsCrit = true;
         }
 
         var fireDamage = CalculateElementalAttack(
             attacker.AttackFire,
             attacker.DmgFire,
             attacker.Dmg,
-            isCrit,
+            result.IsCrit,
             defender.ResFire
         );
+
+        if (fireDamage > 0)
+        {
+            result.ElementalAttacks.Add((fireDamage, "fire"));
+        }
 
         var earthDamage = CalculateElementalAttack(
             attacker.AttackEarth,
             attacker.DmgEarth,
             attacker.Dmg,
-            isCrit,
+            result.IsCrit,
             defender.ResEarth
         );
+
+        if (earthDamage > 0)
+        {
+            result.ElementalAttacks.Add((earthDamage, "earth"));
+        }
+
         var waterDamage = CalculateElementalAttack(
             attacker.AttackWater,
             attacker.DmgWater,
             attacker.Dmg,
-            isCrit,
+            result.IsCrit,
             defender.ResWater
         );
+
+        if (waterDamage > 0)
+        {
+            result.ElementalAttacks.Add((waterDamage, "air"));
+        }
+
         var airDamage = CalculateElementalAttack(
             attacker.AttackAir,
             attacker.DmgAir,
             attacker.Dmg,
-            isCrit,
+            result.IsCrit,
             defender.ResAir
         );
 
-        return (fireDamage + earthDamage + waterDamage + airDamage, isCrit);
+        if (airDamage > 0)
+        {
+            result.ElementalAttacks.Add((airDamage, "air"));
+        }
+
+        result.TotalDamage = fireDamage + earthDamage + waterDamage + airDamage;
+
+        return result;
     }
 
     private static int CalculateElementalAttack(
@@ -363,19 +447,21 @@ public class FightSimulator
     public static void ProcessParticipantTurn(
         FightEntity attacker,
         ICritCalculator critCalculator,
+        CombatLog combatLog,
         List<SimpleEffectSchema> attackerRuneEffects,
         List<FightSimUtility> attackerPotionEffects,
         FightEntity defender,
-        int totalTurns
+        int turnNumber,
+        int individualTurn
     )
     {
-        var attackerDamage = CalculateTurnDamage(attacker, critCalculator, defender);
+        var attack = CalculateTurnDamage(attacker, critCalculator, defender);
 
-        var damageWithEffects = attackerDamage.damage;
+        var damageWithEffects = attack.TotalDamage;
 
         // Amplify damage if needed, e.g. burn rune. Figure out how we handle poisons, because technically it might be easier
         // to handle those outside of this function, because the poison damage can be mitigated
-        if (totalTurns <= 2)
+        if (turnNumber <= 2)
         {
             SimpleEffectSchema? burn = attackerRuneEffects.FirstOrDefault(effect =>
                 effect.Code == Effect.Burn
@@ -384,7 +470,7 @@ public class FightSimulator
             if (burn is not null)
             {
                 // Decrease burn damage by 10% each turn. So if burn value is 20%, then it's 20, 10, 0.
-                int multiplicationFactor = Math.Max(burn.Value - (totalTurns - 1), 0);
+                int multiplicationFactor = Math.Max(burn.Value - (turnNumber - 1), 0);
 
                 // int initialDmg = burn.Value - multiplicationFactor;
 
@@ -395,6 +481,13 @@ public class FightSimulator
                     burnFactor > 0 ? (int)Math.Round(damageWithEffects * burnFactor) : 0;
 
                 damageWithEffects += burnDamage;
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker,
+                    defender,
+                    $"[{attacker.Name}] deals {burnDamage} burn damage to {defender.Name}"
+                );
             }
         }
 
@@ -404,6 +497,7 @@ public class FightSimulator
             {
                 continue;
             }
+
             var restoreEffect = effect.Item.Effects.FirstOrDefault(effect =>
                 effect.Code == Effect.Restore
             );
@@ -412,23 +506,44 @@ public class FightSimulator
             {
                 if (attacker.Hp <= attacker.MaxHp / 2)
                 {
-                    attacker.Hp += restoreEffect.Value;
+                    int amountHealed = GetAmountToHeal(
+                        restoreEffect.Value,
+                        attacker.Hp,
+                        attacker.MaxHp
+                    );
 
-                    attacker.Hp = Math.Min(attacker.Hp, attacker.MaxHp);
+                    attacker.Hp += amountHealed;
 
-                    effect.Quantity--;
+                    amountHealed = effect.Quantity--;
+
+                    combatLog.Log(
+                        individualTurn,
+                        attacker,
+                        defender,
+                        $"[{attacker.Name}] heals {amountHealed} from a health potion"
+                    );
                 }
             }
         }
 
-        defender.Hp -= attackerDamage.damage;
+        foreach (var elementalAttack in attack.ElementalAttacks)
+        {
+            defender.Hp -= elementalAttack.Damage;
+
+            combatLog.Log(
+                individualTurn,
+                attacker,
+                defender,
+                $"[{attacker.Name}] used {elementalAttack.Elemental} attack and dealt {elementalAttack.Damage} damage"
+            );
+        }
 
         if (defender.Hp <= 0)
         {
             return;
         }
 
-        if (attackerDamage.wasCrit)
+        if (attack.IsCrit)
         {
             SimpleEffectSchema? lifesteal = attackerRuneEffects.FirstOrDefault(effect =>
                 effect.Code == Effect.Lifesteal
@@ -437,13 +552,22 @@ public class FightSimulator
             if (lifesteal is not null)
             {
                 // We use the raw damage here, don't think lifesteal works with burn
-                int heal = (int)Math.Round(attackerDamage.damage * lifesteal.Value * 0.01);
+                int heal = (int)Math.Round(attack.TotalDamage * lifesteal.Value * 0.01);
+
+                heal = GetAmountToHeal(heal, attacker.Hp, attacker.MaxHp);
 
                 attacker.Hp += heal;
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker,
+                    defender,
+                    $"[{attacker.Name}] heals {heal} from Life steal effect"
+                );
             }
         }
 
-        if (totalTurns % 3 == 0)
+        if (turnNumber % 3 == 0)
         {
             SimpleEffectSchema? heal = attackerRuneEffects.FirstOrDefault(effect =>
                 effect.Code == Effect.Healing
@@ -454,7 +578,15 @@ public class FightSimulator
                 // We use the raw damage here, don't think lifesteal works with burn
                 int amountToHeal = (int)Math.Round(attacker.MaxHp * (heal.Value * 0.01));
 
+                amountToHeal = GetAmountToHeal(amountToHeal, attacker.Hp, attacker.MaxHp);
                 attacker.Hp += amountToHeal;
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker,
+                    defender,
+                    $"[{attacker.Name}] heals {heal} from Healing effect"
+                );
             }
         }
     }
@@ -892,6 +1024,17 @@ public class FightSimulator
                     continue;
                 }
 
+                // TODO: REMOVE ME
+                if (
+                    monster.Level > 30
+                    && bestItemCandidate?.Code == "skull_ring"
+                    && item.Item.Code == "life_ring"
+                    && characterSchema.WeaponSlot == "enchanted_bow"
+                )
+                {
+                    bool _ = true;
+                }
+
                 bestFightOutcome = fightOutcome;
                 bestItemCandidate = item.Item;
                 bestSchemaCandidate = characterSchema;
@@ -944,12 +1087,12 @@ public class FightSimulator
         // it could mean that we have good survivability
         if (a.Result == FightResult.Win && b.Result == FightResult.Win)
         {
-            if (a.TotalTurns < b.TotalTurns)
+            if (a.IndvidualTurns < b.IndvidualTurns)
             {
                 return aWinsValue;
             }
 
-            if (a.TotalTurns > b.TotalTurns)
+            if (a.IndvidualTurns > b.IndvidualTurns)
             {
                 return bWinsValue;
             }
@@ -1185,6 +1328,11 @@ public class FightSimulator
             })
             .ToList();
     }
+
+    public static int GetAmountToHeal(int healEffect, int entityHp, int entityMaxHp)
+    {
+        return healEffect + entityHp > entityMaxHp ? entityMaxHp - entityHp : healEffect;
+    }
 }
 
 public record FightOutcome
@@ -1196,10 +1344,13 @@ public record FightOutcome
     public int MonsterHp { get; init; }
 
     public int TotalTurns { get; init; }
+    public int IndvidualTurns { get; init; }
 
     public bool ShouldFight { get; init; }
 
     public int PotionsUsed { get; set; } = 0;
+
+    public required CombatLog FirstSimCombatLog { get; set; }
 }
 
 record AttackResult
@@ -1230,4 +1381,12 @@ public record FightSimResult
     public required CharacterSchema Schema { get; set; }
     public required FightOutcome Outcome { get; set; }
     public required List<EquipmentSlot> ItemsToEquip { get; set; }
+}
+
+public record TurnDamageResult
+{
+    public required List<(int Damage, string Elemental)> ElementalAttacks { get; set; }
+    public required int TotalDamage { get; set; }
+
+    public required bool IsCrit { get; set; } = false;
 }

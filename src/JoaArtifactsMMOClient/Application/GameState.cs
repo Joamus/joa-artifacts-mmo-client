@@ -185,7 +185,6 @@ public class GameState
         bool doneLoading = false;
         List<NpcItemSchema> items = [];
         Dictionary<string, NpcItemSchema> itemsDict = new();
-        Dictionary<string, List<NpcItemSchema>> craftingLookupDict = new();
 
         int pageNumber = 1;
 

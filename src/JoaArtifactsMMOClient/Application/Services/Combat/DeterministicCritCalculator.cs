@@ -1,4 +1,4 @@
-namespace Application.Services;
+namespace Application.Services.Combat;
 
 public class DeterministicCritCalculator : ICritCalculator
 {
