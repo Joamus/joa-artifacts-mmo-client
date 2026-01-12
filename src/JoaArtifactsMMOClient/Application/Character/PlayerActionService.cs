@@ -188,6 +188,8 @@ public class PlayerActionService
 
         var schemaWithNewItem = characterSchema with { };
 
+        int initialHp = characterSchema.Hp;
+
         if (equippedItem is not null)
         {
             foreach (var effect in equippedItem!.Effects)
@@ -226,9 +228,16 @@ public class PlayerActionService
             type.GetProperty(itemSlot + "Quantity")!.SetValue(schemaWithNewItem, amount);
         }
 
-        if (schemaWithNewItem.MaxHp < schemaWithNewItem.Hp)
+        /**
+        ** We want to ensure that the MaxHP is changed with respect to the new HP. E.g. if the new item gives us 20 more HP, then it also gives us 20 more MaxHP,
+        ** and the same if it's reduced.
+        */
+        if (schemaWithNewItem.Hp != initialHp)
         {
-            schemaWithNewItem.MaxHp = schemaWithNewItem.Hp;
+            int hpDifference = initialHp - schemaWithNewItem.Hp;
+
+            // If initial HP was higher, we want to reduce the max HP, and if lower, we want to add more HP
+            schemaWithNewItem.MaxHp -= hpDifference;
         }
 
         return schemaWithNewItem;
@@ -303,7 +312,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
