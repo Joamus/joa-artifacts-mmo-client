@@ -3,7 +3,6 @@ using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Records;
-using Application.Services;
 using Applicaton.Services.FightSimulator;
 using JoaArtifactsMMOClientTests.Helpers;
 

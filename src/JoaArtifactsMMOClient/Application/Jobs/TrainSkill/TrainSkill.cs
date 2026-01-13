@@ -3,7 +3,6 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
-using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;

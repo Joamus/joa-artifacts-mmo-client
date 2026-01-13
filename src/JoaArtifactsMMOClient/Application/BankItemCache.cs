@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;

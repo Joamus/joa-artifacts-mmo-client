@@ -1,6 +1,5 @@
 using Application.ArtifactsApi.Schemas;
 using Application.Services.ApiServices;
-using OneOf.Types;
 
 namespace Application.Services;
 

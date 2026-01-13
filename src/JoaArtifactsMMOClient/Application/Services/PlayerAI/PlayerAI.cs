@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
 using Application.Jobs;
@@ -746,6 +745,13 @@ public class PlayerAI
             if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
             {
                 return new ItemTask(Character, gameState);
+            }
+            else
+            {
+                if (await CancelTask.CanCancelTask(Character, gameState))
+                {
+                    return new CancelTask(Character, gameState);
+                }
             }
         }
         else if (Character.Schema.TaskType == TaskType.monsters.ToString())

@@ -1,6 +1,4 @@
-using System.Formats.Tar;
 using Application.ArtifactsApi.Schemas;
-using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;

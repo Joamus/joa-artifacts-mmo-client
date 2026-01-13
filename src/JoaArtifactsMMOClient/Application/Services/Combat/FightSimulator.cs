@@ -1,14 +1,9 @@
-using System.ComponentModel.DataAnnotations;
-using System.Linq.Expressions;
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
-using Application.Errors;
-using Application.Jobs;
 using Application.Records;
 using Application.Services;
 using Application.Services.Combat;
-using OneOf.Types;
 
 namespace Applicaton.Services.FightSimulator;
 
@@ -1022,17 +1017,6 @@ public class FightSimulator
                 )
                 {
                     continue;
-                }
-
-                // TODO: REMOVE ME
-                if (
-                    monster.Level > 30
-                    && bestItemCandidate?.Code == "skull_ring"
-                    && item.Item.Code == "life_ring"
-                    && characterSchema.WeaponSlot == "enchanted_bow"
-                )
-                {
-                    bool _ = true;
                 }
 
                 bestFightOutcome = fightOutcome;

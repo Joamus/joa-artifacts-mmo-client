@@ -1,11 +1,10 @@
-using System.Numerics;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
+using Application.Dtos;
 using Application.Errors;
 using Application.Jobs;
 using Application.Services;
-using Applicaton.Jobs;
 using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
@@ -19,11 +18,6 @@ namespace Application.Character;
 */
 public class PlayerActionService
 {
-    public static string SandwhisperIsle = "Sandwhisper Isle";
-    public static string ChristmasIsland = "Christmas Island";
-
-    public static List<string> Islands = new List<string> { SandwhisperIsle, ChristmasIsland };
-
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
     public static readonly int LEVEL_DIFF_NO_XP = 10;
     private readonly GameState gameState;
@@ -312,8 +306,7 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value
-                            ?? 0;
+                                ?.Value ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -355,7 +348,7 @@ public class PlayerActionService
         return itemSlot;
     }
 
-    public async Task<bool> CanObtainItem(ItemSchema item)
+    public async Task<bool> CanObtainItem(ItemSchema item, int Quantity = 1)
     {
         var canObtainIt = await ObtainItem.GetJobsRequired(
             character,
@@ -364,7 +357,7 @@ public class PlayerActionService
             (await gameState.BankItemCache.GetBankItems(character, false)).Data,
             [],
             item.Code,
-            1,
+            Quantity,
             true
         );
 
@@ -540,251 +533,6 @@ public class PlayerActionService
         }
     }
 
-    // public async Task NavigateNextStep(MapSchema destinationMap, string code)
-    // {
-    //     MapSchema currentMap = gameState.MapsDict[character.Schema.MapId];
-
-    //     bool goingFromIslandToMainland =
-    //         Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name);
-
-    //     bool goingToIslandFromMainland =
-    //         Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name);
-
-    //     bool goingFromIslandToIsland =
-    //         Islands.Contains(destinationMap.Name)
-    //         && Islands.Contains(currentMap.Name)
-    //         && destinationMap.Name != currentMap.Name;
-
-    //     if (goingFromIslandToMainland || goingToIslandFromMainland || goingFromIslandToIsland)
-    //     {
-    //         if (currentMap.Layer != MapLayer.Overworld)
-    //         {
-    //             MapSchema? closestTransition = FindClosestTransition(currentMap);
-
-    //             if (closestTransition is null)
-    //             {
-    //                 throw new Exception($"Cannot find transition, should not happen");
-    //             }
-
-    //             await character.Move(closestTransition.X, closestTransition.Y);
-    //             return;
-    //         }
-
-    //         // Going to Sandwhisper
-    //         if (goingToIslandFromMainland)
-    //         {
-    //             // TODO: Should check if we have enough money etc
-    //             await character.Move(-2, 21);
-    //             await character.Transition();
-    //             await NavigateTo(code);
-    //             return;
-    //             // We are going to an island
-    //         }
-    //         else if (goingFromIslandToMainland)
-    //         {
-    //             // We are going back from an island
-    //             // Boat to Sandwhisper Isle
-    //             await character.Move(2, 16);
-    //             // TODO: Consider using a recall potion if you have one
-    //             await character.Transition();
-    //             await NavigateTo(code);
-    //             return;
-    //         }
-    //     }
-
-    //     if (destinationMap.Layer != character.Schema.Layer)
-    //     {
-    //         /*
-    //           So we have a few scenarios:
-    //           - We are moving from the overworld to underground/interior - in that case, we want to find the transition closest
-    //             which leads to the closest coordinate on that layer, to the destination.
-    //           - If we are moving from the underground/interior to the overworld, we want to just find the closest transition to
-    //             where we are currently.
-    //           - We are on a landmass, and have to take a transition to another one, on the same layer.
-
-    //           Normally, we probably are moving from one land, to another landmass, e.g. the "main land" to the Sandwhisper Isle or Christmas Island.
-    //           We could technically also be moving from one "cave" on the mainland, to another one.
-    //           Worst case scenario, we might be moving from an underground Sandwhisper Isle cell, to an underground Christmas Island cell.
-
-    //           This means that we have to basically be able to handle all transitions and separate steps, with a prioritization system
-    //           - We don't want to implement a pathfinding algorithm, because we are lazy. What we would need it for is to know if
-    //             we are underground/interior, and have to move to another place underground/interior, but we need to go the overworld first
-    //           - We can assume
-    //         */
-
-    //         // Find closest transition on our current map
-
-    //         int closestCostToTransition = 0;
-
-    //         MapSchema? closestTransition = null;
-
-    //         foreach (var map in gameState.Maps)
-    //         {
-    //             if (map.Layer != character.Schema.Layer || map.Interactions.Transition is null)
-    //             {
-    //                 continue;
-    //             }
-
-    //             if (map.Interactions.Transition.Layer != destinationMap.Layer)
-    //             {
-    //                 continue;
-    //             }
-
-    //             int cost = CalculationService.CalculateDistanceToMap(
-    //                 character.Schema.X,
-    //                 character.Schema.Y,
-    //                 destinationMap.X,
-    //                 destinationMap.Y
-    //             );
-
-    //             if (closestTransition is null || cost < closestCostToTransition)
-    //             {
-    //                 closestTransition = map;
-    //             }
-    //         }
-
-    //         if (closestTransition is null)
-    //         {
-    //             // wtf
-    //             // return new AppError(
-    //             //     $"Could not find transition to get to {destinationMap.Name} - x = {destinationMap.X} y = {destinationMap.Y}",
-    //             //     ErrorStatus.NotFound
-    //             // );
-    //         }
-
-    //         await character.Move(closestTransition.X, closestTransition.Y);
-    //         await character.Transition();
-    //         // return await NavigateTo(code);
-    //     }
-
-    //     // // Going to Sandwhisper
-    //     // if (Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name))
-    //     // {
-    //     //     // TODO: Should check if we have enough money etc
-    //     //     await Character.Move(-2, 21);
-    //     //     await Character.Transition();
-    //     //     return await NavigateTo(code);
-    //     //     // We are going to Sandwhisper
-    //     // }
-    //     // else if (!Islands.Contains(destinationMap.Name) && Islands.Contains(currentMap.Name))
-    //     // {
-    //     //     // We are going back
-    //     //     // Boat to Sandwhisper Isle
-    //     //     await Character.Move(2, 16);
-    //     //     // TODO: Consider using a recall potion if you have one
-    //     //     await Character.Transition();
-    //     //     return await NavigateTo(code);
-    //     // }
-
-    //     await character.Move(destinationMap.X, destinationMap.Y);
-    // }
-
-    // public MapSchema? FindClosestTransition(MapSchema currentMap)
-    // {
-    //     MapSchema? closestTransition = null;
-    //     int closestCostToTransition = 0;
-
-    //     foreach (var map in gameState.Maps)
-    //     {
-    //         if (map.Layer != currentMap.Layer || map.Interactions.Transition is null)
-    //         {
-    //             continue;
-    //         }
-
-    //         if (map.Interactions.Transition.Layer != map.Layer)
-    //         {
-    //             continue;
-    //         }
-
-    //         int cost = CalculationService.CalculateDistanceToMap(
-    //             currentMap.X,
-    //             currentMap.Y,
-    //             map.X,
-    //             map.Y
-    //         );
-
-    //         if (closestTransition is null || cost < closestCostToTransition)
-    //         {
-    //             closestTransition = map;
-    //             closestCostToTransition = cost;
-    //         }
-    //     }
-
-    //     return closestTransition;
-    // }
-
-    public MapSchema? FindNextTransitionToDestination(
-        MapSchema currentMap,
-        MapSchema destinationMap
-    )
-    {
-        MapSchema? closestTransition = null;
-        int closestCostToTransition = 0;
-
-        foreach (var map in gameState.Maps)
-        {
-            if (map.Layer != currentMap.Layer || map.Interactions.Transition is null)
-            {
-                continue;
-            }
-
-            if (map.Interactions.Transition.Layer != map.Layer)
-            {
-                continue;
-            }
-
-            /*
-             * If we are inside (underground/interior), just find the closest transition.
-             * If not, it gets a bit more complicated. If we are going to another island, we need to find the boat.
-            */
-            if (currentMap.Layer == MapLayer.Overworld) { }
-
-            int cost = CalculationService.CalculateDistanceToMap(
-                currentMap.X,
-                currentMap.Y,
-                map.X,
-                map.Y
-            );
-
-            if (closestTransition is null || cost < closestCostToTransition)
-            {
-                closestTransition = map;
-                closestCostToTransition = cost;
-            }
-        }
-
-        return closestTransition;
-    }
-
-    public static MapSchema? FindTransitionToUse(List<MapSchema> maps, int x, int y, MapLayer layer)
-    {
-        MapSchema? closestTransition = null;
-        int closestCostToTransition = 0;
-
-        foreach (var map in maps)
-        {
-            if (map.Layer != layer || map.Interactions.Transition is null)
-            {
-                continue;
-            }
-
-            if (map.Interactions.Transition.Layer != map.Layer)
-            {
-                continue;
-            }
-
-            int cost = CalculationService.CalculateDistanceToMap(x, y, map.X, map.Y);
-
-            if (closestTransition is null || cost < closestCostToTransition)
-            {
-                closestTransition = map;
-                closestCostToTransition = cost;
-            }
-        }
-
-        return closestTransition;
-    }
-
     /**
     ** Item tasks require you to gather items from events, which might not currently be ongoing.
     */
@@ -802,7 +550,51 @@ public class PlayerActionService
 
         ItemSchema itemFromTask = gameState.ItemsDict[character.Schema.Task];
 
-        return await CanObtainItem(itemFromTask);
+        return await CanObtainItem(
+            itemFromTask,
+            character.Schema.TaskTotal - character.Schema.TaskProgress
+        );
+    }
+
+    public async Task CancelTask()
+    {
+        if (string.IsNullOrWhiteSpace(character.Schema.Task))
+        {
+            return;
+        }
+
+        int tasksCoinsInInventory =
+            character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
+
+        if (tasksCoinsInInventory < ItemService.CancelTaskPrice)
+        {
+            int tasksCoinsInBank =
+                (await gameState.BankItemCache.GetBankItems(character))
+                    .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
+                    ?.Quantity ?? 0;
+
+            if (tasksCoinsInBank >= ItemService.CancelTaskPrice)
+            {
+                await character.NavigateTo("bank");
+
+                await character.WithdrawBankItem(
+                    new List<WithdrawOrDepositItemRequest>
+                    {
+                        new WithdrawOrDepositItemRequest
+                        {
+                            Code = ItemService.TasksCoin,
+                            Quantity = ItemService.CancelTaskPrice,
+                        },
+                    }
+                );
+            }
+        }
+
+        string tasksMasterCode = (
+            character.Schema.Task == TaskType.items.ToString() ? TaskType.items : TaskType.monsters
+        ).ToString();
+
+        await character.NavigateTo(tasksMasterCode);
     }
 }
 

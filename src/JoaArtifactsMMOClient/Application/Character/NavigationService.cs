@@ -1,4 +1,3 @@
-using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;

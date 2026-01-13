@@ -1,5 +1,4 @@
 using Application.ArtifactsApi.Schemas;
-using Application.Jobs;
 using Applicaton.Services.FightSimulator;
 
 public static class EffectService

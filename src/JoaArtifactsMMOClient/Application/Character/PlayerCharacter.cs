@@ -10,7 +10,6 @@ using Application.Jobs;
 using Application.Records;
 using Application.Services;
 using Infrastructure;
-using Microsoft.AspNetCore.StaticFiles;
 using OneOf;
 using OneOf.Types;
 
@@ -344,7 +343,7 @@ public class PlayerCharacter
                         Logger.LogError(
                             $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()}"
                         );
-                        Logger.LogError(appError.Message);
+                        Logger.LogError($"{GetType().Name}: [{Schema.Name}]: {appError.Message}");
                         failed = true;
 
                         break;

@@ -1,5 +1,3 @@
-using System.Security.Principal;
-using System.Threading.Tasks;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
@@ -29,6 +27,8 @@ public static class ItemService
     ];
 
     public const string TasksCoin = "tasks_coin";
+
+    public const int CancelTaskPrice = 1;
 
     /**
       * The complexity of creating a wooden_staff, with edge cases of accidentally putting it on etc.,
