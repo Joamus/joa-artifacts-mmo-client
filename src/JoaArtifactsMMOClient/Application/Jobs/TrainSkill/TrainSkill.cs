@@ -381,7 +381,7 @@ public class TrainSkill : CharacterJob
                 }
                 else if (matchingItem?.Subtype == "mob")
                 {
-                    var monstersThatDropTheItem = gameState.Monsters.FindAll(monster =>
+                    var monstersThatDropTheItem = gameState.AvailableMonsters.FindAll(monster =>
                         monster.Drops.Find(drop => drop.Code == _item.Code) is not null
                     );
 

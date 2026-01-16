@@ -58,7 +58,7 @@ public class GameLoader
                             var job = await playerAI.GetNextJob();
 
                             // Change
-                            playerAI.Character.QueueJob(job);
+                            await playerAI.Character.QueueJob(job);
                         }
                     }
                     var _ = playerAI.Character.RunJob();

@@ -45,7 +45,7 @@ public class PlayerAI
             await EnsureWeapon()
             ?? await GetEventJob()
             ?? await GetIndividualHighPrioJob()
-            ?? await EnsureFightGear()
+            // ?? await EnsureFightGear()
             ?? await EnsureBag()
             ?? GetSkillJob()
             ?? await GetRoleJob()
@@ -254,7 +254,7 @@ public class PlayerAI
 
             if (task.Level <= Character.Schema.Level)
             {
-                var matchingMonster = gameState.MonstersDict[task.Code]!;
+                var matchingMonster = gameState.AvailableMonstersDict[task.Code]!;
 
                 var fightSimResult = FightSimulator.FindBestFightEquipment(
                     Character,
@@ -757,7 +757,7 @@ public class PlayerAI
         else if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
             var nextJobResult = await GetNextJobToFightMonster(
-                gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!
+                gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!
             );
 
             if (nextJobResult is not null)
@@ -803,7 +803,7 @@ public class PlayerAI
                     $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting  {fightMonster.Amount} x {fightMonster.Code}"
                 );
                 var nextJobResult = await GetNextJobToFightMonster(
-                    gameState.MonstersDict.GetValueOrNull(fightMonster.Code)!
+                    gameState.AvailableMonstersDict.GetValueOrNull(fightMonster.Code)!
                 );
 
                 if (nextJobResult is not null)
@@ -862,7 +862,7 @@ public class PlayerAI
                 continue;
             }
 
-            var matchingMonster = gameState.MonstersDict.GetValueOrNull(task.Code)!;
+            var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(task.Code)!;
 
             if (matchingMonster.Level > Character.Schema.Level)
             {
@@ -886,7 +886,7 @@ public class PlayerAI
     {
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
-            var monster = gameState.MonstersDict.GetValueOrNull(Character.Schema.Task)!;
+            var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
             var nextJobResult = await GetNextJobToFightMonster(monster);
 
             if (nextJobResult is not null)
@@ -968,7 +968,7 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetMonsterEventJob(MapContentSchema eventContent)
     {
-        var matchingMonster = gameState.MonstersDict.GetValueOrNull(eventContent.Code);
+        var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(eventContent.Code);
 
         if (matchingMonster is not null && matchingMonster.Level <= Character.Schema.Level)
         {
@@ -1065,22 +1065,23 @@ public class PlayerAI
         jobsToGetItems.Sort(
             (a, b) =>
             {
-                if (
-                    bankItems.Data.Exists(item =>
-                        item.Code == a.Job.Code && item.Quantity >= a.Job.Amount
-                    )
-                )
+                bool aIsInBank = bankItems.Data.Exists(item =>
+                    item.Code == a.Job.Code && item.Quantity >= a.Job.Amount
+                );
+
+                bool bIsInBank = bankItems.Data.Exists(item =>
+                    item.Code == b.Job.Code && item.Quantity >= b.Job.Amount
+                );
+
+                if (aIsInBank && !bIsInBank)
                 {
                     return -1;
                 }
-                else if (
-                    bankItems.Data.Exists(item =>
-                        item.Code == b.Job.Code && item.Quantity >= b.Job.Amount
-                    )
-                )
+                else if (bIsInBank && !aIsInBank)
                 {
                     return 1;
                 }
+
                 // If we can buy an item straight away, then let us do that first
                 var aMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(a.Job.Code);
 

@@ -70,7 +70,7 @@ public class FightMonster : CharacterJob
             return new AppError($"ItemCode cannot be null when JobMode == Gather");
         }
 
-        MonsterSchema? monster = gameState.MonstersDict.GetValueOrNull(Code);
+        MonsterSchema? monster = gameState.AvailableMonstersDict.GetValueOrNull(Code);
 
         if (monster is null)
         {
@@ -96,8 +96,6 @@ public class FightMonster : CharacterJob
 
         await HealIfNotAtFullHp();
 
-        await Character.PlayerActionService.EquipBestFightEquipment(monster);
-
         List<CharacterJob> withdrawItemJobs = await GetWithdrawItemJobsIfBetterItemsInBank(
             Character,
             gameState,
@@ -113,6 +111,8 @@ public class FightMonster : CharacterJob
             Status = JobStatus.Suspend;
             return new None();
         }
+
+        await Character.PlayerActionService.EquipBestFightEquipment(monster);
 
         List<ItemInInventory> itemsToEquip = [];
 
@@ -293,7 +293,10 @@ public class FightMonster : CharacterJob
         {
             return (AppError)result.Value;
         }
-        else if (result.Value is FightResponse)
+        else if (
+            result.Value is FightResponse fightResponse
+            && fightResponse.Data.Fight.result == FightResult.Win
+        )
         {
             if (Mode == JobMode.Kill)
             {
@@ -573,7 +576,8 @@ public class FightMonster : CharacterJob
         FightSimResult fightSimResult
     )
     {
-        var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(Character.Schema, monster);
+        // var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(Character.Schema, monster);
+        List<string> potionEffectsToSkip = [];
 
         if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResult))
         {

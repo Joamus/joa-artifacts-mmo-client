@@ -580,7 +580,7 @@ public class FightSimulator
                     individualTurn,
                     attacker,
                     defender,
-                    $"[{attacker.Name}] heals {heal} from Healing effect"
+                    $"[{attacker.Name}] heals {amountToHeal} from Healing effect"
                 );
             }
         }
@@ -1315,7 +1315,9 @@ public class FightSimulator
 
     public static int GetAmountToHeal(int healEffect, int entityHp, int entityMaxHp)
     {
-        return healEffect + entityHp > entityMaxHp ? entityMaxHp - entityHp : healEffect;
+        int amountToHeal = Math.Min(healEffect, entityMaxHp - entityHp);
+
+        return amountToHeal;
     }
 }
 

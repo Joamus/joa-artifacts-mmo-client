@@ -76,7 +76,7 @@ public class TrainCombat : CharacterJob
     {
         OutcomeCandidate? bestMonsterCandidate = null;
 
-        foreach (var monster in gameState.Monsters)
+        foreach (var monster in gameState.AvailableMonsters)
         {
             // Our character might be able to punch above their weight
             // if (monster.Level > playerLevel || playerLevel > monster.Level + 10)

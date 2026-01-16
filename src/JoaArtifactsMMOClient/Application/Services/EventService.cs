@@ -144,7 +144,7 @@ public class EventService
 
     public bool IsItemFromEventMonster(string code, bool mustBeActive)
     {
-        var monstersThatDropTheItem = gameState.Monsters.FindAll(monster =>
+        var monstersThatDropTheItem = gameState.AvailableMonsters.FindAll(monster =>
             monster.Drops.Find(drop => drop.Code == code) is not null
         );
 

@@ -430,13 +430,14 @@ public class ObtainItem : CharacterJob
             // Pick up a task, or complete one you have
             if (Character.Schema.TaskType == "monsters")
             {
-                var monster = gameState.Monsters.Find(monster =>
-                    monster.Code == Character.Schema.Task
+                var monster = gameState.AvailableMonstersDict.GetValueOrDefault(
+                    Character.Schema.Task
                 );
+
                 if (monster is null)
                 {
                     return new AppError(
-                        $"Monster with code {code} not found",
+                        $"Monster with code {code} was not found",
                         ErrorStatus.NotFound
                     );
                 }
@@ -450,6 +451,7 @@ public class ObtainItem : CharacterJob
                     jobs.Add(new MonsterTask(Character, gameState, matchingItem.Code, amount));
                     return new None();
                 }
+
                 return new AppError(
                     $"You cannot obtain item with code {code}, because you need to complete your monster task, and you cannot beat the monster",
                     ErrorStatus.InsufficientSkill
@@ -482,7 +484,7 @@ public class ObtainItem : CharacterJob
 
         List<MonsterSchema> suitableMonsters = [];
 
-        var monstersThatDropTheItem = gameState.Monsters.FindAll(monster =>
+        var monstersThatDropTheItem = gameState.AvailableMonsters.FindAll(monster =>
             monster.Drops.Find(drop => drop.Code == code) is not null
         );
 
@@ -640,7 +642,7 @@ public class ObtainItem : CharacterJob
 
                 if (matchingNpcItem.Currency != "gold")
                 {
-                    var monstersThatDropCurrency = gameState.Monsters.FindAll(monster =>
+                    var monstersThatDropCurrency = gameState.AvailableMonsters.FindAll(monster =>
                         monster.Drops.Exists(drop => drop.Code == matchingNpcItem.Currency)
                     );
 
@@ -679,6 +681,18 @@ public class ObtainItem : CharacterJob
                         matchingNpcItem.Currency,
                         neededCurrency - amountOfCurrency
                     )
+                );
+            }
+
+            var npcIsAccessible = gameState.AvailableNpcs.Exists(npc =>
+                npc.Code == matchingNpcItem.Code
+            );
+
+            if (!npcIsAccessible)
+            {
+                return new AppError(
+                    $"NPC \"{matchingNpcItem.Code}\" is not accessible",
+                    ErrorStatus.Undefined
                 );
             }
 

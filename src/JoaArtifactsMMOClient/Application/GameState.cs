@@ -37,9 +37,12 @@ public class GameState
     public Dictionary<int, MapSchema> MapsDict { get; set; } = [];
     public List<ResourceSchema> Resources { get; set; } = [];
     public List<NpcSchema> Npcs { get; set; } = [];
+    public List<NpcSchema> AvailableNpcs { get; set; } = [];
     public List<AccountAchievementSchema> AccountAchievements { get; set; } = [];
     public List<MonsterSchema> Monsters { get; set; } = [];
     public Dictionary<string, MonsterSchema> MonstersDict { get; set; } = [];
+    public List<MonsterSchema> AvailableMonsters { get; set; } = [];
+    public Dictionary<string, MonsterSchema> AvailableMonstersDict { get; set; } = [];
 
     public EventService EventService { get; set; }
 
@@ -61,12 +64,12 @@ public class GameState
     {
         cacheReload = DateTime.UtcNow;
 
-        await LoadItems();
-        await LoadNpcItems();
         await LoadMaps();
+        await LoadItems();
+        await LoadNpcs();
+        await LoadNpcItems();
         await LoadResources();
         await LoadMonsters();
-        await LoadNpcs();
         await LoadAccountAchievements();
         await LoadTasksList();
         await EventService.LoadEvents();
@@ -86,12 +89,6 @@ public class GameState
         // Don't load characters, they are probably being mutated, so the data might be out of date when they are updated
         cacheReload = DateTime.UtcNow;
 
-        // await LoadItems();
-        // await LoadNpcItems();
-        // await LoadMaps();
-        // await LoadResources();
-        // await LoadMonsters();
-        // await LoadNpcs();
         // Just reload achievements for now, for things that are limited by achievements
         await LoadAccountAchievements();
         await EventService.LoadActiveEvents();
@@ -291,6 +288,7 @@ public class GameState
         logger.LogInformation("Loading NPCs...");
         bool doneLoading = false;
         List<NpcSchema> npcs = [];
+        List<NpcSchema> availableNpcs = [];
         int pageNumber = 1;
 
         while (!doneLoading)
@@ -309,7 +307,21 @@ public class GameState
 
             pageNumber++;
         }
+
+        foreach (var npc in npcs)
+        {
+            var mapForNpc = Maps.Exists(map =>
+                map.Interactions.Content?.Code == npc.Code
+                && !NavigationService.UnavailableIslands.Contains(map.Name)
+            );
+
+            if (mapForNpc)
+            {
+                availableNpcs.Add(npc);
+            }
+        }
         Npcs = npcs;
+        AvailableNpcs = availableNpcs;
         logger.LogInformation("Loading NPCs - DONE;");
     }
 
@@ -355,7 +367,9 @@ public class GameState
         logger.LogInformation("Loading monsters...");
         bool doneLoading = false;
         List<MonsterSchema> monsters = [];
+        List<MonsterSchema> availableMonsters = [];
         Dictionary<string, MonsterSchema> monstersDict = [];
+        Dictionary<string, MonsterSchema> availableMonstersDict = [];
         int pageNumber = 1;
 
         while (!doneLoading)
@@ -376,8 +390,25 @@ public class GameState
 
             pageNumber++;
         }
+
+        foreach (var monster in monsters)
+        {
+            var mapForMonster = Maps.Exists(map =>
+                map.Interactions.Content?.Code == monster.Code
+                && !NavigationService.UnavailableIslands.Contains(map.Name)
+            );
+
+            if (mapForMonster)
+            {
+                availableMonsters.Add(monster);
+                availableMonstersDict.Add(monster.Code, monster);
+            }
+        }
+
         Monsters = monsters;
         MonstersDict = monstersDict;
+        AvailableMonsters = availableMonsters;
+        AvailableMonstersDict = availableMonstersDict;
         logger.LogInformation("Loading monsters - DONE;");
     }
 }

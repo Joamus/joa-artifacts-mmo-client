@@ -503,13 +503,20 @@ public class ObtainSuitablePotions : CharacterJob
     }
 
     public static List<ItemSchema> GetMostEfficientPotionCandidates(
-        CharacterSchema characterSchema,
+        CharacterSchema originalCharacterSchema,
         MonsterSchema monster,
         GameState gameState,
         List<ItemSchema> potions
     )
     {
         int amountOfUtilSlots = 2;
+
+        var characterSchemaClone = originalCharacterSchema with { };
+        characterSchemaClone.Utility1Slot = "";
+        characterSchemaClone.Utility1SlotQuantity = 0;
+
+        characterSchemaClone.Utility2Slot = "";
+        characterSchemaClone.Utility2SlotQuantity = 0;
 
         List<(FightOutcome Outcome, List<DropSchema> Potions)> fightSimResults = [];
 
@@ -519,6 +526,8 @@ public class ObtainSuitablePotions : CharacterJob
 
             simUtilSlots.Add(new DropSchema { Code = "", Quantity = 0 });
             simUtilSlots.Add(new DropSchema { Code = "", Quantity = 0 });
+
+            var iterationClone = characterSchemaClone with { };
 
             for (int j = 0; j < amountOfUtilSlots; j++)
             {
@@ -542,10 +551,8 @@ public class ObtainSuitablePotions : CharacterJob
                         continue;
                     }
 
-                    var characterSchemaClone = characterSchema with { };
-
-                    characterSchemaClone = PlayerActionService.SimulateItemEquip(
-                        characterSchemaClone,
+                    iterationClone = PlayerActionService.SimulateItemEquip(
+                        iterationClone,
                         null,
                         gameState.ItemsDict.GetValueOrNull(simUtilSlots[j].Code)!,
                         $"Utility{j + 1}Slot",
@@ -553,14 +560,25 @@ public class ObtainSuitablePotions : CharacterJob
                     );
 
                     var fightSimResult = FightSimulator.CalculateFightOutcome(
-                        characterSchemaClone,
+                        iterationClone,
                         monster,
                         gameState
                     );
 
                     if (fightSimResult.ShouldFight)
                     {
-                        fightSimResults.Add((fightSimResult, simUtilSlots));
+                        fightSimResults.Add(
+                            (
+                                fightSimResult,
+                                simUtilSlots
+                                    .Select(util => new DropSchema
+                                    {
+                                        Code = util.Code,
+                                        Quantity = util.Quantity,
+                                    })
+                                    .ToList()
+                            )
+                        );
                     }
                 }
             }

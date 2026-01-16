@@ -12,6 +12,7 @@ public class NavigationService
     public static string ChristmasIsland = "Christmas Island";
 
     public static List<string> Islands = new List<string> { SandwhisperIsle, ChristmasIsland };
+    public static List<string> UnavailableIslands = new List<string> { ChristmasIsland };
 
     private Dictionary<string, MapSchema> transitionsToIslandFromMainland = [];
     private Dictionary<string, MapSchema> transitionsFromIslandToMainland = [];

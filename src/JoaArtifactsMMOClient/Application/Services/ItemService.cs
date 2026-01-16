@@ -665,6 +665,14 @@ public static class ItemService
 
             var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
 
+            if (
+                matchingNpcItem is not null
+                && !gameState.AvailableNpcs.Exists(npc => npc.Code == matchingNpcItem.Npc)
+            )
+            {
+                continue;
+            }
+
             if (amountAvailable == 0)
             {
                 if (matchingNpcItem is not null)
@@ -713,7 +721,7 @@ public static class ItemService
         int entityLevel;
         int characterLevel;
 
-        var matchingMonster = gameState.MonstersDict.GetValueOrNull(entityCode);
+        var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(entityCode);
 
         if (matchingMonster is not null)
         {

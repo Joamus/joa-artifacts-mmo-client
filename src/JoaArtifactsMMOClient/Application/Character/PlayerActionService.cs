@@ -390,39 +390,6 @@ public class PlayerActionService
 
         bool itemsAreInWishlist = false;
 
-        // foreach (var item in gameState.Items)
-        // {
-        //     if (character.ExistsInWishlist(item.Code))
-        //     {
-        //         Logger.LogInformation(
-        //             $"{Name}: [{character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining fight items - {item.Code} is already in wish list, so we should wait until obtaining more"
-        //         );
-
-        //         itemsAreInWishlist = true;
-        //         continue;
-        //     }
-
-        //     items.Add(item);
-        // }
-
-        // foreach (var item in character.Schema.Inventory)
-        // {
-        //     if (string.IsNullOrWhiteSpace(item.Code))
-        //     {
-        //         continue;
-        //     }
-
-        //     var matchingItem = gameState.ItemsDict[item.Code];
-
-        //     if (
-        //         matchingItem.Subtype != "tool"
-        //         && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
-        //     )
-        //     {
-        //         items.Add(matchingItem);
-        //     }
-        // }
-
         var bestFightItemsResult = await ItemService.GetBestFightItems(
             character,
             gameState,
