@@ -3,6 +3,7 @@ using Application.Character;
 using Application.Dtos;
 using Application.Errors;
 using Application.Services;
+using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -63,7 +64,9 @@ public class CancelTask : CharacterJob
         }
 
         string tasksMasterCode = (
-            Character.Schema.Task == TaskType.items.ToString() ? TaskType.items : TaskType.monsters
+            Character.Schema.TaskType == TaskType.items.GetDisplayName()
+                ? TaskType.items
+                : TaskType.monsters
         ).ToString();
 
         await Character.NavigateTo(tasksMasterCode);

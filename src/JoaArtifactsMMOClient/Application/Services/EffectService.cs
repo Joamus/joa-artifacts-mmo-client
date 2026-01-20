@@ -1,5 +1,8 @@
+using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
+using Application.Services;
 using Applicaton.Services.FightSimulator;
+using Microsoft.OpenApi.Extensions;
 
 public static class EffectService
 {
@@ -225,6 +228,15 @@ public static class EffectService
         //     // }
         //     // }
         // }
+    }
+
+    public static SimpleEffectSchema? GetSkillEffectFromItem(ItemSchema item)
+    {
+        return item.Effects.FirstOrDefault(effect =>
+            SkillService.GatheringSkills.Exists(skill =>
+                skill.GetDisplayName().FromPascalToSnakeCase() == effect.Code
+            )
+        );
     }
 }
 

@@ -34,6 +34,11 @@ public class GameLoader
 
         while (running)
         {
+            if (_gameState.ShouldReload())
+            {
+                await _gameState.ReloadAll();
+            }
+
             foreach (var playerAI in _gameState.CharacterAIs)
             {
                 playerAI.Character.CleanupOldWishlistItems();
@@ -63,11 +68,6 @@ public class GameLoader
                     }
                     var _ = playerAI.Character.RunJob();
                 }
-            }
-
-            if (_gameState.ShouldReload())
-            {
-                await _gameState.ReloadAll();
             }
 
             await Task.Delay(1 * 1000);

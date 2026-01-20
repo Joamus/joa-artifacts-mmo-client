@@ -23,6 +23,8 @@ public class GameState
     public List<PlayerAI> CharacterAIs { get; private set; } = [];
     public List<ItemSchema> Items { get; set; } = [];
     public List<TasksFullSchema> Tasks { get; set; } = [];
+
+    public CharacterChoreService ChoreService { get; set; }
     public Dictionary<string, ItemSchema> ItemsDict { get; set; } = [];
 
     public Dictionary<string, ItemSchema> UtilityItemsDict { get; set; } = [];
@@ -58,6 +60,8 @@ public class GameState
             accountRequester,
             this
         );
+
+        ChoreService = new CharacterChoreService();
     }
 
     public async Task LoadAll(List<CharacterConfig> characterConfigs)
@@ -81,7 +85,7 @@ public class GameState
     {
         DateTime now = DateTime.UtcNow;
         double secondsDiff = (now - cacheReload).TotalSeconds;
-        return secondsDiff > 60 * 10;
+        return secondsDiff > 60 * 5;
     }
 
     public async Task ReloadAll()

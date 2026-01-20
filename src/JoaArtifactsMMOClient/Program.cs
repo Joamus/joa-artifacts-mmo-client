@@ -126,5 +126,8 @@ public record CharacterConfig
     public string Name { get; set; } = "";
     public List<string> Roles { get; set; } = [];
 
+    [System.Text.Json.Serialization.JsonConverter(typeof(StringEnumConverter))]
+    public List<CharacterChoreKind> Chores { get; set; } = [];
+
     public bool AI { get; set; } = true;
 }

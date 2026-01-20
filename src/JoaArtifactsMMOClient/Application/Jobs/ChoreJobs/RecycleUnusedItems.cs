@@ -1,6 +1,11 @@
+using System.Text.RegularExpressions;
+using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Application.Records;
+using Application.Services;
+using Applicaton.Jobs;
 using OneOf;
 using OneOf.Types;
 
@@ -8,49 +13,74 @@ namespace Application.Jobs;
 
 public class RecycleUnusedItems : CharacterJob
 {
+    public const int RECYCLE_LEVEL_DIFF = 15;
+
     public RecycleUnusedItems(PlayerCharacter character, GameState gameState)
         : base(character, gameState) { }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        return new None();
-    }
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
-    // public async DropSchema? GetNextItemToRecycle()
-    // {
-    //     var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        List<DropSchema> items = await GetRecycleableItemsFromBank();
 
-    //     foreach (var item in bankItems.Data)
-    // 	{
-    // 		if (string.IsNullOrWhiteSpace(item.Code))
-    // 		{
-    // 			continue;
-    // 		}
-    // 		if (item.)
-    // 	}
-    // }
-    //
-
-    public static Dictionary<string, NpcSchema> GetActiveNpcs(GameState gameState)
-    {
-        Dictionary<string, NpcSchema> npcs = [];
-
-        foreach (var npc in gameState.Npcs)
+        if (items.Count == 0)
         {
-            var npcEvent = gameState.EventService.EventEntitiesDict.GetValueOrNull(npc.Code);
-
-            if (npcEvent is not null)
-            {
-                if (gameState.EventService.WhereIsEntityActive(npcEvent.Code) is null)
-                {
-                    continue;
-                }
-            }
-
-            npcs.Add(npc.Code, npc);
+            return new None();
         }
 
-        return npcs;
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] running - found {items.Count} different items to deposit"
+        );
+
+        // Just deposit everything, will give more room for recycling
+        await Character.PlayerActionService.DepositAllItems();
+
+        Dictionary<Skill, List<DropSchema>> skillToItemsDict = [];
+
+        foreach (var item in items)
+        {
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+            Skill skill = matchingItem.Craft!.Skill;
+
+            if (skillToItemsDict.GetValueOrDefault(skill) is null)
+            {
+                skillToItemsDict.Add(skill, []);
+            }
+
+            skillToItemsDict.GetValueOrDefault(skill)!.Add(item);
+        }
+
+        List<CharacterJob> jobs = [];
+
+        foreach (var skill in skillToItemsDict)
+        {
+            foreach (var item in skill.Value)
+            {
+                var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+                // Iterations like this is good enough for now, we could be more accurate
+                List<int> iterations = ObtainItem.CalculateObtainItemIterations(
+                    matchingItem,
+                    Character,
+                    item.Quantity
+                );
+
+                foreach (var iteration in iterations)
+                {
+                    jobs.Add(new WithdrawItem(Character, gameState, item.Code, iteration));
+                    jobs.Add(new RecycleItem(Character, gameState, item.Code, iteration));
+                }
+            }
+        }
+
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] queued {jobs.Count} jobs for recycling items"
+        );
+
+        await Character.QueueJobsAfter(Id, jobs);
+
+        return new None();
     }
 
     /** Maybe the function gets the list of all items to run recycle jobs, sorted by the NPC they have to go to?
@@ -71,7 +101,157 @@ public class RecycleUnusedItems : CharacterJob
     */
 
 
-    public static void GetAll() { }
+    public async Task<List<DropSchema>> GetRecycleableItemsFromBank()
+    {
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
-    public static void Something() { }
+        List<DropSchema> itemsToRecycle = [];
+
+        int lowestCharacterLevel = GetLowestCharacterLevel();
+
+        int amountOfCharacters = gameState.Characters.Count;
+
+        Dictionary<string, List<ItemSchema>> toolsByEffect = [];
+
+        foreach (var item in gameState.Items)
+        {
+            if (item.Subtype != "tool")
+            {
+                continue;
+            }
+
+            var gatheringEffect = EffectService.GetSkillEffectFromItem(item);
+
+            if (toolsByEffect.GetValueOrNull(gatheringEffect!.Code) is null)
+            {
+                toolsByEffect.Add(gatheringEffect.Code, []);
+            }
+
+            toolsByEffect[gatheringEffect.Code].Add(item);
+        }
+
+        foreach (var item in bankItems.Data)
+        {
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            if (!IsItemRecycleable(matchingItem))
+            {
+                continue;
+            }
+
+            int amountToKeep = Math.Min(
+                GetItemAmonutMinimumNeeded(matchingItem) * amountOfCharacters,
+                item.Quantity
+            );
+
+            int amountToRecycle = item.Quantity - amountToKeep;
+
+            int amountWithBetter = 0;
+
+            // Check each character, and see if they have a better bag equipped
+            // We should have some logic, where we count how many we need depending on all of the characters.
+
+            if (matchingItem.Type == "bag")
+            {
+                amountWithBetter = gameState.Characters.Count(character =>
+                {
+                    var bag = gameState.ItemsDict.GetValueOrNull(character.Schema.BagSlot);
+
+                    return bag?.Level >= matchingItem.Level;
+                });
+            }
+            // Check each character, and see if they have better tools equipped
+            else if (matchingItem.Subtype == "tool")
+            {
+                var toolEffect = EffectService.GetSkillEffectFromItem(matchingItem)!;
+
+                int amountWithBetterOrSameTool = gameState.Characters.Count(character =>
+                {
+                    List<ItemInInventory> itemsInInventory =
+                        character.GetItemsFromInventoryWithSubtype("tool");
+
+                    if (!string.IsNullOrWhiteSpace(character.Schema.WeaponSlot))
+                    {
+                        ItemSchema equippedWeapon = gameState.ItemsDict.GetValueOrNull(
+                            character.Schema.WeaponSlot
+                        )!;
+
+                        if (equippedWeapon.Subtype == "tool")
+                        {
+                            itemsInInventory.Add(
+                                new ItemInInventory { Item = equippedWeapon, Quantity = 1 }
+                            );
+                        }
+                    }
+
+                    foreach (var tool in itemsInInventory)
+                    {
+                        var toolEffectInventoryItem = EffectService.GetSkillEffectFromItem(
+                            tool.Item
+                        );
+
+                        // With tools, the lower effect the better, e.g. -30 is better than -10.
+                        if (
+                            toolEffectInventoryItem?.Code == toolEffect.Code
+                            && toolEffectInventoryItem.Value <= toolEffect.Value
+                        )
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                });
+                // Check characters' inventory/weapon slot, and see if they have a better tool
+            }
+            else
+            {
+                if (lowestCharacterLevel > matchingItem.Level + RECYCLE_LEVEL_DIFF)
+                {
+                    // TODO: We should recycle all of them, they are probably useless - make this better, and do fight sims at some point
+                    amountToRecycle = item.Quantity;
+                }
+            }
+
+            // We can recycle more in the bank, if the characters has a better item
+            amountToRecycle += amountWithBetter;
+
+            if (amountToRecycle > 0)
+            {
+                itemsToRecycle.Add(new DropSchema { Code = item.Code, Quantity = amountToRecycle });
+            }
+        }
+
+        return itemsToRecycle;
+    }
+
+    public static bool IsItemRecycleable(ItemSchema item)
+    {
+        return item.Craft is not null && ItemService.RecycableItemTypes.Contains(item.Type);
+    }
+
+    public int GetLowestCharacterLevel()
+    {
+        int? lowestLevel = null;
+
+        foreach (var character in gameState.Characters)
+        {
+            if (lowestLevel is null || character.Schema.Level < lowestLevel)
+            {
+                lowestLevel = character.Schema.Level;
+            }
+        }
+
+        return lowestLevel ?? 1;
+    }
+
+    public int GetItemAmonutMinimumNeeded(ItemSchema item)
+    {
+        if (item.Type == "ring")
+        {
+            return 2;
+        }
+
+        return 1;
+    }
 }

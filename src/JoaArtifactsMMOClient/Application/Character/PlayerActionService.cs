@@ -563,6 +563,31 @@ public class PlayerActionService
 
         await character.NavigateTo(tasksMasterCode);
     }
+
+    public async Task DepositAllItems()
+    {
+        var items = character
+            .Schema.Inventory.Where(item => !string.IsNullOrWhiteSpace(item.Code))
+            .ToList();
+
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        await character.NavigateTo("bank");
+
+        await character.DepositBankItem(
+            items
+                .Where(item => !string.IsNullOrWhiteSpace(item.Code))
+                .Select(item => new WithdrawOrDepositItemRequest
+                {
+                    Code = item.Code,
+                    Quantity = item.Quantity,
+                })
+                .ToList()
+        );
+    }
 }
 
 public record CharacterJobAndEquipmentSlot

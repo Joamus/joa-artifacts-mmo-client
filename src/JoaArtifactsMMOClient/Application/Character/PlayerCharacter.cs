@@ -40,6 +40,7 @@ public class PlayerCharacter
     private Dictionary<string, ItemReservation> itemWishlist { get; set; } = [];
 
     public List<Skill> Roles { get; init; } = [];
+    public List<CharacterChoreKind> Chores { get; init; } = [];
 
     // Poor man's semaphor - make something sturdier
     private bool Busy { get; set; } = false;
@@ -177,7 +178,7 @@ public class PlayerCharacter
         Busy = false;
     }
 
-    public void QueueJobsBefore(Guid jobId, List<CharacterJob> jobs)
+    public async Task QueueJobsBefore(Guid jobId, List<CharacterJob> jobs)
     {
         Busy = true;
         // Handle if the job to insert before is the current job - move it back into the list.
@@ -195,7 +196,7 @@ public class PlayerCharacter
             {
                 foreach (var job in jobs)
                 {
-                    QueueJob(job);
+                    await QueueJob(job);
                 }
                 Busy = false;
                 return;
@@ -213,7 +214,7 @@ public class PlayerCharacter
         Busy = false;
     }
 
-    public void QueueJobsAfter(Guid jobId, List<CharacterJob> jobs)
+    public async Task QueueJobsAfter(Guid jobId, List<CharacterJob> jobs)
     {
         Busy = true;
         var indexOf = Jobs.FindIndex(job => job.Id.Equals(jobId));
@@ -228,7 +229,7 @@ public class PlayerCharacter
             {
                 foreach (var job in jobs)
                 {
-                    QueueJob(job);
+                    await QueueJob(job);
                 }
                 Busy = false;
                 return;
@@ -412,6 +413,8 @@ public class PlayerCharacter
             Skill.Fishing,
         ];
 
+        List<CharacterChoreKind> chores = [];
+
         if (characterConfig is not null)
         {
             foreach (var role in characterConfig.Roles)
@@ -422,9 +425,15 @@ public class PlayerCharacter
                     roles.Add((Skill)skill);
                 }
             }
+
+            foreach (var chore in characterConfig.Chores)
+            {
+                chores.Add(chore);
+            }
         }
 
         Roles = roles;
+        Chores = chores;
 
         PlayerActionService = new PlayerActionService(
             AppLogger.loggerFactory.CreateLogger<PlayerActionService>(),
@@ -855,6 +864,23 @@ public class PlayerCharacter
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
 
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/npc/buy", body);
+
+        var content = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
+            content,
+            ApiRequester.getJsonOptions()
+        )!;
+        PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+    }
+
+    public async Task NpcSellItem(string itemCode, int quantity)
+    {
+        await PreTaskHandler();
+
+        string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
+        StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
+
+        var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/npc/sell", body);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(

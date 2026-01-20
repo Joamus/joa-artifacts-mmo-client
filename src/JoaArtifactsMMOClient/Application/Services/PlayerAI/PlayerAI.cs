@@ -5,6 +5,7 @@ using Application.Character;
 using Application.Dtos;
 using Application.Jobs;
 using Applicaton.Services.FightSimulator;
+using Microsoft.OpenApi.Extensions;
 
 namespace Application.Services;
 
@@ -44,6 +45,7 @@ public class PlayerAI
         var job =
             await EnsureWeapon()
             ?? await GetEventJob()
+            ?? await GetChoreJob()
             ?? await GetIndividualHighPrioJob()
             // ?? await EnsureFightGear()
             ?? await EnsureBag()
@@ -86,19 +88,6 @@ public class PlayerAI
             (Character.Schema.Artifact3Slot, "Artifact3Slot"),
         ];
 
-        // List<SimpleEffectSchema> currentEffects =
-        // [
-        //     new SimpleEffectSchema { Code = Effect.Wisdom, Value = Character.Schema.Wisdom },
-        //     new SimpleEffectSchema
-        //     {
-        //         Code = Effect.Prospecting,
-        //         Value = Character.Schema.Prospecting,
-        //     },
-        //     // new SimpleEffectSchema { Code = Effect.Wisdom, Value = Character.Schema. },
-        // ];
-
-        // currentEffects.Sort((a, b) => a.Value.CompareTo(b.Value));
-
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
         var bankItemsDict = bankItems.Data.ToDictionary((item) => item.Code);
@@ -111,19 +100,8 @@ public class PlayerAI
                 continue;
             }
 
-            // var mostDesiredEffect = currentEffects.ElementAt(0);
-
             foreach (var artifact in nonCombatArtifacts)
             {
-                // if (
-                //     !artifact.Effects.Exists(artifactEffect =>
-                //         artifactEffect.Code == mostDesiredEffect.Code
-                //     )
-                // )
-                // {
-                //     continue;
-                // }
-
                 var result = Character.GetEquippedItemOrInInventory(artifact.Code);
 
                 (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
@@ -1122,6 +1100,57 @@ public class PlayerAI
         }
 
         return new NextJobToFightResult { Job = nextJob?.Job };
+    }
+
+    public async Task<CharacterJob?> GetChoreJob()
+    {
+        logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
+        foreach (var chore in Character.Chores)
+        {
+            if (gameState.ChoreService.ShouldChoreBeStarted(chore))
+            {
+                CharacterJob? job = null;
+                // start chore
+                switch (chore)
+                {
+                    case CharacterChoreKind.RecycleUnusedItems:
+                        job = new RecycleUnusedItems(Character, gameState);
+                        break;
+                    case CharacterChoreKind.SellUnusedItems:
+                        job = new SellUnusedItems(Character, gameState);
+                        break;
+                    // case CharacterChoreKind.RestockFood:
+                    //     break;
+                    // case CharacterChoreKind.RestockTasksCoins:
+                    //     break;
+                    // case CharacterChoreKind.RestockPotions:
+                    // break;
+                    default:
+                        return null;
+                }
+
+                if (job is null)
+                {
+                    return null;
+                }
+
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{chore.GetDisplayName()}\""
+                );
+
+                job.onAfterSuccessEndHook = async () =>
+                {
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Name}]: Done running chore \"{chore.GetDisplayName()}\""
+                    );
+                    gameState.ChoreService.FinishChore(chore);
+                };
+
+                return job;
+            }
+        }
+
+        return null;
     }
 }
 
