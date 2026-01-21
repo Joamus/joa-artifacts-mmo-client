@@ -98,7 +98,8 @@ public class ObtainSuitablePotions : CharacterJob
             int amountInBank =
                 bankItemsResponse
                     .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                    ?.Quantity ?? 0;
+                    ?.Quantity
+                ?? 0;
 
             if (!canCraftItem && amountInBank == 0)
             {
@@ -565,21 +566,18 @@ public class ObtainSuitablePotions : CharacterJob
                         gameState
                     );
 
-                    if (fightSimResult.ShouldFight)
-                    {
-                        fightSimResults.Add(
-                            (
-                                fightSimResult,
-                                simUtilSlots
-                                    .Select(util => new DropSchema
-                                    {
-                                        Code = util.Code,
-                                        Quantity = util.Quantity,
-                                    })
-                                    .ToList()
-                            )
-                        );
-                    }
+                    fightSimResults.Add(
+                        (
+                            fightSimResult,
+                            simUtilSlots
+                                .Select(util => new DropSchema
+                                {
+                                    Code = util.Code,
+                                    Quantity = util.Quantity,
+                                })
+                                .ToList()
+                        )
+                    );
                 }
             }
         }
@@ -594,7 +592,7 @@ public class ObtainSuitablePotions : CharacterJob
             {
                 int potionDiff = a.Outcome.PotionsUsed - b.Outcome.PotionsUsed;
 
-                if (potionDiff != 0)
+                if (potionDiff != 0 && a.Outcome.ShouldFight && b.Outcome.ShouldFight)
                 {
                     return potionDiff;
                 }
