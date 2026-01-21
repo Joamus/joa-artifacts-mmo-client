@@ -69,7 +69,11 @@ public class RecycleUnusedItems : CharacterJob
                 foreach (var iteration in iterations)
                 {
                     jobs.Add(new WithdrawItem(Character, gameState, item.Code, iteration));
-                    jobs.Add(new RecycleItem(Character, gameState, item.Code, iteration));
+
+                    for (int i = 0; i < iteration; i++)
+                    {
+                        jobs.Add(new RecycleItem(Character, gameState, item.Code, 1));
+                    }
                 }
             }
         }
@@ -99,7 +103,6 @@ public class RecycleUnusedItems : CharacterJob
     **    and that there are items of the same kind in the bank (or on the character) which are higher lvl for that character?
     **  - If we arent entirely sure that the item is totally redundant, we just recycle down to max 5, max 10 for rings (so everyone can use one)
     */
-
 
     public async Task<List<DropSchema>> GetRecycleableItemsFromBank()
     {
