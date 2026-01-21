@@ -214,106 +214,6 @@ public class PlayerAI
         return null;
     }
 
-    async Task<CharacterJob?> EnsureFightGear()
-    {
-        var tasks = gameState.Tasks.ToList();
-
-        // Loop from highest to lowest, and get the equipment we can get
-        tasks.Sort((a, b) => b.Level - a.Level);
-
-        MonsterSchema? firstMonsterWeCanFight = null;
-
-        foreach (var task in tasks)
-        {
-            if (task.Type != TaskType.monsters)
-            {
-                continue;
-            }
-
-            if (task.Level <= Character.Schema.Level)
-            {
-                var matchingMonster = gameState.AvailableMonstersDict[task.Code]!;
-
-                var fightSimResult = FightSimulator.FindBestFightEquipment(
-                    Character,
-                    gameState,
-                    matchingMonster
-                );
-
-                if (!fightSimResult.Outcome.ShouldFight)
-                {
-                    var jobs = await GetNextJobToFightMonster(matchingMonster);
-
-                    if (jobs is null)
-                    {
-                        logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but cannot get a list of jobs, to get the necessary items - skipping"
-                        );
-                        continue;
-                    }
-
-                    if (jobs.Job is not null)
-                    {
-                        var nextJob = jobs.Job;
-
-                        logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Cannot fight monster \"{matchingMonster.Code}\", but found a job, to get the next item - obtaining or finding \"{nextJob.Code}\""
-                        );
-
-                        return nextJob;
-                    }
-                    logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: We can obtain the optimal gear to fight monster \"{matchingMonster.Code}\""
-                    );
-                }
-
-                if (firstMonsterWeCanFight is null)
-                {
-                    firstMonsterWeCanFight = matchingMonster;
-                }
-            }
-        }
-
-        if (firstMonsterWeCanFight is not null)
-        {
-            if (Character.Schema.Level - firstMonsterWeCanFight.Level < 5)
-            {
-                // we are probably good? We should have up to date gear
-                return null;
-            }
-
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - the highest level monster we can fight is \"{firstMonsterWeCanFight.Code}\" - trying to get jobs to fight it"
-            );
-
-            var nextJobResult = await GetNextJobToFightMonster(firstMonsterWeCanFight);
-
-            if (nextJobResult is null)
-            {
-                logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but cannot get a list of jobs, to get the necessary items - skipping"
-                );
-                return null;
-            }
-
-            if (nextJobResult.Job is not null)
-            {
-                var firstJob = nextJobResult.Job;
-
-                logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - cannot fight monster \"{firstMonsterWeCanFight.Code}\", but found a job, to get the next item - obtaining or finding \"{firstJob.Code}\""
-                );
-
-                return firstJob;
-            }
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: EnsureFightGear: Fallback - we can fight monster \"{firstMonsterWeCanFight.Code}\", and we have the optimal items"
-            );
-        }
-
-        return null;
-    }
-
     async Task<CharacterJob?> EnsureBag()
     {
         // All bags need task crystals
@@ -1145,6 +1045,8 @@ public class PlayerAI
                     );
                     gameState.ChoreService.FinishChore(chore);
                 };
+
+                gameState.ChoreService.StartChore(Character, chore);
 
                 return job;
             }
