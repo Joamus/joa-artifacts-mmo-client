@@ -5,7 +5,9 @@ using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
 using Application.Jobs;
+using Application.Records;
 using Application.Services;
+using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
@@ -72,15 +74,20 @@ public class DepositUnneededItems : CharacterJob
 
         var bestFightItems = MonsterSchema is not null
             ? (
-                await ItemService.GetBestFightItems(
+                FightSimulator.FindBestFightEquipment(
                     Character,
                     gameState,
                     MonsterSchema,
                     Character
                         .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+                        .Select(item => new ItemInInventory
+                        {
+                            Item = gameState.ItemsDict[item.Code],
+                            Quantity = item.Quantity,
+                        })
                         .ToList()
                 )
-            ).Items.ToDictionary(item => item.Code)
+            ).ItemsToEquip.ToDictionary(item => item.Code)
             : [];
 
         if (bestFightItems.Count > 0)

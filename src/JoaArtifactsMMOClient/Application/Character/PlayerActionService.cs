@@ -386,11 +386,9 @@ public class PlayerActionService
             bankItemDict.Add(item.Code, item with { });
         }
 
-        // List<ItemSchema> items = [];
-
         bool itemsAreInWishlist = false;
 
-        var bestFightItemsResult = await ItemService.GetBestFightItems(
+        var bestFightItemsResult = await ItemService.GetBestFightItemsFromAllItems(
             character,
             gameState,
             monster

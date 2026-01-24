@@ -209,7 +209,7 @@ public class TrainSkill : CharacterJob
                         // - a.Craft!.Level
                         );
 
-                        if (!resultA.Item1)
+                        if (!resultA.CanObtain)
                         {
                             return 1;
                         }
@@ -225,7 +225,7 @@ public class TrainSkill : CharacterJob
 
                         int resultBCost = resultB.Item2 + skillLevel - b.Craft!.Level;
 
-                        if (!resultB.Item1)
+                        if (!resultB.CanObtain)
                         {
                             return -1;
                         }
@@ -348,80 +348,121 @@ public class TrainSkill : CharacterJob
         );
     }
 
-    public static (bool, int) GetInconvenienceCostCraftItem(
+    public static (bool CanObtain, int Score) GetInconvenienceCostCraftItem(
         ItemSchema item,
         GameState gameState,
         List<DropSchema> bankItems,
-        PlayerCharacter Character
+        PlayerCharacter character
+    )
+    {
+        if (item.Craft is null)
+        {
+            // For now, we don't care about items that cannot be crafted - it's used to train skill
+            return (false, 0);
+        }
+
+        var result = InnerGetInconvenienceCostCraftItem(item, 1, gameState, bankItems, character);
+
+        return result;
+    }
+
+    public static (bool CanObtain, int Score) InnerGetInconvenienceCostCraftItem(
+        ItemSchema item,
+        int quantity,
+        GameState gameState,
+        List<DropSchema> bankItems,
+        PlayerCharacter character
     )
     {
         int score = 0;
         bool canObtain = true;
 
-        if (item.Craft?.Items is not null)
-        {
-            foreach (var _item in item.Craft.Items)
-            {
-                bool matchInBank =
-                    bankItems.Find(bankItem =>
-                        bankItem.Code == _item.Code && bankItem.Quantity >= _item.Quantity
-                    )
-                        is not null;
+        int amountInBank =
+            bankItems
+                .Find(bankItem => bankItem.Code == item.Code && bankItem.Quantity >= quantity)
+                ?.Quantity ?? 0;
 
-                if (matchInBank)
+        if (amountInBank >= quantity)
+        {
+            return (true, 0);
+        }
+
+        var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+        if (matchingItem?.Subtype == "task")
+        {
+            score += 2 * quantity;
+        }
+        else if (matchingItem?.Subtype == "mob")
+        {
+            var monstersThatDropTheItem = gameState.AvailableMonsters.FindAll(monster =>
+                monster.Drops.Find(drop => drop.Code == item.Code) is not null
+            );
+
+            MonsterSchema? monsterWeCanFight = null;
+            FightOutcome? monsterWeCanFightOutcome = null;
+
+            foreach (var monster in monstersThatDropTheItem)
+            {
+                if (
+                    gameState.EventService.IsEntityFromEvent(monster.Code)
+                    && gameState.EventService.WhereIsEntityActive(monster.Code) is null
+                )
                 {
                     continue;
                 }
+                var fightOutcome = FightSimulator
+                    .FindBestFightEquipmentWithUsablePotions(character, gameState, monster)
+                    .Outcome;
 
-                var matchingItem = gameState.ItemsDict.GetValueOrNull(_item.Code);
-
-                if (matchingItem?.Subtype == "task")
+                if (
+                    fightOutcome.ShouldFight
+                    && (
+                        monsterWeCanFightOutcome?.TotalTurns is null
+                        || monsterWeCanFightOutcome.TotalTurns > fightOutcome.TotalTurns
+                    )
+                )
                 {
-                    score += 2;
+                    monsterWeCanFight = monster;
+                    monsterWeCanFightOutcome = fightOutcome;
+                    break;
                 }
-                else if (matchingItem?.Subtype == "mob")
+            }
+
+            if (monsterWeCanFight is not null)
+            {
+                int dropRateFactor =
+                    monsterWeCanFight.Drops.FirstOrDefault(drop => drop.Code == item.Code)!.Rate
+                    * quantity;
+
+                score +=
+                    1
+                    + (int)Math.Round((float)monsterWeCanFightOutcome!.TotalTurns / 10)
+                        * dropRateFactor;
+            }
+            else
+            {
+                canObtain = false;
+            }
+        }
+        else if (matchingItem!.Craft is not null)
+        {
+            foreach (var subComponent in matchingItem.Craft.Items)
+            {
+                var subComponentResult = InnerGetInconvenienceCostCraftItem(
+                    gameState.ItemsDict[subComponent.Code],
+                    subComponent.Quantity,
+                    gameState,
+                    bankItems,
+                    character
+                );
+
+                if (!subComponentResult.CanObtain)
                 {
-                    var monstersThatDropTheItem = gameState.AvailableMonsters.FindAll(monster =>
-                        monster.Drops.Find(drop => drop.Code == _item.Code) is not null
-                    );
-
-                    MonsterSchema? monsterWeCanFight = null;
-                    FightOutcome? monsterWeCanFightOutcome = null;
-
-                    foreach (var monster in monstersThatDropTheItem)
-                    {
-                        if (gameState.EventService.IsEntityFromEvent(monster.Code))
-                        {
-                            continue;
-                        }
-                        var fightOutcome = FightSimulator
-                            .FindBestFightEquipmentWithUsablePotions(Character, gameState, monster)
-                            .Outcome;
-
-                        if (
-                            fightOutcome.ShouldFight
-                            && (
-                                monsterWeCanFightOutcome?.TotalTurns is null
-                                || monsterWeCanFightOutcome.TotalTurns > fightOutcome.TotalTurns
-                            )
-                        )
-                        {
-                            monsterWeCanFight = monster;
-                            monsterWeCanFightOutcome = fightOutcome;
-                            break;
-                        }
-                    }
-
-                    if (monsterWeCanFight is not null)
-                    {
-                        score +=
-                            1 + (int)Math.Round((float)monsterWeCanFightOutcome!.TotalTurns / 10);
-                    }
-                    else
-                    {
-                        canObtain = false;
-                    }
+                    return (false, score);
                 }
+
+                score += subComponentResult.Score;
             }
         }
 

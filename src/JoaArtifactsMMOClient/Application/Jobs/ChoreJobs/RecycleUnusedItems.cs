@@ -6,6 +6,7 @@ using Application.Errors;
 using Application.Records;
 using Application.Services;
 using Applicaton.Jobs;
+using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
@@ -13,7 +14,7 @@ namespace Application.Jobs;
 
 public class RecycleUnusedItems : CharacterJob
 {
-    public const int RECYCLE_LEVEL_DIFF = 15;
+    public const int RECYCLE_LEVEL_DIFF = 10;
 
     public RecycleUnusedItems(PlayerCharacter character, GameState gameState)
         : base(character, gameState) { }
@@ -22,7 +23,7 @@ public class RecycleUnusedItems : CharacterJob
     {
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
-        List<DropSchema> items = await GetRecycleableItemsFromBank();
+        List<DropSchema> items = await GetItemsToRecycleFromBank();
 
         if (items.Count == 0)
         {
@@ -75,6 +76,16 @@ public class RecycleUnusedItems : CharacterJob
                         jobs.Add(new RecycleItem(Character, gameState, item.Code, 1));
                     }
                 }
+
+                var lastJob = jobs.LastOrDefault();
+
+                if (lastJob is not null)
+                {
+                    lastJob.onAfterSuccessEndHook = async () =>
+                    {
+                        await Character.PlayerActionService.DepositAllItems();
+                    };
+                }
             }
         }
 
@@ -104,17 +115,25 @@ public class RecycleUnusedItems : CharacterJob
     **  - If we arent entirely sure that the item is totally redundant, we just recycle down to max 5, max 10 for rings (so everyone can use one)
     */
 
-    public async Task<List<DropSchema>> GetRecycleableItemsFromBank()
+    public async Task<List<DropSchema>> GetItemsToRecycleFromBank()
     {
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
         List<DropSchema> itemsToRecycle = [];
 
-        int lowestCharacterLevel = GetLowestCharacterLevel();
+        int lowestCharacterLevel = GetLowestCharacterLevel(gameState);
 
         int amountOfCharacters = gameState.Characters.Count;
 
         Dictionary<string, List<ItemSchema>> toolsByEffect = [];
+
+        var itemsWeShouldNotRecycle = GetRelevantEquipment(
+            gameState,
+            bankItems
+                .Data.Select(item => gameState.ItemsDict[item.Code])
+                .Where(item => item.Craft is not null)
+                .ToList()
+        );
 
         foreach (var item in gameState.Items)
         {
@@ -143,20 +162,20 @@ public class RecycleUnusedItems : CharacterJob
             }
 
             int amountToKeep = Math.Min(
-                GetItemAmonutMinimumNeeded(matchingItem) * amountOfCharacters,
+                GetItemAmountMinimumNeeded(matchingItem) * amountOfCharacters,
                 item.Quantity
             );
 
             int amountToRecycle = item.Quantity - amountToKeep;
 
-            int amountWithBetter = 0;
+            int amountOfCharactersWithBetterOrSameItem = 0;
 
             // Check each character, and see if they have a better bag equipped
             // We should have some logic, where we count how many we need depending on all of the characters.
 
             if (matchingItem.Type == "bag")
             {
-                amountWithBetter = gameState.Characters.Count(character =>
+                amountOfCharactersWithBetterOrSameItem = gameState.Characters.Count(character =>
                 {
                     var bag = gameState.ItemsDict.GetValueOrNull(character.Schema.BagSlot);
 
@@ -205,19 +224,62 @@ public class RecycleUnusedItems : CharacterJob
 
                     return false;
                 });
+
+                amountOfCharactersWithBetterOrSameItem += amountWithBetterOrSameTool;
                 // Check characters' inventory/weapon slot, and see if they have a better tool
             }
             else
             {
-                if (lowestCharacterLevel > matchingItem.Level + RECYCLE_LEVEL_DIFF)
+                bool recycleAll = false;
+
+                var itemCouldBeRecycled = !itemsWeShouldNotRecycle.Contains(item.Code);
+
+                if (itemCouldBeRecycled)
                 {
-                    // TODO: We should recycle all of them, they are probably useless - make this better, and do fight sims at some point
+                    /*
+                    ** Check if the item is a component of an item we don't want to recycle,
+                    ** for example skeleton_armor, which can be built into royal_skeleton_armor
+                    */
+
+                    var matchingCraftItemLookup = gameState.CraftingLookupDict.GetValueOrNull(
+                        item.Code
+                    );
+
+                    if (
+                        matchingCraftItemLookup is not null
+                        && matchingCraftItemLookup.Exists(item =>
+                            itemsWeShouldNotRecycle.Contains(item.Code)
+                        )
+                    )
+                    {
+                        itemCouldBeRecycled = false;
+                    }
+
+                    if (itemCouldBeRecycled)
+                    {
+                        var matchingItemThatShouldNotBeRecycled = gameState.ItemsDict[item.Code];
+
+                        if (matchingItemThatShouldNotBeRecycled.Level < lowestCharacterLevel)
+                        {
+                            recycleAll = true;
+                        }
+                    }
+                }
+
+                // If any character still has use of this item, we will always keep 5 - it's OK, but not optimal I guess.
+                if (recycleAll)
+                {
                     amountToRecycle = item.Quantity;
                 }
             }
 
             // We can recycle more in the bank, if the characters has a better item
-            amountToRecycle += amountWithBetter;
+            amountToRecycle += amountOfCharactersWithBetterOrSameItem;
+
+            if (amountToRecycle > item.Quantity)
+            {
+                amountToRecycle = item.Quantity;
+            }
 
             if (amountToRecycle > 0)
             {
@@ -233,7 +295,7 @@ public class RecycleUnusedItems : CharacterJob
         return item.Craft is not null && ItemService.RecycableItemTypes.Contains(item.Type);
     }
 
-    public int GetLowestCharacterLevel()
+    public static int GetLowestCharacterLevel(GameState gameState)
     {
         int? lowestLevel = null;
 
@@ -248,7 +310,7 @@ public class RecycleUnusedItems : CharacterJob
         return lowestLevel ?? 1;
     }
 
-    public int GetItemAmonutMinimumNeeded(ItemSchema item)
+    public int GetItemAmountMinimumNeeded(ItemSchema item)
     {
         if (item.Type == "ring")
         {
@@ -256,5 +318,26 @@ public class RecycleUnusedItems : CharacterJob
         }
 
         return 1;
+    }
+
+    public static HashSet<string> GetRelevantEquipment(GameState gameState, List<ItemSchema> items)
+    {
+        HashSet<string> relevantItems = [];
+
+        foreach (var character in gameState.Characters)
+        {
+            var relevantItemsFromSim = FightSimulator.GetItemsRelevantMonsters(
+                character,
+                gameState,
+                items.Select(item => new ItemInInventory { Item = item, Quantity = 100 }).ToList()
+            );
+
+            foreach (var item in relevantItemsFromSim)
+            {
+                relevantItems.Add(item);
+            }
+        }
+
+        return relevantItems;
     }
 }

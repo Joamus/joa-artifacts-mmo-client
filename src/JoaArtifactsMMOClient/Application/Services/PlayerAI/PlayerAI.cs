@@ -678,7 +678,7 @@ public class PlayerAI
             if (fightMonster is not null)
             {
                 logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting  {fightMonster.Amount} x {fightMonster.Code}"
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting {fightMonster.Amount} x {fightMonster.Code}"
                 );
                 var nextJobResult = await GetNextJobToFightMonster(
                     gameState.AvailableMonstersDict.GetValueOrNull(fightMonster.Code)!

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
@@ -1144,26 +1145,27 @@ public class FightSimulator
         }
     }
 
-    public static List<MonsterSchema> GetRelevantMonstersForCharacter(PlayerCharacter character)
+    public static List<MonsterSchema> GetRelevantMonstersForCharacter(
+        PlayerCharacter character,
+        GameState gameState
+    )
     {
-        int maxToFindPerCategory = 3;
+        int maxToFindPerCategory = 5;
 
         int playerLevel = character.Schema.Level;
-
-        List<MonsterSchema> relevantMonsters = [];
 
         List<MonsterSchema> mediumMonsters = [];
 
         List<MonsterSchema> toughMonsters = [];
 
-        int lowerLevelBound = playerLevel - 5;
+        int lowerLevelBound = playerLevel - 6;
 
         if (lowerLevelBound < 0)
         {
             lowerLevelBound = 1;
         }
 
-        int upperLevelBound = playerLevel + 2;
+        int upperLevelBound = playerLevel + 3;
 
         if (upperLevelBound > MAX_LEVEL)
         {
@@ -1172,40 +1174,63 @@ public class FightSimulator
 
         // Find the most difficult monsters that the character should realistically be able to fight,
         // at their current level. It's okay that the character cannot defeat them all at the moment.
+        //
+
+        var filteredMonsters = gameState
+            .AvailableMonsters.Where(
+                (monster) =>
+                {
+                    return monster.Type != MonsterType.Boss
+                        && monster.Level >= lowerLevelBound
+                        && monster.Level <= upperLevelBound;
+                }
+            )
+            .ToList();
+
+        filteredMonsters.Sort((a, b) => b.Level - a.Level);
+
+        return filteredMonsters.GetRange(0, 5);
+    }
+
+    public static HashSet<string> GetItemsRelevantMonsters(
+        PlayerCharacter character,
+        GameState gameState,
+        List<ItemInInventory> items
+    )
+    {
+        HashSet<string> relevantItems = [];
+
+        var relevantMonsters = GetRelevantMonstersForCharacter(character, gameState);
 
         foreach (var monster in relevantMonsters)
         {
-            if (monster.Type == MonsterType.Boss)
-            {
-                continue;
-            }
-            if (
-                mediumMonsters.Count >= maxToFindPerCategory
-                && toughMonsters.Count >= maxToFindPerCategory
-            )
-            {
-                break;
-            }
-            if (monster.Level < lowerLevelBound || monster.Level > upperLevelBound)
-            {
-                continue;
-            }
+            var bestFightItems = (
+                FindBestFightEquipment(
+                    character,
+                    gameState,
+                    monster,
+                    character
+                        .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+                        .Select(item => new ItemInInventory
+                        {
+                            Item = gameState.ItemsDict[item.Code],
+                            Quantity = item.Quantity,
+                        })
+                        .Union(items)
+                        .ToList()
+                )
+            ).ItemsToEquip;
 
-            if (monster.Level >= playerLevel + 2 && toughMonsters.Count < maxToFindPerCategory)
+            foreach (var item in bestFightItems)
             {
-                toughMonsters.Add(monster);
-            }
-            else if (
-                monster.Level <= playerLevel
-                && monster.Level + 3 >= playerLevel
-                && mediumMonsters.Count < maxToFindPerCategory
-            )
-            {
-                toughMonsters.Add(monster);
+                // if (!relevantItems.Contains(item.Code))
+                // {
+                relevantItems.Add(item.Code);
+                // }
             }
         }
 
-        return relevantMonsters;
+        return relevantItems;
     }
 
     /**

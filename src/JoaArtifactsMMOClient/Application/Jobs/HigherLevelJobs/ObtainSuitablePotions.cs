@@ -98,8 +98,7 @@ public class ObtainSuitablePotions : CharacterJob
             int amountInBank =
                 bankItemsResponse
                     .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                    ?.Quantity
-                ?? 0;
+                    ?.Quantity ?? 0;
 
             if (!canCraftItem && amountInBank == 0)
             {
@@ -265,34 +264,6 @@ public class ObtainSuitablePotions : CharacterJob
         }
 
         potionCandidates = potionsForSim
-            // .Where(potion =>
-            // {
-            //     // if (!EffectService.IsPreFightPotion(potion.Item))
-            //     // {
-            //     //     return true;
-            //     // }
-
-            //     // character.Schema.Utility1Slot = "";
-            //     // character.Schema.Utility1SlotQuantity = 0;
-
-            //     // character.Schema.Utility2Slot = "";
-            //     // character.Schema.Utility2SlotQuantity = 0;
-            //     var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
-            //         character,
-            //         gameState,
-            //         monster,
-            //         new List<ItemInInventory>
-            //         {
-            //             new ItemInInventory
-            //             {
-            //                 Item = potion.Item,
-            //                 Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
-            //             },
-            //         }
-            //     );
-
-            //     return true;
-            // })
             .Select(potion =>
             {
                 var candidate = potionCandidates.FirstOrDefault(_candidate =>

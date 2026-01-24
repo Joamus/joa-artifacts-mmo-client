@@ -491,7 +491,7 @@ public class NavigationService
                 continue;
             }
 
-            if (map.Interactions.Transition.Layer != map.Layer)
+            if (map.Interactions.Transition.Layer == map.Layer)
             {
                 continue;
             }

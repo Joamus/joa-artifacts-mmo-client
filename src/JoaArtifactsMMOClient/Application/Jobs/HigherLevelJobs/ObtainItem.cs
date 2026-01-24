@@ -511,7 +511,8 @@ public class ObtainItem : CharacterJob
         monstersThatDropTheItem = await GetDefeatableMonstersFromList(
             Character,
             gameState,
-            monstersThatDropTheItem
+            monstersThatDropTheItem,
+            itemsInBankClone
         );
 
         if (monstersThatDropTheItem.Count > 0)
@@ -534,11 +535,11 @@ public class ObtainItem : CharacterJob
                     Character,
                     gameState,
                     lowestLevelMonster,
-                    withdrawItemJobs
-                        .Select(job => new ItemInInventory
+                    itemsInBankClone
+                        .Select(item => new ItemInInventory
                         {
-                            Item = gameState.ItemsDict[job.Code],
-                            Quantity = job.Amount,
+                            Item = gameState.ItemsDict[item.Code],
+                            Quantity = item.Quantity,
                         })
                         .ToList()
                 );
@@ -551,15 +552,6 @@ public class ObtainItem : CharacterJob
                 return new AppError(
                     $"Cannot fight {lowestLevelMonster.Code} to obtain item with code {code}"
                 );
-            }
-
-            if (withdrawItemJobs.Count > 0)
-            {
-                foreach (var job in withdrawItemJobs)
-                {
-                    jobs.Add(job);
-                }
-                return new None();
             }
 
             // Don't really care if the sim uses the withdrawn items or not, we can fight them
@@ -657,7 +649,8 @@ public class ObtainItem : CharacterJob
                     monstersThatDropCurrency = await GetDefeatableMonstersFromList(
                         Character,
                         gameState,
-                        monstersThatDropCurrency
+                        monstersThatDropCurrency,
+                        itemsInBankClone
                     );
 
                     if (monstersThatDropCurrency.Count == 0)
@@ -797,7 +790,8 @@ public class ObtainItem : CharacterJob
     public static async Task<List<MonsterSchema>> GetDefeatableMonstersFromList(
         PlayerCharacter Character,
         GameState gameState,
-        List<MonsterSchema> monsters
+        List<MonsterSchema> monsters,
+        List<DropSchema> bankItems
     )
     {
         List<MonsterSchema> monstersThatCanBeDefeated = [];
@@ -837,34 +831,25 @@ public class ObtainItem : CharacterJob
                 monstersThatCanBeDefeated.Add(monster);
                 continue;
             }
-            List<CharacterJob> withdrawItemJobs =
-                await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
+
+            var fightSimIfUsingWithdrawnItems =
+                FightSimulator.FindBestFightEquipmentWithUsablePotions(
                     Character,
                     gameState,
-                    monster
+                    monster,
+                    bankItems
+                        .Select(item => new ItemInInventory
+                        {
+                            Item = gameState.ItemsDict[item.Code],
+                            Quantity = item.Quantity,
+                        })
+                        .ToList()
                 );
 
-            if (withdrawItemJobs.Count > 0)
+            if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
             {
-                var fightSimIfUsingWithdrawnItems =
-                    FightSimulator.FindBestFightEquipmentWithUsablePotions(
-                        Character,
-                        gameState,
-                        monster,
-                        withdrawItemJobs
-                            .Select(job => new ItemInInventory
-                            {
-                                Item = gameState.ItemsDict[job.Code],
-                                Quantity = job.Amount,
-                            })
-                            .ToList()
-                    );
-
-                if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
-                {
-                    monstersThatCanBeDefeated.Add(monster);
-                    continue;
-                }
+                monstersThatCanBeDefeated.Add(monster);
+                continue;
             }
         }
 

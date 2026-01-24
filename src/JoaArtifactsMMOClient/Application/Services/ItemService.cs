@@ -371,23 +371,19 @@ public static class ItemService
         return false;
     }
 
-    public static async Task<BestFightItemsResult> GetBestFightItems(
+    public static async Task<BestFightItemsResult> GetBestFightItemsFromAllItems(
         PlayerCharacter character,
         GameState gameState,
-        MonsterSchema monster,
-        List<InventorySlot>? allItemCandidates = null
+        MonsterSchema monster
     )
     {
-        bool wasAllItemCandidatesNull = allItemCandidates is null;
+        List<InventorySlot>? allItemCandidates = [];
 
-        if (allItemCandidates is null)
-        {
-            // 100 quantity for potions, doesn't really matter
-            allItemCandidates = gameState
-                .Items.Where(item => EquipmentItemTypes.Contains(item.Type))
-                .Select(item => new InventorySlot { Code = item.Code, Quantity = 100 })
-                .ToList();
-        }
+        // 100 quantity for potions, doesn't really matter
+        allItemCandidates = gameState
+            .Items.Where(item => EquipmentItemTypes.Contains(item.Type))
+            .Select(item => new InventorySlot { Code = item.Code, Quantity = 100 })
+            .ToList();
 
         var allItemCandidatesCasted =
             allItemCandidates
@@ -398,9 +394,11 @@ public static class ItemService
                 })
                 .ToList() ?? [];
 
-        List<ItemInInventory> itemsForSimming = wasAllItemCandidatesNull
-            ? await GetItemsThatCanBeSimmed(character, gameState, allItemCandidatesCasted)
-            : allItemCandidatesCasted;
+        List<ItemInInventory> itemsForSimming = await GetItemsThatCanBeSimmed(
+            character,
+            gameState,
+            allItemCandidatesCasted
+        );
 
         Dictionary<string, EquipmentSlot> relevantItemsDict = [];
 

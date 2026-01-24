@@ -28,7 +28,7 @@ public class MonsterTask : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook = () =>
+        onSuccessEndHook = async () =>
         {
             logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
@@ -40,7 +40,7 @@ public class MonsterTask : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositting them"
                 );
-                Character.QueueJob(
+                await Character.QueueJob(
                     new DepositItems(
                         Character,
                         gameState,
@@ -56,7 +56,7 @@ public class MonsterTask : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositting them"
                 );
-                Character.QueueJob(
+                await Character.QueueJob(
                     new DepositItems(
                         Character,
                         gameState,
@@ -66,12 +66,10 @@ public class MonsterTask : CharacterJob
                     true
                 );
             }
-
-            return Task.Run(() => { });
         };
     }
 
-    protected override Task<OneOf<AppError, None>> ExecuteAsync()
+    protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation($"{JobName} run started - for {Character.Schema.Name}");
 
@@ -80,7 +78,7 @@ public class MonsterTask : CharacterJob
         if (Character.Schema.TaskType == "")
         {
             // Go pick up task - then we should continue
-            Character.QueueJobsBefore(
+            await Character.QueueJobsBefore(
                 Id,
                 [
                     new AcceptNewTask(
@@ -91,7 +89,7 @@ public class MonsterTask : CharacterJob
                 ]
             );
             Status = JobStatus.Suspend;
-            return Task.FromResult<OneOf<AppError, None>>(new None());
+            return new None();
         }
 
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
@@ -101,9 +99,7 @@ public class MonsterTask : CharacterJob
             if (monster is null)
             {
                 Status = JobStatus.Failed;
-                return Task.FromResult<OneOf<AppError, None>>(
-                    new AppError($"Cannot find monster {code} to fight in task")
-                );
+                return new AppError($"Cannot find monster {code} to fight in task");
             }
             var outcome = FightSimulator
                 .FindBestFightEquipment(Character, gameState, monster)
@@ -111,19 +107,15 @@ public class MonsterTask : CharacterJob
 
             if (!outcome.ShouldFight)
             {
-                return Task.FromResult<OneOf<AppError, None>>(
-                    new AppError(
-                        $"Cannot complete monster task, because the monster is too strong - outcome: {outcome.ShouldFight} - remaining monster hp: {outcome.MonsterHp} - monster {code} to fight in task"
-                    )
+                return new AppError(
+                    $"Cannot complete monster task, because the monster is too strong - outcome: {outcome.ShouldFight} - remaining monster hp: {outcome.MonsterHp} - monster {code} to fight in task"
                 );
             }
         }
         else
         {
-            return Task.FromResult<OneOf<AppError, None>>(
-                new AppError(
-                    $"Cannot do a {JobName}, because the current task is {Character.Schema.TaskType}"
-                )
+            return new AppError(
+                $"Cannot do a {JobName}, because the current task is {Character.Schema.TaskType}"
             );
         }
 
@@ -153,7 +145,7 @@ public class MonsterTask : CharacterJob
         {
             jobs.Last()!.onSuccessEndHook = onSuccessEndHook;
 
-            Character.QueueJobsAfter(Id, jobs);
+            await Character.QueueJobsAfter(Id, jobs);
         }
 
         // Reset it
@@ -163,6 +155,6 @@ public class MonsterTask : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"
         );
 
-        return Task.FromResult<OneOf<AppError, None>>(new None());
+        return new None();
     }
 }

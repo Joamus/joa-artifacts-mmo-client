@@ -3,6 +3,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
 using Application.Errors;
+using Application.Services;
 using OneOf;
 using OneOf.Types;
 
@@ -161,9 +162,24 @@ public class SellUnusedItems : CharacterJob
 
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
+        int lowestCharacterLevel = RecycleUnusedItems.GetLowestCharacterLevel(gameState);
+
+        int amountOfCharacters = gameState.Characters.Count;
+
+        Dictionary<string, List<ItemSchema>> toolsByEffect = [];
+
+        var relevantEquipmentFromBank = RecycleUnusedItems.GetRelevantEquipment(
+            gameState,
+            bankItems
+                .Data.Select(item => gameState.ItemsDict[item.Code])
+                .Where(item => item.Craft is not null)
+                .ToList()
+        );
+
         foreach (var item in bankItems.Data)
         {
             // For now, we just want to sell "trash" items like golden_shrimp, holey_boot etc., so only items that have no value apart
+            // Incorporate evaluating whether a "fight item" is still relevant (look at RecycleUnusedItems), else we can sell them, e.g forest_ring.
             var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(item.Code);
 
             if (matchingNpcItem is null || !activeNpcs.ContainsKey(matchingNpcItem.Npc))
@@ -173,7 +189,13 @@ public class SellUnusedItems : CharacterJob
 
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
-            if (!IsSellableTrashItem(matchingItem, gameState))
+            bool isEquipmentThatShouldBeSold =
+                matchingItem.Craft is not null
+                && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
+                && matchingItem.Level <= lowestCharacterLevel
+                && !relevantEquipmentFromBank.Contains(item.Code);
+
+            if (!IsSellableTrashItem(matchingItem, gameState) || !isEquipmentThatShouldBeSold)
             {
                 continue;
             }
