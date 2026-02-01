@@ -244,6 +244,30 @@ public class NavigationService
                 var matchingTransition = transitionsFromIslandToMainland[currentMap.Name];
                 // We are going back from an island
                 // Boat to Sandwhisper Isle
+
+                if (
+                    matchingTransition.Interactions.Transition!.Conditions.Exists(condition =>
+                        condition.Code == "gold"
+                    )
+                )
+                {
+                    // Ghetto recall - find closest mob and intentionally die, so we get ported to spawn
+
+                    MonsterSchema? closestMonsterMap = FindClosestMonster(matchingTransition);
+
+                    if (closestMonsterMap is not null)
+                    {
+                        await NavigateTo(closestMonsterMap.Code);
+
+                        while (character.Schema.X != 0 && character.Schema.Y != 0)
+                        {
+                            await character.Fight();
+                        }
+
+                        return;
+                    }
+                }
+
                 await character.Move(matchingTransition.X, matchingTransition.Y);
                 // TODO: Consider using a recall potion if you have one
                 await character.Transition();
@@ -511,5 +535,10 @@ public class NavigationService
         }
 
         return closestTransition;
+    }
+
+    public MonsterSchema? FindClosestMonster(MapSchema currentMap)
+    {
+        return null;
     }
 }

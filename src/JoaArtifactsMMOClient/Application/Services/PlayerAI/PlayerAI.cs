@@ -45,7 +45,7 @@ public class PlayerAI
         var job =
             await EnsureWeapon()
             ?? await GetEventJob()
-            ?? await GetChoreJob()
+            ?? GetChoreJob()
             ?? await GetIndividualHighPrioJob()
             // ?? await EnsureFightGear()
             ?? await EnsureBag()
@@ -1002,7 +1002,7 @@ public class PlayerAI
         return new NextJobToFightResult { Job = nextJob?.Job };
     }
 
-    public async Task<CharacterJob?> GetChoreJob()
+    public CharacterJob? GetChoreJob()
     {
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
         foreach (var chore in Character.Chores)
@@ -1019,8 +1019,9 @@ public class PlayerAI
                     case CharacterChoreKind.SellUnusedItems:
                         job = new SellUnusedItems(Character, gameState);
                         break;
-                    // case CharacterChoreKind.RestockFood:
-                    //     break;
+                    case CharacterChoreKind.RestockFood:
+                        job = new RestockFood(Character, gameState);
+                        break;
                     // case CharacterChoreKind.RestockTasksCoins:
                     //     break;
                     // case CharacterChoreKind.RestockPotions:

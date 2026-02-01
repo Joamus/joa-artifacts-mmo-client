@@ -391,7 +391,7 @@ public class TrainSkill : CharacterJob
 
         if (matchingItem?.Subtype == "task")
         {
-            score += 2 * quantity;
+            score += 10 * quantity;
         }
         else if (matchingItem?.Subtype == "mob")
         {
@@ -436,7 +436,7 @@ public class TrainSkill : CharacterJob
                     * quantity;
 
                 score +=
-                    1
+                    2
                     + (int)Math.Round((float)monsterWeCanFightOutcome!.TotalTurns / 10)
                         * dropRateFactor;
             }
@@ -463,6 +463,21 @@ public class TrainSkill : CharacterJob
                 }
 
                 score += subComponentResult.Score;
+            }
+        }
+        else
+        {
+            var resource = ItemService.FindBestResourceToGatherItem(
+                character,
+                gameState,
+                item.Code
+            );
+
+            if (resource is not null)
+            {
+                var drop = resource.Drops.First(drop => drop.Code == item.Code)!;
+
+                score += (int)Math.Floor(drop.Rate * (double)quantity);
             }
         }
 

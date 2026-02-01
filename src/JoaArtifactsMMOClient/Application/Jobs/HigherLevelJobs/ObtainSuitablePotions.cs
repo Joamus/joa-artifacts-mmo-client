@@ -216,53 +216,6 @@ public class ObtainSuitablePotions : CharacterJob
         ** a potion is roughly the same, no matter which one.
         */
 
-        List<(int Slot, string ItemCode, int Amount)> simUtilSlots = [];
-
-        simUtilSlots.Add((1, "", 0));
-        simUtilSlots.Add((2, "", 0));
-
-        List<FightSimResult> simsWithPotions = [];
-
-        // We should sim all potion combinations in each slot, but no duplicate pot effects in the slots
-        //
-        //
-
-        foreach (var potion in potionsForSim)
-        {
-            foreach (var utilSlot in simUtilSlots) { }
-        }
-
-        foreach (var utilSlot in simUtilSlots)
-        {
-            foreach (var potion in potionsForSim)
-            {
-                var fightSimWithPotions = FightSimulator.FindBestFightEquipment(
-                    character,
-                    gameState,
-                    monster,
-                    new List<ItemInInventory>
-                    {
-                        new ItemInInventory
-                        {
-                            Item = potion.Item,
-                            Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
-                        },
-                    }
-                );
-
-                bool simpleAvoidPrefightPotions = EffectService.SimpleIsPreFightPotionWorthUsing(
-                    fightSimWithPotions
-                );
-
-                if (simpleAvoidPrefightPotions)
-                {
-                    continue;
-                }
-
-                simsWithPotions.Add(fightSimWithoutPotions);
-            }
-        }
-
         potionCandidates = potionsForSim
             .Select(potion =>
             {
@@ -282,46 +235,6 @@ public class ObtainSuitablePotions : CharacterJob
             gameState,
             potionCandidates.Select(potion => potion.item).ToList()
         );
-
-        // potionCandidates = potionCandidates
-        //     .Where(candidate =>
-        //     {
-        //         // foreach (var candiate in potionCandidates)
-        //         // {
-        //         bool skipCandidate = false;
-
-        //         foreach (var effect in candidate.item.Effects)
-        //         {
-        //             // Effects cannot overlap (I think)
-        //             if (
-        //                 potionCandidates.Exists(potion =>
-        //                     potion.item.Effects.Exists(_effect => _effect.Code == effect.Code)
-        //                     && potion.item.Code != candidate.item.Code
-        //                 )
-        //             )
-        //             {
-        //                 skipCandidate = true;
-        //                 break;
-        //             }
-        //         }
-
-        //         if (skipCandidate)
-        //         {
-        //             return false;
-        //         }
-
-        //         return true;
-
-        //         // potionsForSim.Add(
-        //         //     new ItemInInventory
-        //         //     {
-        //         //         Item = candiate.item,
-
-        //         //         Quantity = PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
-        //         //     }
-        //         // );
-        //     })
-        //     .ToList();
 
         // Mutating it back, very important
         character.Schema = originalSchema;
