@@ -44,7 +44,7 @@ public class PlayerAI
 
         var job =
             await EnsureWeapon()
-            // ?? await GetEventJob()
+            ?? await GetEventJob()
             ?? GetChoreJob()
             ?? await GetIndividualHighPrioJob()
             // ?? await EnsureFightGear()
