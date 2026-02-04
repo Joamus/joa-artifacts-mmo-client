@@ -151,7 +151,7 @@ public class GatherMaterialsForItem : CharacterJob
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
-            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            await Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -203,7 +203,7 @@ public class GatherMaterialsForItem : CharacterJob
                 $"{JobName}: [{Character.Schema.Name}] We need to obtain {preReqJob.Amount} x {preReqJob.Code} to get {Amount} x {Code}, but we shouldn't craft that ourselves - queueing this job first"
             );
 
-            Character.QueueJobsBefore(Id, [preReqJob]);
+            await Character.QueueJobsBefore(Id, [preReqJob]);
             Status = JobStatus.Suspend;
             return new None();
         }

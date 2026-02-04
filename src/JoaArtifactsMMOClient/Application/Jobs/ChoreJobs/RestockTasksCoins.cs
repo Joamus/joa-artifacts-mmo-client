@@ -7,11 +7,75 @@ namespace Application.Jobs;
 
 public class RestockTasksCoins : CharacterJob
 {
+    const int AMOUNT_OF_JOBS_TO_DO = 5;
+
     public RestockTasksCoins(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
+        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
+
+        List<CharacterJob> jobs = [];
+
+        AppError? error = null;
+
+        for (int i = 0; i < AMOUNT_OF_JOBS_TO_DO; i++)
+        {
+            var result = await GetJobToGetCoins(Character, gameState);
+
+            result.Switch(
+                appError =>
+                {
+                    error = appError;
+                },
+                jobs.Add
+            );
+
+            if (error is not null)
+            {
+                return error;
+            }
+        }
+
+        if (jobs.Count > 0)
+        {
+            await Character.QueueJobsAfter(Id, jobs);
+        }
+
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] run ended - queued {jobs.Count} x jobs"
+        );
+
         return new None();
+    }
+
+    public static async Task<OneOf<AppError, CharacterJob>> GetJobToGetCoins(
+        PlayerCharacter character,
+        GameState gameState
+    )
+    {
+        while (
+            !await character.PlayerActionService.CanItemFromItemTaskBeObtained()
+            && await CancelTask.CanCancelTask(character, gameState)
+        )
+        {
+            await CancelTask.DoCancelTask(character, gameState);
+        }
+
+        if (await character.PlayerActionService.CanItemFromItemTaskBeObtained())
+        {
+            var job = new ItemTask(character, gameState);
+            job.ForBank();
+
+            return job;
+        }
+
+        return new AppError($"Cannot cancel the task for {character.Name} - job failed");
+    }
+
+    public static async Task<bool> CanDoJob(PlayerCharacter character, GameState gameState)
+    {
+        return GetJobToGetCoins(character, gameState) != null;
     }
 }

@@ -107,7 +107,7 @@ public class FightMonster : CharacterJob
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] found {withdrawItemJobs.Count} x jobs to withdraw better items to fight - {string.Join(",", withdrawItemJobs.Select(item => item.Code).ToList())}"
             );
-            Character.QueueJobsBefore(Id, withdrawItemJobs);
+            await Character.QueueJobsBefore(Id, withdrawItemJobs);
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -126,7 +126,7 @@ public class FightMonster : CharacterJob
                     new WithdrawItem(Character, gameState, item.Item.Code, item.Quantity, true)
                 );
             }
-            Character.QueueJobsBefore(Id, jobs);
+            await Character.QueueJobsBefore(Id, jobs);
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -137,7 +137,7 @@ public class FightMonster : CharacterJob
 
         if (obtainPotionJobs.Count > 0)
         {
-            Character.QueueJobsBefore(Id, obtainPotionJobs);
+            await Character.QueueJobsBefore(Id, obtainPotionJobs);
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -212,7 +212,7 @@ public class FightMonster : CharacterJob
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
         {
-            Character.QueueJobsBefore(
+            await Character.QueueJobsBefore(
                 Id,
                 [new DepositUnneededItems(Character, gameState, monster)]
             );
@@ -225,7 +225,7 @@ public class FightMonster : CharacterJob
 
         if (GetSuitableFoodFromInventory() == 0)
         {
-            Character.QueueJobsBefore(
+            await Character.QueueJobsBefore(
                 Id,
                 [
                     new ObtainSuitableFood(
@@ -274,7 +274,7 @@ public class FightMonster : CharacterJob
 
             if (obtainPotionJobs.Count > 0)
             {
-                Character.QueueJobsBefore(Id, obtainPotionJobs);
+                await Character.QueueJobsBefore(Id, obtainPotionJobs);
                 Status = JobStatus.Suspend;
                 return new None();
             }

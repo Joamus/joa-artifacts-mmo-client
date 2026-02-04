@@ -16,7 +16,15 @@ public class CancelTask : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        if (string.IsNullOrWhiteSpace(Character.Schema.Task))
+        return await DoCancelTask(Character, gameState);
+    }
+
+    public static async Task<OneOf<AppError, None>> DoCancelTask(
+        PlayerCharacter character,
+        GameState gameState
+    )
+    {
+        if (string.IsNullOrWhiteSpace(character.Schema.Task))
         {
             return new None();
         }
@@ -24,7 +32,7 @@ public class CancelTask : CharacterJob
         bool canCancelTask = false;
 
         int tasksCoinsInInventory =
-            Character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
+            character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
 
         if (tasksCoinsInInventory >= ItemService.CancelTaskPrice)
         {
@@ -33,15 +41,15 @@ public class CancelTask : CharacterJob
         else if (tasksCoinsInInventory < ItemService.CancelTaskPrice)
         {
             int tasksCoinsInBank =
-                (await gameState.BankItemCache.GetBankItems(Character))
+                (await gameState.BankItemCache.GetBankItems(character))
                     .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                     ?.Quantity ?? 0;
 
             if (tasksCoinsInBank >= ItemService.CancelTaskPrice)
             {
-                await Character.NavigateTo("bank");
+                await character.NavigateTo("bank");
 
-                await Character.WithdrawBankItem(
+                await character.WithdrawBankItem(
                     new List<WithdrawOrDepositItemRequest>
                     {
                         new WithdrawOrDepositItemRequest
@@ -59,19 +67,19 @@ public class CancelTask : CharacterJob
         if (!canCancelTask)
         {
             return new AppError(
-                $"Cannot cancel current task of type \"{Character.Schema.TaskType}\", because the character doesn't have enough tasks coins"
+                $"Cannot cancel current task of type \"{character.Schema.TaskType}\", because the character doesn't have enough tasks coins"
             );
         }
 
         string tasksMasterCode = (
-            Character.Schema.TaskType == TaskType.items.GetDisplayName()
+            character.Schema.TaskType == TaskType.items.GetDisplayName()
                 ? TaskType.items
                 : TaskType.monsters
         ).ToString();
 
-        await Character.NavigateTo(tasksMasterCode);
+        await character.NavigateTo(tasksMasterCode);
 
-        await Character.TaskCancel();
+        await character.TaskCancel();
 
         return new None();
     }

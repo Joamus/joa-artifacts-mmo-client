@@ -178,7 +178,8 @@ public class PlayerCharacter
         Busy = false;
     }
 
-    public async Task QueueJobsBefore(Guid jobId, List<CharacterJob> jobs)
+    public async Task QueueJobsBefore<T>(Guid jobId, List<T> jobs)
+        where T : CharacterJob
     {
         Busy = true;
         // Handle if the job to insert before is the current job - move it back into the list.
@@ -214,7 +215,8 @@ public class PlayerCharacter
         Busy = false;
     }
 
-    public async Task QueueJobsAfter(Guid jobId, List<CharacterJob> jobs)
+    public async Task QueueJobsAfter<T>(Guid jobId, List<T> jobs)
+        where T : CharacterJob
     {
         Busy = true;
         var indexOf = Jobs.FindIndex(job => job.Id.Equals(jobId));

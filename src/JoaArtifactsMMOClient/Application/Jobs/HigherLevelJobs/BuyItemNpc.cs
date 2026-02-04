@@ -113,7 +113,7 @@ public class BuyItemNpc : CharacterJob
                     new ObtainOrFindItem(Character, gameState, matchingCurrency.Code, amountLeft)
                 );
 
-                Character.QueueJobsBefore(Id, jobs);
+                await Character.QueueJobsBefore(Id, jobs);
                 Status = JobStatus.Suspend;
                 return new None();
             }

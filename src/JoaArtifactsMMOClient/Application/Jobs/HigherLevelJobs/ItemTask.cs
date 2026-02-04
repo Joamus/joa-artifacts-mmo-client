@@ -29,7 +29,7 @@ public class ItemTask : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook = () =>
+        onSuccessEndHook = async () =>
         {
             logger.LogInformation($"{JobName}: [{Character.Schema.Name}] onSuccessHook: running");
 
@@ -41,7 +41,7 @@ public class ItemTask : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositing them"
                 );
-                Character.QueueJob(
+                await Character.QueueJob(
                     new DepositItems(Character, gameState, ItemService.TasksCoin, taskCoinsAmount),
                     true
                 );
@@ -52,13 +52,11 @@ public class ItemTask : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositing them"
                 );
-                Character.QueueJob(
+                await Character.QueueJob(
                     new DepositItems(Character, gameState, ItemCode, (int)ItemAmount),
                     true
                 );
             }
-
-            return Task.Run(() => { });
         };
     }
 
@@ -68,7 +66,7 @@ public class ItemTask : CharacterJob
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character))
         {
-            Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            await Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -78,7 +76,7 @@ public class ItemTask : CharacterJob
         if (Character.Schema.TaskType == "")
         {
             // Go pick up task - then we should continue
-            Character.QueueJobsBefore(
+            await Character.QueueJobsBefore(
                 Id,
                 [
                     new AcceptNewTask(
@@ -207,7 +205,7 @@ public class ItemTask : CharacterJob
 
                     jobs.Add(job);
                 }
-                Character.QueueJobsBefore(Id, jobs);
+                await Character.QueueJobsBefore(Id, jobs);
                 Status = JobStatus.Suspend;
                 return new None();
             }
@@ -224,7 +222,7 @@ public class ItemTask : CharacterJob
 
         completeTask.onSuccessEndHook = onSuccessEndHook;
 
-        Character.QueueJobsAfter(Id, jobs);
+        await Character.QueueJobsAfter(Id, jobs);
 
         // Reset it
         onSuccessEndHook = null;

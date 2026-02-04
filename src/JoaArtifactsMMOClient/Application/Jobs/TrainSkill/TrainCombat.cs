@@ -60,7 +60,7 @@ public class TrainCombat : CharacterJob
                 );
             }
 
-            Character.QueueJobsBefore(Id, [result]);
+            await Character.QueueJobsBefore(Id, [result]);
             Status = JobStatus.Suspend;
         }
 

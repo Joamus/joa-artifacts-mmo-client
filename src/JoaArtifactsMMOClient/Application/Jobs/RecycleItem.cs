@@ -33,7 +33,7 @@ public class RecycleItem : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook = () =>
+        onSuccessEndHook = async () =>
         {
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit recycled items to the bank"
@@ -47,10 +47,8 @@ public class RecycleItem : CharacterJob
                     drop.Code,
                     drop.Quantity
                 );
-                Character.QueueJob(depositItemJob, true);
+                await Character.QueueJob(depositItemJob, true);
             }
-
-            return Task.Run(() => { });
         };
     }
 
@@ -66,7 +64,7 @@ public class RecycleItem : CharacterJob
                 Character,
                 gameState
             ).SetParent<DepositUnneededItems>(this);
-            Character.QueueJobsBefore(Id, [job]);
+            await Character.QueueJobsBefore(Id, [job]);
             Status = JobStatus.Suspend;
             return new None();
         }

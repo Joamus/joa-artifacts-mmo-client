@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Net;
+using System.Security.Principal;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
@@ -43,16 +44,29 @@ public class RestockFood : CharacterJob
 
         List<CharacterJob> jobs = [];
 
-        foreach (var element in bestFoodItemsInBank)
+        foreach (var item in bestFoodItems)
         {
-            var food = element.Value;
+            List<int> iterations = ObtainItem.CalculateObtainItemIterations(
+                item,
+                Character,
+                HIGHER_FOOD_THRESHOLD
+            );
 
-            var matchingItem = gameState.ItemsDict[food.Code];
+            var matchInBank = bestFoodItemsInBank.GetValueOrDefault(item.Code);
 
-            // We don't care that we end up getting more food than strictly needed
-            if (food.Quantity <= LOWER_FOOD_THRESHOLD)
+            if (matchInBank is not null && matchInBank.Quantity >= LOWER_FOOD_THRESHOLD)
             {
-                jobs.Add(new ObtainItem(Character, gameState, food.Code, HIGHER_FOOD_THRESHOLD));
+                continue;
+            }
+
+            foreach (var iteration in iterations)
+            {
+                // We don't care that we end up getting more food than strictly needed
+                var job = new ObtainItem(Character, gameState, item.Code, iteration);
+
+                job.ForBank();
+
+                jobs.Add(job);
             }
         }
 
@@ -75,7 +89,8 @@ public class RestockFood : CharacterJob
             {
                 return IsItemCookedFish(item)
                     && ItemService.CanUseItem(item, character.Schema)
-                    && crafter.Schema.CookingLevel >= item.Craft?.Level;
+                    && crafter.Schema.CookingLevel >= item.Craft?.Level
+                    && item.Craft.Items.Count == 1;
             })
             .ToList();
 

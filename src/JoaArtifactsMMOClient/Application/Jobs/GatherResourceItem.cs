@@ -79,7 +79,10 @@ public class GatherResourceItem : CharacterJob
         {
             if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
             {
-                Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+                await Character.QueueJobsBefore(
+                    Id,
+                    [new DepositUnneededItems(Character, gameState)]
+                );
                 Status = JobStatus.Suspend;
                 return new None();
             }
@@ -176,7 +179,7 @@ public class GatherResourceItem : CharacterJob
                 );
                 // Skill skill = (Skill)SkillService.GetSkillFromName(matchingItem.Subtype)!;
 
-                Character.QueueJobsBefore(
+                await Character.QueueJobsBefore(
                     Id,
                     [new TrainSkill(Character, gameState, resource.Skill, matchingItem.Level)]
                 );

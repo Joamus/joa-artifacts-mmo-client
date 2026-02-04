@@ -44,7 +44,7 @@ public class PlayerAI
 
         var job =
             await EnsureWeapon()
-            ?? await GetEventJob()
+            // ?? await GetEventJob()
             ?? GetChoreJob()
             ?? await GetIndividualHighPrioJob()
             // ?? await EnsureFightGear()
@@ -1022,10 +1022,12 @@ public class PlayerAI
                     case CharacterChoreKind.RestockFood:
                         job = new RestockFood(Character, gameState);
                         break;
-                    // case CharacterChoreKind.RestockTasksCoins:
-                    //     break;
-                    // case CharacterChoreKind.RestockPotions:
-                    // break;
+                    case CharacterChoreKind.RestockTasksCoins:
+                        job = new RestockTasksCoins(Character, gameState);
+                        break;
+                    case CharacterChoreKind.RestockPotions:
+                        job = new RestockPotions(Character, gameState);
+                        break;
                     default:
                         return null;
                 }

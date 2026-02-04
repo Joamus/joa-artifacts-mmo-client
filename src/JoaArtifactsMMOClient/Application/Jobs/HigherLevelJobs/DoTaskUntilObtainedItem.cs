@@ -41,7 +41,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
 
         if (amountInBank > 0)
         {
-            Character.QueueJobsBefore(
+            await Character.QueueJobsBefore(
                 Id,
                 [new WithdrawItem(Character, gameState, Code, Math.Min(amountInBank, Amount))]
             );
@@ -114,7 +114,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] queueing another task - have {amountInInventory}/{Amount} currently"
             );
-            Character.QueueJobsBefore(Id, [task]);
+            await Character.QueueJobsBefore(Id, [task]);
             Status = JobStatus.Suspend;
             return new None();
         }

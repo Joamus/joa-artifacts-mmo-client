@@ -92,7 +92,7 @@ public class CraftItem : CharacterJob
                 logger.LogInformation(
                     $"{JobName}: [{Character.Schema.Name}] has too low crafting skill ({characterSkillLevel}/{matchingItem.Craft.Level}) in {craftingLocationCode} - training until they can craft the item"
                 );
-                Character.QueueJobsBefore(
+                await Character.QueueJobsBefore(
                     Id,
                     [
                         new TrainSkill(
@@ -156,7 +156,7 @@ public class CraftItem : CharacterJob
                     );
                 }
 
-                Character.QueueJobsBefore(Id, jobs);
+                await Character.QueueJobsBefore(Id, jobs);
                 Status = JobStatus.Suspend;
                 return new None();
             }
