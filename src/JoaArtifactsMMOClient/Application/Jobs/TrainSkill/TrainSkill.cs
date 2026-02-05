@@ -125,6 +125,13 @@ public class TrainSkill : CharacterJob
 
                 foreach (var resource in gameState.Resources)
                 {
+                    if (
+                        gameState.EventService.IsEntityFromEvent(resource.Code)
+                        && gameState.EventService.WhereIsEntityActive(resource.Code) == null
+                    )
+                    {
+                        continue;
+                    }
                     if (resource.Skill == skill && resource.Level <= skillLevel)
                     {
                         if (bestResource is null || bestResource.Level < resource.Level)

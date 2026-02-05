@@ -1,5 +1,6 @@
 using Application.Character;
 using Application.Errors;
+using Application.Services;
 using OneOf;
 using OneOf.Types;
 
@@ -7,7 +8,8 @@ namespace Application.Jobs;
 
 public class RestockTasksCoins : CharacterJob
 {
-    const int AMOUNT_OF_JOBS_TO_DO = 5;
+    const int AMOUNT_OF_JOBS_TO_DO = 20;
+    const int LOWER_AMOUNT_THRESHOLD = 100;
 
     public RestockTasksCoins(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
@@ -15,6 +17,19 @@ public class RestockTasksCoins : CharacterJob
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
+
+        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+
+        bool hasEnoughTaskCoins = bankResponse.Data.Exists(item =>
+            item.Code == ItemService.TasksCoin && item.Quantity >= LOWER_AMOUNT_THRESHOLD
+        );
+
+        if (hasEnoughTaskCoins)
+        {
+            return new None();
+        }
+
+        var bankItems = bankResponse.Data;
 
         List<CharacterJob> jobs = [];
 
