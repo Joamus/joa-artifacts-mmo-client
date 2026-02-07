@@ -4,6 +4,8 @@ using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
 using Application.Jobs;
+using Application.Jobs.Chores;
+using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
 using Microsoft.OpenApi.Extensions;
 
@@ -45,7 +47,7 @@ public class PlayerAI
         var job =
             await EnsureWeapon()
             ?? await GetEventJob()
-            ?? GetChoreJob()
+            ?? await GetChoreJob()
             ?? await GetIndividualHighPrioJob()
             // ?? await EnsureFightGear()
             ?? await EnsureBag()
@@ -1002,7 +1004,7 @@ public class PlayerAI
         return new NextJobToFightResult { Job = nextJob?.Job };
     }
 
-    public CharacterJob? GetChoreJob()
+    public async Task<CharacterJob?> GetChoreJob()
     {
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
         foreach (var chore in Character.Chores)
@@ -1010,23 +1012,46 @@ public class PlayerAI
             if (gameState.ChoreService.ShouldChoreBeStarted(chore))
             {
                 CharacterJob? job = null;
-                // start chore
+                bool isScheduledChore = false;
+
                 switch (chore)
                 {
                     case CharacterChoreKind.RecycleUnusedItems:
-                        job = new RecycleUnusedItems(Character, gameState);
+                        isScheduledChore = true;
+                        job = await ProcessChoreJob(
+                            new RecycleUnusedItems(Character, gameState),
+                            CharacterChoreKind.RecycleUnusedItems,
+                            isScheduledChore
+                        );
                         break;
                     case CharacterChoreKind.SellUnusedItems:
-                        job = new SellUnusedItems(Character, gameState);
+                        isScheduledChore = true;
+                        job = await ProcessChoreJob(
+                            new SellUnusedItems(Character, gameState),
+                            CharacterChoreKind.SellUnusedItems,
+                            isScheduledChore
+                        );
                         break;
                     case CharacterChoreKind.RestockFood:
-                        job = new RestockFood(Character, gameState);
+                        job = await ProcessChoreJob(
+                            new RestockFood(Character, gameState),
+                            CharacterChoreKind.RestockFood,
+                            isScheduledChore
+                        );
                         break;
                     case CharacterChoreKind.RestockTasksCoins:
-                        job = new RestockTasksCoins(Character, gameState);
+                        job = await ProcessChoreJob(
+                            new RestockTasksCoins(Character, gameState),
+                            CharacterChoreKind.RestockTasksCoins,
+                            isScheduledChore
+                        );
                         break;
                     case CharacterChoreKind.RestockPotions:
-                        job = new RestockPotions(Character, gameState);
+                        job = await ProcessChoreJob(
+                            new RestockPotions(Character, gameState),
+                            CharacterChoreKind.RestockPotions,
+                            isScheduledChore
+                        );
                         break;
                     default:
                         return null;
@@ -1041,21 +1066,44 @@ public class PlayerAI
                     $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{chore.GetDisplayName()}\""
                 );
 
-                job.onAfterSuccessEndHook = async () =>
+                // If it's not a scheduled chore, we don't keep track. We want to do this chore whenever it's needed.
+                if (isScheduledChore)
                 {
-                    logger.LogInformation(
-                        $"{Name}: [{Character.Name}]: Done running chore \"{chore.GetDisplayName()}\""
-                    );
-                    gameState.ChoreService.FinishChore(chore);
-                };
+                    job.onAfterSuccessEndHook = async () =>
+                    {
+                        logger.LogInformation(
+                            $"{Name}: [{Character.Name}]: Done running chore \"{chore.GetDisplayName()}\""
+                        );
+                        gameState.ChoreService.FinishChore(chore);
+                    };
 
-                gameState.ChoreService.StartChore(Character, chore);
+                    gameState.ChoreService.StartChore(Character, chore);
+                }
 
                 return job;
             }
         }
 
         return null;
+    }
+
+    public async Task<CharacterJob?> ProcessChoreJob<T>(
+        T job,
+        CharacterChoreKind chore,
+        bool isScheduledChore
+    )
+        where T : CharacterJob, ICharacterChoreJob
+    {
+        if (isScheduledChore && !await job.NeedsToBeDone())
+        {
+            return null;
+        }
+
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{chore.GetDisplayName()}\""
+        );
+
+        return job;
     }
 }
 

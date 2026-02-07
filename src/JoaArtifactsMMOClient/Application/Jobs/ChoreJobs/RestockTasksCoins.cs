@@ -1,12 +1,13 @@
 using Application.Character;
 using Application.Errors;
 using Application.Services;
+using Applicaton.Jobs.Chores;
 using OneOf;
 using OneOf.Types;
 
 namespace Application.Jobs;
 
-public class RestockTasksCoins : CharacterJob
+public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 {
     const int AMOUNT_OF_JOBS_TO_DO = 20;
     const int LOWER_AMOUNT_THRESHOLD = 100;
@@ -18,18 +19,12 @@ public class RestockTasksCoins : CharacterJob
     {
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
-        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+        int amountOfTasksCoins = await GetAmountOfTaskCoins();
 
-        bool hasEnoughTaskCoins = bankResponse.Data.Exists(item =>
-            item.Code == ItemService.TasksCoin && item.Quantity >= LOWER_AMOUNT_THRESHOLD
-        );
-
-        if (hasEnoughTaskCoins)
+        if (HasEnoughTasksCoins(amountOfTasksCoins))
         {
             return new None();
         }
-
-        var bankItems = bankResponse.Data;
 
         List<CharacterJob> jobs = [];
 
@@ -92,5 +87,28 @@ public class RestockTasksCoins : CharacterJob
     public static async Task<bool> CanDoJob(PlayerCharacter character, GameState gameState)
     {
         return GetJobToGetCoins(character, gameState) != null;
+    }
+
+    public async Task<bool> NeedsToBeDone()
+    {
+        int amountOfTasksCoins = await GetAmountOfTaskCoins();
+
+        return !HasEnoughTasksCoins(amountOfTasksCoins);
+    }
+
+    public async Task<int> GetAmountOfTaskCoins()
+    {
+        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+
+        return bankResponse
+                .Data.FirstOrDefault(item =>
+                    item.Code == ItemService.TasksCoin && item.Quantity >= LOWER_AMOUNT_THRESHOLD
+                )
+                ?.Quantity ?? 0;
+    }
+
+    public bool HasEnoughTasksCoins(int amountOfTasksCoins)
+    {
+        return amountOfTasksCoins >= LOWER_AMOUNT_THRESHOLD;
     }
 }

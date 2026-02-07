@@ -7,6 +7,7 @@ using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Errors;
 using Application.Jobs;
+using Application.Jobs.Chores;
 using Application.Records;
 using Application.Services;
 using Infrastructure;

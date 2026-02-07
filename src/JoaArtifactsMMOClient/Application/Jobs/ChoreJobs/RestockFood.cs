@@ -5,12 +5,13 @@ using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
 using Application.Services;
+using Applicaton.Jobs.Chores;
 using OneOf;
 using OneOf.Types;
 
 namespace Application.Jobs;
 
-public class RestockFood : CharacterJob
+public class RestockFood : CharacterJob, ICharacterChoreJob
 {
     const int LOWER_FOOD_THRESHOLD = 25;
     const int HIGHER_FOOD_THRESHOLD = 200;
@@ -22,9 +23,24 @@ public class RestockFood : CharacterJob
     {
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
+        var jobs = await GetJobs();
+
+        if (jobs.Count > 0)
+        {
+            await Character.QueueJobsAfter(Id, jobs);
+        }
+
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] run ended - queued {jobs.Count} jobs to obtain food"
+        );
+        return new None();
+    }
+
+    async Task<List<CharacterJob>> GetJobs()
+    {
         List<ItemSchema> bestFoodItems = gameState
             .Characters.Select(recipientCharacter =>
-                GetIdealFoodForCharacter(Character, recipientCharacter)
+                GetIdealFoodForCharacter(Character, recipientCharacter, gameState)
             )
             .ToList();
 
@@ -70,24 +86,20 @@ public class RestockFood : CharacterJob
             }
         }
 
-        if (jobs.Count > 0)
-        {
-            await Character.QueueJobsAfter(Id, jobs);
-        }
-
-        logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] run ended - queued {jobs.Count} jobs to obtain food"
-        );
-        return new None();
+        return jobs;
     }
 
     // We only care about cooking fish
-    private ItemSchema GetIdealFoodForCharacter(PlayerCharacter crafter, PlayerCharacter character)
+    private static ItemSchema GetIdealFoodForCharacter(
+        PlayerCharacter crafter,
+        PlayerCharacter character,
+        GameState gameState
+    )
     {
         List<ItemSchema> foodCandidates = gameState
             .Items.Where(item =>
             {
-                return IsItemCookedFish(item)
+                return IsItemCookedFish(item, gameState)
                     && ItemService.CanUseItem(item, character.Schema)
                     && crafter.Schema.CookingLevel >= item.Craft?.Level
                     && item.Craft.Items.Count == 1;
@@ -100,10 +112,17 @@ public class RestockFood : CharacterJob
         return foodCandidates.ElementAt(0);
     }
 
-    private bool IsItemCookedFish(ItemSchema item)
+    private static bool IsItemCookedFish(ItemSchema item, GameState gameState)
     {
         return item.Subtype == "food"
             && item.Craft is not null
             && item.Craft.Items.Exists(item => gameState.ItemsDict[item.Code].Subtype == "fishing");
+    }
+
+    public async Task<bool> NeedsToBeDone()
+    {
+        var jobs = await GetJobs();
+
+        return jobs.Count > 0;
     }
 }

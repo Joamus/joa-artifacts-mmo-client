@@ -6,13 +6,14 @@ using Application.Errors;
 using Application.Records;
 using Application.Services;
 using Applicaton.Jobs;
+using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
 
 namespace Application.Jobs;
 
-public class RecycleUnusedItems : CharacterJob
+public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 {
     public const int RECYCLE_LEVEL_DIFF = 10;
 
@@ -339,5 +340,12 @@ public class RecycleUnusedItems : CharacterJob
         }
 
         return relevantItems;
+    }
+
+    public async Task<bool> NeedsToBeDone()
+    {
+        List<DropSchema> items = await GetItemsToRecycleFromBank();
+
+        return items.Count > 0;
     }
 }

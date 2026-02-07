@@ -1,6 +1,7 @@
 ﻿using System.Text.Json.Serialization;
 using Api.Endpoints;
 using Application;
+using Application.Jobs.Chores;
 using Application.Services;
 using Application.Services.ApiServices;
 using Infrastructure;

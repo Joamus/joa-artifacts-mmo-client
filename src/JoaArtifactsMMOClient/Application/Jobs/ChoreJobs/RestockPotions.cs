@@ -2,12 +2,13 @@ using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
 using Application.Services;
+using Applicaton.Jobs.Chores;
 using OneOf;
 using OneOf.Types;
 
 namespace Application.Jobs;
 
-public class RestockPotions : CharacterJob
+public class RestockPotions : CharacterJob, ICharacterChoreJob
 {
     const int LOWER_POTION_THRESHOLD = 20;
     const int HIGHER_POTION_THRESHOLD = 200;
@@ -24,6 +25,7 @@ public class RestockPotions : CharacterJob
         {
             await Character.QueueJobsAfter(Id, jobs);
         }
+
         return new None();
     }
 
@@ -136,5 +138,12 @@ public class RestockPotions : CharacterJob
         }
 
         return result.Select(potion => potion.Value).ToList();
+    }
+
+    public async Task<bool> NeedsToBeDone()
+    {
+        var jobs = await GetJobs();
+
+        return jobs.Count > 0;
     }
 }

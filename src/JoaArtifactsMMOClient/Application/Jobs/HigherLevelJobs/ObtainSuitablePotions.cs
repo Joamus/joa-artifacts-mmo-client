@@ -52,7 +52,7 @@ public class ObtainSuitablePotions : CharacterJob
         );
         if (jobs.Count > 0)
         {
-            Character.QueueJobsAfter(Id, jobs);
+            await Character.QueueJobsAfter(Id, jobs);
         }
 
         return new None();
@@ -253,16 +253,22 @@ public class ObtainSuitablePotions : CharacterJob
 
         List<CharacterJob> resultJobs = [];
 
-        int amountLeft = preferedAmount;
         // Implement finding the 2 best pots, if any, and equip. Use up stuff from the bank.
 
         foreach (var potion in potionCandidates)
         {
             var amountInInventory = character.GetItemFromInventory(potion.item.Code)?.Quantity ?? 0;
 
+            int amountLeft = preferedAmount;
+
             amountLeft -= Math.Min(amountInInventory, amountLeft);
 
-            if (potion.amountInBank > 0 && amountLeft > 0)
+            if (amountLeft < 0)
+            {
+                continue;
+            }
+
+            if (potion.amountInBank > 0)
             {
                 var amount = Math.Min(
                     character.GetInventorySpaceLeft() - 1,
@@ -279,16 +285,8 @@ public class ObtainSuitablePotions : CharacterJob
                     // Craft it or learn to craft it, if needed.
                     job.CanTriggerObtain = true;
                 }
-                else
-                {
-                    break;
-                }
             }
-        }
-
-        if (amountLeft > 0)
-        {
-            foreach (var potion in potionCandidates)
+            else
             {
                 int ingredientsRequiredToCraftOne = 0;
 
@@ -313,13 +311,13 @@ public class ObtainSuitablePotions : CharacterJob
                     string itemCode = potion.item.Code;
 
                     var job = new ObtainOrFindItem(character, gameState, itemCode, amountToCraft);
+
                     job.AllowUsingMaterialsFromBank = true;
 
                     amountLeft = amountLeft - amountToCraft;
                     resultJobs.Add(job);
                 }
             }
-            amountLeft = 0;
         }
 
         foreach (var job in resultJobs)

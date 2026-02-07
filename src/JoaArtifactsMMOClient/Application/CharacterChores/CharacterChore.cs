@@ -1,5 +1,7 @@
 using Application.Character;
 
+namespace Application.Jobs.Chores;
+
 public record CharacterChore
 {
     public required PlayerCharacter Actor { get; set; }

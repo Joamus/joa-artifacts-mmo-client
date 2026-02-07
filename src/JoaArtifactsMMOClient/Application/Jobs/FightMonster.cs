@@ -112,6 +112,17 @@ public class FightMonster : CharacterJob
             return new None();
         }
 
+        // Figure out if the bank has better fight items, if they have, withdraw them and rerun the job
+
+        var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
+
+        if (obtainPotionJobs.Count > 0)
+        {
+            await Character.QueueJobsBefore(Id, obtainPotionJobs);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
         await Character.PlayerActionService.EquipBestFightEquipment(monster);
 
         List<ItemInInventory> itemsToEquip = [];
@@ -127,17 +138,6 @@ public class FightMonster : CharacterJob
                 );
             }
             await Character.QueueJobsBefore(Id, jobs);
-            Status = JobStatus.Suspend;
-            return new None();
-        }
-
-        // Figure out if the bank has better fight items, if they have, withdraw them and rerun the job
-
-        var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
-
-        if (obtainPotionJobs.Count > 0)
-        {
-            await Character.QueueJobsBefore(Id, obtainPotionJobs);
             Status = JobStatus.Suspend;
             return new None();
         }

@@ -4,12 +4,13 @@ using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
 using Application.Errors;
 using Application.Services;
+using Applicaton.Jobs.Chores;
 using OneOf;
 using OneOf.Types;
 
 namespace Application.Jobs;
 
-public class SellUnusedItems : CharacterJob
+public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 {
     public SellUnusedItems(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
@@ -216,5 +217,10 @@ public class SellUnusedItems : CharacterJob
         }
 
         return item.Craft is null;
+    }
+
+    public Task<bool> NeedsToBeDone()
+    {
+        return Task.FromResult(true);
     }
 }
