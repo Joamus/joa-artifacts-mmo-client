@@ -77,24 +77,8 @@ public class FightMonster : CharacterJob
             return new AppError($"Monster with code {Code} could not be found");
         }
 
-        var fightSimResult = FightSimulator.FindBestFightEquipmentWithUsablePotions(
-            Character,
-            gameState,
-            monster
-        );
-
-        if (!fightSimResult.Outcome.ShouldFight)
-        {
-            return new AppError(
-                $"Should not fight {Code} - outcome: {fightSimResult.Outcome.Result} - remaining HP would be {fightSimResult.Outcome.PlayerHp}",
-                ErrorStatus.InsufficientSkill
-            );
-        }
-
         int initialAmount =
             Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
-
-        await HealIfNotAtFullHp();
 
         List<CharacterJob> withdrawItemJobs = await GetWithdrawItemJobsIfBetterItemsInBank(
             Character,
@@ -112,6 +96,22 @@ public class FightMonster : CharacterJob
             return new None();
         }
 
+        await HealIfNotAtFullHp();
+
+        var fightSimResult = FightSimulator.FindBestFightEquipmentWithUsablePotions(
+            Character,
+            gameState,
+            monster
+        );
+
+        if (!fightSimResult.Outcome.ShouldFight)
+        {
+            return new AppError(
+                $"Should not fight {Code} - outcome: {fightSimResult.Outcome.Result} - remaining HP would be {fightSimResult.Outcome.PlayerHp}",
+                ErrorStatus.InsufficientSkill
+            );
+        }
+
         // Figure out if the bank has better fight items, if they have, withdraw them and rerun the job
 
         var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
@@ -124,23 +124,6 @@ public class FightMonster : CharacterJob
         }
 
         await Character.PlayerActionService.EquipBestFightEquipment(monster);
-
-        List<ItemInInventory> itemsToEquip = [];
-
-        if (itemsToEquip.Count > 0)
-        {
-            List<CharacterJob> jobs = [];
-
-            foreach (var item in itemsToEquip)
-            {
-                jobs.Add(
-                    new WithdrawItem(Character, gameState, item.Item.Code, item.Quantity, true)
-                );
-            }
-            await Character.QueueJobsBefore(Id, jobs);
-            Status = JobStatus.Suspend;
-            return new None();
-        }
 
         int potionSlotsUsed = 0;
 
