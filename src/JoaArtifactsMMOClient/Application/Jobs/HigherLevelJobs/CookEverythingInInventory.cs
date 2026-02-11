@@ -18,7 +18,7 @@ public class CookEverythingInInventory : CharacterJob
 
         if (jobs.Count > 0)
         {
-            Character.QueueJobsAfter(Id, jobs);
+            await Character.QueueJobsAfter(Id, jobs);
         }
 
         return new None();
@@ -38,6 +38,13 @@ public class CookEverythingInInventory : CharacterJob
 
         var jobs = ItemService
             .GetFoodToCookFromInventoryList(Character, gameState, ingredients)
+            .Where(item =>
+            {
+                var matchingItem = gameState.ItemsDict[item.Code];
+
+                return ItemService.IsItemCookedFish(matchingItem, gameState)
+                    || ItemService.IsItemCookedMeat(matchingItem, gameState);
+            })
             .Select(item => new CraftItem(Character, gameState, item.Code, item.Quantity))
             .ToList();
 

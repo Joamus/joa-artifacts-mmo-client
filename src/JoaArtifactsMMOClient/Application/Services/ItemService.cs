@@ -751,6 +751,20 @@ public static class ItemService
 
         return Effect.Wisdom;
     }
+
+    public static bool IsItemCookedFish(ItemSchema item, GameState gameState)
+    {
+        return item.Subtype == "food"
+            && item.Craft is not null
+            && item.Craft.Items.Exists(item => gameState.ItemsDict[item.Code].Subtype == "fishing");
+    }
+
+    public static bool IsItemCookedMeat(ItemSchema item, GameState gameState)
+    {
+        return item.Subtype == "food"
+            && item.Craft is not null
+            && item.Craft.Items.Exists(item => gameState.ItemsDict[item.Code].Subtype == "mob");
+    }
 }
 
 public record BestFightItemsResult

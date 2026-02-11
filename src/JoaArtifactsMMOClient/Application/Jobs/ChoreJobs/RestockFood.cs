@@ -99,7 +99,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         List<ItemSchema> foodCandidates = gameState
             .Items.Where(item =>
             {
-                return IsItemCookedFish(item, gameState)
+                return ItemService.IsItemCookedFish(item, gameState)
                     && ItemService.CanUseItem(item, character.Schema)
                     && crafter.Schema.CookingLevel >= item.Craft?.Level
                     && item.Craft.Items.Count == 1;
@@ -110,13 +110,6 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         foodCandidates.Sort((a, b) => b.Level - a.Level);
 
         return foodCandidates.ElementAt(0);
-    }
-
-    private static bool IsItemCookedFish(ItemSchema item, GameState gameState)
-    {
-        return item.Subtype == "food"
-            && item.Craft is not null
-            && item.Craft.Items.Exists(item => gameState.ItemsDict[item.Code].Subtype == "fishing");
     }
 
     public async Task<bool> NeedsToBeDone()
