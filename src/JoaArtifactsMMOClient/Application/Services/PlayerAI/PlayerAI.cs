@@ -1020,37 +1020,32 @@ public class PlayerAI
                         isScheduledChore = true;
                         job = await ProcessChoreJob(
                             new RecycleUnusedItems(Character, gameState),
-                            CharacterChoreKind.RecycleUnusedItems,
-                            isScheduledChore
+                            CharacterChoreKind.RecycleUnusedItems
                         );
                         break;
                     case CharacterChoreKind.SellUnusedItems:
                         isScheduledChore = true;
                         job = await ProcessChoreJob(
                             new SellUnusedItems(Character, gameState),
-                            CharacterChoreKind.SellUnusedItems,
-                            isScheduledChore
+                            CharacterChoreKind.SellUnusedItems
                         );
                         break;
                     case CharacterChoreKind.RestockFood:
                         job = await ProcessChoreJob(
                             new RestockFood(Character, gameState),
-                            CharacterChoreKind.RestockFood,
-                            isScheduledChore
+                            CharacterChoreKind.RestockFood
                         );
                         break;
                     case CharacterChoreKind.RestockTasksCoins:
                         job = await ProcessChoreJob(
                             new RestockTasksCoins(Character, gameState),
-                            CharacterChoreKind.RestockTasksCoins,
-                            isScheduledChore
+                            CharacterChoreKind.RestockTasksCoins
                         );
                         break;
                     case CharacterChoreKind.RestockPotions:
                         job = await ProcessChoreJob(
                             new RestockPotions(Character, gameState),
-                            CharacterChoreKind.RestockPotions,
-                            isScheduledChore
+                            CharacterChoreKind.RestockPotions
                         );
                         break;
                     default:
@@ -1087,14 +1082,10 @@ public class PlayerAI
         return null;
     }
 
-    public async Task<CharacterJob?> ProcessChoreJob<T>(
-        T job,
-        CharacterChoreKind chore,
-        bool isScheduledChore
-    )
+    public async Task<CharacterJob?> ProcessChoreJob<T>(T job, CharacterChoreKind chore)
         where T : CharacterJob, ICharacterChoreJob
     {
-        if (isScheduledChore && !await job.NeedsToBeDone())
+        if (!await job.NeedsToBeDone())
         {
             return null;
         }
