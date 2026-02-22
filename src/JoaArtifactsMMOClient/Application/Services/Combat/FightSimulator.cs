@@ -1150,8 +1150,6 @@ public class FightSimulator
         GameState gameState
     )
     {
-        int maxToFindPerCategory = 5;
-
         int playerLevel = character.Schema.Level;
 
         List<MonsterSchema> mediumMonsters = [];
@@ -1189,7 +1187,7 @@ public class FightSimulator
 
         filteredMonsters.Sort((a, b) => b.Level - a.Level);
 
-        return filteredMonsters.GetRange(0, 5);
+        return filteredMonsters.GetRange(0, Math.Min(5, filteredMonsters.Count - 1));
     }
 
     public static HashSet<string> GetItemsRelevantMonsters(
