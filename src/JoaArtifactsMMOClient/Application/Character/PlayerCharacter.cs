@@ -365,16 +365,8 @@ public class PlayerCharacter
 
             if (failed)
             {
-                Jobs = Jobs.Where(job =>
-                    {
-                        bool sameParentJob =
-                            job.ParentJob?.Id == CurrentJob.Id
-                            || job.ParentJob?.Id == CurrentJob.ParentJob?.Id
-                            || job.Id != CurrentJob.Id;
-
-                        return !sameParentJob;
-                    })
-                    .ToList();
+                // Just reset all jobs - it's more fail safe
+                Jobs = [];
 
                 // If position is wrong or anything gets out of whack, this is the safe bet.
                 await ReloadCharacterSchema();

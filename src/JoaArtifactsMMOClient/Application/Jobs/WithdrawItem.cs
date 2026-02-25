@@ -57,7 +57,10 @@ public class WithdrawItem : CharacterJob
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
         {
-            await Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            await Character.QueueJobsBefore(
+                Id,
+                [new DepositUnneededItems(Character, gameState, null, false)]
+            );
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -67,7 +70,10 @@ public class WithdrawItem : CharacterJob
             || Character.Schema.Inventory.Count(item => string.IsNullOrWhiteSpace(item.Code)) < 1
         )
         {
-            await Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            await Character.QueueJobsBefore(
+                Id,
+                [new DepositUnneededItems(Character, gameState, null, false)]
+            );
             Status = JobStatus.Suspend;
             return new None();
         }

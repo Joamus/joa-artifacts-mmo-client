@@ -93,7 +93,10 @@ public class GatherMaterialsForItem : CharacterJob
 
             if (DepositUnneededItems.ShouldInitDepositItems(crafter, true))
             {
-                await crafter.QueueJob(new DepositUnneededItems(crafter, gameState), true);
+                await crafter.QueueJob(
+                    new DepositUnneededItems(crafter, gameState, null, true),
+                    true
+                );
             }
         };
     }

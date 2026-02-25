@@ -62,7 +62,9 @@ public class RecycleItem : CharacterJob
         {
             var job = new DepositUnneededItems(
                 Character,
-                gameState
+                gameState,
+                null,
+                false
             ).SetParent<DepositUnneededItems>(this);
             await Character.QueueJobsBefore(Id, [job]);
             Status = JobStatus.Suspend;

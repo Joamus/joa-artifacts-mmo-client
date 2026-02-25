@@ -763,7 +763,22 @@ public static class ItemService
     {
         return item.Subtype == "food"
             && item.Craft is not null
-            && item.Craft.Items.Exists(item => gameState.ItemsDict[item.Code].Subtype == "mob");
+            && item.Craft.Items.Exists(material =>
+            {
+                bool isFromMob = gameState.ItemsDict[material.Code].Subtype == "mob";
+
+                if (!isFromMob)
+                {
+                    return false;
+                }
+
+                bool isOnlyUsedForFood =
+                    gameState
+                        .CraftingLookupDict.GetValueOrDefault(material.Code)
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
+
+                return isOnlyUsedForFood;
+            });
     }
 }
 

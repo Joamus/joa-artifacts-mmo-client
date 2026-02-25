@@ -18,13 +18,16 @@ public class DepositUnneededItems : CharacterJob
     public DepositUnneededItems(
         PlayerCharacter playerCharacter,
         GameState gameState,
-        MonsterSchema? monsterSchema = null
+        MonsterSchema? monsterSchema = null,
+        bool preJob = false
     )
         : base(playerCharacter, gameState)
     {
         MonsterSchema = monsterSchema;
+        this.preJob = preJob;
     }
 
+    bool preJob { get; }
     public MonsterSchema? MonsterSchema { get; set; }
 
     private static float NEXT_BANK_EXPANION_COST_PERCENTAGE_OF_TOTAL = 0.80f;
@@ -360,7 +363,7 @@ public class DepositUnneededItems : CharacterJob
             bool deposittingLowPrioItem = item.Importance <= ItemImportance.Low;
 
             // Keep going if we are depositting low prio items
-            if (!deposittingLowPrioItem && !ShouldKeepDepositingIfAtBank(Character))
+            if (!deposittingLowPrioItem && !ShouldKeepDepositingIfAtBank(Character, preJob))
             {
                 break;
             }
@@ -440,8 +443,7 @@ public class DepositUnneededItems : CharacterJob
     public static bool ShouldInitDepositItems(PlayerCharacter character, bool preJob = true)
     {
         bool hasTooLittleInventorySpace =
-            character.GetInventorySpaceLeft()
-            < (preJob ? MAX_FREE_INVENTORY_SPACES - 1 : MIN_FREE_INVENTORY_SPACES);
+            character.GetInventorySpaceLeft() < GetFreeInventorySpaceAmount(preJob);
 
         if (hasTooLittleInventorySpace)
         {
@@ -453,8 +455,7 @@ public class DepositUnneededItems : CharacterJob
         );
 
         bool hasTooFewInventorySlots =
-            amountOfEmptyInventorySlots
-            <= (preJob ? MAX_FREE_INVENTORY_SLOTS : MIN_FREE_INVENTORY_SLOTS);
+            amountOfEmptyInventorySlots <= GetFreeInventorySlotAmount(preJob);
 
         if (hasTooFewInventorySlots)
         {
@@ -464,16 +465,26 @@ public class DepositUnneededItems : CharacterJob
         return false;
     }
 
-    public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character)
+    public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character, bool preJob)
     {
         bool hasEnoughInventorySpace =
-            character.GetInventorySpaceLeft() > MAX_FREE_INVENTORY_SPACES;
+            character.GetInventorySpaceLeft() > GetFreeInventorySpaceAmount(preJob);
 
         bool hasEnoughInventorySlots =
             character.Schema.Inventory.Count((item) => string.IsNullOrEmpty(item.Code))
             > MAX_FREE_INVENTORY_SLOTS;
 
         return !hasEnoughInventorySlots || !hasEnoughInventorySlots;
+    }
+
+    static int GetFreeInventorySpaceAmount(bool preJob)
+    {
+        return preJob ? MAX_FREE_INVENTORY_SPACES - 1 : MIN_FREE_INVENTORY_SPACES;
+    }
+
+    static int GetFreeInventorySlotAmount(bool preJob)
+    {
+        return preJob ? MAX_FREE_INVENTORY_SLOTS : MIN_FREE_INVENTORY_SLOTS;
     }
 
     public bool IsJobRelatedToItem(CharacterJob job, string itemCode)

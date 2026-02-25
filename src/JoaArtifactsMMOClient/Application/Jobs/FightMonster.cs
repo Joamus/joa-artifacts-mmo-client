@@ -197,7 +197,7 @@ public class FightMonster : CharacterJob
         {
             await Character.QueueJobsBefore(
                 Id,
-                [new DepositUnneededItems(Character, gameState, monster)]
+                [new DepositUnneededItems(Character, gameState, monster, false)]
             );
             Status = JobStatus.Suspend;
             return new None();

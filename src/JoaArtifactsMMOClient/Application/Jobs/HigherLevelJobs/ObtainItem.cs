@@ -88,7 +88,10 @@ public class ObtainItem : CharacterJob
         // // It's not very elegant that this job is pasted in multiple places, but a lot of jobs want to have their inventory be clean before they start, or in their InnerJob.
         if (DepositUnneededItems.ShouldInitDepositItems(Character, true))
         {
-            await Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            await Character.QueueJobsBefore(
+                Id,
+                [new DepositUnneededItems(Character, gameState, null, true)]
+            );
             Status = JobStatus.Suspend;
             return new None();
         }

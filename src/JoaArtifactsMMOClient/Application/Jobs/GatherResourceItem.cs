@@ -81,7 +81,7 @@ public class GatherResourceItem : CharacterJob
             {
                 await Character.QueueJobsBefore(
                     Id,
-                    [new DepositUnneededItems(Character, gameState)]
+                    [new DepositUnneededItems(Character, gameState, null, false)]
                 );
                 Status = JobStatus.Suspend;
                 return new None();
