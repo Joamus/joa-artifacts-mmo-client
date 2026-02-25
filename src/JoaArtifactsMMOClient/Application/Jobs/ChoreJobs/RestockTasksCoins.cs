@@ -101,9 +101,7 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
         var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
         return bankResponse
-                .Data.FirstOrDefault(item =>
-                    item.Code == ItemService.TasksCoin && item.Quantity >= LOWER_AMOUNT_THRESHOLD
-                )
+                .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                 ?.Quantity ?? 0;
     }
 
