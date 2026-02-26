@@ -72,7 +72,36 @@ public class ApiRequester
     public async Task<HttpResponseMessage> GetAsync(string requestUri)
     {
         await ThrottleRequest();
-        var response = await _httpClient.GetAsync(requestUri);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.GetAsync(requestUri);
+        }
+        catch (TaskCanceledException ex)
+        {
+            logger.LogError(
+                $"GET Request with uri \"{requestUri}\" timed out - terminating application. Exception: {ex.Message}"
+            );
+            Environment.Exit(1);
+            throw; // Never reached, but satisfies compiler
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(
+                $"GET Request with uri \"{requestUri}\" failed with HttpRequestException - terminating application. Exception: {ex.Message}"
+            );
+            Environment.Exit(1);
+            throw; // Never reached, but satisfies compiler
+        }
+
+        if (response is not null && (int)response.StatusCode >= 500)
+        {
+            logger.LogError(
+                $"GET Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - terminating application"
+            );
+            Environment.Exit(1);
+        }
 
         if (response is not null && (int)response.StatusCode >= 400)
         {
@@ -90,18 +119,45 @@ public class ApiRequester
 
         HttpResponseMessage? response = null;
 
-        for (var i = 0; i < MAX_RETRIES; i++)
+        try
         {
-            response = await _httpClient.PostAsync(requestUri, content);
+            for (var i = 0; i < MAX_RETRIES; i++)
+            {
+                response = await _httpClient.PostAsync(requestUri, content);
 
-            if ((int)response.StatusCode == 499)
-            {
-                await Task.Delay((int)((_secondsBetweenRequests + 1) * 1000 * (i + 1) * 10));
+                if ((int)response.StatusCode == 499)
+                {
+                    await Task.Delay((int)((_secondsBetweenRequests + 1) * 1000 * (i + 1) * 10));
+                }
+                else
+                {
+                    break;
+                }
             }
-            else
-            {
-                break;
-            }
+        }
+        catch (TaskCanceledException ex)
+        {
+            logger.LogError(
+                $"POST Request with uri \"{requestUri}\" timed out - terminating application. Exception: {ex.Message}"
+            );
+            Environment.Exit(1);
+            throw; // Never reached, but satisfies compiler
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(
+                $"POST Request with uri \"{requestUri}\" failed with HttpRequestException - terminating application. Exception: {ex.Message}"
+            );
+            Environment.Exit(1);
+            throw; // Never reached, but satisfies compiler
+        }
+
+        if (response is not null && (int)response.StatusCode >= 500)
+        {
+            logger.LogError(
+                $"POST Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - terminating application"
+            );
+            Environment.Exit(1);
         }
 
         if (response is not null && (int)response.StatusCode >= 400)
@@ -117,12 +173,74 @@ public class ApiRequester
     public async Task<HttpResponseMessage> PutAsync(string requestUri, HttpContent? content)
     {
         await ThrottleRequest();
-        return await _httpClient.PutAsync(requestUri, content);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.PutAsync(requestUri, content);
+        }
+        catch (TaskCanceledException ex)
+        {
+            logger.LogError(
+                $"PUT Request with uri \"{requestUri}\" timed out - terminating application. Exception: {ex.Message}"
+            );
+            Environment.Exit(1);
+            throw; // Never reached, but satisfies compiler
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(
+                $"PUT Request with uri \"{requestUri}\" failed with HttpRequestException - terminating application. Exception: {ex.Message}"
+            );
+            Environment.Exit(1);
+            throw; // Never reached, but satisfies compiler
+        }
+
+        if (response is not null && (int)response.StatusCode >= 500)
+        {
+            logger.LogError(
+                $"PUT Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - terminating application"
+            );
+            Environment.Exit(1);
+        }
+
+        return response!;
     }
 
     public async Task<HttpResponseMessage> DeleteAsync(string requestUri)
     {
         await ThrottleRequest();
-        return await _httpClient.DeleteAsync(requestUri);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.DeleteAsync(requestUri);
+        }
+        catch (TaskCanceledException ex)
+        {
+            logger.LogError(
+                $"DELETE Request with uri \"{requestUri}\" timed out - terminating application. Exception: {ex.Message}"
+            );
+            Environment.Exit(1);
+            throw; // Never reached, but satisfies compiler
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(
+                $"DELETE Request with uri \"{requestUri}\" failed with HttpRequestException - terminating application. Exception: {ex.Message}"
+            );
+            Environment.Exit(1);
+            throw; // Never reached, but satisfies compiler
+        }
+
+        if (response is not null && (int)response.StatusCode >= 500)
+        {
+            logger.LogError(
+                $"DELETE Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - terminating application"
+            );
+            Environment.Exit(1);
+        }
+
+        return response!;
     }
 }

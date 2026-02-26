@@ -1,6 +1,4 @@
 using System.Collections.Immutable;
-using System.Net;
-using System.Security.Principal;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
@@ -13,8 +11,8 @@ namespace Application.Jobs;
 
 public class RestockFood : CharacterJob, ICharacterChoreJob
 {
-    const int LOWER_FOOD_THRESHOLD = 25;
-    const int HIGHER_FOOD_THRESHOLD = 200;
+    const int LOWER_FOOD_THRESHOLD = 150;
+    const int HIGHER_FOOD_THRESHOLD = 500;
 
     public RestockFood(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }

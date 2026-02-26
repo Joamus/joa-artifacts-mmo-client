@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
@@ -10,7 +11,7 @@ namespace Application.Jobs;
 
 public class RestockPotions : CharacterJob, ICharacterChoreJob
 {
-    const int LOWER_POTION_THRESHOLD = 20;
+    const int LOWER_POTION_THRESHOLD = 30;
     const int HIGHER_POTION_THRESHOLD = 200;
 
     public RestockPotions(PlayerCharacter playerCharacter, GameState gameState)
