@@ -30,4 +30,5 @@ public enum ErrorStatus
     Undefined,
     NotFound,
     InsufficientSkill,
+    InventoryFull,
 }

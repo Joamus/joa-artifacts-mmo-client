@@ -359,6 +359,8 @@ public class PlayerActionService
             [],
             item.Code,
             Quantity,
+            true,
+            false,
             true
         );
 

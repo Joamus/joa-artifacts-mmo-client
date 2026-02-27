@@ -152,9 +152,12 @@ public class GatherMaterialsForItem : CharacterJob
     {
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
-        if (DepositUnneededItems.ShouldInitDepositItems(Character))
+        if (DepositUnneededItems.ShouldInitDepositItems(Character, true))
         {
-            await Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
+            await Character.QueueJobsBefore(
+                Id,
+                [new DepositUnneededItems(Character, gameState, null, true)]
+            );
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -191,6 +194,20 @@ public class GatherMaterialsForItem : CharacterJob
             AllowUsingMaterialsFromInventory,
             CanTriggerTraining
         );
+        switch (result.Value)
+        {
+            case AppError jobError:
+                if (jobError.Status == ErrorStatus.InventoryFull)
+                {
+                    await Character.QueueJobsBefore(
+                        Id,
+                        [new DepositUnneededItems(Character, gameState, null, true)]
+                    );
+                    Status = JobStatus.Suspend;
+                    return new None();
+                }
+                return jobError;
+        }
 
         // If we
         var preReqJob = await GetPreReqCraftedItemIfNeeded(
@@ -214,12 +231,6 @@ public class GatherMaterialsForItem : CharacterJob
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to gather materials for item {Code}"
         );
-
-        switch (result.Value)
-        {
-            case AppError jobError:
-                return jobError;
-        }
 
         var lastJob = jobs.Last();
 

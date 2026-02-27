@@ -174,7 +174,8 @@ public class ObtainItem : CharacterJob
         string code,
         int amount,
         bool allowUsingItemFromInventory = false,
-        bool canTriggerTraining = false
+        bool canTriggerTraining = false,
+        bool ignoreInventoryFull = false
     )
     {
         var result = await InnerGetJobsRequired(
@@ -196,7 +197,8 @@ public class ObtainItem : CharacterJob
             amount,
             allowUsingItemFromInventory,
             canTriggerTraining,
-            true
+            true,
+            ignoreInventoryFull
         );
 
         return result;
@@ -217,7 +219,8 @@ public class ObtainItem : CharacterJob
         int amount,
         bool allowUsingItemFromInventory = false,
         bool canTriggerTraining = false,
-        bool firstIteration = true
+        bool firstIteration = true,
+        bool ignoreInventoryFull = false
     )
     {
         var matchingItem = gameState.Items.Find(item => item.Code == code);
@@ -280,14 +283,18 @@ public class ObtainItem : CharacterJob
 
             List<int> iterations = CalculateObtainItemIterations(
                 matchingItem,
-                Character,
+                ignoreInventoryFull
+                    ? Character.Schema.InventoryMaxItems
+                    : Character.GetInventorySpaceLeft(),
                 requiredAmount
             );
 
             if (iterations.Count == 0)
             {
-                jobs.Add(new DepositUnneededItems(Character, gameState, null, true));
-                return new None();
+                return new AppError(
+                    "Inventory does not have enough space",
+                    ErrorStatus.InventoryFull
+                );
             }
 
             foreach (var iterationAmount in iterations)
@@ -735,7 +742,7 @@ public class ObtainItem : CharacterJob
     // e.g if you have to create 10 iron bars, it might be, 3, 3, 3, 1 or something
     public static List<int> CalculateObtainItemIterations(
         ItemSchema item,
-        PlayerCharacter character,
+        int freeInventorySpace,
         int totalItemsWantedAmount
     )
     {
@@ -767,7 +774,7 @@ public class ObtainItem : CharacterJob
         List<int> iterations = [];
 
         // Adding leeway with - 10. We use max items, because we assume that the character will deposit stuff
-        int availableInventorySpace = character.GetInventorySpaceLeft() - 5;
+        int availableInventorySpace = freeInventorySpace - 5;
 
         if (availableInventorySpace <= 0)
         {
