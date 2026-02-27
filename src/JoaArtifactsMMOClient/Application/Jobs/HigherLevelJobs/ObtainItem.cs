@@ -284,6 +284,12 @@ public class ObtainItem : CharacterJob
                 requiredAmount
             );
 
+            if (iterations.Count == 0)
+            {
+                jobs.Add(new DepositUnneededItems(Character, gameState, null, true));
+                return new None();
+            }
+
             foreach (var iterationAmount in iterations)
             {
                 foreach (var item in matchingItem.Craft.Items)
