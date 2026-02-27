@@ -207,23 +207,19 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                         }
                     }
 
-                    foreach (var tool in itemsInInventory)
+                    bool hasBetterTool = itemsInInventory.Exists(tool =>
                     {
                         var toolEffectInventoryItem = EffectService.GetSkillEffectFromItem(
                             tool.Item
                         );
 
                         // With tools, the lower effect the better, e.g. -30 is better than -10.
-                        if (
-                            toolEffectInventoryItem?.Code == toolEffect.Code
-                            && toolEffectInventoryItem.Value <= toolEffect.Value
-                        )
-                        {
-                            return true;
-                        }
-                    }
+                        return toolEffectInventoryItem is not null
+                            && toolEffectInventoryItem.Code == toolEffect.Code
+                            && toolEffectInventoryItem.Value <= toolEffect.Value;
+                    });
 
-                    return false;
+                    return hasBetterTool;
                 });
 
                 amountOfCharactersWithBetterOrSameItem += amountWithBetterOrSameTool;

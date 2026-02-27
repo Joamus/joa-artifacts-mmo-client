@@ -306,7 +306,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -386,14 +387,15 @@ public class PlayerActionService
             bankItemDict.Add(item.Code, item with { });
         }
 
-        bool itemsAreInWishlist = false;
-
         var bestFightItemsResult = await ItemService.GetBestFightItemsFromAllItems(
             character,
             gameState,
             monster
         // items.Select(item => new InventorySlot { Code = item.Code, Quantity = 100 }).ToList()
         );
+
+        // We only try to disprove this, if we have items to go through
+        bool allItemsAreInWishlist = bestFightItemsResult.Items.Count > 0;
 
         List<CharacterJobAndEquipmentSlot> jobs = [];
 
@@ -405,6 +407,15 @@ public class PlayerActionService
             if (matchingItem.Type == "utility")
             {
                 continue;
+            }
+
+            if (character.ExistsInWishlist(item.Code))
+            {
+                continue;
+            }
+            else
+            {
+                allItemsAreInWishlist = false;
             }
 
             var result = character.GetEquippedItemOrInInventory(item.Code);
@@ -438,16 +449,14 @@ public class PlayerActionService
             );
         }
 
-        if (jobs.Count == 0 && itemsAreInWishlist)
-        {
-            return null;
-        }
-
         /**
         ** This is usually if we are just too low level to fight the monster,
         ** and we therefore cannot get the required equipment yet.
         */
-        if (jobs.Count == 0 && !bestFightItemsResult.FightSimResult.Outcome.ShouldFight)
+        if (
+            jobs.Count == 0
+            && (allItemsAreInWishlist || !bestFightItemsResult.FightSimResult.Outcome.ShouldFight)
+        )
         {
             return null;
         }
@@ -536,7 +545,8 @@ public class PlayerActionService
             int tasksCoinsInBank =
                 (await gameState.BankItemCache.GetBankItems(character))
                     .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity ?? 0;
+                    ?.Quantity
+                ?? 0;
 
             if (tasksCoinsInBank >= ItemService.CancelTaskPrice)
             {

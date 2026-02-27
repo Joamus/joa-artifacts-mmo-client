@@ -27,7 +27,7 @@ public class DepositUnneededItems : CharacterJob
         this.preJob = preJob;
     }
 
-    bool preJob { get; }
+    bool preJob { get; init; }
     public MonsterSchema? MonsterSchema { get; set; }
 
     private static float NEXT_BANK_EXPANION_COST_PERCENTAGE_OF_TOTAL = 0.80f;
@@ -442,27 +442,7 @@ public class DepositUnneededItems : CharacterJob
 
     public static bool ShouldInitDepositItems(PlayerCharacter character, bool preJob = true)
     {
-        bool hasTooLittleInventorySpace =
-            character.GetInventorySpaceLeft() < GetFreeInventorySpaceAmount(preJob);
-
-        if (hasTooLittleInventorySpace)
-        {
-            return true;
-        }
-
-        int amountOfEmptyInventorySlots = character.Schema.Inventory.Count(
-            (item) => string.IsNullOrEmpty(item.Code)
-        );
-
-        bool hasTooFewInventorySlots =
-            amountOfEmptyInventorySlots <= GetFreeInventorySlotAmount(preJob);
-
-        if (hasTooFewInventorySlots)
-        {
-            return true;
-        }
-
-        return false;
+        return ShouldKeepDepositingIfAtBank(character, preJob);
     }
 
     public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character, bool preJob)
@@ -472,7 +452,7 @@ public class DepositUnneededItems : CharacterJob
 
         bool hasEnoughInventorySlots =
             character.Schema.Inventory.Count((item) => string.IsNullOrEmpty(item.Code))
-            > MAX_FREE_INVENTORY_SLOTS;
+            > GetFreeInventorySlotAmount(preJob);
 
         return !hasEnoughInventorySlots || !hasEnoughInventorySlots;
     }
