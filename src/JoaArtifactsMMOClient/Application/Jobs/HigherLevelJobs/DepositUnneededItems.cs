@@ -442,19 +442,23 @@ public class DepositUnneededItems : CharacterJob
 
     public static bool ShouldInitDepositItems(PlayerCharacter character, bool preJob = true)
     {
-        return ShouldKeepDepositingIfAtBank(character, preJob);
+        bool result = ShouldKeepDepositingIfAtBank(character, preJob);
+
+        return result;
     }
 
     public static bool ShouldKeepDepositingIfAtBank(PlayerCharacter character, bool preJob)
     {
-        bool hasEnoughInventorySpace =
-            character.GetInventorySpaceLeft() > GetFreeInventorySpaceAmount(preJob);
+        bool hasTooLittleInventorySpace =
+            character.GetInventorySpaceLeft() <= GetFreeInventorySpaceAmount(preJob);
 
-        bool hasEnoughInventorySlots =
+        bool hasTooFewInventorySlots =
             character.Schema.Inventory.Count((item) => string.IsNullOrEmpty(item.Code))
-            > GetFreeInventorySlotAmount(preJob);
+            <= GetFreeInventorySlotAmount(preJob);
 
-        return !hasEnoughInventorySlots || !hasEnoughInventorySlots;
+        bool result = hasTooLittleInventorySpace || hasTooFewInventorySlots;
+
+        return result;
     }
 
     static int GetFreeInventorySpaceAmount(bool preJob)

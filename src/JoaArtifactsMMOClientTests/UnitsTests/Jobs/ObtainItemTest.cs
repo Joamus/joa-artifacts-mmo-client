@@ -17,7 +17,7 @@ public class ObtainItemTest
 
         List<int> iterations = ObtainItem.CalculateObtainItemIterations(
             GetIronBar(),
-            character,
+            character.GetInventorySpaceLeft(),
             10
         );
 
@@ -37,7 +37,7 @@ public class ObtainItemTest
 
         List<int> iterations = ObtainItem.CalculateObtainItemIterations(
             GetIronBar(),
-            character,
+            character.GetInventorySpaceLeft(),
             10
         );
 
@@ -57,7 +57,7 @@ public class ObtainItemTest
 
         List<int> iterations = ObtainItem.CalculateObtainItemIterations(
             GetIronBar(),
-            character,
+            character.GetInventorySpaceLeft(),
             13
         );
 
