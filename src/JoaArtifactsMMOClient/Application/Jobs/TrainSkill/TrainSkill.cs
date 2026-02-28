@@ -474,11 +474,9 @@ public class TrainSkill : CharacterJob
         }
         else
         {
-            var resource = ItemService.FindBestResourceToGatherItem(
-                character,
-                gameState,
-                item.Code
-            );
+            var resource = ItemService
+                .FindBestResourceToGatherItem(character, gameState, item.Code)
+                ?.Resource;
 
             if (resource is not null)
             {

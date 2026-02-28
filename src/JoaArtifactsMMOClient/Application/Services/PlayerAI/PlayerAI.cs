@@ -1007,6 +1007,7 @@ public class PlayerAI
     public async Task<CharacterJob?> GetChoreJob()
     {
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
+
         foreach (var chore in Character.Chores)
         {
             if (gameState.ChoreService.ShouldChoreBeStarted(chore))
@@ -1046,6 +1047,12 @@ public class PlayerAI
                         job = await ProcessChoreJob(
                             new RestockPotions(Character, gameState),
                             CharacterChoreKind.RestockPotions
+                        );
+                        break;
+                    case CharacterChoreKind.RestockResources:
+                        job = await ProcessChoreJob(
+                            new RestockResources(Character, gameState),
+                            CharacterChoreKind.RestockResources
                         );
                         break;
                     default:

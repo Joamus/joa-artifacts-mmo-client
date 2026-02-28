@@ -809,7 +809,7 @@ public class FightMonster : CharacterJob
 
             if (
                 fightSimAtCurrentHpWithoutPots.ShouldFight
-                && fightSimAtCurrentHpWithoutPots.PlayerHp >= character.Schema.MaxHp * 0.60
+                && fightSimAtCurrentHpWithoutPots.PlayerHp >= character.Schema.MaxHp * 0.40
             )
             {
                 return false;

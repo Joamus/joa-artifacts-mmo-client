@@ -113,7 +113,7 @@ public class BankItemCache
 
         bool requestAgain = lastResponse is null || shouldRequestAgain;
 
-        var bankItems = requestAgain
+        BankItemsResponse bankItems = requestAgain
             ? await accountRequester.GetBankItems()
             : lastResponse! with
             { }; // dunno if the cloning really works here, or is necessary

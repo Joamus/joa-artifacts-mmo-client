@@ -30,6 +30,10 @@ public class GameState
     public Dictionary<string, ItemSchema> UtilityItemsDict { get; set; } = [];
 
     public Dictionary<string, List<ItemSchema>> CraftingLookupDict { get; set; } = [];
+    public Dictionary<
+        string,
+        List<(ResourceSchema Resource, DropRateSchema Drop)>
+    > DropItemsDict { get; set; } = [];
 
     public List<NpcItemSchema> NpcItems { get; set; } = [];
     public Dictionary<string, NpcItemSchema> NpcItemsDict { get; set; } = [];
@@ -266,6 +270,8 @@ public class GameState
         List<ResourceSchema> resources = [];
         int pageNumber = 1;
 
+        Dictionary<string, List<(ResourceSchema Resource, DropRateSchema Drop)>> dropItemsDict = [];
+
         while (!doneLoading)
         {
             var result = await AccountRequester.GetResources(pageNumber);
@@ -273,6 +279,16 @@ public class GameState
             foreach (var resource in result.Data)
             {
                 resources.Add(resource);
+
+                foreach (var drop in resource.Drops)
+                {
+                    if (!dropItemsDict.ContainsKey(drop.Code))
+                    {
+                        dropItemsDict.Add(drop.Code, []);
+                    }
+
+                    dropItemsDict[drop.Code].Add((resource, drop));
+                }
             }
 
             if (result.Data.Count == 0)
@@ -284,6 +300,7 @@ public class GameState
         }
 
         Resources = resources;
+        DropItemsDict = dropItemsDict;
         logger.LogInformation("Loading resources - DONE;");
     }
 

@@ -19,4 +19,5 @@ public enum CharacterChoreKind
     RestockFood,
     RestockTasksCoins,
     RestockPotions,
+    RestockResources,
 }

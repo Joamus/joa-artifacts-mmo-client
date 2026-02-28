@@ -293,7 +293,7 @@ public static class ItemService
         return foodsToCook;
     }
 
-    public static ResourceSchema? FindBestResourceToGatherItem(
+    public static (ResourceSchema Resource, int DropRate)? FindBestResourceToGatherItem(
         PlayerCharacter character,
         GameState gameState,
         string code
@@ -340,7 +340,7 @@ public static class ItemService
 
         if (resourceWithDropRate is not null)
         {
-            return resourceWithDropRate.Value.resource;
+            return resourceWithDropRate;
         }
 
         return null;
@@ -731,7 +731,11 @@ public static class ItemService
         }
         else
         {
-            var matchingResource = FindBestResourceToGatherItem(character, gameState, entityCode);
+            var matchingResource = FindBestResourceToGatherItem(
+                character,
+                gameState,
+                entityCode
+            )?.Resource;
 
             if (matchingResource is null)
             {

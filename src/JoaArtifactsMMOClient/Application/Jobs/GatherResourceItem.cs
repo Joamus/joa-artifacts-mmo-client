@@ -100,7 +100,9 @@ public class GatherResourceItem : CharacterJob
                 return new AppError($"Could not find item with code {Code} - could not gather it");
             }
 
-            var resource = ItemService.FindBestResourceToGatherItem(Character, gameState, Code);
+            var resource = ItemService
+                .FindBestResourceToGatherItem(Character, gameState, Code)
+                ?.Resource;
 
             if (resource is null)
             {
