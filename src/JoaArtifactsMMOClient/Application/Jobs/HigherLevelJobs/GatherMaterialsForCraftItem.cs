@@ -237,7 +237,7 @@ public class GatherMaterialsForItem : CharacterJob
         if (lastJob is null || lastJob is not CraftItem)
         {
             return new AppError(
-                $"{JobName}: [{Character.Schema.Name}] error - last job is null or not a CraftItem job"
+                $"{JobName}: [{Character.Schema.Name}] error - last job is null or not a CraftItem job - name is {lastJob?.JobName ?? "n/a"}"
             );
         }
 

@@ -113,10 +113,10 @@ public static class ItemService
 
             if (
                 condition.Operator == ItemConditionOperator.Gt
-                && playerLevelOfSkill <= condition.Value
+                && playerLevelOfSkill > condition.Value
             )
             {
-                return false;
+                return true;
             }
         }
 
@@ -620,15 +620,15 @@ public static class ItemService
     {
         List<ItemInInventory> items = [];
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(character, true);
+        // var bankItems = await gameState.BankItemCache.GetBankItems(character, true);
 
-        var bankItemDict = new Dictionary<string, DropSchema>();
+        // var bankItemDict = new Dictionary<string, DropSchema>();
 
-        foreach (var item in bankItems.Data)
-        {
-            // Cloning for changing the quantity
-            bankItemDict.Add(item.Code, item with { });
-        }
+        // foreach (var item in bankItems.Data)
+        // {
+        //     // Cloning for changing the quantity
+        //     bankItemDict.Add(item.Code, item with { });
+        // }
 
         foreach (var item in allItemCandidates)
         {
@@ -654,7 +654,7 @@ public static class ItemService
                 continue;
             }
 
-            int amountInBank = bankItemDict.GetValueOrNull(matchingItem.Code)?.Quantity ?? 0;
+            // int amountInBank = bankItemDict.GetValueOrNull(matchingItem.Code)?.Quantity ?? 0;
 
             var itemOnCharacter = character.GetEquippedItemOrInInventory(matchingItem.Code);
 
@@ -662,7 +662,7 @@ public static class ItemService
                 item.inventorySlot.Quantity
             );
 
-            int amountAvailable = amountInBank + amountEquippedOrInInventory;
+            // int amountAvailable = amountInBank + amountEquippedOrInInventory;
 
             var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
 
@@ -674,7 +674,7 @@ public static class ItemService
                 continue;
             }
 
-            if (amountAvailable == 0)
+            if (item.Quantity == 0)
             {
                 if (matchingNpcItem is not null)
                 {
@@ -707,7 +707,7 @@ public static class ItemService
                 }
             }
 
-            items.Add(new ItemInInventory { Item = matchingItem, Quantity = amountAvailable });
+            items.Add(new ItemInInventory { Item = matchingItem, Quantity = item.Quantity });
         }
 
         return items;

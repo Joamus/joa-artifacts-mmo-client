@@ -459,7 +459,7 @@ public class DepositUnneededItems : CharacterJob
 
     static int GetFreeInventorySpaceAmount(bool preJob)
     {
-        return preJob ? MAX_FREE_INVENTORY_SPACES - 1 : MIN_FREE_INVENTORY_SPACES;
+        return preJob ? MAX_FREE_INVENTORY_SPACES : MIN_FREE_INVENTORY_SPACES;
     }
 
     static int GetFreeInventorySlotAmount(bool preJob)

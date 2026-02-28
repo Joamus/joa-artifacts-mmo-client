@@ -401,6 +401,8 @@ public class ObtainSuitablePotions : CharacterJob
         characterSchemaClone.Utility2Slot = "";
         characterSchemaClone.Utility2SlotQuantity = 0;
 
+        characterSchemaClone.Hp = characterSchemaClone.MaxHp;
+
         List<(FightOutcome Outcome, List<DropSchema> Potions)> fightSimResults = [];
 
         for (int i = 0; i < amountOfUtilSlots; i++)

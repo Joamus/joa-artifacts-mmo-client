@@ -62,7 +62,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         {
             List<int> iterations = ObtainItem.CalculateObtainItemIterations(
                 item,
-                Character,
+                Character.GetInventorySpaceLeft(),
                 HIGHER_FOOD_THRESHOLD
             );
 

@@ -64,7 +64,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 // Iterations like this is good enough for now, we could be more accurate
                 List<int> iterations = ObtainItem.CalculateObtainItemIterations(
                     matchingItem,
-                    Character,
+                    Character.GetInventorySpaceLeft(),
                     item.Quantity
                 );
 
@@ -162,25 +162,20 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 continue;
             }
 
-            int amountToKeep = Math.Min(
-                GetItemAmountMinimumNeeded(matchingItem) * amountOfCharacters,
-                item.Quantity
-            );
+            int amountToRecycle = item.Quantity;
 
-            int amountToRecycle = item.Quantity - amountToKeep;
-
-            int amountOfCharactersWithBetterOrSameItem = 0;
+            int amountOfCharactersWithWorseItem = 0;
 
             // Check each character, and see if they have a better bag equipped
             // We should have some logic, where we count how many we need depending on all of the characters.
 
             if (matchingItem.Type == "bag")
             {
-                amountOfCharactersWithBetterOrSameItem = gameState.Characters.Count(character =>
+                amountOfCharactersWithWorseItem = gameState.Characters.Count(character =>
                 {
                     var bag = gameState.ItemsDict.GetValueOrNull(character.Schema.BagSlot);
 
-                    return bag?.Level >= matchingItem.Level;
+                    return (bag?.Level ?? 0) < matchingItem.Level;
                 });
             }
             // Check each character, and see if they have better tools equipped
@@ -188,7 +183,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
             {
                 var toolEffect = EffectService.GetSkillEffectFromItem(matchingItem)!;
 
-                int amountWithBetterOrSameTool = gameState.Characters.Count(character =>
+                int amountWithWorseTool = gameState.Characters.Count(character =>
                 {
                     List<ItemInInventory> itemsInInventory =
                         character.GetItemsFromInventoryWithSubtype("tool");
@@ -219,16 +214,14 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                             && toolEffectInventoryItem.Value <= toolEffect.Value;
                     });
 
-                    return hasBetterTool;
+                    return !hasBetterTool;
                 });
 
-                amountOfCharactersWithBetterOrSameItem += amountWithBetterOrSameTool;
+                amountOfCharactersWithWorseItem = amountWithWorseTool;
                 // Check characters' inventory/weapon slot, and see if they have a better tool
             }
             else
             {
-                bool recycleAll = false;
-
                 var itemCouldBeRecycled = !itemsWeShouldNotRecycle.Contains(item.Code);
 
                 if (itemCouldBeRecycled)
@@ -258,20 +251,24 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
                         if (matchingItemThatShouldNotBeRecycled.Level < lowestCharacterLevel)
                         {
-                            recycleAll = true;
+                            amountToRecycle = item.Quantity;
+                            amountOfCharactersWithWorseItem = 0;
                         }
                     }
                 }
-
-                // If any character still has use of this item, we will always keep 5 - it's OK, but not optimal I guess.
-                if (recycleAll)
+                else
                 {
-                    amountToRecycle = item.Quantity;
+                    amountToRecycle = 0;
                 }
             }
 
+            int amountToKeepPerItem = Math.Min(
+                GetItemAmountMinimumNeeded(matchingItem) * amountOfCharacters,
+                item.Quantity
+            );
+
             // We can recycle more in the bank, if the characters has a better item
-            amountToRecycle += amountOfCharactersWithBetterOrSameItem;
+            amountToRecycle -= amountOfCharactersWithWorseItem * amountToKeepPerItem;
 
             if (amountToRecycle > item.Quantity)
             {

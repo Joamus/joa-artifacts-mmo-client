@@ -151,7 +151,7 @@ public class ItemTask : CharacterJob
 
                 List<int> iterations = ObtainItem.CalculateObtainItemIterations(
                     matchingItem,
-                    Character,
+                    Character.GetInventorySpaceLeft(),
                     amountToObtain
                 );
 
