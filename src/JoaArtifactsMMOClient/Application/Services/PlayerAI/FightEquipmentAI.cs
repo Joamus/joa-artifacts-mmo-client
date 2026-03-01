@@ -94,7 +94,13 @@ public class FightEquipmentAI
 
             if (highestLevelItem is not null)
             {
-                return new ObtainOrFindItem(character, gameState, highestLevelItem, 1);
+                var job = new ObtainOrFindItem(character, gameState, highestLevelItem, 1)
+                {
+                    onAfterSuccessEndHook = async () =>
+                    {
+                        await character.SmartItemEquip(highestLevelItem, 1);
+                    },
+                };
             }
         }
 
