@@ -34,7 +34,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
     {
         var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
-        var bestPotions = GetAllPotionCandidates();
+        var bestPotions = await GetAllPotionCandidates();
 
         List<string> potionCodesWeHaveEnoughOf = [];
 
@@ -78,7 +78,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
             .ToList();
     }
 
-    List<ItemSchema> GetAllPotionCandidates()
+    async Task<List<ItemSchema>> GetAllPotionCandidates()
     {
         var potions = gameState.Items.Where(item => item.Type == "utility").ToList();
 
@@ -126,6 +126,23 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
                     continue;
                 }
 
+                var obtainItemResult = await ObtainItem.GetJobsRequired(
+                    character,
+                    gameState,
+                    true,
+                    potion.Code,
+                    1,
+                    true,
+                    true,
+                    true
+                );
+
+                switch (obtainItemResult.Value)
+                {
+                    case AppError error:
+                        continue;
+                }
+
                 potionsForCharacter.Add(potion);
             }
 
@@ -138,7 +155,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
             }
         }
 
-        return result.Select(potion => potion.Value).ToList();
+        return [.. result.Select(potion => potion.Value)];
     }
 
     public async Task<bool> NeedsToBeDone()

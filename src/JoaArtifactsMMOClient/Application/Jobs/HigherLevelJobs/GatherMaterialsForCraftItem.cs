@@ -174,26 +174,16 @@ public class GatherMaterialsForItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
         );
 
-        var bankResult = await gameState.BankItemCache.GetBankItems(Character);
-
-        if (bankResult is not BankItemsResponse bankItemsResponse)
-        {
-            return new AppError("Failed to get bank items");
-        }
-
-        itemsInBank = bankItemsResponse.Data;
-
         var result = await ObtainItem.GetJobsRequired(
             Character,
             gameState,
             AllowUsingMaterialsFromBank,
-            itemsInBank,
-            jobs,
             Code,
             Amount,
             AllowUsingMaterialsFromInventory,
             CanTriggerTraining
         );
+
         switch (result.Value)
         {
             case AppError jobError:
@@ -207,6 +197,9 @@ public class GatherMaterialsForItem : CharacterJob
                     return new None();
                 }
                 return jobError;
+            case List<CharacterJob> resultJobs:
+                jobs = resultJobs;
+                break;
         }
 
         // If we

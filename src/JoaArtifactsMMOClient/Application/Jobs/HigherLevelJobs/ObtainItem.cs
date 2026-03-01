@@ -118,8 +118,6 @@ public class ObtainItem : CharacterJob
             Character,
             gameState,
             AllowUsingMaterialsFromBank,
-            itemsInBank,
-            jobs,
             Code,
             Amount,
             AllowUsingMaterialsFromInventory,
@@ -130,6 +128,9 @@ public class ObtainItem : CharacterJob
         {
             case AppError jobError:
                 return jobError;
+            case List<CharacterJob> resultJobs:
+                jobs = resultJobs;
+                break;
         }
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] found {jobs.Count} jobs to run, to obtain item {Code}"
@@ -165,12 +166,10 @@ public class ObtainItem : CharacterJob
      * Get all the jobs required to obtain an item
      * We mutate a list to recursively add all the required jobs to the list
     */
-    public static async Task<OneOf<AppError, None>> GetJobsRequired(
+    public static async Task<OneOf<AppError, List<CharacterJob>>> GetJobsRequired(
         PlayerCharacter Character,
         GameState gameState,
         bool allowUsingItemFromBank,
-        List<DropSchema> itemsInBank,
-        List<CharacterJob> jobs,
         string code,
         int amount,
         bool allowUsingItemFromInventory = false,
@@ -178,6 +177,10 @@ public class ObtainItem : CharacterJob
         bool ignoreInventoryFull = false
     )
     {
+        var bankItems = (await gameState.BankItemCache.GetBankItems(Character, false)).Data;
+
+        List<CharacterJob> jobs = [];
+
         var result = await InnerGetJobsRequired(
             Character,
             Character
@@ -189,7 +192,7 @@ public class ObtainItem : CharacterJob
                 .ToList(),
             gameState,
             allowUsingItemFromBank,
-            itemsInBank
+            bankItems
                 .Select(item => new DropSchema { Code = item.Code, Quantity = item.Quantity })
                 .ToList(),
             jobs,
@@ -201,7 +204,13 @@ public class ObtainItem : CharacterJob
             ignoreInventoryFull
         );
 
-        return result;
+        switch (result.Value)
+        {
+            case AppError appError:
+                return appError;
+        }
+
+        return jobs;
     }
 
     /**

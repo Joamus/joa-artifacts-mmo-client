@@ -354,8 +354,6 @@ public class PlayerActionService
             character,
             gameState,
             true,
-            (await gameState.BankItemCache.GetBankItems(character, false)).Data,
-            [],
             item.Code,
             Quantity,
             true,
