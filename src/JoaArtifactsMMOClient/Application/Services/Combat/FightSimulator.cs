@@ -769,9 +769,9 @@ public class FightSimulator
                     bestFightSimResult
                 );
 
-                bestSchemaCandiateWithWeapon = result.Schema;
-                bestFightOutcomeWithWeapon = result.Outcome;
-                itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
+                bestFightSimResult.Schema = result.Schema;
+                bestFightSimResult.Outcome = result.Outcome;
+                bestFightSimResult.ItemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
 
                 // Bit of a hack, but we have to keep track of quantity
                 if (equipmentTypeMapping.ItemType == "ring")
@@ -807,27 +807,15 @@ public class FightSimulator
                         )
                     ),
                     equipmentTypeMapping,
-                    new FightSimResult
-                    {
-                        Schema = bestSchemaCandiateWithWeapon,
-                        Outcome = bestFightOutcomeWithWeapon,
-                        ItemsToEquip = itemsToEquip,
-                    }
+                    bestFightSimResult
                 );
 
-                bestSchemaCandiateWithWeapon = result.Schema;
-                bestFightOutcomeWithWeapon = result.Outcome;
-                itemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
+                bestFightSimResult.Schema = result.Schema;
+                bestFightSimResult.Outcome = result.Outcome;
+                bestFightSimResult.ItemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
             }
 
-            allCandidates.Add(
-                new FightSimResult
-                {
-                    Schema = bestSchemaCandiateWithWeapon,
-                    Outcome = bestFightOutcomeWithWeapon,
-                    ItemsToEquip = itemsToEquip,
-                }
-            );
+            allCandidates.Add(bestFightSimResult);
         }
 
         allCandidates.Sort(
@@ -882,7 +870,7 @@ public class FightSimulator
     }
 
     public static FightSimResult SimItemsForEquipmentType(
-        PlayerCharacter character,
+        PlayerCharacter originalCharacter,
         GameState gameState,
         MonsterSchema monster,
         List<ItemInInventory> allItems,
@@ -910,9 +898,6 @@ public class FightSimulator
 
         int bestItemAmount = 1;
 
-        // TODO: Loop through all weapons, and find the best combination with each weapon.
-        // We can maybe skip tools, and only take one if we literally have no other weapons
-
         var equipmentType = equipmentTypeMapping.ItemType;
         var equipmentSlot = equipmentTypeMapping.Slot;
         // var items = character.GetItemsFromInventoryWithType(equipmentType);
@@ -930,9 +915,9 @@ public class FightSimulator
             };
         }
 
-        EquipmentSlot? equippedItem = null;
+        var character = originalCharacter.Clone();
 
-        equippedItem = character.GetEquipmentSlot(equipmentSlot);
+        EquipmentSlot? equippedItem = character.GetEquipmentSlot(equipmentSlot);
 
         ItemSchema? bestItemCandidate = equippedItem is not null
             ? gameState.ItemsDict.GetValueOrNull(equippedItem.Code)
@@ -949,6 +934,19 @@ public class FightSimulator
                 throw new Exception(
                     $"Current weapon with code \"{item.Item.Code}\" is null - should never happen"
                 );
+            }
+
+            if (itemSchema.Type == "artifact")
+            {
+                bool alreadyHasArtifactEquipped = ItemService.AreArtifactsOverlapping(
+                    item.Item.Code,
+                    bestSchemaCandidate
+                );
+
+                if (alreadyHasArtifactEquipped)
+                {
+                    continue;
+                }
             }
 
             if (itemSchema.Subtype == "tool")
@@ -1193,38 +1191,38 @@ public class FightSimulator
     public static HashSet<string> GetItemsRelevantMonsters(
         PlayerCharacter character,
         GameState gameState,
-        List<ItemInInventory> items
+        List<ItemInInventory> items,
+        bool includeItemsFromInventory
     )
     {
         HashSet<string> relevantItems = [];
 
         var relevantMonsters = GetRelevantMonstersForCharacter(character, gameState);
 
+        List<ItemInInventory> itemsToUse = [.. items];
+
+        if (includeItemsFromInventory)
+        {
+            itemsToUse = character
+                .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+                .Select(item => new ItemInInventory
+                {
+                    Item = gameState.ItemsDict[item.Code],
+                    Quantity = item.Quantity,
+                })
+                .Union(items)
+                .ToList();
+        }
+
         foreach (var monster in relevantMonsters)
         {
             var bestFightItems = (
-                FindBestFightEquipment(
-                    character,
-                    gameState,
-                    monster,
-                    character
-                        .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
-                        .Select(item => new ItemInInventory
-                        {
-                            Item = gameState.ItemsDict[item.Code],
-                            Quantity = item.Quantity,
-                        })
-                        .Union(items)
-                        .ToList()
-                )
+                FindBestFightEquipment(character, gameState, monster, itemsToUse)
             ).ItemsToEquip;
 
             foreach (var item in bestFightItems)
             {
-                // if (!relevantItems.Contains(item.Code))
-                // {
                 relevantItems.Add(item.Code);
-                // }
             }
         }
 

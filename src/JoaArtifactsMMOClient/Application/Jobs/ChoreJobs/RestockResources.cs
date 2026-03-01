@@ -14,6 +14,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
 {
     const int LOWER_RESOURCE_THRESHOLD = 100;
     const int HIGHER_RESOURCE_THRESHOLD = 200;
+    const int RELEVANT_MIN_LEVEL_OFFSET = 12;
 
     // We don't want to keep gathering resources to get
     const float RESTOCK_ITEM_DROP_RATE_THRESHOLD = 0.1f;
@@ -37,7 +38,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
     {
         var levelRange = GetCharacterLevelRange(gameState);
 
-        var relevantResources = GetRelevantResources(gameState, levelRange);
+        var relevantResources = GetResourcesToConsider(gameState, levelRange);
 
         var bankItems = (await gameState.BankItemCache.GetBankItems(Character)).Data;
 
@@ -57,7 +58,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         return jobs.FirstOrDefault();
     }
 
-    public static List<ResourceSchema> GetRelevantResources(
+    public static List<ResourceSchema> GetResourcesToConsider(
         GameState gameState,
         LevelRange levelRange
     )
@@ -65,7 +66,8 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         // The cheeky one is just to look at the level of the resource
 
         return gameState
-            .Resources.Where(x => x.Level >= levelRange.Lowest && x.Level <= levelRange.Highest)
+            // .Resources.Where(x => x.Level >= levelRange.Lowest && x.Level <= levelRange.Highest)
+            .Resources.Where(x => x.Level <= levelRange.Highest)
             .ToList();
     }
 
@@ -144,9 +146,12 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
     static bool ItemIsRelevantToRestock(ItemSchema item, LevelRange levelRange)
     {
         // Rough estimate, e.g. copper ore is relevant up to level 12ish - could be improved
-        int minRelevantLevel = Math.Min(item.Level + 12, PlayerCharacter.MAX_LEVEL);
+        int minRelevantLevel = Math.Min(
+            item.Level + RELEVANT_MIN_LEVEL_OFFSET,
+            PlayerCharacter.MAX_LEVEL
+        );
 
-        return minRelevantLevel >= levelRange.Lowest && minRelevantLevel <= levelRange.Highest;
+        return minRelevantLevel >= levelRange.Lowest && item.Level <= levelRange.Highest;
     }
 
     static int AmountToGather(float dropRate)

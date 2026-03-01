@@ -323,7 +323,8 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
             var relevantItemsFromSim = FightSimulator.GetItemsRelevantMonsters(
                 character,
                 gameState,
-                items.Select(item => new ItemInInventory { Item = item, Quantity = 100 }).ToList()
+                items.Select(item => new ItemInInventory { Item = item, Quantity = 100 }).ToList(),
+                true
             );
 
             foreach (var item in relevantItemsFromSim)

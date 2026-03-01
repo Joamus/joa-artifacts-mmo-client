@@ -1,6 +1,7 @@
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -70,13 +71,13 @@ public class NavigationService
         }
     }
 
-    public async Task<OneOf<AppError, None>> NavigateTo(string code)
+    public async Task<OneOf<AppError, None>> NavigateTo(string contentCode)
     {
         // // We don't know what it is, but it might be an item we wish to get
 
         var maps = gameState.Maps.FindAll(map =>
         {
-            bool matchesCode = map.Interactions.Content?.Code == code;
+            bool matchesCode = map.Interactions.Content?.Code == contentCode;
 
             if (!matchesCode)
             {
@@ -114,11 +115,11 @@ public class NavigationService
 
         if (maps.Count == 0)
         {
-            var map = gameState.EventService.WhereIsEntityActive(code);
+            var map = gameState.EventService.WhereIsEntityActive(contentCode);
 
             if (map is null)
             {
-                throw new Exception($"Could not find map with code {code}");
+                throw new Exception($"Could not find map with code {contentCode}");
             }
 
             destinationMap = map;
@@ -161,7 +162,7 @@ public class NavigationService
         if (destinationMap is null)
         {
             return new AppError(
-                $"Could not find closest map to find \"{code}\"",
+                $"Could not find closest map to find \"{contentCode}\"",
                 ErrorStatus.NotFound
             );
         }
@@ -253,11 +254,11 @@ public class NavigationService
                 {
                     // Ghetto recall - find closest mob and intentionally die, so we get ported to spawn
 
-                    MonsterSchema? closestMonsterMap = FindClosestMonster(matchingTransition);
+                    MonsterSchema? closestMonster = FindClosestMonster(matchingTransition);
 
-                    if (closestMonsterMap is not null)
+                    if (closestMonster is not null)
                     {
-                        await NavigateTo(closestMonsterMap.Code);
+                        await NavigateTo(closestMonster.Code);
 
                         while (character.Schema.X != 0 && character.Schema.Y != 0)
                         {
@@ -537,8 +538,32 @@ public class NavigationService
         return closestTransition;
     }
 
-    public MonsterSchema? FindClosestMonster(MapSchema currentMap)
+    public MonsterSchema FindClosestMonster(MapSchema currentMap)
     {
-        return null;
+        List<MapSchema> monsterMaps = gameState
+            .Maps.Where(map =>
+            {
+                if (map.Interactions.Content is null)
+                {
+                    return false;
+                }
+
+                return gameState.MonstersDict.GetValueOrNull(map.Interactions.Content.Code)
+                    is not null;
+            })
+            .ToList();
+
+        monsterMaps.Sort((a, b) => CalculationService.CalculateDistanceToMap(a.X, a.Y, b.X, b.Y));
+
+        var closestMonsterCode = monsterMaps.FirstOrDefault()?.Interactions.Content?.Code;
+
+        if (closestMonsterCode is null)
+        {
+            throw new AppError(
+                $"Error finding closest monster - found {monsterMaps.Count} monster maps, current map is x: {currentMap.X} y: {currentMap.Y}: layer: {currentMap.Layer.GetDisplayName()}"
+            );
+        }
+
+        return gameState.MonstersDict[closestMonsterCode]!;
     }
 }

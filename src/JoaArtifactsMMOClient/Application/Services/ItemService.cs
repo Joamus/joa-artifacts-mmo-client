@@ -371,6 +371,13 @@ public static class ItemService
         return false;
     }
 
+    public static bool AreArtifactsOverlapping(string itemCode, CharacterSchema characterSchema)
+    {
+        return characterSchema.Artifact1Slot == itemCode
+            || characterSchema.Artifact2Slot == itemCode
+            || characterSchema.Artifact3Slot == itemCode;
+    }
+
     public static async Task<BestFightItemsResult> GetBestFightItemsFromAllItems(
         PlayerCharacter character,
         GameState gameState,

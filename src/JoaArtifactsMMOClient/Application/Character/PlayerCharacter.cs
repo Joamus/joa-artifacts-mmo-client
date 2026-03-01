@@ -40,6 +40,8 @@ public class PlayerCharacter
     [JsonInclude]
     private Dictionary<string, ItemReservation> itemWishlist { get; set; } = [];
 
+    private CharacterConfig? CharacterConfig { get; set; }
+
     public List<Skill> Roles { get; init; } = [];
     public List<CharacterChoreKind> Chores { get; init; } = [];
 
@@ -122,6 +124,11 @@ public class PlayerCharacter
                 itemWishlist.Remove(code);
             }
         }
+    }
+
+    public PlayerCharacter Clone()
+    {
+        return new PlayerCharacter(Schema with { }, GameState, ApiRequester, CharacterConfig);
     }
 
     public bool ExistsInWishlist(string itemCode)
@@ -427,6 +434,7 @@ public class PlayerCharacter
             }
         }
 
+        CharacterConfig = characterConfig;
         Roles = roles;
         Chores = chores;
 
