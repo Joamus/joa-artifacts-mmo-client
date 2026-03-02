@@ -116,10 +116,6 @@ public class ObtainSuitablePotions : CharacterJob
         potionCandidates.Sort(
             // Assuming that higher level pots are better
             (b, a) => a.item.Level - b.item.Level
-        // (b, a) =>
-        //     ItemService
-        //         .GetEffect(a.item, "restore")
-        //         .CompareTo(ItemService.GetEffect(b.item, "restore"))
         );
 
         List<ItemInInventory> potionsForSim = [];
@@ -156,17 +152,18 @@ public class ObtainSuitablePotions : CharacterJob
             );
         }
 
-        var originalSchema = character.Schema with { };
+        var characterClone = character.Clone();
+        characterClone.Schema.Hp = characterClone.Schema.MaxHp;
 
         //
-        character.Schema.Utility1Slot = "";
-        character.Schema.Utility1SlotQuantity = 0;
+        characterClone.Schema.Utility1Slot = "";
+        characterClone.Schema.Utility1SlotQuantity = 0;
 
-        character.Schema.Utility2Slot = "";
-        character.Schema.Utility2SlotQuantity = 0;
+        characterClone.Schema.Utility2Slot = "";
+        characterClone.Schema.Utility2SlotQuantity = 0;
 
         var fightSimWithoutPotions = FightSimulator.FindBestFightEquipment(
-            character,
+            characterClone,
             gameState,
             monster,
             []
@@ -176,15 +173,13 @@ public class ObtainSuitablePotions : CharacterJob
         if (fightSimWithoutPotions.Outcome.ShouldFight)
         {
             // Mutating it back, very important
-            character.Schema = originalSchema;
-
             List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
 
             utilitySlots.Add(
-                (1, character.Schema.Utility1Slot, character.Schema.Utility1SlotQuantity)
+                (1, characterClone.Schema.Utility1Slot, characterClone.Schema.Utility1SlotQuantity)
             );
             utilitySlots.Add(
-                (2, character.Schema.Utility2Slot, character.Schema.Utility2SlotQuantity)
+                (2, characterClone.Schema.Utility2Slot, characterClone.Schema.Utility2SlotQuantity)
             );
 
             foreach (var util in utilitySlots)
@@ -230,14 +225,11 @@ public class ObtainSuitablePotions : CharacterJob
         potionCandidates.Sort((a, b) => b.item.Level - a.item.Level);
 
         List<ItemSchema> potionsToAcquire = GetMostEfficientPotionCandidates(
-            character.Schema,
+            characterClone.Schema,
             monster,
             gameState,
             potionCandidates.Select(potion => potion.item).ToList()
         );
-
-        // Mutating it back, very important
-        character.Schema = originalSchema;
 
         potionCandidates = potionCandidates
             .Where(candidate =>
@@ -485,7 +477,7 @@ public class ObtainSuitablePotions : CharacterJob
             }
         );
 
-        var bestResult = fightSimResults.ElementAt(0);
+        var bestResult = fightSimResults.First();
 
         return bestResult
             .Potions.Where(potion => !string.IsNullOrEmpty(potion.Code) && potion.Quantity > 0)

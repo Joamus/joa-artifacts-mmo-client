@@ -1066,6 +1066,16 @@ public class FightSimulator
             return bWinsValue;
         }
 
+        if (a.ShouldFight && !b.ShouldFight)
+        {
+            return aWinsValue;
+        }
+
+        if (!a.ShouldFight && b.ShouldFight)
+        {
+            return bWinsValue;
+        }
+
         // It's only if we are winning that we care about amount of turns - if we are losing,
         // it could mean that we have good survivability
         if (a.Result == FightResult.Win && b.Result == FightResult.Win)

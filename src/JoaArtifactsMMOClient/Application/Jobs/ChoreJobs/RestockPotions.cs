@@ -19,12 +19,14 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        // Get the best effect per character, and queue x amount of those. Maybe a blacklist, to not get potions requiring event items?
-        List<ObtainItem> jobs = await GetJobs();
+        var jobs = await GetJobs();
 
         if (jobs.Count > 0)
         {
-            await Character.QueueJobsAfter(Id, jobs);
+            var firstJob = jobs.First();
+
+            // For now, just queue the first one, so we can also do other chores if needed etc.
+            await Character.QueueJobsAfter(Id, [firstJob]);
         }
 
         return new None();
@@ -35,6 +37,32 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
         var bestPotions = await GetAllPotionCandidates();
+
+        bestPotions.Sort(
+            (a, b) =>
+            {
+                int aWinsValue = -1;
+                int bWinsValue = 1;
+
+                bool aIsRestoreHpPot = a.Effects.Exists(effect => effect.Code == "restore");
+                bool bIsRestoreHpPot = b.Effects.Exists(effect => effect.Code == "restore");
+
+                if (aIsRestoreHpPot && bIsRestoreHpPot)
+                {
+                    return b.Level - a.Level;
+                }
+                else if (aIsRestoreHpPot)
+                {
+                    return aWinsValue;
+                }
+                else if (bIsRestoreHpPot)
+                {
+                    return bWinsValue;
+                }
+
+                return b.Level - a.Level;
+            }
+        );
 
         List<string> potionCodesWeHaveEnoughOf = [];
 
@@ -60,22 +88,26 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
             }
         }
 
-        return bestPotions
-            .Where(potion => !potionCodesWeHaveEnoughOf.Contains(potion.Code))
-            .Select(potion =>
-            {
-                var job = new ObtainItem(
-                    Character,
-                    gameState,
-                    potion.Code,
-                    HIGHER_POTION_THRESHOLD
-                );
+        List<ObtainItem> jobs =
+        [
+            .. bestPotions
+                .Where(potion => !potionCodesWeHaveEnoughOf.Contains(potion.Code))
+                .Select(potion =>
+                {
+                    var job = new ObtainItem(
+                        Character,
+                        gameState,
+                        potion.Code,
+                        HIGHER_POTION_THRESHOLD
+                    );
 
-                job.ForBank();
+                    job.ForBank();
 
-                return job;
-            })
-            .ToList();
+                    return job;
+                }),
+        ];
+
+        return jobs;
     }
 
     async Task<List<ItemSchema>> GetAllPotionCandidates()
