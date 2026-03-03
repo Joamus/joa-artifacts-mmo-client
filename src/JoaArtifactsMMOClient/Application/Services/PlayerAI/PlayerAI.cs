@@ -1020,7 +1020,7 @@ public class PlayerAI
 
                 if (job is null)
                 {
-                    return null;
+                    continue;
                 }
 
                 logger.LogInformation(
