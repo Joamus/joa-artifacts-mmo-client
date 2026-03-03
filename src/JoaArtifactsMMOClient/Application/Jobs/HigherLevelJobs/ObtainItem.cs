@@ -204,13 +204,11 @@ public class ObtainItem : CharacterJob
             ignoreInventoryFull
         );
 
-        switch (result.Value)
+        return result.Value switch
         {
-            case AppError appError:
-                return appError;
-        }
-
-        return jobs;
+            AppError appError => (OneOf<AppError, List<CharacterJob>>)appError,
+            _ => (OneOf<AppError, List<CharacterJob>>)jobs,
+        };
     }
 
     /**
@@ -533,18 +531,25 @@ public class ObtainItem : CharacterJob
 
         var foundMonsterThatIsFromEvent = false;
 
-        monstersThatDropTheItem = await GetDefeatableMonstersFromList(
+        var monstersWeCanDefeatThatDropTheItem = await GetDefeatableMonstersFromList(
             Character,
             gameState,
             monstersThatDropTheItem,
             itemsInBankClone
         );
 
-        if (monstersThatDropTheItem.Count > 0)
+        if (monstersWeCanDefeatThatDropTheItem.Count > 0)
         {
-            monstersThatDropTheItem.Sort((a, b) => a.Level - b.Level);
+            monstersWeCanDefeatThatDropTheItem.Sort((a, b) => a.Level - b.Level);
 
-            lowestLevelMonster = monstersThatDropTheItem.ElementAt(0);
+            lowestLevelMonster = monstersWeCanDefeatThatDropTheItem.ElementAt(0);
+        }
+
+        if (monstersThatDropTheItem.Count > 0 && monstersWeCanDefeatThatDropTheItem.Count == 0)
+        {
+            return new AppError(
+                $"The item is a monster drop, but we cannot defeat the monsters that drop it"
+            );
         }
 
         if (lowestLevelMonster is not null)
@@ -597,7 +602,7 @@ public class ObtainItem : CharacterJob
             }
         }
 
-        if (monstersThatDropTheItem.Count > 0)
+        if (monstersWeCanDefeatThatDropTheItem.Count > 0)
         {
             if (foundMonsterThatIsFromEvent)
             {
