@@ -378,34 +378,26 @@ public static class ItemService
             || characterSchema.Artifact3Slot == itemCode;
     }
 
-    public static async Task<BestFightItemsResult> GetBestFightItemsFromAllItems(
+    public static async Task<BestFightItemsResult> GetBestFightItemsFromObtainableItems(
         PlayerCharacter character,
         GameState gameState,
-        MonsterSchema monster
+        MonsterSchema monster,
+        Dictionary<string, DropSchema> bankItems
     )
     {
-        List<InventorySlot>? allItemCandidates = [];
-
         // 100 quantity for potions, doesn't really matter
-        allItemCandidates = gameState
+        var allItemCandidates = gameState
             .Items.Where(item => EquipmentItemTypes.Contains(item.Type))
-            .Select(item => new InventorySlot { Code = item.Code, Quantity = 100 })
             .ToList();
-
-        var allItemCandidatesCasted =
-            allItemCandidates
-                .Select(item => new ItemInInventory
-                {
-                    Item = gameState.ItemsDict[item.Code],
-                    Quantity = item.Quantity,
-                })
-                .ToList() ?? [];
 
         List<ItemInInventory> itemsForSimming = await GetItemsThatCanBeSimmed(
             character,
             gameState,
-            allItemCandidatesCasted
+            allItemCandidates,
+            bankItems
         );
+
+        itemsForSimming = FightSimulator.GetItemsWorthSimming(itemsForSimming);
 
         Dictionary<string, EquipmentSlot> relevantItemsDict = [];
 
@@ -622,7 +614,8 @@ public static class ItemService
     public static async Task<List<ItemInInventory>> GetItemsThatCanBeSimmed(
         PlayerCharacter character,
         GameState gameState,
-        List<ItemInInventory> allItemCandidates
+        List<ItemSchema> allItems,
+        Dictionary<string, DropSchema> bankItems
     )
     {
         List<ItemInInventory> items = [];
@@ -637,9 +630,9 @@ public static class ItemService
         //     bankItemDict.Add(item.Code, item with { });
         // }
 
-        foreach (var item in allItemCandidates)
+        foreach (var item in allItems)
         {
-            var matchingItem = item.Item;
+            var matchingItem = gameState.ItemsDict[item.Code];
 
             if (ItemSimBlacklist.Contains(matchingItem.Code))
             {
@@ -661,7 +654,7 @@ public static class ItemService
                 continue;
             }
 
-            // int amountInBank = bankItemDict.GetValueOrNull(matchingItem.Code)?.Quantity ?? 0;
+            int amountInBank = bankItems.GetValueOrNull(item.Code)?.Quantity ?? 0;
 
             var itemOnCharacter = character.GetEquippedItemOrInInventory(matchingItem.Code);
 
@@ -669,7 +662,7 @@ public static class ItemService
                 item.inventorySlot.Quantity
             );
 
-            // int amountAvailable = amountInBank + amountEquippedOrInInventory;
+            int amountAvailable = amountInBank + amountEquippedOrInInventory;
 
             var matchingNpcItem = gameState.NpcItemsDict.GetValueOrDefault(matchingItem.Code);
 
@@ -681,7 +674,7 @@ public static class ItemService
                 continue;
             }
 
-            if (item.Quantity == 0)
+            if (amountAvailable == 0)
             {
                 if (matchingNpcItem is not null)
                 {
@@ -714,7 +707,7 @@ public static class ItemService
                 }
             }
 
-            items.Add(new ItemInInventory { Item = matchingItem, Quantity = item.Quantity });
+            items.Add(new ItemInInventory { Item = matchingItem, Quantity = amountAvailable });
         }
 
         return items;

@@ -11,8 +11,10 @@ namespace Application.Jobs;
 
 public class RestockPotions : CharacterJob, ICharacterChoreJob
 {
-    const int LOWER_POTION_THRESHOLD = 30;
-    const int HIGHER_POTION_THRESHOLD = 200;
+    const int LOWER_RESTORE_POTION_THRESHOLD = 30;
+    const int HIGHER_RESTORE_POTION_THRESHOLD = 200;
+    const int LOWER_OTHER_POTION_THRESHOLD = 20;
+    const int HIGHER_OTHER_POTION_THRESHOLD = 50;
 
     public RestockPotions(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
@@ -44,8 +46,8 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
                 int aWinsValue = -1;
                 int bWinsValue = 1;
 
-                bool aIsRestoreHpPot = a.Effects.Exists(effect => effect.Code == "restore");
-                bool bIsRestoreHpPot = b.Effects.Exists(effect => effect.Code == "restore");
+                bool aIsRestoreHpPot = IsRestorePotion(a);
+                bool bIsRestoreHpPot = IsRestorePotion(b);
 
                 if (aIsRestoreHpPot && bIsRestoreHpPot)
                 {
@@ -80,7 +82,8 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
             if (
                 matchingItem.Type == "utility"
                 && bestPotions.Exists(potion =>
-                    potion.Code == item.Code && item.Quantity >= LOWER_POTION_THRESHOLD
+                    potion.Code == item.Code
+                    && !ShouldRestock(gameState.ItemsDict[potion.Code], item.Quantity)
                 )
             )
             {
@@ -98,7 +101,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
                         Character,
                         gameState,
                         potion.Code,
-                        HIGHER_POTION_THRESHOLD
+                        GetRestockAmount(potion)
                     );
 
                     job.ForBank();
@@ -195,5 +198,25 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         var jobs = await GetJobs();
 
         return jobs.Count > 0;
+    }
+
+    public bool IsRestorePotion(ItemSchema item)
+    {
+        return item.Effects.Exists(effect => effect.Code == "restore");
+    }
+
+    public int GetRestockAmount(ItemSchema item)
+    {
+        bool isRestorePotion = IsRestorePotion(item);
+
+        return isRestorePotion ? HIGHER_RESTORE_POTION_THRESHOLD : HIGHER_OTHER_POTION_THRESHOLD;
+    }
+
+    public bool ShouldRestock(ItemSchema item, int currentAmount)
+    {
+        bool isRestorePotion = IsRestorePotion(item);
+
+        return currentAmount
+            <= (isRestorePotion ? LOWER_RESTORE_POTION_THRESHOLD : LOWER_OTHER_POTION_THRESHOLD);
     }
 }

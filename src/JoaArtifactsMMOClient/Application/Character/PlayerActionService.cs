@@ -386,11 +386,11 @@ public class PlayerActionService
             bankItemDict.Add(item.Code, item with { });
         }
 
-        var bestFightItemsResult = await ItemService.GetBestFightItemsFromAllItems(
+        var bestFightItemsResult = await ItemService.GetBestFightItemsFromObtainableItems(
             character,
             gameState,
-            monster
-        // items.Select(item => new InventorySlot { Code = item.Code, Quantity = 100 }).ToList()
+            monster,
+            bankItemDict
         );
 
         // We only try to disprove this, if we have items to go through

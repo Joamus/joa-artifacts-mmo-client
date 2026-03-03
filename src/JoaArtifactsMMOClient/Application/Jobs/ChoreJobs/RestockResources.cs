@@ -107,8 +107,14 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
                         return new DropSchema { Code = code, Quantity = 0 };
                     }
 
-                    var drops = gameState.DropItemsDict[code].ToList();
                     // We want the lowest number first, cuz 1 is 100% chance, 2 is 50%, etc.
+                    var drops = gameState
+                        .DropItemsDict[code]
+                        .Where(drop =>
+                            !gameState.EventService.IsEntityFromEvent(drop.Resource.Code)
+                        )
+                        .ToList();
+
                     drops.Sort((a, b) => a.Drop.Rate - b.Drop.Rate);
 
                     var bestDrop = drops.First();
@@ -118,6 +124,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
                     if (
                         !ShouldRestock(bestDrop.Drop, amountInBank)
                         || IsTooRareToRestock(bestDrop.Drop)
+                        || gameState.EventService.IsEntityFromEvent(bestDrop.Resource.Code)
                     )
                     {
                         return new DropSchema { Code = code, Quantity = 0 };
