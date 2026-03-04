@@ -46,10 +46,11 @@ public class PlayerAI
 
         var job =
             await EnsureWeapon()
-            ?? await EnsureFightEquipment()
+            ?? await EnsureTools()
             ?? await GetEventJob()
             ?? await GetChoreJob()
             ?? await GetIndividualHighPrioJob()
+            ?? await EnsureFightEquipment()
             ?? await EnsureBag()
             ?? GetSkillJob()
             ?? await GetRoleJob()
@@ -343,18 +344,16 @@ public class PlayerAI
         return null;
     }
 
-    async Task<CharacterJob?> GetIndividualHighPrioJob()
+    async Task<CharacterJob?> EnsureTools()
     {
-        logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Start"
-        );
+        logger.LogInformation($"{Name}: [{Character.Schema.Name}]: EnsureTools: Start");
 
         var bestTools = await ItemService.GetBestTools(Character, gameState, null, hasDoneItemTask);
 
         if (!hasDoneItemTask)
         {
             logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Tasks farmer achievement is not completed yet - evaluating best tools, which don't require task materials"
+                $"{Name}: [{Character.Schema.Name}]: EnsureTools: Tasks farmer achievement is not completed yet - evaluating best tools, which don't require task materials"
             );
         }
 
@@ -377,7 +376,7 @@ public class PlayerAI
             if (Character.ExistsInWishlist(tool.Code))
             {
                 logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Skipping obtaining tool {tool.Code} - is already in wish list"
+                    $"{Name}: [{Character.Schema.Name}]: EnsureTools: Skipping obtaining tool {tool.Code} - is already in wish list"
                 );
                 continue;
             }
@@ -433,13 +432,22 @@ public class PlayerAI
             string itemCode = tool.Code;
 
             logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - get {itemCode}"
+                $"{Name}: [{Character.Schema.Name}]: EnsureTools: Job found - get {itemCode}"
             );
 
             int itemAmount = 1;
 
             return new ObtainOrFindItem(Character, gameState, tool.Code, itemAmount);
         }
+
+        return null;
+    }
+
+    async Task<CharacterJob?> GetIndividualHighPrioJob()
+    {
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Start"
+        );
 
         // Highest prio is completing this achievement, else all task items are locked.
         if (!hasDoneItemTask)
