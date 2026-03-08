@@ -76,6 +76,11 @@ public static class SkillService
 
     public static SkillKind GetSkillKind(Skill skill)
     {
+        // It's a hack, else it won't work correctly
+        if (skill == Skill.Alchemy)
+        {
+            return SkillKind.Crafting;
+        }
         return GatheringSkills.Contains(skill) ? SkillKind.Gathering : SkillKind.Crafting;
     }
 }

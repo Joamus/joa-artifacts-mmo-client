@@ -179,7 +179,6 @@ public class TrainSkill : CharacterJob
                         && item.Craft.Skill == skill
                         && item.Level <= skillLevel
                         && (skillLevel - item.Craft.Level) < LEVEL_DIFF_FOR_NO_XP
-                    // && ()
                     )
                     {
                         if (!await Character.PlayerActionService.CanObtainItem(item))

@@ -147,13 +147,6 @@ public class GatherResourceItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] status for {Character.Schema.Name} - gathering {Code} ({ProgressAmount}/{Amount})"
         );
 
-        // if (matchingItem.Type != "resource" || !_allowedSubtypes.Contains(matchingItem.Subtype))
-        // {
-        //     return new AppError(
-        //         $"Item with code: {Code} - type: {matchingItem.Type} - sub type: {matchingItem.Type} is not a gatherable resource"
-        //     );
-        // }
-
         int characterSkillLevel = 0;
 
         switch (resource.Skill)
