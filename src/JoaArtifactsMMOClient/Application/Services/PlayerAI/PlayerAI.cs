@@ -460,21 +460,21 @@ public class PlayerAI
 
     CharacterJob? GetSkillJob()
     {
-        if (Character.Schema.FishingLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
-        {
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Fishing - current level is {Character.Schema.FishingLevel}, compared to character level {Character.Schema.Level}"
-            );
-            return new TrainSkill(Character, gameState, Skill.Fishing, 1, true);
-        }
+        // if (Character.Schema.FishingLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
+        // {
+        //     logger.LogInformation(
+        //         $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Fishing - current level is {Character.Schema.FishingLevel}, compared to character level {Character.Schema.Level}"
+        //     );
+        //     return new TrainSkill(Character, gameState, Skill.Fishing, 1, true);
+        // }
 
-        if (Character.Schema.CookingLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
-        {
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Cooking - current level is {Character.Schema.CookingLevel}, compared to character level {Character.Schema.Level}"
-            );
-            return new TrainSkill(Character, gameState, Skill.Cooking, 1, true);
-        }
+        // if (Character.Schema.CookingLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
+        // {
+        //     logger.LogInformation(
+        //         $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Cooking - current level is {Character.Schema.CookingLevel}, compared to character level {Character.Schema.Level}"
+        //     );
+        //     return new TrainSkill(Character, gameState, Skill.Cooking, 1, true);
+        // }
 
         if (Character.Schema.AlchemyLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
         {
