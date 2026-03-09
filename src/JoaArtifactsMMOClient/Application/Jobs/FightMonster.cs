@@ -217,7 +217,8 @@ public class FightMonster : CharacterJob
                         GetFoodAmountToObtain(
                             Character,
                             Mode == JobMode.Kill ? Amount - ProgressAmount : null
-                        )
+                        ),
+                        Code
                     ),
                 ]
             );

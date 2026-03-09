@@ -11,10 +11,18 @@ namespace Application.Jobs;
 
 public class ObtainSuitableFood : CharacterJob
 {
-    public ObtainSuitableFood(PlayerCharacter playerCharacter, GameState gameState, int amount)
+    string? currentMonsterCode = null;
+
+    public ObtainSuitableFood(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        int amount,
+        string? currentMonsterCode
+    )
         : base(playerCharacter, gameState)
     {
         Amount = amount;
+        this.currentMonsterCode = currentMonsterCode;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -48,12 +56,7 @@ public class ObtainSuitableFood : CharacterJob
 
     private async Task<OneOf<AppError, List<CharacterJob>>> GetJobsToObtainFood()
     {
-        var result = await gameState.BankItemCache.GetBankItems(Character);
-
-        if (result is not BankItemsResponse bankItemsResponse)
-        {
-            return new AppError("Failed to get bank items");
-        }
+        var bankItems = (await gameState.BankItemCache.GetBankItems(Character)).Data;
 
         int amountFound = 0;
 
@@ -78,11 +81,9 @@ public class ObtainSuitableFood : CharacterJob
             return jobs;
         }
 
-        var fishJobs = GetFoodJobsFromBankFish(amountFound, Amount, bankItemsResponse);
-
         List<ItemInInventory> foodCandidates = [];
 
-        foreach (var item in bankItemsResponse.Data)
+        foreach (var item in bankItems)
         {
             var matchingItem = gameState.ItemsDict[item.Code];
 
@@ -115,14 +116,41 @@ public class ObtainSuitableFood : CharacterJob
             }
         }
 
+        var matchingMonster = currentMonsterCode is not null
+            ? gameState.MonstersDict[currentMonsterCode]
+            : null;
+
         if (amountFound < Amount)
         {
             var jobsToCookFromBank = ItemService
-                .GetFoodToCookFromInventoryList(Character, gameState, result.Data)
+                .GetFoodToCookFromInventoryList(Character, gameState, bankItems)
+                .Where(food =>
+                {
+                    if (matchingMonster is null)
+                    {
+                        return true;
+                    }
+
+                    var matchingFood = gameState.ItemsDict[food.Code];
+                    var ingredients =
+                        matchingFood.Craft?.Items
+                        ?? new List<DropSchema>
+                        {
+                            new DropSchema { Code = matchingFood.Code, Quantity = 1 },
+                        };
+
+                    bool dropIsFromMonster = matchingMonster.Drops.Exists(drop =>
+                        ingredients.Exists(ingredient => ingredient.Code == drop.Code)
+                    );
+
+                    return !dropIsFromMonster;
+                })
                 .Select(item =>
                 {
-                    var job = new ObtainOrFindItem(Character, gameState, item.Code, item.Quantity);
-                    job.AllowUsingMaterialsFromBank = true;
+                    var job = new ObtainOrFindItem(Character, gameState, item.Code, item.Quantity)
+                    {
+                        AllowUsingMaterialsFromBank = true,
+                    };
 
                     return job;
                 })
@@ -149,6 +177,8 @@ public class ObtainSuitableFood : CharacterJob
             {
                 return jobs;
             }
+
+            var fishJobs = GetFoodJobsFromBankFish(amountFound, Amount, bankItems);
 
             foreach (var job in fishJobs)
             {
@@ -224,14 +254,14 @@ public class ObtainSuitableFood : CharacterJob
     public List<CharacterJob> GetFoodJobsFromBankFish(
         int amountFound,
         int amountNeeded,
-        BankItemsResponse bankItemsResponse
+        List<DropSchema> bankItems
     )
     {
         List<CharacterJob> jobs = [];
 
         // Check if there are uncooked fish, also low level fish - we can end up having a lot of them,
         // and we might as well it eat.
-        foreach (var item in bankItemsResponse.Data)
+        foreach (var item in bankItems)
         {
             if (amountFound >= amountNeeded)
             {
