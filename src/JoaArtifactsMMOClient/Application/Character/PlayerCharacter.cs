@@ -452,12 +452,7 @@ public class PlayerCharacter
             double waitingTime = (Cooldown.Expiration - DateTime.UtcNow).TotalSeconds;
             if (waitingTime > 0)
             {
-                await Task.Delay((int)((waitingTime + 2) * 1000));
-            }
-            else
-            {
-                // Just to be sure
-                await Task.Delay(1 * 1000);
+                await Task.Delay((int)(waitingTime * 1000));
             }
         }
     }
@@ -687,6 +682,14 @@ public class PlayerCharacter
             content,
             ApiRequester.getJsonOptions()
         );
+
+        if ((int)response.StatusCode == (int)ResponseCode.InventoryFull)
+        {
+            // We still want to throw below, so we reset the job queue
+            // This isn't pretty, but might help catch some issues
+            await PlayerActionService.DepositAllItems();
+        }
+
         if (result is null)
         {
             return new AppError($"Error occured while trying to withdraw item");

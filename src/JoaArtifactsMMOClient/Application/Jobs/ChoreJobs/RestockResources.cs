@@ -12,8 +12,8 @@ namespace Application.Jobs;
 
 public class RestockResources : CharacterJob, ICharacterChoreJob
 {
-    const int LOWER_RESOURCE_THRESHOLD = 100;
-    const int HIGHER_RESOURCE_THRESHOLD = 200;
+    const int LOWER_RESOURCE_THRESHOLD = 200;
+    const int HIGHER_RESOURCE_THRESHOLD = 500;
     const int RELEVANT_MIN_LEVEL_OFFSET = 12;
 
     // We don't want to keep gathering resources to get
@@ -155,7 +155,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         // Rough estimate, e.g. copper ore is relevant up to level 12ish - could be improved
         int minRelevantLevel = Math.Min(
             item.Level + RELEVANT_MIN_LEVEL_OFFSET,
-            PlayerCharacter.MAX_LEVEL
+            PlayerCharacter.MAX_LEVEL + 2
         );
 
         return minRelevantLevel >= levelRange.Lowest && item.Level <= levelRange.Highest;
