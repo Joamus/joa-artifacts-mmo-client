@@ -708,7 +708,7 @@ public class ObtainItem : CharacterJob
             }
 
             var npcIsAccessible = gameState.AvailableNpcs.Exists(npc =>
-                npc.Code == matchingNpcItem.Code
+                npc.Code == matchingNpcItem.Npc
             );
 
             if (!npcIsAccessible)

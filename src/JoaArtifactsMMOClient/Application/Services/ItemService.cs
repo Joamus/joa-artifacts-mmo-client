@@ -687,10 +687,16 @@ public static class ItemService
                         continue;
                     }
 
-                    if (gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null)
+                    if (
+                        gameState.EventService.IsEntityFromEvent(matchingNpcItem.Npc)
+                        && gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null
+                    )
                     {
                         continue;
                     }
+
+                    // TODO: Should probably calculate how many you can get, but works for now (you can only have 1 rune)
+                    amountAvailable = 1;
                 }
                 else if (matchingItem.Craft is null)
                 {

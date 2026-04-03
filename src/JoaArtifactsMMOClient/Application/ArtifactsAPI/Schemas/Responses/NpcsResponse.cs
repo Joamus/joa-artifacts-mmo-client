@@ -2,8 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Application.ArtifactsApi.Schemas.Responses;
 
-public record NpcResponse : PaginatedResult {
-	[JsonPropertyName("data")]
-	public List<NpcSchema> Data { get; set; } = [];
-
+public record NpcResponse : PaginatedResult
+{
+    public List<NpcSchema> Data { get; set; } = [];
 }

@@ -60,7 +60,7 @@ public class AccountRequester
 
     public async Task<NpcResponse> GetNpcs(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/npcs?page={pageNumber}");
+        var response = await _apiService.GetAsync($"/npcs/details?page={pageNumber}");
 
         var result = await response.Content.ReadAsStringAsync();
 
