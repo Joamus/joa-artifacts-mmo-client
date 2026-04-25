@@ -100,7 +100,7 @@ public class ObtainSuitableFood : CharacterJob
             }
         }
 
-        CalculationService.SortItemsBasedOnEffect(foodCandidates, "heal", true);
+        CalculationService.SortItemsBasedOnEffect(foodCandidates, "heal", false);
 
         foreach (var item in foodCandidates)
         {

@@ -15,6 +15,8 @@ public class PlayerAI
 {
     private const string Name = "PlayerAI";
     private const int SKILL_LEVEL_OFFSET = 1;
+
+    private const bool PREFER_MONSTER_TASK = true;
     public PlayerCharacter Character { get; init; }
 
     public bool Enabled { get; set; } = true;
@@ -452,7 +454,7 @@ public class PlayerAI
         // Highest prio is completing this achievement, else all task items are locked.
         if (!hasDoneItemTask)
         {
-            return await GetTaskJob(false);
+            return await GetTaskJob(PREFER_MONSTER_TASK);
         }
 
         return null;
@@ -729,7 +731,7 @@ public class PlayerAI
         return true;
     }
 
-    async Task<CharacterJob> GetTaskJob(bool preferMonsterTask = true)
+    async Task<CharacterJob?> GetTaskJob(bool preferMonsterTask)
     {
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
@@ -757,13 +759,20 @@ public class PlayerAI
                     logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
                     );
-                    new MonsterTask(Character, gameState);
+                    return new MonsterTask(Character, gameState);
                 }
             }
         }
-        return preferMonsterTask && CanHandlePotentialMonsterTasks()
-            ? new MonsterTask(Character, gameState)
-            : new ItemTask(Character, gameState);
+        if (preferMonsterTask && CanHandlePotentialMonsterTasks())
+        {
+            return new MonsterTask(Character, gameState);
+        }
+        if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+        {
+            return new ItemTask(Character, gameState);
+        }
+
+        return null;
     }
 
     async Task<CharacterJob?> GetEventJob()

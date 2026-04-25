@@ -36,11 +36,16 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
     async Task<List<CharacterJob>> GetJobs()
     {
-        List<ItemSchema> bestFoodItems = gameState
-            .Characters.Select(recipientCharacter =>
+        List<ItemSchema> bestFoodItems =
+        [
+            .. gameState.Characters.Select(recipientCharacter =>
                 GetIdealFoodForCharacter(Character, recipientCharacter, gameState)
-            )
-            .ToList();
+            ),
+        ];
+
+        // We want to prioritize high level items first, so the highest lvl chars get food.
+        // The issue is that if making the low level food, the high lvl characters will also eat it, but they need it also
+        bestFoodItems.Sort((a, b) => b.Level - a.Level);
 
         var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
@@ -94,15 +99,16 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         GameState gameState
     )
     {
-        List<ItemSchema> foodCandidates = gameState
-            .Items.Where(item =>
+        List<ItemSchema> foodCandidates =
+        [
+            .. gameState.Items.Where(item =>
             {
                 return ItemService.IsItemCookedFish(item, gameState)
                     && ItemService.CanUseItem(item, character.Schema)
                     && crafter.Schema.CookingLevel >= item.Craft?.Level
                     && item.Craft.Items.Count == 1;
-            })
-            .ToList();
+            }),
+        ];
 
         // Assume higher lvl food gives more HP
         foodCandidates.Sort((a, b) => b.Level - a.Level);
