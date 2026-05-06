@@ -196,7 +196,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         };
     }
 
-    public async Task<bool> NeedsToBeDone()
+    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
     {
         return (await GetNextJob()) is not null;
     }

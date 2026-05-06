@@ -984,6 +984,8 @@ public class PlayerAI
     {
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
 
+        ChorePriority chorePriority = ChorePriority.High;
+
         foreach (var chore in Character.Chores)
         {
             if (gameState.ChoreService.ShouldChoreBeStarted(chore))
@@ -997,38 +999,44 @@ public class PlayerAI
                         isScheduledChore = true;
                         job = await ProcessChoreJob(
                             new RecycleUnusedItems(Character, gameState),
-                            CharacterChoreKind.RecycleUnusedItems
+                            CharacterChoreKind.RecycleUnusedItems,
+                            chorePriority
                         );
                         break;
                     case CharacterChoreKind.SellUnusedItems:
                         isScheduledChore = true;
                         job = await ProcessChoreJob(
                             new SellUnusedItems(Character, gameState),
-                            CharacterChoreKind.SellUnusedItems
+                            CharacterChoreKind.SellUnusedItems,
+                            chorePriority
                         );
                         break;
                     case CharacterChoreKind.RestockFood:
                         job = await ProcessChoreJob(
                             new RestockFood(Character, gameState),
-                            CharacterChoreKind.RestockFood
+                            CharacterChoreKind.RestockFood,
+                            chorePriority
                         );
                         break;
                     case CharacterChoreKind.RestockTasksCoins:
                         job = await ProcessChoreJob(
                             new RestockTasksCoins(Character, gameState),
-                            CharacterChoreKind.RestockTasksCoins
+                            CharacterChoreKind.RestockTasksCoins,
+                            chorePriority
                         );
                         break;
                     case CharacterChoreKind.RestockPotions:
                         job = await ProcessChoreJob(
                             new RestockPotions(Character, gameState),
-                            CharacterChoreKind.RestockPotions
+                            CharacterChoreKind.RestockPotions,
+                            chorePriority
                         );
                         break;
                     case CharacterChoreKind.RestockResources:
                         job = await ProcessChoreJob(
                             new RestockResources(Character, gameState),
-                            CharacterChoreKind.RestockResources
+                            CharacterChoreKind.RestockResources,
+                            ChorePriority.High
                         );
                         break;
                     default:
@@ -1065,10 +1073,14 @@ public class PlayerAI
         return null;
     }
 
-    public async Task<CharacterJob?> ProcessChoreJob<T>(T job, CharacterChoreKind chore)
+    public async Task<CharacterJob?> ProcessChoreJob<T>(
+        T job,
+        CharacterChoreKind chore,
+        ChorePriority priority
+    )
         where T : CharacterJob, ICharacterChoreJob
     {
-        if (!await job.NeedsToBeDone())
+        if (!await job.NeedsToBeDone(priority))
         {
             return null;
         }

@@ -116,7 +116,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         return foodCandidates.ElementAt(0);
     }
 
-    public async Task<bool> NeedsToBeDone()
+    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
     {
         var jobs = await GetJobs();
 

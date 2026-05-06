@@ -16,6 +16,8 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
     const int LOWER_OTHER_POTION_THRESHOLD = 20;
     const int HIGHER_OTHER_POTION_THRESHOLD = 50;
 
+    const int RESTOCK_AT_ONCE = 30;
+
     public RestockPotions(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
@@ -97,12 +99,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
                 .Where(potion => !potionCodesWeHaveEnoughOf.Contains(potion.Code))
                 .Select(potion =>
                 {
-                    var job = new ObtainItem(
-                        Character,
-                        gameState,
-                        potion.Code,
-                        GetRestockAmount(potion)
-                    );
+                    var job = new ObtainItem(Character, gameState, potion.Code, GetRestockAmount());
 
                     job.ForBank();
 
@@ -193,7 +190,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         return [.. result.Select(potion => potion.Value)];
     }
 
-    public async Task<bool> NeedsToBeDone()
+    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
     {
         var jobs = await GetJobs();
 
@@ -205,11 +202,13 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         return item.Effects.Exists(effect => effect.Code == "restore");
     }
 
-    public int GetRestockAmount(ItemSchema item)
+    public int GetRestockAmount()
     {
-        bool isRestorePotion = IsRestorePotion(item);
+        // bool isRestorePotion = IsRestorePotion(item);
 
-        return isRestorePotion ? HIGHER_RESTORE_POTION_THRESHOLD : HIGHER_OTHER_POTION_THRESHOLD;
+        // return isRestorePotion ? HIGHER_RESTORE_POTION_THRESHOLD : HIGHER_OTHER_POTION_THRESHOLD;
+
+        return RESTOCK_AT_ONCE;
     }
 
     public bool ShouldRestock(ItemSchema item, int currentAmount)

@@ -9,7 +9,7 @@ namespace Application.Jobs;
 
 public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 {
-    const int AMOUNT_OF_JOBS_TO_DO = 20;
+    const int AMOUNT_OF_JOBS_TO_DO = 10;
     const int LOWER_AMOUNT_THRESHOLD = 100;
 
     public RestockTasksCoins(PlayerCharacter playerCharacter, GameState gameState)
@@ -89,7 +89,7 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
         return GetJobToGetCoins(character, gameState) != null;
     }
 
-    public async Task<bool> NeedsToBeDone()
+    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
     {
         int amountOfTasksCoins = await GetAmountOfTaskCoins();
 
@@ -102,7 +102,8 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 
         return bankResponse
                 .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                ?.Quantity ?? 0;
+                ?.Quantity
+            ?? 0;
     }
 
     public bool HasEnoughTasksCoins(int amountOfTasksCoins)

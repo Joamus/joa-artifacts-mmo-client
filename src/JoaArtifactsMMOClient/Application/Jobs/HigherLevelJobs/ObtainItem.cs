@@ -272,6 +272,48 @@ public class ObtainItem : CharacterJob
             return new None();
         }
 
+        List<ResourceSchema> resources = gameState.Resources.FindAll(resource =>
+            resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null
+        );
+
+        if (resources.Count > 0)
+        {
+            bool allResourcesAreFromEvents = true;
+
+            foreach (var resource in resources)
+            {
+                var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
+
+                if (
+                    resourceIsFromEvent
+                    && gameState.EventService.WhereIsEntityActive(resource.Code) is null
+                )
+                {
+                    continue;
+                }
+                else
+                {
+                    allResourcesAreFromEvents = false;
+                    break;
+                }
+            }
+
+            if (allResourcesAreFromEvents)
+            {
+                return new AppError(
+                    $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
+            var gatherJob = new GatherResourceItem(Character, gameState, code, requiredAmount)
+            {
+                CanTriggerTraining = canTriggerTraining,
+            };
+
+            jobs.Add(gatherJob);
+            return new None();
+        }
+
         if (matchingItem.Craft is not null)
         {
             // if the total ingredients of the items is higher than 60
@@ -336,46 +378,6 @@ public class ObtainItem : CharacterJob
                 jobs.Add(craftItemJob);
             }
 
-            return new None();
-        }
-
-        List<ResourceSchema> resources = gameState.Resources.FindAll(resource =>
-            resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null
-        );
-
-        if (resources.Count > 0)
-        {
-            bool allResourcesAreFromEvents = true;
-
-            foreach (var resource in resources)
-            {
-                var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
-
-                if (
-                    resourceIsFromEvent
-                    && gameState.EventService.WhereIsEntityActive(resource.Code) is null
-                )
-                {
-                    continue;
-                }
-                else
-                {
-                    allResourcesAreFromEvents = false;
-                    break;
-                }
-            }
-
-            if (allResourcesAreFromEvents)
-            {
-                return new AppError(
-                    $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-            var gatherJob = new GatherResourceItem(Character, gameState, code, requiredAmount);
-            gatherJob.CanTriggerTraining = canTriggerTraining;
-
-            jobs.Add(gatherJob);
             return new None();
         }
 
