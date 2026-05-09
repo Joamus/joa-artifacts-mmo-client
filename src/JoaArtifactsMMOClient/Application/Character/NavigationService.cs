@@ -202,7 +202,7 @@ public class NavigationService
 
             if (currentMap.Layer != MapLayer.Overworld)
             {
-                MapSchema? closestTransition = FindClosestTransition(currentMap);
+                MapSchema? closestTransition = FindClosestTransition(currentMap, null);
 
                 if (closestTransition is null)
                 {
@@ -294,12 +294,12 @@ public class NavigationService
                 $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer})"
             );
 
-            MapSchema? currentClosestTransition = FindClosestTransition(currentMap)!;
+            MapSchema? currentClosestTransition = FindClosestTransition(currentMap, null)!;
+
+            MapSchema? destinationClosestTransition = FindClosestTransition(destinationMap, null)!;
 
             if (character.Schema.Layer == destinationMap.Layer)
             {
-                MapSchema? destinationClosestTransition = FindClosestTransition(destinationMap)!;
-
                 // We are in the same cell, the transitions are the same
                 if (currentClosestTransition.MapId == destinationClosestTransition.MapId)
                 {
@@ -310,16 +310,14 @@ public class NavigationService
                     return;
                 }
             }
-            else
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}) - need to transition first - moving to ({currentClosestTransition.X}, {currentClosestTransition.Y})"
-                );
-                // don't care if we are going from e.g. underground -> overworld or interior, we need to go to the overworld first
-                await character.Move(currentClosestTransition.X, currentClosestTransition.Y);
-                await character.Transition();
-                return;
-            }
+
+            Logger.LogInformation(
+                $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}) - need to transition first - moving to ({currentClosestTransition.X}, {currentClosestTransition.Y})"
+            );
+            // don't care if we are going from e.g. underground -> overworld or interior, we need to go to the overworld first
+            await character.Move(currentClosestTransition.X, currentClosestTransition.Y);
+            await character.Transition();
+            return;
         }
 
         if (
@@ -332,34 +330,11 @@ public class NavigationService
                we are, and to the destination map, and find the closest transition point from the destination map. It's not entirely bullet-proof, but it should be
                good enough.
             */
-            int closestCostToTransition = 0;
-
-            MapSchema? closestTransition = null;
-
-            foreach (var map in gameState.Maps)
-            {
-                if (map.Layer != character.Schema.Layer || map.Interactions.Transition is null)
-                {
-                    continue;
-                }
-
-                if (map.Interactions.Transition.Layer != destinationMap.Layer)
-                {
-                    continue;
-                }
-
-                int cost = CalculationService.CalculateDistanceToMap(
-                    character.Schema.X,
-                    character.Schema.Y,
-                    destinationMap.X,
-                    destinationMap.Y
-                );
-
-                if (closestTransition is null || cost < closestCostToTransition)
-                {
-                    closestTransition = map;
-                }
-            }
+            MapSchema? closestTransition = FindClosestTransition(
+                destinationMap,
+                // destinationMap.Layer
+                MapLayer.Overworld
+            );
 
             if (closestTransition is null)
             {
@@ -504,7 +479,7 @@ public class NavigationService
         return new None();
     }
 
-    public MapSchema? FindClosestTransition(MapSchema currentMap)
+    public MapSchema? FindClosestTransition(MapSchema currentMap, MapLayer? destinationLayer)
     {
         MapSchema? closestTransition = null;
         int closestCostToTransition = 0;
@@ -516,7 +491,15 @@ public class NavigationService
                 continue;
             }
 
-            if (map.Interactions.Transition.Layer == map.Layer)
+            if (destinationLayer is null && map.Interactions.Transition.Layer == map.Layer)
+            {
+                continue;
+            }
+
+            if (
+                destinationLayer is not null
+                && map.Interactions.Transition.Layer != destinationLayer
+            )
             {
                 continue;
             }
