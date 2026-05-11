@@ -45,7 +45,7 @@ public record MapTransition
     public required int Y { get; set; }
     public required MapLayer Layer { get; set; }
 
-    public required List<ItemOrMapCondition> Conditions = [];
+    public required List<ItemOrMapCondition> Conditions { get; set; } = [];
 }
 
 public enum MapLayer

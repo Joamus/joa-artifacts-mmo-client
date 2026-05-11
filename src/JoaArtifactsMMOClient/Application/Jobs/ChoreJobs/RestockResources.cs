@@ -12,15 +12,22 @@ namespace Application.Jobs;
 
 public class RestockResources : CharacterJob, ICharacterChoreJob
 {
-    const int LOWER_RESOURCE_THRESHOLD = 200;
-    const int HIGHER_RESOURCE_THRESHOLD = 500;
     const int RELEVANT_MIN_LEVEL_OFFSET = 12;
 
-    // We don't want to keep gathering resources to get
+    // We don't want to keep gathering resources to get low drop rate items
     const float RESTOCK_ITEM_DROP_RATE_THRESHOLD = 0.1f;
 
-    public RestockResources(PlayerCharacter playerCharacter, GameState gameState)
-        : base(playerCharacter, gameState) { }
+    RestockResourcesParams JobParams { get; init; }
+
+    public RestockResources(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        ChorePriority priority
+    )
+        : base(playerCharacter, gameState)
+    {
+        JobParams = GetJobParams(priority);
+    }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
@@ -65,13 +72,15 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
     {
         // The cheeky one is just to look at the level of the resource
 
-        return gameState
+        return
+        [
+            .. gameState
             // .Resources.Where(x => x.Level >= levelRange.Lowest && x.Level <= levelRange.Highest)
-            .Resources.Where(x => x.Level <= levelRange.Highest)
-            .ToList();
+            .Resources.Where(x => x.Level <= levelRange.Highest),
+        ];
     }
 
-    public static List<DropSchema> GetNextItemToRestock(
+    public List<DropSchema> GetNextItemToRestock(
         GameState gameState,
         List<DropSchema> bankItems,
         LevelRange levelRange
@@ -122,7 +131,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
                     int amountInBank = bankItemsDict.GetValueOrNull(code)?.Quantity ?? 0;
 
                     if (
-                        !ShouldRestock(bestDrop.Drop, amountInBank)
+                        !ShouldRestock(matchingItem, bestDrop.Drop, amountInBank, levelRange)
                         || IsTooRareToRestock(bestDrop.Drop)
                         || gameState.EventService.IsEntityFromEvent(bestDrop.Resource.Code)
                     )
@@ -133,7 +142,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
                     return new DropSchema
                     {
                         Code = code,
-                        Quantity = AmountToGather(CalculateDropRate(bestDrop.Drop.Rate)),
+                        Quantity = GetAmountToGather(CalculateDropRate(bestDrop.Drop.Rate)),
                     };
                 })
                 .Where(drop => drop.Quantity > 0),
@@ -144,10 +153,6 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         );
 
         return result;
-
-        // Get the items that are dropped which have a 1 drop rate - those are the primary goal of the gathering? Or maybe use a formula?
-        // Return a list of the items we don't have enough of, compared to the bank items
-        //
     }
 
     static bool ItemIsRelevantToRestock(ItemSchema item, LevelRange levelRange)
@@ -161,9 +166,17 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         return minRelevantLevel >= levelRange.Lowest && item.Level <= levelRange.Highest;
     }
 
-    static int AmountToGather(float dropRate)
+    int GetAmountToGather(float dropRate)
     {
-        return (int)Math.Ceiling(HIGHER_RESOURCE_THRESHOLD * dropRate);
+        // We want to prioritize restocking high level items, and not necessarily restock as many low level items.
+        // float levelPercentage = (float)item.Level / levelRange.Highest;
+
+        // if (levelPercentage > 1)
+        // {
+        //     levelPercentage = 1;
+        // }
+
+        return (int)Math.Ceiling(JobParams.AmountToGather * dropRate);
     }
 
     public static float CalculateDropRate(int dropRate)
@@ -171,17 +184,31 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         return 1 / dropRate;
     }
 
-    static bool ShouldRestock(DropRateSchema drop, int currentAmount)
+    bool ShouldRestock(
+        ItemSchema item,
+        DropRateSchema drop,
+        int currentAmount,
+        LevelRange levelRange
+    )
     {
+        // We want to prioritize restocking high level items, and not necessarily restock as many low level items.
+        float levelPercentage = (float)item.Level / levelRange.Highest;
+
+        if (levelPercentage > 1)
+        {
+            levelPercentage = 1;
+        }
         var minimumAmount = (int)
-            Math.Ceiling(LOWER_RESOURCE_THRESHOLD * CalculateDropRate(drop.Rate));
+            Math.Ceiling(
+                JobParams.MinimumAmountInBank * CalculateDropRate(drop.Rate) * levelPercentage
+            );
 
         return currentAmount < minimumAmount;
     }
 
     static bool IsTooRareToRestock(DropRateSchema drop)
     {
-        return 1 / drop.Rate <= RESTOCK_ITEM_DROP_RATE_THRESHOLD;
+        return CalculateDropRate(drop.Rate) <= RESTOCK_ITEM_DROP_RATE_THRESHOLD;
     }
 
     public static LevelRange GetCharacterLevelRange(GameState gameState)
@@ -196,7 +223,25 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         };
     }
 
-    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
+    static RestockResourcesParams GetJobParams(ChorePriority priority)
+    {
+        return priority switch
+        {
+            ChorePriority.Low => new RestockResourcesParams
+            {
+                MinimumAmountInBank = 800,
+                AmountToGather = 100,
+            },
+            ChorePriority.High => new RestockResourcesParams
+            {
+                MinimumAmountInBank = 200,
+                AmountToGather = 100,
+            },
+            _ => throw new NotImplementedException(),
+        };
+    }
+
+    public async Task<bool> NeedsToBeDone()
     {
         return (await GetNextJob()) is not null;
     }
@@ -206,4 +251,10 @@ public struct LevelRange
 {
     public int Lowest;
     public int Highest;
+}
+
+public record RestockResourcesParams
+{
+    public required int MinimumAmountInBank { get; init; }
+    public required int AmountToGather { get; init; }
 }

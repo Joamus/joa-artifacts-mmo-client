@@ -237,12 +237,12 @@ public class GatherMaterialsForItem : CharacterJob
         var craftJob = (CraftItem)lastJob;
 
         // Remove the last job, we don't want to craft it
-        jobs.RemoveAt(jobs.Count() - 1);
+        jobs.RemoveAt(jobs.Count - 1);
 
         // Adding to the wish list - basically until the crafter creates the item, so we know it's in progress.
         Character.AddToWishlist(Code, Amount);
 
-        Character.QueueJobsAfter(Id, jobs);
+        await Character.QueueJobsAfter(Id, jobs);
 
         if (IsForBank)
         {

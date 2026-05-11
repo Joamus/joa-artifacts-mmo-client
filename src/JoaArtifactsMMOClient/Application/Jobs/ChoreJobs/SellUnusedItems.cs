@@ -219,7 +219,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
         return item.Craft is null;
     }
 
-    public Task<bool> NeedsToBeDone(ChorePriority _priority)
+    public Task<bool> NeedsToBeDone()
     {
         return Task.FromResult(true);
     }

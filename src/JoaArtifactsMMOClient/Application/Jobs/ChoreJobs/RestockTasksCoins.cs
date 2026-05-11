@@ -9,11 +9,17 @@ namespace Application.Jobs;
 
 public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 {
-    const int AMOUNT_OF_JOBS_TO_DO = 10;
-    const int LOWER_AMOUNT_THRESHOLD = 100;
+    RestockTasksCoinsParams JobParams { get; init; }
 
-    public RestockTasksCoins(PlayerCharacter playerCharacter, GameState gameState)
-        : base(playerCharacter, gameState) { }
+    public RestockTasksCoins(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        ChorePriority priority
+    )
+        : base(playerCharacter, gameState)
+    {
+        JobParams = GetJobParams(priority);
+    }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
@@ -21,7 +27,7 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 
         int amountOfTasksCoins = await GetAmountOfTaskCoins();
 
-        if (HasEnoughTasksCoins(amountOfTasksCoins))
+        if (!ShouldRestock(amountOfTasksCoins))
         {
             return new None();
         }
@@ -30,7 +36,7 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 
         AppError? error = null;
 
-        for (int i = 0; i < AMOUNT_OF_JOBS_TO_DO; i++)
+        for (int i = 0; i < JobParams.AmountOfJobsToDo; i++)
         {
             var result = await GetJobToGetCoins(Character, gameState);
 
@@ -89,11 +95,11 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
         return GetJobToGetCoins(character, gameState) != null;
     }
 
-    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
+    public async Task<bool> NeedsToBeDone()
     {
         int amountOfTasksCoins = await GetAmountOfTaskCoins();
 
-        return !HasEnoughTasksCoins(amountOfTasksCoins);
+        return ShouldRestock(amountOfTasksCoins);
     }
 
     public async Task<int> GetAmountOfTaskCoins()
@@ -102,12 +108,35 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 
         return bankResponse
                 .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                ?.Quantity
-            ?? 0;
+                ?.Quantity ?? 0;
     }
 
-    public bool HasEnoughTasksCoins(int amountOfTasksCoins)
+    public bool ShouldRestock(int amountOfTasksCoins)
     {
-        return amountOfTasksCoins >= LOWER_AMOUNT_THRESHOLD;
+        return amountOfTasksCoins < JobParams.LowerCoinsThreshold;
     }
+
+    static RestockTasksCoinsParams GetJobParams(ChorePriority priority)
+    {
+        return priority switch
+        {
+            ChorePriority.Low => new RestockTasksCoinsParams
+            {
+                AmountOfJobsToDo = 5,
+                LowerCoinsThreshold = 400,
+            },
+            ChorePriority.High => new RestockTasksCoinsParams
+            {
+                AmountOfJobsToDo = 10,
+                LowerCoinsThreshold = 100,
+            },
+            _ => throw new NotImplementedException(),
+        };
+    }
+}
+
+public record RestockTasksCoinsParams
+{
+    public required int LowerCoinsThreshold { get; init; }
+    public required int AmountOfJobsToDo { get; init; }
 }

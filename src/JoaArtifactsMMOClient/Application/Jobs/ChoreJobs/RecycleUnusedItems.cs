@@ -336,7 +336,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
         return relevantItems;
     }
 
-    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
+    public async Task<bool> NeedsToBeDone()
     {
         List<DropSchema> items = await GetItemsToRecycleFromBank();
 

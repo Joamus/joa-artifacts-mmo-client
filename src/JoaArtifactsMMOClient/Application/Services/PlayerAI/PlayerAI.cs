@@ -822,6 +822,23 @@ public class PlayerAI
         return null;
     }
 
+    public async Task EvaluateEventsChanged()
+    {
+        var eventJob = await GetEventJob();
+
+        if (
+            eventJob is not null
+            && Character.CurrentJob?.Code != eventJob.Code
+            && !Character.Jobs.Exists(job => job.Code == eventJob.Code)
+        )
+        {
+            logger.LogInformation(
+                $"{Character.Name} - events changed, found event job with code \"{eventJob.Code}\" - queueing as highest priority"
+            );
+            await Character.QueueJob(eventJob, true);
+        }
+    }
+
     async Task<CharacterJob?> GetMonsterEventJob(MapContentSchema eventContent)
     {
         var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(eventContent.Code);
@@ -984,103 +1001,96 @@ public class PlayerAI
     {
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
 
-        ChorePriority chorePriority = ChorePriority.High;
+        List<ChorePriority> chorePriorities = [ChorePriority.High, ChorePriority.Low];
 
-        foreach (var chore in Character.Chores)
+        foreach (var priority in chorePriorities)
         {
-            if (gameState.ChoreService.ShouldChoreBeStarted(chore))
+            foreach (var chore in Character.Chores)
             {
-                CharacterJob? job = null;
-                bool isScheduledChore = false;
-
-                switch (chore)
+                if (gameState.ChoreService.ShouldChoreBeStarted(chore))
                 {
-                    case CharacterChoreKind.RecycleUnusedItems:
-                        isScheduledChore = true;
-                        job = await ProcessChoreJob(
-                            new RecycleUnusedItems(Character, gameState),
-                            CharacterChoreKind.RecycleUnusedItems,
-                            chorePriority
-                        );
-                        break;
-                    case CharacterChoreKind.SellUnusedItems:
-                        isScheduledChore = true;
-                        job = await ProcessChoreJob(
-                            new SellUnusedItems(Character, gameState),
-                            CharacterChoreKind.SellUnusedItems,
-                            chorePriority
-                        );
-                        break;
-                    case CharacterChoreKind.RestockFood:
-                        job = await ProcessChoreJob(
-                            new RestockFood(Character, gameState),
-                            CharacterChoreKind.RestockFood,
-                            chorePriority
-                        );
-                        break;
-                    case CharacterChoreKind.RestockTasksCoins:
-                        job = await ProcessChoreJob(
-                            new RestockTasksCoins(Character, gameState),
-                            CharacterChoreKind.RestockTasksCoins,
-                            chorePriority
-                        );
-                        break;
-                    case CharacterChoreKind.RestockPotions:
-                        job = await ProcessChoreJob(
-                            new RestockPotions(Character, gameState),
-                            CharacterChoreKind.RestockPotions,
-                            chorePriority
-                        );
-                        break;
-                    case CharacterChoreKind.RestockResources:
-                        job = await ProcessChoreJob(
-                            new RestockResources(Character, gameState),
-                            CharacterChoreKind.RestockResources,
-                            ChorePriority.High
-                        );
-                        break;
-                    default:
-                        return null;
-                }
+                    CharacterJob? job = null;
+                    bool isScheduledChore = false;
 
-                if (job is null)
-                {
-                    continue;
-                }
-
-                logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{chore.GetDisplayName()}\""
-                );
-
-                // If it's not a scheduled chore, we don't keep track. We want to do this chore whenever it's needed.
-                if (isScheduledChore)
-                {
-                    job.onAfterSuccessEndHook = async () =>
+                    switch (chore)
                     {
-                        logger.LogInformation(
-                            $"{Name}: [{Character.Name}]: Done running chore \"{chore.GetDisplayName()}\""
-                        );
-                        gameState.ChoreService.FinishChore(chore);
-                    };
+                        case CharacterChoreKind.RecycleUnusedItems:
+                            isScheduledChore = true;
+                            job = await ProcessChoreJob(
+                                new RecycleUnusedItems(Character, gameState),
+                                CharacterChoreKind.RecycleUnusedItems
+                            );
+                            break;
+                        case CharacterChoreKind.SellUnusedItems:
+                            isScheduledChore = true;
+                            job = await ProcessChoreJob(
+                                new SellUnusedItems(Character, gameState),
+                                CharacterChoreKind.SellUnusedItems
+                            );
+                            break;
+                        case CharacterChoreKind.RestockFood:
+                            job = await ProcessChoreJob(
+                                new RestockFood(Character, gameState, priority),
+                                CharacterChoreKind.RestockFood
+                            );
+                            break;
+                        case CharacterChoreKind.RestockTasksCoins:
+                            job = await ProcessChoreJob(
+                                new RestockTasksCoins(Character, gameState, priority),
+                                CharacterChoreKind.RestockTasksCoins
+                            );
+                            break;
+                        case CharacterChoreKind.RestockPotions:
+                            job = await ProcessChoreJob(
+                                new RestockPotions(Character, gameState, priority),
+                                CharacterChoreKind.RestockPotions
+                            );
+                            break;
+                        case CharacterChoreKind.RestockResources:
+                            job = await ProcessChoreJob(
+                                new RestockResources(Character, gameState, priority),
+                                CharacterChoreKind.RestockResources
+                            );
+                            break;
+                        default:
+                            return null;
+                    }
 
-                    gameState.ChoreService.StartChore(Character, chore);
+                    if (job is null)
+                    {
+                        continue;
+                    }
+
+                    logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{chore.GetDisplayName()}\""
+                    );
+
+                    // If it's not a scheduled chore, we don't keep track. We want to do this chore whenever it's needed.
+                    if (isScheduledChore)
+                    {
+                        job.onAfterSuccessEndHook = async () =>
+                        {
+                            logger.LogInformation(
+                                $"{Name}: [{Character.Name}]: Done running chore \"{chore.GetDisplayName()}\""
+                            );
+                            gameState.ChoreService.FinishChore(chore);
+                        };
+
+                        gameState.ChoreService.StartChore(Character, chore);
+                    }
+
+                    return job;
                 }
-
-                return job;
             }
         }
 
         return null;
     }
 
-    public async Task<CharacterJob?> ProcessChoreJob<T>(
-        T job,
-        CharacterChoreKind chore,
-        ChorePriority priority
-    )
+    public async Task<CharacterJob?> ProcessChoreJob<T>(T job, CharacterChoreKind chore)
         where T : CharacterJob, ICharacterChoreJob
     {
-        if (!await job.NeedsToBeDone(priority))
+        if (!await job.NeedsToBeDone())
         {
             return null;
         }

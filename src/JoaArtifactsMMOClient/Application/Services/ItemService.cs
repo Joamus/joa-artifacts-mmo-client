@@ -440,20 +440,24 @@ public static class ItemService
     {
         if (allItemCandidates is null)
         {
-            allItemCandidates = gameState
-                .Items.Where(item => item.Subtype == "tool")
-                .Select(item => new InventorySlot { Code = item.Code, Quantity = 1 })
-                .ToList();
+            allItemCandidates =
+            [
+                .. gameState
+                    .Items.Where(item => item.Subtype == "tool")
+                    .Select(item => new InventorySlot { Code = item.Code, Quantity = 1 }),
+            ];
         }
 
         List<ItemSchema> relevantTools = [];
 
         Dictionary<string, ItemSchema> relevantToolsDict = [];
 
-        List<string> skillNames = SkillService
-            .GatheringSkills.Select(SkillService.GetSkillName)
-            .Where(skill => skill is not null)
-            .ToList();
+        List<string> skillNames =
+        [
+            .. SkillService
+                .GatheringSkills.Select(SkillService.GetSkillName)
+                .Where(skill => skill is not null),
+        ];
 
         var bankData = await gameState.BankItemCache.GetBankItems(character);
 
@@ -586,6 +590,8 @@ public static class ItemService
 
         var highestLevelItem = lowestLevelItem.Code == a.Code ? b : a;
 
+        bool noOverlappingEffects = true;
+
         foreach (var highLevelEffect in highestLevelItem.Effects)
         {
             // Some effects have "minus" effects, e.g. cooldown reduction for gathering tools,
@@ -602,10 +608,15 @@ public static class ItemService
                 )
             );
 
-            if (!hasSameEffectButBetterOrEqual)
+            if (hasSameEffectButBetterOrEqual)
             {
-                return null;
+                noOverlappingEffects = false;
             }
+        }
+
+        if (noOverlappingEffects)
+        {
+            return null;
         }
 
         return highestLevelItem;
@@ -785,8 +796,7 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
-                    ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
 
                 return isOnlyUsedForFood;
             });

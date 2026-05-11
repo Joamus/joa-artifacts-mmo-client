@@ -11,15 +11,17 @@ namespace Application.Jobs;
 
 public class RestockPotions : CharacterJob, ICharacterChoreJob
 {
-    const int LOWER_RESTORE_POTION_THRESHOLD = 30;
-    const int HIGHER_RESTORE_POTION_THRESHOLD = 200;
-    const int LOWER_OTHER_POTION_THRESHOLD = 20;
-    const int HIGHER_OTHER_POTION_THRESHOLD = 50;
+    RestockPotionsParams JobParams { get; init; }
 
-    const int RESTOCK_AT_ONCE = 30;
-
-    public RestockPotions(PlayerCharacter playerCharacter, GameState gameState)
-        : base(playerCharacter, gameState) { }
+    public RestockPotions(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        ChorePriority priority
+    )
+        : base(playerCharacter, gameState)
+    {
+        JobParams = GetJobParams(priority);
+    }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
@@ -190,7 +192,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         return [.. result.Select(potion => potion.Value)];
     }
 
-    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
+    public async Task<bool> NeedsToBeDone()
     {
         var jobs = await GetJobs();
 
@@ -204,11 +206,27 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
     public int GetRestockAmount()
     {
-        // bool isRestorePotion = IsRestorePotion(item);
+        return JobParams.AmountToGather;
+    }
 
-        // return isRestorePotion ? HIGHER_RESTORE_POTION_THRESHOLD : HIGHER_OTHER_POTION_THRESHOLD;
-
-        return RESTOCK_AT_ONCE;
+    static RestockPotionsParams GetJobParams(ChorePriority priority)
+    {
+        return priority switch
+        {
+            ChorePriority.Low => new RestockPotionsParams
+            {
+                MinimumAmountRestorePotionsInBank = 500,
+                MinimumAmountOtherPotionsInBank = 50,
+                AmountToGather = 30,
+            },
+            ChorePriority.High => new RestockPotionsParams
+            {
+                MinimumAmountRestorePotionsInBank = 200,
+                MinimumAmountOtherPotionsInBank = 50,
+                AmountToGather = 30,
+            },
+            _ => throw new NotImplementedException(),
+        };
     }
 
     public bool ShouldRestock(ItemSchema item, int currentAmount)
@@ -216,6 +234,17 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         bool isRestorePotion = IsRestorePotion(item);
 
         return currentAmount
-            <= (isRestorePotion ? LOWER_RESTORE_POTION_THRESHOLD : LOWER_OTHER_POTION_THRESHOLD);
+            <= (
+                isRestorePotion
+                    ? JobParams.MinimumAmountRestorePotionsInBank
+                    : JobParams.MinimumAmountOtherPotionsInBank
+            );
     }
+}
+
+public record RestockPotionsParams
+{
+    public required int MinimumAmountRestorePotionsInBank { get; init; }
+    public required int MinimumAmountOtherPotionsInBank { get; init; }
+    public required int AmountToGather { get; init; }
 }

@@ -1,6 +1,9 @@
+using System.Reflection.Metadata.Ecma335;
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Microsoft.Extensions.ObjectPool;
 using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
@@ -167,22 +170,71 @@ public class NavigationService
             );
         }
 
-        while (
-            character.Schema.X != destinationMap.X
-            || character.Schema.Y != destinationMap.Y
-            || character.Schema.Layer != destinationMap.Layer
-        )
-        {
-            await NavigateNextStep(destinationMap);
-        }
+        var currentMap = gameState.MapsDict[character.Schema.MapId];
+
+        var steps = CalculateStepsToDestination(currentMap, destinationMap);
+
+        await ExecuteNavigations(character, steps);
 
         return new None();
     }
 
-    public async Task NavigateNextStep(MapSchema destinationMap)
+    public List<NavigationStep> CalculateStepsToDestination(
+        MapSchema currentMap,
+        MapSchema destinationMap
+    )
     {
-        MapSchema currentMap = gameState.MapsDict[character.Schema.MapId];
+        List<NavigationStep> steps = [];
 
+        int safetyCounter = 0;
+
+        while (currentMap.MapId != destinationMap.MapId)
+        {
+            var nextSteps = GetNextStepsToDestination(currentMap, destinationMap);
+
+            if (nextSteps.Count == 0)
+            {
+                throw new AppError(
+                    $"Returned an empty list of navigation steps, when trying to find next step from map ID {currentMap.MapId} to {destinationMap.MapId}"
+                );
+            }
+
+            currentMap = nextSteps.Last().NewMap;
+
+            foreach (var step in nextSteps)
+            {
+                steps.Add(step);
+            }
+
+            safetyCounter++;
+
+            if (safetyCounter > 1000)
+            {
+                throw new AppError(
+                    $"Infinite loop detected while navigating from {currentMap.MapId} to {destinationMap.MapId}"
+                );
+            }
+        }
+
+        return steps;
+    }
+
+    public static async Task ExecuteNavigations(
+        PlayerCharacter character,
+        IList<NavigationStep> steps
+    )
+    {
+        foreach (var step in steps)
+        {
+            await ExecuteMove(character, step.Move);
+        }
+    }
+
+    public List<NavigationStep> GetNextStepsToDestination(
+        MapSchema currentMap,
+        MapSchema destinationMap
+    )
+    {
         bool goingFromIslandToMainland =
             !Islands.Contains(destinationMap.Name) && Islands.Contains(currentMap.Name);
 
@@ -196,290 +248,244 @@ public class NavigationService
 
         if (goingFromIslandToMainland || goingToIslandFromMainland || goingFromIslandToIsland)
         {
-            Logger.LogInformation(
-                $"{Name}: [{character.Name}]: Transitioning involving islands - moving from {currentMap.Name} -> {destinationMap.Name}"
+            return GetNextNavigationStepInvolvingIslands(
+                goingFromIslandToMainland,
+                goingToIslandFromMainland,
+                goingFromIslandToIsland,
+                currentMap,
+                destinationMap
             );
-
-            if (currentMap.Layer != MapLayer.Overworld)
-            {
-                MapSchema? closestTransition = FindClosestTransition(currentMap, null);
-
-                if (closestTransition is null)
-                {
-                    throw new Exception($"Cannot find transition, should not happen");
-                }
-
-                Logger.LogInformation(
-                    $"{Name}: [{character.Name}]: Transitioning involving islands - not in the overworld, going up"
-                );
-
-                await character.Move(closestTransition.X, closestTransition.Y);
-                await character.Transition();
-                return;
-            }
-
-            if (goingFromIslandToIsland)
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{character.Name}]: Transitioning involving islands - island hopping! We need to go from {currentMap.Name} -> main land first"
-                );
-                // We want to go to the mainland, to go to the other island
-                goingFromIslandToMainland = true;
-            }
-
-            // Going to Sandwhisper
-            if (goingToIslandFromMainland)
-            {
-                // TODO: Should check if we have enough money etc
-
-                var matchingTransition = transitionsToIslandFromMainland[destinationMap.Name];
-
-                await character.Move(matchingTransition.X, matchingTransition.Y);
-                await character.Transition();
-                return;
-                // We are going to an island
-            }
-
-            if (goingFromIslandToMainland)
-            {
-                var matchingTransition = transitionsFromIslandToMainland[currentMap.Name];
-                // We are going back from an island
-                // Boat to Sandwhisper Isle
-
-                if (
-                    matchingTransition.Interactions.Transition!.Conditions.Exists(condition =>
-                        condition.Code == "gold"
-                    )
-                )
-                {
-                    // Ghetto recall - find closest mob and intentionally die, so we get ported to spawn
-
-                    MonsterSchema? closestMonster = FindClosestMonster(matchingTransition);
-
-                    if (closestMonster is not null)
-                    {
-                        await NavigateTo(closestMonster.Code);
-
-                        while (character.Schema.X != 0 && character.Schema.Y != 0)
-                        {
-                            await character.Fight();
-                        }
-
-                        return;
-                    }
-                }
-
-                await character.Move(matchingTransition.X, matchingTransition.Y);
-                // TODO: Consider using a recall potion if you have one
-                await character.Transition();
-                return;
-            }
         }
 
         // We aren't moving between islands, and no transition should be necessary
-        if (
-            character.Schema.Layer == MapLayer.Overworld
-            && destinationMap.Layer == MapLayer.Overworld
-        )
+        if (currentMap.Layer == MapLayer.Overworld && destinationMap.Layer == MapLayer.Overworld)
         {
-            await character.Move(destinationMap.X, destinationMap.Y);
-            return;
+            return [CreateMoveStep(currentMap, destinationMap)];
         }
 
-        if (character.Schema.Layer != MapLayer.Overworld)
+        if (currentMap.Layer != MapLayer.Overworld)
         {
-            // No matter what, we need to find out whether we are moving within the same "underground cell", or to another one
-
-            Logger.LogInformation(
-                $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer})"
-            );
-
-            MapSchema? currentClosestTransition = FindClosestTransition(currentMap, null)!;
-
-            MapSchema? destinationClosestTransition = FindClosestTransition(destinationMap, null)!;
-
-            if (character.Schema.Layer == destinationMap.Layer)
-            {
-                // We are in the same cell, the transitions are the same
-                if (currentClosestTransition.MapId == destinationClosestTransition.MapId)
-                {
-                    Logger.LogInformation(
-                        $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}), but moving inside the same \"cell\" - no need to transition"
-                    );
-                    await character.Move(destinationMap.X, destinationMap.Y);
-                    return;
-                }
-            }
-
-            Logger.LogInformation(
-                $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}) - need to transition first - moving to ({currentClosestTransition.X}, {currentClosestTransition.Y})"
-            );
-            // don't care if we are going from e.g. underground -> overworld or interior, we need to go to the overworld first
-            await character.Move(currentClosestTransition.X, currentClosestTransition.Y);
-            await character.Transition();
-            return;
+            return GetNextNavigationStepIfNotInOverworld(currentMap, destinationMap);
         }
 
-        if (
-            character.Schema.Layer == MapLayer.Overworld
-            && destinationMap.Layer != character.Schema.Layer
-        )
+        if (currentMap.Layer == MapLayer.Overworld && destinationMap.Layer != currentMap.Layer)
         {
-            /* We know that normal overworld -> other layer transitions are directly above their counterpart, e.g. if the door to a house is on position 1,1,
-               then when we transition through that door, we will be on 1,1 in the interior or underground layer. So we can just calculate the distance from where
-               we are, and to the destination map, and find the closest transition point from the destination map. It's not entirely bullet-proof, but it should be
-               good enough.
-            */
-            MapSchema? closestTransition = FindClosestTransition(
-                destinationMap,
-                // destinationMap.Layer
-                MapLayer.Overworld
-            );
-
-            if (closestTransition is null)
-            {
-                throw new AppError(
-                    $"Could not find transition to get to {destinationMap.Name} - x = {destinationMap.X} y = {destinationMap.Y}",
-                    ErrorStatus.NotFound
-                );
-            }
-
-            if (closestTransition.Access?.Conditions?.Count > 0)
-            {
-                Logger.LogDebug(
-                    $"Condition to go to {destinationMap.MapId} ({destinationMap.X}, {destinationMap.Y})"
-                );
-            }
-
-            Logger.LogInformation(
-                $"{Name}: [{character.Name}]: Going inside from the overworld - moving to ({closestTransition.X}, {closestTransition.Y}) and transitioning"
-            );
-
-            await character.Move(closestTransition.X, closestTransition.Y);
-            await character.Transition();
-            return;
+            return GetNextNavigationStepFromOverworldToOtherLayer(currentMap, destinationMap);
         }
 
         throw new AppError($"Should never get here");
     }
 
-    public async Task<OneOf<AppError, None>> MoveToMap(string code)
+    List<NavigationStep> GetNextNavigationStepInvolvingIslands(
+        bool goingFromIslandToMainland,
+        bool goingToIslandFromMainland,
+        bool goingFromIslandToIsland,
+        MapSchema currentMap,
+        MapSchema destinationMap
+    )
     {
-        // We don't know what it is, but it might be an item we wish to get
+        Logger.LogInformation(
+            $"{Name}: [{character.Name}]: Transitioning involving islands - moving from {currentMap.Name} -> {destinationMap.Name}"
+        );
 
-        var maps = gameState.Maps.FindAll(map =>
+        if (currentMap.Layer != MapLayer.Overworld)
         {
-            bool matchesCode = map.Interactions.Content?.Code == code;
+            MapSchema? closestTransition =
+                FindClosestTransition(currentMap, null, false)
+                ?? throw new Exception($"Cannot find transition, should not happen");
 
-            if (!matchesCode)
-            {
-                return false;
-            }
+            Logger.LogInformation(
+                $"{Name}: [{character.Name}]: Transitioning involving islands - not in the overworld, going up"
+            );
 
-            if (map.Access.Conditions is not null)
+            var moveStep = CreateMoveStep(currentMap, closestTransition);
+            var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
+
+            return [moveStep, transitionStep];
+        }
+
+        if (goingFromIslandToIsland)
+        {
+            Logger.LogInformation(
+                $"{Name}: [{character.Name}]: Transitioning involving islands - island hopping! We need to go from {currentMap.Name} -> main land first"
+            );
+            // We want to go to the mainland, to go to the other island
+            goingFromIslandToMainland = true;
+        }
+
+        // Going to Sandwhisper
+        if (goingToIslandFromMainland)
+        {
+            // TODO: Should check if we have enough money etc
+
+            var matchingTransition = transitionsToIslandFromMainland[destinationMap.Name];
+
+            var moveStep = CreateMoveStep(currentMap, matchingTransition);
+            var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
+            return [moveStep, transitionStep];
+        }
+
+        if (goingFromIslandToMainland)
+        {
+            var matchingTransition = transitionsFromIslandToMainland[currentMap.Name];
+            // We are going back from an island
+            // Boat to Sandwhisper Isle
+
+            if (
+                matchingTransition.Interactions.Transition!.Conditions.Exists(condition =>
+                    condition.Code == "gold"
+                )
+            )
             {
-                foreach (var condition in map.Access.Conditions)
+                // Ghetto recall - find closest mob and intentionally die, so we get ported to spawn
+
+                var closestMonsterResult = FindClosestMonster(matchingTransition);
+
+                if (closestMonsterResult is not null)
                 {
-                    if (
-                        condition.Operator == ItemConditionOperator.AchievementUnlocked
-                        && gameState.AccountAchievements.Find(achievement =>
-                            achievement.Code == condition.Code
-                        )
-                            is null
-                    )
+                    (MonsterSchema closestMonster, MapSchema closestMonsterMap) =
+                        closestMonsterResult.Value;
+
+                    var steps = CalculateStepsToDestination(currentMap, closestMonsterMap);
+
+                    async Task afterMoveAction()
                     {
-                        return false;
+                        while (character.Schema.X != 0 && character.Schema.Y != 0)
+                        {
+                            await character.Fight();
+                        }
                     }
+
+                    var lastStep = steps.Last();
+
+                    // We are already standing here - we make a fake step, so we can attach the afterMoveAction
+                    lastStep ??= CreateMoveStep(currentMap, destinationMap);
+
+                    lastStep = lastStep with
+                    {
+                        Move = lastStep.Move with { AfterMoveAction = afterMoveAction },
+                        NewMap =
+                            gameState.Maps.FirstOrDefault(map =>
+                                map.Name.Equals("spawn", StringComparison.CurrentCultureIgnoreCase)
+                            )
+                            ?? throw new AppError(
+                                "Could not find \"spawn\" in maps list - should not happen"
+                            ),
+                    };
+
+                    // We want to add the new lastStep to the list, instead of the original one
+                    if (steps.Count > 0)
+                    {
+                        steps.RemoveAt(steps.Count - 1);
+                    }
+
+                    steps.Add(lastStep);
+
+                    return steps;
                 }
             }
 
-            return true;
-        });
-
-        MapSchema? destinationMap = null;
-        int closestCost = 0;
-
-        /** Handle navigating across transitions to different layers
-         * Handle Sandwhisper Isle - we always need at least 1k gold to cross, and ideally want a recall potion to get back.
-         * The transition is also "hardcoded", e.g if you want to navigate from a non-Sandwhisper isle map to a sandwhisper one, we need
-         * to go to specific transition points
-        **/
-
-        if (maps.Count == 0)
-        {
-            var map = gameState.EventService.WhereIsEntityActive(code);
-
-            if (map is null)
-            {
-                throw new Exception($"Could not find map with code {code}");
-            }
-
-            destinationMap = map;
+            // TODO: Consider using a recall potion if you have one
+            var moveStep = CreateMoveStep(currentMap, matchingTransition);
+            var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
+            return [moveStep, transitionStep];
         }
 
-        foreach (var map in maps)
+        throw new AppError("One of the bool params should be set");
+    }
+
+    List<NavigationStep> GetNextNavigationStepIfNotInOverworld(
+        MapSchema currentMap,
+        MapSchema destinationMap
+    )
+    {
+        // No matter what, we need to find out whether we are moving within the same "underground cell", or to another one
+
+        Logger.LogInformation(
+            $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer})"
+        );
+
+        MapSchema? currentClosestTransition = FindClosestTransition(currentMap, null, false)!;
+
+        MapSchema? destinationClosestTransition = FindClosestTransition(
+            destinationMap,
+            null,
+            false
+        )!;
+
+        if (currentMap.Layer == destinationMap.Layer)
         {
-            if (destinationMap is null)
+            // We are in the same cell, the transitions are the same
+            if (currentClosestTransition.MapId == destinationClosestTransition.MapId)
             {
-                destinationMap = map;
-                closestCost = CalculationService.CalculateDistanceToMap(
-                    character.Schema.X,
-                    character.Schema.Y,
-                    map.X,
-                    map.Y
+                Logger.LogInformation(
+                    $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}), but moving inside the same \"cell\" - no need to transition"
                 );
-                continue;
-            }
-
-            int cost = CalculationService.CalculateDistanceToMap(
-                character.Schema.X,
-                character.Schema.Y,
-                map.X,
-                map.Y
-            );
-
-            if (cost < closestCost)
-            {
-                destinationMap = map;
-                closestCost = cost;
-            }
-
-            // We are already standing on the map, we won't get any closer :-)
-            if (cost == 0)
-            {
-                break;
+                return [CreateMoveStep(currentMap, destinationMap)];
             }
         }
 
-        if (destinationMap is null)
+        Logger.LogInformation(
+            $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}) - need to transition first - moving to ({currentClosestTransition.X}, {currentClosestTransition.Y})"
+        );
+        // Don't care if we are going from e.g. underground -> overworld or interior, we need to go to the overworld first
+        var moveStep = CreateMoveStep(currentMap, currentClosestTransition);
+        var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
+
+        return [moveStep, transitionStep];
+    }
+
+    List<NavigationStep> GetNextNavigationStepFromOverworldToOtherLayer(
+        MapSchema currentMap,
+        MapSchema destinationMap
+    )
+    {
+        /* We know that normal overworld -> other layer transitions are directly above their counterpart, e.g. if the door to a house is on position 1,1,
+           then when we transition through that door, we will be on 1,1 in the interior or underground layer. So we can just calculate the distance from where
+           we are, and to the destination map, and find the closest transition point from the destination map. It's not entirely bullet-proof, but it should be
+           good enough.
+        */
+        MapSchema? closestTransitionNotInTheOverworld = FindClosestTransition(
+            destinationMap,
+            MapLayer.Overworld,
+            false
+        );
+
+        if (closestTransitionNotInTheOverworld is null)
         {
-            return new AppError(
-                $"Could not find closest map to find \"{code}\"",
+            throw new AppError(
+                $"Could not find transition to get to {destinationMap.Name} - x = {destinationMap.X} y = {destinationMap.Y}",
                 ErrorStatus.NotFound
             );
         }
-        if (destinationMap.Layer != character.Schema.Layer)
+
+        if (closestTransitionNotInTheOverworld.Access?.Conditions?.Count > 0)
         {
-            return new AppError($"Cannot move to other layers", ErrorStatus.NotFound);
+            Logger.LogDebug(
+                $"Condition to go to {destinationMap.MapId} ({destinationMap.X}, {destinationMap.Y})"
+            );
         }
 
-        var currentMap = gameState.MapsDict[character.Schema.MapId];
+        var transitionToUse = gameState.MapsDict[
+            closestTransitionNotInTheOverworld.Interactions.Transition!.MapId
+        ];
 
-        // Going to Sandwhisper
-        if (
-            Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name)
-            || !Islands.Contains(destinationMap.Name) && Islands.Contains(currentMap.Name)
-        )
-        {
-            return new AppError($"Cannot move between islands", ErrorStatus.NotFound);
-        }
+        Logger.LogInformation(
+            $"{Name}: [{character.Name}]: Going inside from the overworld - moving to ({transitionToUse.X}, {transitionToUse.Y}, {transitionToUse.Layer.GetDisplayName()}) and transitioning"
+        );
 
-        await character.Move(destinationMap.X, destinationMap.Y);
+        var moveStep = CreateMoveStep(currentMap, transitionToUse);
 
-        return new None();
+        var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
+
+        return [moveStep, transitionStep];
     }
 
-    public MapSchema? FindClosestTransition(MapSchema currentMap, MapLayer? destinationLayer)
+    public MapSchema? FindClosestTransition(
+        MapSchema currentMap,
+        MapLayer? destinationLayer,
+        bool mustGoToOtherLayer
+    )
     {
         MapSchema? closestTransition = null;
         int closestCostToTransition = 0;
@@ -491,7 +497,10 @@ public class NavigationService
                 continue;
             }
 
-            if (destinationLayer is null && map.Interactions.Transition.Layer == map.Layer)
+            if (
+                (destinationLayer is null || mustGoToOtherLayer)
+                && map.Interactions.Transition.Layer == map.Layer
+            )
             {
                 continue;
             }
@@ -521,10 +530,11 @@ public class NavigationService
         return closestTransition;
     }
 
-    public MonsterSchema FindClosestMonster(MapSchema currentMap)
+    public (MonsterSchema monster, MapSchema map)? FindClosestMonster(MapSchema currentMap)
     {
-        List<MapSchema> monsterMaps = gameState
-            .Maps.Where(map =>
+        List<MapSchema> monsterMaps =
+        [
+            .. gameState.Maps.Where(map =>
             {
                 if (map.Interactions.Content is null)
                 {
@@ -533,20 +543,123 @@ public class NavigationService
 
                 return gameState.MonstersDict.GetValueOrNull(map.Interactions.Content.Code)
                     is not null;
-            })
-            .ToList();
+            }),
+        ];
 
-        monsterMaps.Sort((a, b) => CalculationService.CalculateDistanceToMap(a.X, a.Y, b.X, b.Y));
+        monsterMaps.Sort(
+            (a, b) =>
+            {
+                int aDistance = CalculationService.CalculateDistanceToMap(
+                    a.X,
+                    a.Y,
+                    currentMap.X,
+                    currentMap.Y
+                );
+                int bDistance = CalculationService.CalculateDistanceToMap(
+                    b.X,
+                    b.Y,
+                    currentMap.X,
+                    currentMap.Y
+                );
 
-        var closestMonsterCode = monsterMaps.FirstOrDefault()?.Interactions.Content?.Code;
+                return aDistance - bDistance;
+            }
+        );
 
-        if (closestMonsterCode is null)
+        var monsterMap = monsterMaps.FirstOrDefault();
+
+        if (monsterMap is null || monsterMap.Interactions.Content is null)
         {
-            throw new AppError(
-                $"Error finding closest monster - found {monsterMaps.Count} monster maps, current map is x: {currentMap.X} y: {currentMap.Y}: layer: {currentMap.Layer.GetDisplayName()}"
-            );
+            return null;
         }
 
-        return gameState.MonstersDict[closestMonsterCode]!;
+        var closestMonsterCode = monsterMap.Interactions.Content.Code;
+
+        return (gameState.MonstersDict[closestMonsterCode], monsterMap);
     }
+
+    public static NavigationStep CreateMoveStep(
+        MapSchema currentMap,
+        MapSchema destinationMap,
+        Func<Task>? AfterMoveAction = null
+    )
+    {
+        return new NavigationStep
+        {
+            CurrentMap = currentMap,
+            Move = new Move
+            {
+                X = destinationMap.X,
+                Y = destinationMap.Y,
+                Layer = destinationMap.Layer,
+                ShouldTransition = false,
+                AfterMoveAction = AfterMoveAction,
+            },
+            NewMap = destinationMap,
+        };
+    }
+
+    public static NavigationStep CreateTransitionStep(
+        Dictionary<int, MapSchema> MapsDict,
+        MapSchema currentMap,
+        Func<Task>? AfterMoveAction = null
+    )
+    {
+        if (currentMap.Interactions?.Transition is null)
+        {
+            throw new AppError(
+                $"Could not find transition on current map x: {currentMap.X} y: {currentMap.Y}: layer: {currentMap.Layer.GetDisplayName()}"
+            );
+        }
+        var destinationMap = MapsDict[currentMap.Interactions.Transition.MapId];
+
+        return new NavigationStep
+        {
+            CurrentMap = currentMap,
+            Move = new Move
+            {
+                X = currentMap.X,
+                Y = currentMap.Y,
+                Layer = currentMap.Layer,
+                ShouldTransition = true,
+                AfterMoveAction = AfterMoveAction,
+            },
+            NewMap = destinationMap,
+        };
+    }
+
+    public static async Task ExecuteMove(PlayerCharacter character, Move move)
+    {
+        if (move.ShouldTransition)
+        {
+            await character.Transition();
+        }
+        else
+        {
+            await character.Move(move.X, move.Y);
+        }
+
+        if (move.AfterMoveAction is not null)
+        {
+            await move.AfterMoveAction();
+        }
+    }
+}
+
+public record NavigationStep
+{
+    public required MapSchema CurrentMap { get; init; }
+    public required Move Move { get; init; }
+    public required MapSchema NewMap { get; init; }
+}
+
+public record Move
+{
+    public required int X { get; init; }
+    public required int Y { get; init; }
+    public required MapLayer Layer { get; init; }
+
+    public required bool ShouldTransition { get; init; }
+
+    public Func<Task>? AfterMoveAction { get; init; }
 }

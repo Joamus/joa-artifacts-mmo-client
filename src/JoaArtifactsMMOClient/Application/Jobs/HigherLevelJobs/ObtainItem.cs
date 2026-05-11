@@ -7,6 +7,7 @@ using Application.Records;
 using Application.Services;
 using Applicaton.Jobs;
 using Applicaton.Services.FightSimulator;
+using Newtonsoft.Json;
 using OneOf;
 using OneOf.Types;
 
@@ -216,7 +217,7 @@ public class ObtainItem : CharacterJob
      * We mutate a list to recursively add all the required jobs to the list
     */
     static async Task<OneOf<AppError, None>> InnerGetJobsRequired(
-        PlayerCharacter Character,
+        PlayerCharacter character,
         List<DropSchema> itemsInInventory,
         GameState gameState,
         bool allowUsingItemFromBank,
@@ -258,7 +259,7 @@ public class ObtainItem : CharacterJob
 
             if (amountToTakeFromBank > 0)
             {
-                jobs.Add(new WithdrawItem(Character, gameState, code, amountToTakeFromBank, false));
+                jobs.Add(new WithdrawItem(character, gameState, code, amountToTakeFromBank, false));
                 matchingItemInBank!.Quantity -= amountToTakeFromBank;
 
                 amount -= amountToTakeFromBank;
@@ -272,484 +273,151 @@ public class ObtainItem : CharacterJob
             return new None();
         }
 
-        List<ResourceSchema> resources = gameState.Resources.FindAll(resource =>
-            resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null
+        var resourceResult = ObtainResourceRelatedJob(
+            gameState,
+            character,
+            code,
+            requiredAmount,
+            canTriggerTraining
         );
 
-        if (resources.Count > 0)
+        if (resourceResult is not null)
         {
-            bool allResourcesAreFromEvents = true;
-
-            foreach (var resource in resources)
-            {
-                var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
-
-                if (
-                    resourceIsFromEvent
-                    && gameState.EventService.WhereIsEntityActive(resource.Code) is null
-                )
+            return resourceResult.Value.Match<OneOf<AppError, None>>(
+                error =>
                 {
-                    continue;
-                }
-                else
+                    return error;
+                },
+                job =>
                 {
-                    allResourcesAreFromEvents = false;
-                    break;
-                }
-            }
-
-            if (allResourcesAreFromEvents)
-            {
-                return new AppError(
-                    $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-            var gatherJob = new GatherResourceItem(Character, gameState, code, requiredAmount)
-            {
-                CanTriggerTraining = canTriggerTraining,
-            };
-
-            jobs.Add(gatherJob);
-            return new None();
-        }
-
-        if (matchingItem.Craft is not null)
-        {
-            // if the total ingredients of the items is higher than 60
-
-            int totalIngredientsForCrafting = 0;
-
-            foreach (var item in matchingItem.Craft.Items)
-            {
-                totalIngredientsForCrafting += item.Quantity * requiredAmount;
-            }
-
-            /*
-                We want to split the crafting, if we need a lot of ingredients, e.g. if we need 80 copper ore,
-                then it's safer to split it in 2, if we our character's max inventory space is only 100
-            */
-
-            List<int> iterations = CalculateObtainItemIterations(
-                matchingItem,
-                ignoreInventoryFull
-                    ? Character.Schema.InventoryMaxItems
-                    : Character.GetInventorySpaceLeft(),
-                requiredAmount
-            );
-
-            if (iterations.Count == 0)
-            {
-                return new AppError(
-                    "Inventory does not have enough space",
-                    ErrorStatus.InventoryFull
-                );
-            }
-
-            foreach (var iterationAmount in iterations)
-            {
-                foreach (var item in matchingItem.Craft.Items)
-                {
-                    int itemAmount = item.Quantity * iterationAmount;
-
-                    var result = await InnerGetJobsRequired(
-                        Character,
-                        itemsInInventory,
-                        gameState,
-                        allowUsingItemFromBank,
-                        itemsInBankClone,
-                        jobs,
-                        item.Code,
-                        itemAmount,
-                        true,
-                        canTriggerTraining,
-                        false
-                    );
-
-                    switch (result.Value)
-                    {
-                        case AppError jobError:
-                            return jobError;
-                    }
-                }
-                var craftItemJob = new CraftItem(Character, gameState, code, iterationAmount);
-                craftItemJob.CanTriggerTraining = canTriggerTraining;
-
-                jobs.Add(craftItemJob);
-            }
-
-            return new None();
-        }
-
-        var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
-
-        if (matchingItem.Code == ItemService.TasksCoin)
-        {
-            jobs.Add(
-                new DoTaskUntilObtainedItem(
-                    Character,
-                    gameState,
-                    TaskType.items,
-                    matchingItem.Code,
-                    amount
-                )
-            );
-
-            return new None();
-        }
-
-        if (matchingItem.Subtype == "task")
-        {
-            // BuyPrice should not be null here - this is how you obtain task items.
-            int taskCoinsNeeded = (matchingNpcItem!.BuyPrice ?? 0) * requiredAmount;
-            int taskCoinsNeededFromInventory = taskCoinsNeeded;
-
-            var taskCoinsInInventory = itemsInInventory.FirstOrDefault(item =>
-                item.Code == ItemService.TasksCoin
-            );
-
-            var taskCoinsInBank = itemsInBankClone.FirstOrDefault(item =>
-                item.Code == ItemService.TasksCoin
-            );
-
-            taskCoinsNeeded -= Math.Min(taskCoinsInInventory?.Quantity ?? 0, taskCoinsNeeded);
-
-            // For now we only care if the bank has all we need - else the CompleteTask job will withdraw needed coins
-            if (
-                (taskCoinsInInventory?.Quantity ?? 0) < taskCoinsNeeded
-                && (taskCoinsInBank?.Quantity ?? 0) >= taskCoinsNeeded
-            )
-            {
-                int amountToWithdraw = Math.Min(taskCoinsNeeded, taskCoinsInBank?.Quantity ?? 0);
-
-                jobs.Add(
-                    new WithdrawItem(
-                        Character,
-                        gameState,
-                        ItemService.TasksCoin,
-                        amountToWithdraw,
-                        true
-                    )
-                );
-
-                taskCoinsInBank!.Quantity -= amountToWithdraw;
-                taskCoinsNeeded = 0;
-                taskCoinsNeededFromInventory -= amountToWithdraw;
-            }
-            if (
-                taskCoinsInInventory is not null
-                && taskCoinsInInventory.Quantity >= taskCoinsNeededFromInventory
-            )
-            {
-                taskCoinsInInventory.Quantity -= taskCoinsNeededFromInventory;
-            }
-
-            if (taskCoinsNeeded == 0)
-            {
-                jobs.Add(
-                    new BuyItemNpc(Character, gameState, code, requiredAmount, true, true, true)
-                );
-                return new None();
-            }
-
-            // Pick up a task, or complete one you have
-            if (Character.Schema.TaskType == "monsters")
-            {
-                var monster = gameState.AvailableMonstersDict.GetValueOrDefault(
-                    Character.Schema.Task
-                );
-
-                if (monster is null)
-                {
-                    return new AppError(
-                        $"Monster with code {code} was not found",
-                        ErrorStatus.NotFound
-                    );
-                }
-
-                if (
-                    FightSimulator
-                        .CalculateFightOutcome(Character.Schema, monster, gameState)
-                        .ShouldFight
-                )
-                {
-                    jobs.Add(new MonsterTask(Character, gameState, matchingItem.Code, amount));
+                    jobs.Add(job);
                     return new None();
                 }
-
-                return new AppError(
-                    $"You cannot obtain item with code {code}, because you need to complete your monster task, and you cannot beat the monster",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-            else if (
-                string.IsNullOrEmpty(Character.Schema.Task)
-                || await Character.PlayerActionService.CanItemFromItemTaskBeObtained()
-            )
-            {
-                jobs.Add(
-                    new DoTaskUntilObtainedItem(
-                        Character,
-                        gameState,
-                        TaskType.items,
-                        matchingItem.Code,
-                        amount
-                    )
-                );
-            }
-            else
-            {
-                return new AppError(
-                    $"You cannot obtain item with code {code}, because the current item task cannot be completed, since it requires items from an event that is not active",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-            return new None();
+            );
         }
 
-        List<MonsterSchema> suitableMonsters = [];
-
-        var monstersThatDropTheItem = gameState.AvailableMonsters.FindAll(monster =>
-            monster.Drops.Find(drop => drop.Code == code) is not null
-        );
-
-        if (monstersThatDropTheItem is null)
-        {
-            return new AppError($"The item with code {code} is unobtainable", ErrorStatus.NotFound);
-        }
-
-        monstersThatDropTheItem.Sort(
-            (b, a) =>
-            {
-                int aDropRate = a.Drops.Find(drop => drop.Code == code)!.Rate;
-                int bDropRate = b.Drops.Find(drop => drop.Code == code)!.Rate;
-
-                // The lower the number, the higher the drop rate, so we want to sort them like this;
-                return aDropRate.CompareTo(bDropRate);
-            }
-        );
-
-        MonsterSchema? lowestLevelMonster = null;
-
-        var foundMonsterThatIsFromEvent = false;
-
-        var monstersWeCanDefeatThatDropTheItem = await GetDefeatableMonstersFromList(
-            Character,
+        var craftItemResult = await ObtainCraftItemRelatedJob(
+            character,
             gameState,
-            monstersThatDropTheItem,
-            itemsInBankClone
+            matchingItem,
+            itemsInInventory,
+            allowUsingItemFromBank,
+            itemsInBankClone,
+            code,
+            requiredAmount,
+            canTriggerTraining,
+            ignoreInventoryFull
         );
 
-        if (monstersWeCanDefeatThatDropTheItem.Count > 0)
+        if (craftItemResult is not null)
         {
-            monstersWeCanDefeatThatDropTheItem.Sort((a, b) => a.Level - b.Level);
-
-            lowestLevelMonster = monstersWeCanDefeatThatDropTheItem.ElementAt(0);
-        }
-
-        if (monstersThatDropTheItem.Count > 0 && monstersWeCanDefeatThatDropTheItem.Count == 0)
-        {
-            return new AppError(
-                $"The item is a monster drop, but we cannot defeat the monsters that drop it"
-            );
-        }
-
-        if (lowestLevelMonster is not null)
-        {
-            List<CharacterJob> withdrawItemJobs =
-                await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
-                    Character,
-                    gameState,
-                    lowestLevelMonster
-                );
-            var fightSimIfUsingWithdrawnItems =
-                FightSimulator.FindBestFightEquipmentWithUsablePotions(
-                    Character,
-                    gameState,
-                    lowestLevelMonster,
-                    itemsInBankClone
-                        .Select(item => new ItemInInventory
-                        {
-                            Item = gameState.ItemsDict[item.Code],
-                            Quantity = item.Quantity,
-                        })
-                        .ToList()
-                );
-
-            if (
-                fightSimIfUsingWithdrawnItems is null
-                || !fightSimIfUsingWithdrawnItems.Outcome.ShouldFight
-            )
-            {
-                return new AppError(
-                    $"Cannot fight {lowestLevelMonster.Code} to obtain item with code {code}"
-                );
-            }
-
-            // Don't really care if the sim uses the withdrawn items or not, we can fight them
-            if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
-            {
-                var job = new FightMonster(
-                    Character,
-                    gameState,
-                    lowestLevelMonster.Code,
-                    requiredAmount,
-                    code
-                );
-
-                // job.AllowUsingMaterialsFromInventory = true;
-                jobs.Add(job);
-
-                return new None();
-            }
-        }
-
-        if (monstersWeCanDefeatThatDropTheItem.Count > 0)
-        {
-            if (foundMonsterThatIsFromEvent)
-            {
-                return new AppError(
-                    $"The monster that drops {code} is likely from an event, but the event is not active - {Character.Schema.Name} cannot obtain {code}",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-            else
-            {
-                return new AppError(
-                    $"Cannot fight any monsters that drop item {code} - {Character.Schema.Name} would lose",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-        }
-
-        if (matchingNpcItem is not null)
-        {
-            if (matchingNpcItem.BuyPrice is null)
-            {
-                return new AppError(
-                    $"The item with code {code} is an NPC item, but the buyPrice is null - currency is {matchingNpcItem.Currency}",
-                    ErrorStatus.NotFound
-                );
-            }
-
-            var npcIsFromEvent = gameState.EventService.IsEntityFromEvent(matchingNpcItem.Npc);
-
-            if (
-                npcIsFromEvent
-                && gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null
-            )
-            {
-                return new AppError(
-                    $"Cannot buy from NPC \"{matchingNpcItem.Npc}\" - it is from an event, but the event is not active",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-
-            int amountOfCurrency =
-                matchingNpcItem.Currency == "gold"
-                    ? Character.Schema.Gold
-                    : Character.GetItemFromInventory(matchingNpcItem.Currency)?.Quantity ?? 0;
-
-            if (matchingNpcItem.Currency == "gold" && matchingNpcItem.BuyPrice > amountOfCurrency)
-            {
-                return new AppError(
-                    $"Matching item costs more gold than the character currently has - cannot obtain",
-                    ErrorStatus.Undefined
-                );
-            }
-
-            int neededCurrency = (int)matchingNpcItem.BuyPrice * requiredAmount;
-
-            if (amountOfCurrency < neededCurrency)
-            {
-                bool canObtainCurrencyFromMonsters = true;
-
-                if (matchingNpcItem.Currency != "gold")
+            return craftItemResult.Value.Match<OneOf<AppError, None>>(
+                error =>
                 {
-                    var monstersThatDropCurrency = gameState.AvailableMonsters.FindAll(monster =>
-                        monster.Drops.Exists(drop => drop.Code == matchingNpcItem.Currency)
-                    );
-
-                    if (monstersThatDropCurrency.Count == 0)
+                    return error;
+                },
+                craftJobs =>
+                {
+                    foreach (var job in craftJobs)
                     {
-                        return new AppError(
-                            $"Currency \"{matchingNpcItem.Currency}\" cannot be obtained - there are no monsters that drop the currency",
-                            ErrorStatus.Undefined
-                        );
+                        jobs.Add(job);
                     }
 
-                    monstersThatDropCurrency = await GetDefeatableMonstersFromList(
-                        Character,
-                        gameState,
-                        monstersThatDropCurrency,
-                        itemsInBankClone
-                    );
-
-                    if (monstersThatDropCurrency.Count == 0)
-                    {
-                        canObtainCurrencyFromMonsters = false;
-                    }
+                    return new None();
                 }
+            );
+        }
+        var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
 
-                if (!canObtainCurrencyFromMonsters)
+        var taskCoinsResult = matchingNpcItem is not null
+            ? await ObtainTaskCoinsRelatedJob(
+                character,
+                gameState,
+                matchingItem,
+                matchingNpcItem,
+                itemsInInventory,
+                itemsInBankClone,
+                code,
+                requiredAmount
+            )
+            : null;
+
+        if (taskCoinsResult is not null)
+        {
+            return taskCoinsResult.Value.Match<OneOf<AppError, None>>(
+                error =>
                 {
-                    return new AppError(
-                        $"Currency \"{matchingNpcItem.Currency}\" cannot be obtained - there are monsters that drop it, but they are either not defeatable or from events which are not active",
-                        ErrorStatus.Undefined
-                    );
+                    return error;
+                },
+                taskCoinsJobs =>
+                {
+                    foreach (var job in taskCoinsJobs)
+                    {
+                        jobs.Add(job);
+                    }
+
+                    return new None();
                 }
-
-                jobs.Add(
-                    new ObtainOrFindItem(
-                        Character,
-                        gameState,
-                        matchingNpcItem.Currency,
-                        neededCurrency - amountOfCurrency
-                    )
-                );
-            }
-
-            var npcIsAccessible = gameState.AvailableNpcs.Exists(npc =>
-                npc.Code == matchingNpcItem.Npc
             );
+        }
 
-            if (!npcIsAccessible)
-            {
-                return new AppError(
-                    $"NPC \"{matchingNpcItem.Code}\" is not accessible",
-                    ErrorStatus.Undefined
-                );
-            }
+        var monsterDropsResult = await ObtainMonsterDropsRelatedJob(
+            character,
+            gameState,
+            itemsInBankClone,
+            code,
+            requiredAmount
+        );
 
-            jobs.Add(
-                new BuyItemNpc(
-                    Character,
-                    gameState,
-                    matchingItem.Code,
-                    requiredAmount,
-                    true,
-                    true,
-                    true
-                )
+        if (monsterDropsResult is not null)
+        {
+            return monsterDropsResult.Value.Match<OneOf<AppError, None>>(
+                error =>
+                {
+                    return error;
+                },
+                job =>
+                {
+                    jobs.Add(job);
+
+                    return new None();
+                }
             );
+        }
 
-            return new None();
+        var npcItemsResult = matchingNpcItem is not null
+            ? await ObtainNpcItemRelatedJob(
+                character,
+                gameState,
+                matchingItem,
+                matchingNpcItem,
+                itemsInBankClone,
+                code,
+                requiredAmount
+            )
+            : null;
 
-            /**
-             * Look in our inventory, and see if we have the required gold/items
-             * If yes, then buy the item
-             * If no, look in our bank
-             * If yes, go to the bank, withdraw, and then buy
-             * If no, return error here - we cannot get it - or even better:
-             * We queue a job for obtaining the item needed, and then after that queue a buy job for the item.
-             * Maybe a buy job can have a parameter, which allows obtaining the mats?
-             * Remember gold is a material in this case, but handle it specially. Can be withdrawn from bank, else just
-             * grind gold from the most suitable monster (closest to level that we can beat)
-            */
+        if (npcItemsResult is not null)
+        {
+            return npcItemsResult.Value.Match<OneOf<AppError, None>>(
+                error =>
+                {
+                    return error;
+                },
+                npcItemJobs =>
+                {
+                    foreach (var job in npcItemJobs)
+                    {
+                        jobs.Add(job);
+                    }
+
+                    return new None();
+                }
+            );
         }
 
         return new AppError(
-            $"This should not happen - we cannot find any way to obtain item {code} for {Character.Schema.Name}",
+            $"This should not happen - we cannot find any way to obtain item {code} for {character.Schema.Name}",
             ErrorStatus.InsufficientSkill
         );
     }
@@ -886,5 +554,528 @@ public class ObtainItem : CharacterJob
         }
 
         return monstersThatCanBeDefeated;
+    }
+
+    static OneOf<AppError, CharacterJob>? ObtainResourceRelatedJob(
+        GameState gameState,
+        PlayerCharacter character,
+        string code,
+        int requiredAmount,
+        bool canTriggerTraining
+    )
+    {
+        List<ResourceSchema> resources = gameState.Resources.FindAll(resource =>
+            resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null
+        );
+
+        if (resources.Count > 0)
+        {
+            bool allResourcesAreFromEvents = true;
+
+            foreach (var resource in resources)
+            {
+                var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
+
+                if (
+                    resourceIsFromEvent
+                    && gameState.EventService.WhereIsEntityActive(resource.Code) is null
+                )
+                {
+                    continue;
+                }
+                else
+                {
+                    allResourcesAreFromEvents = false;
+                    break;
+                }
+            }
+
+            if (allResourcesAreFromEvents)
+            {
+                return new AppError(
+                    $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
+            var gatherJob = new GatherResourceItem(character, gameState, code, requiredAmount)
+            {
+                CanTriggerTraining = canTriggerTraining,
+            };
+
+            return gatherJob;
+            // jobs.Add(gatherJob);
+            // return new None();
+        }
+
+        return null;
+    }
+
+    static async Task<OneOf<AppError, List<CharacterJob>>?> ObtainCraftItemRelatedJob(
+        PlayerCharacter character,
+        GameState gameState,
+        ItemSchema matchingItem,
+        List<DropSchema> itemsInInventory,
+        bool allowUsingItemFromBank,
+        List<DropSchema> itemsInBank,
+        string code,
+        int requiredAmount,
+        bool canTriggerTraining = false,
+        bool ignoreInventoryFull = false
+    )
+    {
+        List<CharacterJob> jobs = [];
+
+        if (matchingItem.Craft is null)
+        {
+            return null;
+        }
+
+        // if the total ingredients of the items is higher than 60
+
+        int totalIngredientsForCrafting = 0;
+
+        foreach (var item in matchingItem.Craft.Items)
+        {
+            totalIngredientsForCrafting += item.Quantity * requiredAmount;
+        }
+
+        /*
+            We want to split the crafting, if we need a lot of ingredients, e.g. if we need 80 copper ore,
+            then it's safer to split it in 2, if we our character's max inventory space is only 100
+        */
+
+        List<int> iterations = CalculateObtainItemIterations(
+            matchingItem,
+            ignoreInventoryFull
+                ? character.Schema.InventoryMaxItems
+                : character.GetInventorySpaceLeft(),
+            requiredAmount
+        );
+
+        if (iterations.Count == 0)
+        {
+            return new AppError("Inventory does not have enough space", ErrorStatus.InventoryFull);
+        }
+
+        foreach (var iterationAmount in iterations)
+        {
+            foreach (var item in matchingItem.Craft.Items)
+            {
+                int itemAmount = item.Quantity * iterationAmount;
+
+                var result = await InnerGetJobsRequired(
+                    character,
+                    itemsInInventory,
+                    gameState,
+                    allowUsingItemFromBank,
+                    itemsInBank,
+                    jobs,
+                    item.Code,
+                    itemAmount,
+                    true,
+                    canTriggerTraining,
+                    false
+                );
+
+                switch (result.Value)
+                {
+                    case AppError jobError:
+                        return jobError;
+                }
+            }
+            var craftItemJob = new CraftItem(character, gameState, code, iterationAmount)
+            {
+                CanTriggerTraining = canTriggerTraining,
+            };
+
+            jobs.Add(craftItemJob);
+        }
+
+        return jobs;
+    }
+
+    static async Task<OneOf<AppError, List<CharacterJob>>?> ObtainTaskCoinsRelatedJob(
+        PlayerCharacter character,
+        GameState gameState,
+        ItemSchema matchingItem,
+        NpcItemSchema matchingNpcItem,
+        List<DropSchema> itemsInInventory,
+        List<DropSchema> itemsInBank,
+        string code,
+        int requiredAmount
+    )
+    {
+        List<CharacterJob> jobs = [];
+
+        if (matchingItem.Code == ItemService.TasksCoin)
+        {
+            jobs.Add(
+                new DoTaskUntilObtainedItem(
+                    character,
+                    gameState,
+                    TaskType.items,
+                    matchingItem.Code,
+                    requiredAmount
+                )
+            );
+
+            return jobs;
+        }
+
+        if (matchingItem.Subtype != "task")
+        {
+            return null;
+        }
+
+        // BuyPrice should not be null here - this is how you obtain task items.
+        int taskCoinsNeeded = (matchingNpcItem!.BuyPrice ?? 0) * requiredAmount;
+        int taskCoinsNeededFromInventory = taskCoinsNeeded;
+
+        var taskCoinsInInventory = itemsInInventory.FirstOrDefault(item =>
+            item.Code == ItemService.TasksCoin
+        );
+
+        var taskCoinsInBank = itemsInBank.FirstOrDefault(item =>
+            item.Code == ItemService.TasksCoin
+        );
+
+        taskCoinsNeeded -= Math.Min(taskCoinsInInventory?.Quantity ?? 0, taskCoinsNeeded);
+
+        // For now we only care if the bank has all we need - else the CompleteTask job will withdraw needed coins
+        if (
+            (taskCoinsInInventory?.Quantity ?? 0) < taskCoinsNeeded
+            && (taskCoinsInBank?.Quantity ?? 0) >= taskCoinsNeeded
+        )
+        {
+            int amountToWithdraw = Math.Min(taskCoinsNeeded, taskCoinsInBank?.Quantity ?? 0);
+
+            jobs.Add(
+                new WithdrawItem(
+                    character,
+                    gameState,
+                    ItemService.TasksCoin,
+                    amountToWithdraw,
+                    true
+                )
+            );
+
+            taskCoinsInBank!.Quantity -= amountToWithdraw;
+            taskCoinsNeeded = 0;
+            taskCoinsNeededFromInventory -= amountToWithdraw;
+        }
+        if (
+            taskCoinsInInventory is not null
+            && taskCoinsInInventory.Quantity >= taskCoinsNeededFromInventory
+        )
+        {
+            taskCoinsInInventory.Quantity -= taskCoinsNeededFromInventory;
+        }
+
+        if (taskCoinsNeeded == 0)
+        {
+            jobs.Add(new BuyItemNpc(character, gameState, code, requiredAmount, true, true, true));
+            return jobs;
+        }
+
+        // Pick up a task, or complete one you have
+        if (character.Schema.TaskType == "monsters")
+        {
+            var monster = gameState.AvailableMonstersDict.GetValueOrDefault(character.Schema.Task);
+
+            if (monster is null)
+            {
+                return new AppError(
+                    $"Monster with code {code} was not found",
+                    ErrorStatus.NotFound
+                );
+            }
+
+            if (
+                FightSimulator
+                    .CalculateFightOutcome(character.Schema, monster, gameState)
+                    .ShouldFight
+            )
+            {
+                jobs.Add(new MonsterTask(character, gameState, matchingItem.Code, requiredAmount));
+                return jobs;
+            }
+
+            return new AppError(
+                $"You cannot obtain item with code {code}, because you need to complete your monster task, and you cannot beat the monster",
+                ErrorStatus.InsufficientSkill
+            );
+        }
+        else if (
+            string.IsNullOrEmpty(character.Schema.Task)
+            || await character.PlayerActionService.CanItemFromItemTaskBeObtained()
+        )
+        {
+            jobs.Add(
+                new DoTaskUntilObtainedItem(
+                    character,
+                    gameState,
+                    TaskType.items,
+                    matchingItem.Code,
+                    requiredAmount
+                )
+            );
+        }
+        else
+        {
+            return new AppError(
+                $"You cannot obtain item with code {code}, because the current item task cannot be completed, since it requires items from an event that is not active",
+                ErrorStatus.InsufficientSkill
+            );
+        }
+
+        return jobs;
+    }
+
+    static async Task<OneOf<AppError, CharacterJob>?> ObtainMonsterDropsRelatedJob(
+        PlayerCharacter character,
+        GameState gameState,
+        List<DropSchema> itemsInBank,
+        string code,
+        int requiredAmount
+    )
+    {
+        List<MonsterSchema> suitableMonsters = [];
+
+        var monstersThatDropTheItem = gameState.AvailableMonsters.FindAll(monster =>
+            monster.Drops.Find(drop => drop.Code == code) is not null
+        );
+
+        if (monstersThatDropTheItem.Count == 0)
+        {
+            return null;
+        }
+
+        monstersThatDropTheItem.Sort(
+            (b, a) =>
+            {
+                int aDropRate = a.Drops.Find(drop => drop.Code == code)!.Rate;
+                int bDropRate = b.Drops.Find(drop => drop.Code == code)!.Rate;
+
+                // The lower the number, the higher the drop rate, so we want to sort them like this;
+                return aDropRate.CompareTo(bDropRate);
+            }
+        );
+
+        MonsterSchema? lowestLevelMonster = null;
+
+        var foundMonsterThatIsFromEvent = false;
+
+        var monstersWeCanDefeatThatDropTheItem = await GetDefeatableMonstersFromList(
+            character,
+            gameState,
+            monstersThatDropTheItem,
+            itemsInBank
+        );
+
+        if (monstersWeCanDefeatThatDropTheItem.Count > 0)
+        {
+            monstersWeCanDefeatThatDropTheItem.Sort((a, b) => a.Level - b.Level);
+
+            lowestLevelMonster = monstersWeCanDefeatThatDropTheItem.ElementAt(0);
+        }
+
+        if (monstersThatDropTheItem.Count > 0 && monstersWeCanDefeatThatDropTheItem.Count == 0)
+        {
+            return new AppError(
+                $"The item is a monster drop, but we cannot defeat the monsters that drop it"
+            );
+        }
+
+        if (lowestLevelMonster is not null)
+        {
+            List<CharacterJob> withdrawItemJobs =
+                await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
+                    character,
+                    gameState,
+                    lowestLevelMonster
+                );
+            var fightSimIfUsingWithdrawnItems =
+                FightSimulator.FindBestFightEquipmentWithUsablePotions(
+                    character,
+                    gameState,
+                    lowestLevelMonster,
+                    [
+                        .. itemsInBank.Select(item => new ItemInInventory
+                        {
+                            Item = gameState.ItemsDict[item.Code],
+                            Quantity = item.Quantity,
+                        }),
+                    ]
+                );
+
+            if (
+                fightSimIfUsingWithdrawnItems is null
+                || !fightSimIfUsingWithdrawnItems.Outcome.ShouldFight
+            )
+            {
+                return new AppError(
+                    $"Cannot fight {lowestLevelMonster.Code} to obtain item with code {code}"
+                );
+            }
+
+            // Don't really care if the sim uses the withdrawn items or not, we can fight them
+            if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
+            {
+                var job = new FightMonster(
+                    character,
+                    gameState,
+                    lowestLevelMonster.Code,
+                    requiredAmount,
+                    code
+                );
+
+                // job.AllowUsingMaterialsFromInventory = true;
+                return job;
+            }
+        }
+
+        if (monstersWeCanDefeatThatDropTheItem.Count > 0)
+        {
+            if (foundMonsterThatIsFromEvent)
+            {
+                return new AppError(
+                    $"The monster that drops {code} is likely from an event, but the event is not active - {character.Schema.Name} cannot obtain {code}",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
+            else
+            {
+                return new AppError(
+                    $"Cannot fight any monsters that drop item {code} - {character.Schema.Name} would lose",
+                    ErrorStatus.InsufficientSkill
+                );
+            }
+        }
+
+        return null;
+    }
+
+    static async Task<OneOf<AppError, List<CharacterJob>>?> ObtainNpcItemRelatedJob(
+        PlayerCharacter character,
+        GameState gameState,
+        ItemSchema matchingItem,
+        NpcItemSchema matchingNpcItem,
+        List<DropSchema> itemsInBank,
+        string code,
+        int requiredAmount
+    )
+    {
+        List<CharacterJob> jobs = [];
+
+        if (matchingNpcItem.BuyPrice is null)
+        {
+            return new AppError(
+                $"The item with code {code} is an NPC item, but the buyPrice is null - currency is {matchingNpcItem.Currency}",
+                ErrorStatus.NotFound
+            );
+        }
+
+        var npcIsFromEvent = gameState.EventService.IsEntityFromEvent(matchingNpcItem.Npc);
+
+        if (
+            npcIsFromEvent
+            && gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null
+        )
+        {
+            return new AppError(
+                $"Cannot buy from NPC \"{matchingNpcItem.Npc}\" - it is from an event, but the event is not active",
+                ErrorStatus.InsufficientSkill
+            );
+        }
+
+        int amountOfCurrency =
+            matchingNpcItem.Currency == "gold"
+                ? character.Schema.Gold
+                : character.GetItemFromInventory(matchingNpcItem.Currency)?.Quantity ?? 0;
+
+        if (matchingNpcItem.Currency == "gold" && matchingNpcItem.BuyPrice > amountOfCurrency)
+        {
+            return new AppError(
+                $"Matching item costs more gold than the character currently has - cannot obtain",
+                ErrorStatus.Undefined
+            );
+        }
+
+        int neededCurrency = (int)matchingNpcItem.BuyPrice * requiredAmount;
+
+        if (amountOfCurrency < neededCurrency)
+        {
+            bool canObtainCurrencyFromMonsters = true;
+
+            if (matchingNpcItem.Currency != "gold")
+            {
+                var monstersThatDropCurrency = gameState.AvailableMonsters.FindAll(monster =>
+                    monster.Drops.Exists(drop => drop.Code == matchingNpcItem.Currency)
+                );
+
+                if (monstersThatDropCurrency.Count == 0)
+                {
+                    return new AppError(
+                        $"Currency \"{matchingNpcItem.Currency}\" cannot be obtained - there are no monsters that drop the currency",
+                        ErrorStatus.Undefined
+                    );
+                }
+
+                monstersThatDropCurrency = await GetDefeatableMonstersFromList(
+                    character,
+                    gameState,
+                    monstersThatDropCurrency,
+                    itemsInBank
+                );
+
+                if (monstersThatDropCurrency.Count == 0)
+                {
+                    canObtainCurrencyFromMonsters = false;
+                }
+            }
+
+            if (!canObtainCurrencyFromMonsters)
+            {
+                return new AppError(
+                    $"Currency \"{matchingNpcItem.Currency}\" cannot be obtained - there are monsters that drop it, but they are either not defeatable or from events which are not active",
+                    ErrorStatus.Undefined
+                );
+            }
+
+            jobs.Add(
+                new ObtainOrFindItem(
+                    character,
+                    gameState,
+                    matchingNpcItem.Currency,
+                    neededCurrency - amountOfCurrency
+                )
+            );
+        }
+
+        var npcIsAccessible = gameState.AvailableNpcs.Exists(npc =>
+            npc.Code == matchingNpcItem.Npc
+        );
+
+        if (!npcIsAccessible)
+        {
+            return new AppError(
+                $"NPC \"{matchingNpcItem.Code}\" is not accessible",
+                ErrorStatus.Undefined
+            );
+        }
+
+        jobs.Add(
+            new BuyItemNpc(
+                character,
+                gameState,
+                matchingItem.Code,
+                requiredAmount,
+                true,
+                true,
+                true
+            )
+        );
+
+        return jobs;
     }
 }

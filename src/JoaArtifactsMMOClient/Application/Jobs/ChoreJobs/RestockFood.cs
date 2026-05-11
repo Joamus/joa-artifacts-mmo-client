@@ -11,11 +11,13 @@ namespace Application.Jobs;
 
 public class RestockFood : CharacterJob, ICharacterChoreJob
 {
-    const int LOWER_FOOD_THRESHOLD = 150;
-    const int HIGHER_FOOD_THRESHOLD = 500;
+    RestockFoodParams JobParams { get; init; }
 
-    public RestockFood(PlayerCharacter playerCharacter, GameState gameState)
-        : base(playerCharacter, gameState) { }
+    public RestockFood(PlayerCharacter playerCharacter, GameState gameState, ChorePriority priority)
+        : base(playerCharacter, gameState)
+    {
+        JobParams = GetJobParams(priority);
+    }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
@@ -68,12 +70,12 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
             List<int> iterations = ObtainItem.CalculateObtainItemIterations(
                 item,
                 Character.GetInventorySpaceLeft(),
-                HIGHER_FOOD_THRESHOLD
+                JobParams.AmountToGather
             );
 
             var matchInBank = bestFoodItemsInBank.GetValueOrDefault(item.Code);
 
-            if (matchInBank is not null && matchInBank.Quantity >= LOWER_FOOD_THRESHOLD)
+            if (matchInBank is not null && matchInBank.Quantity >= JobParams.MinimumAmountInBank)
             {
                 continue;
             }
@@ -116,10 +118,34 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         return foodCandidates.ElementAt(0);
     }
 
-    public async Task<bool> NeedsToBeDone(ChorePriority _priority)
+    public async Task<bool> NeedsToBeDone()
     {
         var jobs = await GetJobs();
 
         return jobs.Count > 0;
     }
+
+    static RestockFoodParams GetJobParams(ChorePriority priority)
+    {
+        return priority switch
+        {
+            ChorePriority.Low => new RestockFoodParams
+            {
+                MinimumAmountInBank = 400,
+                AmountToGather = 50,
+            },
+            ChorePriority.High => new RestockFoodParams
+            {
+                MinimumAmountInBank = 150,
+                AmountToGather = 50,
+            },
+            _ => throw new NotImplementedException(),
+        };
+    }
+}
+
+public record RestockFoodParams
+{
+    public required int MinimumAmountInBank { get; init; }
+    public required int AmountToGather { get; init; }
 }

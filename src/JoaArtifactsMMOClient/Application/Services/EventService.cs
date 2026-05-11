@@ -71,15 +71,17 @@ public class EventService
 
                 pageNumber++;
             }
-            Events = events;
-            EventsDict = eventsDict;
-            EventEntitiesDict = eventEntitiesDict;
-            logger.LogInformation("Loading events - DONE;");
         }
         catch (Exception e)
         {
             logger.LogError(e.ToString());
         }
+
+        Events = events;
+        EventsDict = eventsDict;
+        EventEntitiesDict = eventEntitiesDict;
+
+        logger.LogInformation("Loading events - DONE;");
     }
 
     public async Task LoadActiveEvents()
@@ -107,13 +109,14 @@ public class EventService
 
                 pageNumber++;
             }
-            ActiveEvents = activeEvents;
-            logger.LogInformation("Loading active events - DONE;");
         }
         catch (Exception e)
         {
             logger.LogError(e.ToString());
         }
+
+        ActiveEvents = activeEvents;
+        logger.LogInformation("Loading active events - DONE");
     }
 
     public MapSchema? WhereIsEntityActive(string code)
@@ -140,6 +143,24 @@ public class EventService
     public bool IsEntityFromEvent(string code)
     {
         return EventEntitiesDict.GetValueOrNull(code) is not null;
+    }
+
+    async Task NotifyCharactersIfNewEvent(
+        List<ActiveEventSchema> oldEvents,
+        List<ActiveEventSchema> newEvents
+    )
+    {
+        if (oldEvents.Count != newEvents.Count)
+        {
+            logger.LogInformation(
+                $"New active events have been detected - notifying character AIs to evaluate new events"
+            );
+
+            foreach (var characterAi in gameState.CharacterAIs.Where(ai => ai.Enabled))
+            {
+                await characterAi.EvaluateEventsChanged();
+            }
+        }
     }
 
     public bool IsItemFromEventMonster(string code, bool mustBeActive)
