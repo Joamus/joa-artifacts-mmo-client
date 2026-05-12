@@ -114,8 +114,9 @@ public class EventService
         {
             logger.LogError(e.ToString());
         }
-
+        var oldEvents = ActiveEvents;
         ActiveEvents = activeEvents;
+        await NotifyCharactersIfNewEvent(oldEvents, activeEvents);
         logger.LogInformation("Loading active events - DONE");
     }
 

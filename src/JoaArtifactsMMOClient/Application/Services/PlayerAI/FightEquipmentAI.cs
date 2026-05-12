@@ -9,7 +9,7 @@ namespace Application.Services;
 
 public class FightEquipmentAI
 {
-    const int ITEM_LEVEL_BUFFER = 12;
+    const int ITEM_LEVEL_BUFFER = 5;
 
     static List<EquipmentTypeMapping> craftableEquipmentTypes { get; } =
         new List<EquipmentTypeMapping>
@@ -46,8 +46,6 @@ public class FightEquipmentAI
          * the character level. If the average is below 10,
          Look at the lowest level items they have equipped in the "normal" equipment slots
          * - There might not be an item
-         * - If
-         *
         */
 
         var equipmentTypes = GetItemSlotsToUpgrade(character, gameState);
@@ -81,9 +79,7 @@ public class FightEquipmentAI
                 .GetItemsRelevantMonsters(
                     character,
                     gameState,
-                    items
-                        .Select(item => new ItemInInventory { Item = item, Quantity = 100 })
-                        .ToList(),
+                    [.. items.Select(item => new ItemInInventory { Item = item, Quantity = 100 })],
                     false
                 )
                 .ToList();
@@ -103,6 +99,8 @@ public class FightEquipmentAI
                         await character.SmartItemEquip(highestLevelItem, 1);
                     },
                 };
+
+                return job;
             }
         }
 
