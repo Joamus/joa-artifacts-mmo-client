@@ -390,6 +390,15 @@ public class PlayerCharacter
             return result ?? new None();
         }
 
+        if (Jobs.Count > 200)
+        {
+            Logger.LogWarning(
+                $"{GetType().Name}: [{Schema.Name}] - detected job loop - reset all jobs."
+            );
+            Jobs = [];
+            CurrentJob = null;
+        }
+
         return new None();
     }
 

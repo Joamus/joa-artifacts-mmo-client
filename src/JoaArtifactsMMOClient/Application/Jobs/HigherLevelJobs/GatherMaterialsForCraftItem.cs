@@ -55,16 +55,16 @@ public class GatherMaterialsForItem : CharacterJob
 
         if (jobBeforeCraft is not null)
         {
-            Character.QueueJobsAfter(jobBeforeCraft.Id, depositItems.Cast<CharacterJob>().ToList());
+            await Character.QueueJobsAfter(
+                jobBeforeCraft.Id,
+                depositItems.Cast<CharacterJob>().ToList()
+            );
         }
         else
         {
             // This scenario can happen if the character has all of the items in their inventory, at the time of writing this,
             // I think this scenario is caused by a bug
-            foreach (var job in depositItems)
-            {
-                await Character.QueueJob(job);
-            }
+            await Character.QueueJobsAfter(Id, depositItems);
         }
 
         logger.LogInformation(
