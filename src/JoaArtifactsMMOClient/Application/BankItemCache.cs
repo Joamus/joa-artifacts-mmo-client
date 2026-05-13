@@ -99,7 +99,30 @@ public class BankItemCache
         }
     }
 
-    public void CleanupOldReservations() { }
+    public void CleanupOldReservations()
+    {
+        Dictionary<string, List<ItemReservation>> newReservations = reservations
+            .Select(reservation =>
+            {
+                KeyValuePair<string, List<ItemReservation>> result = new KeyValuePair<
+                    string,
+                    List<ItemReservation>
+                >(
+                    reservation.Key,
+                    [
+                        .. reservation.Value.Where(reservation =>
+                            reservation.CreatedAt
+                            > DateTime.Now.AddMinutes(-CLEAN_UP_MINUTE_INTERVAL)
+                        ),
+                    ]
+                );
+
+                return result;
+            })
+            .ToDictionary();
+
+        reservations = newReservations;
+    }
 
     public async Task<BankItemsResponse> GetBankItems(
         PlayerCharacter playerCharacter,
