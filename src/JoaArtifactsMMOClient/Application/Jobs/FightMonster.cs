@@ -80,7 +80,7 @@ public class FightMonster : CharacterJob
         int initialAmount =
             Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
 
-        List<CharacterJob> withdrawItemJobs = await GetWithdrawItemJobsIfBetterItemsInBank(
+        List<WithdrawItem> withdrawItemJobs = await GetWithdrawItemJobsIfBetterItemsInBank(
             Character,
             gameState,
             monster
@@ -91,6 +91,15 @@ public class FightMonster : CharacterJob
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] found {withdrawItemJobs.Count} x jobs to withdraw better items to fight - {string.Join(",", withdrawItemJobs.Select(item => item.Code).ToList())}"
             );
+
+            foreach (var job in withdrawItemJobs)
+            {
+                job.onAfterSuccessEndHook = async () =>
+                {
+                    await Character.PlayerActionService.SmartItemEquip(job.Code, job.Amount);
+                };
+            }
+
             await Character.QueueJobsBefore(Id, withdrawItemJobs);
             Status = JobStatus.Suspend;
             return new None();
@@ -709,13 +718,13 @@ public class FightMonster : CharacterJob
         }
     }
 
-    public static async Task<List<CharacterJob>> GetWithdrawItemJobsIfBetterItemsInBank(
+    public static async Task<List<WithdrawItem>> GetWithdrawItemJobsIfBetterItemsInBank(
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster
     )
     {
-        List<CharacterJob> jobs = [];
+        List<WithdrawItem> jobs = [];
 
         var bankResponse = await gameState.BankItemCache.GetBankItems(character);
 
