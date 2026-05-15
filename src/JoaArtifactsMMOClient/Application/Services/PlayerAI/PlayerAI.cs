@@ -895,6 +895,20 @@ public class PlayerAI
             return await EnsureAccessories();
         }
 
+        /**
+        ** This is a bit of a hack - if an NPC is now available, e.g. fish_merchant, we might have items to sell to them.
+        ** We can expand upon this, to also restock items that we can buy from them, e.g. algae, if we make a job for that (or change RestockResources)
+        */
+        if (Character.Chores.Exists(chore => chore == CharacterChoreKind.SellUnusedItems))
+        {
+            var job = new SellUnusedItems(Character, gameState);
+
+            if (await job.NeedsToBeDone())
+            {
+                return job;
+            }
+        }
+
         return null;
     }
 
