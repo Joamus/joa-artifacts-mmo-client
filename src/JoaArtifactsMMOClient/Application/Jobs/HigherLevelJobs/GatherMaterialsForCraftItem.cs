@@ -303,7 +303,7 @@ public class GatherMaterialsForItem : CharacterJob
                     if (itemInInventory.Value.isEquipped)
                     {
                         await character.UnequipItem(
-                            itemInInventory.Value.inventorySlot.Code,
+                            itemInInventory.Value.inventorySlot.Code.FromPascalToSnakeCase(),
                             itemInInventory.Value.inventorySlot.Quantity
                         );
                     }
