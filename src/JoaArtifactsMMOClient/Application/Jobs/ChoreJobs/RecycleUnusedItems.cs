@@ -162,6 +162,14 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 continue;
             }
 
+            if (
+                lowestCharacterLevel
+                <= Math.Min(matchingItem.Level + RECYCLE_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL)
+            )
+            {
+                continue;
+            }
+
             int amountToRecycle = item.Quantity;
 
             int amountOfCharactersWithWorseItem = 0;
