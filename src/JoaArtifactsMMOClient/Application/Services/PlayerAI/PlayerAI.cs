@@ -831,6 +831,10 @@ public class PlayerAI
     {
         var eventJob = await GetEventJob();
 
+        logger.LogInformation(
+            $"{Character.Name} - events changed, found {eventJob?.Code ?? "n/a"} job for them"
+        );
+
         if (
             eventJob is not null
             && Character.CurrentJob?.Code != eventJob.Code
@@ -838,7 +842,7 @@ public class PlayerAI
         )
         {
             logger.LogInformation(
-                $"{Character.Name} - events changed, found event job with code \"{eventJob.Code}\" - clearing job queue, scheduling this job as highest priority"
+                $"{Character.Name} - assigning job \"{eventJob.Code}\" - clearing job queue, scheduling this job as highest priority"
             );
             Character.ClearJobs();
             await Character.QueueJob(eventJob);

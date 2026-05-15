@@ -274,11 +274,9 @@ public class PlayerCharacter
     {
         Busy = true;
         Jobs = [];
-        if (CurrentJob is not null)
-        {
-            CurrentJob.Interrrupt();
-            CurrentJob = null;
-        }
+
+        CurrentJob?.Interrrupt();
+        CurrentJob = null;
         Busy = false;
     }
 

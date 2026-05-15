@@ -114,9 +114,17 @@ public class EventService
         {
             logger.LogError(e.ToString());
         }
-        var oldEvents = ActiveEvents;
+
+        bool eventsHaveChanged = EventListsAreDifferent(ActiveEvents, activeEvents);
         ActiveEvents = activeEvents;
-        await NotifyCharactersIfNewEvent(oldEvents, activeEvents);
+
+        logger.LogInformation($"Loading active events - events have changed - {eventsHaveChanged}");
+
+        if (eventsHaveChanged)
+        {
+            await NotifyCharactersOnEventChange();
+        }
+
         logger.LogInformation("Loading active events - DONE");
     }
 
@@ -146,21 +154,15 @@ public class EventService
         return EventEntitiesDict.GetValueOrNull(code) is not null;
     }
 
-    async Task NotifyCharactersIfNewEvent(
-        List<ActiveEventSchema> oldEvents,
-        List<ActiveEventSchema> newEvents
-    )
+    async Task NotifyCharactersOnEventChange()
     {
-        if (oldEvents.Count != newEvents.Count)
-        {
-            logger.LogInformation(
-                $"New active events have been detected - notifying character AIs to evaluate new events"
-            );
+        logger.LogInformation(
+            $"New active events have been detected - notifying character AIs to evaluate new events"
+        );
 
-            foreach (var characterAi in gameState.CharacterAIs.Where(ai => ai.Enabled))
-            {
-                await characterAi.EvaluateEventsChanged();
-            }
+        foreach (var characterAi in gameState.CharacterAIs.Where(ai => ai.Enabled))
+        {
+            await characterAi.EvaluateEventsChanged();
         }
     }
 
@@ -191,5 +193,36 @@ public class EventService
         }
 
         return true;
+    }
+
+    public static bool EventListsAreDifferent(
+        List<ActiveEventSchema> oldEvents,
+        List<ActiveEventSchema> newEvents
+    )
+    {
+        if (oldEvents.Count != newEvents.Count)
+        {
+            return true;
+        }
+
+        if (
+            !oldEvents.Exists(oldEvent =>
+                newEvents.Exists(newEvent => oldEvent.Code == newEvent.Code)
+            )
+        )
+        {
+            return true;
+        }
+
+        if (
+            !newEvents.Exists(newEvent =>
+                oldEvents.Exists(oldEvent => newEvent.Code == oldEvent.Code)
+            )
+        )
+        {
+            return true;
+        }
+
+        return false;
     }
 }
