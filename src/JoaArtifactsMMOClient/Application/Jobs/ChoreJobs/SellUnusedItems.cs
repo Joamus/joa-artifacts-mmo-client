@@ -41,8 +41,6 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
         foreach (var npc in npcToItemsDict)
         {
-            await Character.NavigateTo(npc.Key);
-
             bool doneSellingAllItems = false;
 
             while (!doneSellingAllItems)
@@ -171,10 +169,11 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
         var relevantEquipmentFromBank = RecycleUnusedItems.GetRelevantEquipment(
             gameState,
-            bankItems
-                .Data.Select(item => gameState.ItemsDict[item.Code])
-                .Where(item => item.Craft is not null)
-                .ToList()
+            [
+                .. bankItems
+                    .Data.Select(item => gameState.ItemsDict[item.Code])
+                    .Where(item => item.Craft is not null),
+            ]
         );
 
         foreach (var item in bankItems.Data)
@@ -196,12 +195,10 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                 && matchingItem.Level <= lowestCharacterLevel
                 && !relevantEquipmentFromBank.Contains(item.Code);
 
-            if (!IsSellableTrashItem(matchingItem, gameState) || !isEquipmentThatShouldBeSold)
+            if (isEquipmentThatShouldBeSold || IsSellableTrashItem(matchingItem, gameState))
             {
-                continue;
+                items.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
             }
-
-            items.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
         }
 
         return items;
@@ -209,6 +206,11 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
     public static bool IsSellableTrashItem(ItemSchema item, GameState gameState)
     {
+        if (item.Craft is not null)
+        {
+            return false;
+        }
+
         bool canBeSold = gameState.NpcItemsDict.GetValueOrNull(item.Code)?.SellPrice > 0;
 
         if (!canBeSold)
@@ -216,7 +218,18 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             return false;
         }
 
-        return item.Craft is null;
+        if (gameState.CraftingLookupDict.GetValueOrNull(item.Code) is not null)
+        {
+            return false;
+        }
+
+        var isUsedAsCurrency =
+            gameState
+                .NpcItemsDict.FirstOrDefault(npcItem => npcItem.Value.Currency == item.Code)
+                .Value
+                is not null;
+
+        return !isUsedAsCurrency;
     }
 
     public Task<bool> NeedsToBeDone()

@@ -888,7 +888,7 @@ public class ObtainItem : CharacterJob
 
         if (lowestLevelMonster is not null)
         {
-            List<CharacterJob> withdrawItemJobs =
+            List<WithdrawItem> withdrawItemJobs =
                 await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
                     character,
                     gameState,
