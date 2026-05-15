@@ -72,14 +72,15 @@ public class PlayerAI
          *
          *
         */
-        List<ItemSchema> nonCombatArtifacts = gameState
-            .Items.Where(item =>
+        List<ItemSchema> nonCombatArtifacts =
+        [
+            .. gameState.Items.Where(item =>
                 // Don't really care for the seasonal stuff at the moment, but maybe we should
                 item.Type == "artifact"
                 && ItemService.CanUseItem(item, Character.Schema)
                 && !item.Name.Contains("Christmas")
-            )
-            .ToList();
+            ),
+        ];
 
         if (nonCombatArtifacts.Count == 0)
         {
@@ -97,10 +98,10 @@ public class PlayerAI
 
         var bankItemsDict = bankItems.Data.ToDictionary((item) => item.Code);
 
-        foreach (var slot in slots)
+        foreach (var (ItemCode, Slot) in slots)
         {
             // For now, only bother getting artifacts for empty slots. Later on, most artifacts are combat related anyway, so we will automatically find better artifacts then.
-            if (!string.IsNullOrWhiteSpace(slot.ItemCode))
+            if (!string.IsNullOrWhiteSpace(ItemCode))
             {
                 continue;
             }
@@ -116,7 +117,7 @@ public class PlayerAI
                 {
                     await Character.EquipItem(
                         itemInInventory.Value.inventorySlot.Code,
-                        slot.Slot.FromPascalToSnakeCase(),
+                        Slot.FromPascalToSnakeCase(),
                         1
                     );
                     return null;
@@ -126,15 +127,16 @@ public class PlayerAI
 
                 if (matchInBank is not null)
                 {
-                    var withdrawItem = new WithdrawItem(Character, gameState, artifact.Code, 1);
-
-                    withdrawItem.onAfterSuccessEndHook = async () =>
+                    var withdrawItem = new WithdrawItem(Character, gameState, artifact.Code, 1)
                     {
-                        await Character.EquipItem(
-                            artifact.Code,
-                            slot.Slot.FromPascalToSnakeCase(),
-                            1
-                        );
+                        onAfterSuccessEndHook = async () =>
+                        {
+                            await Character.EquipItem(
+                                artifact.Code,
+                                Slot.FromPascalToSnakeCase(),
+                                1
+                            );
+                        },
                     };
 
                     return withdrawItem;
@@ -155,12 +157,15 @@ public class PlayerAI
                     continue;
                 }
 
-                var job = new ObtainOrFindItem(Character, gameState, artifact.Code, 1);
-
-                job.onAfterSuccessEndHook = async () =>
+                var job = new ObtainOrFindItem(Character, gameState, artifact.Code, 1)
                 {
-                    await Character.EquipItem(artifact.Code, slot.Slot.FromPascalToSnakeCase(), 1);
+                    onAfterSuccessEndHook = async () =>
+                    {
+                        await Character.EquipItem(artifact.Code, Slot.FromPascalToSnakeCase(), 1);
+                    },
                 };
+
+                return job;
             }
         }
 
@@ -833,9 +838,10 @@ public class PlayerAI
         )
         {
             logger.LogInformation(
-                $"{Character.Name} - events changed, found event job with code \"{eventJob.Code}\" - queueing as highest priority"
+                $"{Character.Name} - events changed, found event job with code \"{eventJob.Code}\" - clearing job queue, scheduling this job as highest priority"
             );
-            await Character.QueueJob(eventJob, true);
+            Character.ClearJobs();
+            await Character.QueueJob(eventJob);
         }
     }
 
