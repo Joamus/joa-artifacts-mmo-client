@@ -670,7 +670,7 @@ public static class ItemService
             var itemOnCharacter = character.GetEquippedItemOrInInventory(matchingItem.Code);
 
             int amountEquippedOrInInventory = itemOnCharacter.Sum(item =>
-                item.inventorySlot.Quantity
+                item.equipmentSlot.Quantity
             );
 
             int amountAvailable = amountInBank + amountEquippedOrInInventory;
