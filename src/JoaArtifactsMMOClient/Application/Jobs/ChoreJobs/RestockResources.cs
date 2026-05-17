@@ -126,6 +126,11 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
 
                     drops.Sort((a, b) => a.Drop.Rate - b.Drop.Rate);
 
+                    if (drops.Count == 0)
+                    {
+                        return new DropSchema { Code = code, Quantity = 0 };
+                    }
+
                     var bestDrop = drops.First();
 
                     int amountInBank = bankItemsDict.GetValueOrNull(code)?.Quantity ?? 0;
