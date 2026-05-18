@@ -100,6 +100,9 @@ public class GameState
         // Just reload achievements for now, for things that are limited by achievements
         await LoadAccountAchievements();
         await EventService.LoadActiveEvents();
+        // Loading these for when events update
+        await LoadNpcs();
+        await LoadMonsters();
     }
 
     public async Task LoadCharacters(List<CharacterConfig> characterConfigs)
