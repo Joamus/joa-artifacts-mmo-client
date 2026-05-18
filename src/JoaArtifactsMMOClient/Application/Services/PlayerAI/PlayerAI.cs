@@ -51,7 +51,8 @@ public class PlayerAI
         await ClaimPendingItems();
 
         var job =
-            await EnsureWeapon()
+            await EnsureAccessories()
+            ?? await EnsureWeapon()
             ?? await EnsureTools()
             ?? await GetEventJob()
             ?? await GetChoreJob()
@@ -190,7 +191,7 @@ public class PlayerAI
 
                 /**
                 ** TODO: This is very rudimentary artifact logic - we for now just want unique non-combat artifacts,
-                ** hoping that it will give us well-banaced characters. In the future, we should optimize for having
+                ** hoping that it will give us well-balanced characters. In the future, we should optimize for having
                 ** the best possible non-combat artifacts for specific jobs.
                 */
                 if (slots.Exists(slot => slot.ItemCode == artifact.Code))
