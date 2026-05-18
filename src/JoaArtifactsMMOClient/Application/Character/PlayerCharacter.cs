@@ -28,6 +28,9 @@ public class PlayerCharacter
     public static readonly int MAX_LEVEL = 50;
 
     [JsonIgnore]
+    public static readonly int MAX_INVENTORY_SLOTS = 20;
+
+    [JsonIgnore]
     public static readonly int PREFERED_FOOD_LEVEL_DIFFERENCE = 5;
 
     // If on cooldown, but not expected, just wait 5 seconds
@@ -645,6 +648,28 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
+    public async Task ClaimPendingItem(string id)
+    {
+        await PreTaskHandler();
+
+        var response = await ApiRequester.PostAsync(
+            $"/my/{Schema.Name}/action/claim_item/{id}",
+            null
+        );
+
+        var content = await response.Content.ReadAsStringAsync();
+
+        GameState.BankItemCache.shouldRequestAgain = true;
+
+        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
+            content,
+            ApiRequester.getJsonOptions()
+        )!;
+        PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+
+        GameState.ShouldUpdatePendingItems = true;
+    }
+
     public async Task DepositBankItem(List<WithdrawOrDepositItemRequest> depositItems)
     {
         await PreTaskHandler();
@@ -1111,7 +1136,7 @@ public class PlayerCharacter
         return inventorySpaceUsed;
     }
 
-    public int GetInventorySpaceLeft()
+    public int GetAvailableInventorySpace()
     {
         int inventorySpaceUsed = GetInventorySpaceUsed();
 
@@ -1179,5 +1204,42 @@ public class PlayerCharacter
         var value = (int)prop!.GetValue(Schema)!;
 
         return value;
+    }
+
+    public int GetAvailableInventorySlots()
+    {
+        return Schema.Inventory.Count((item) => string.IsNullOrWhiteSpace(item.Code));
+    }
+
+    // public async Task<int> GetMoneyAllowedToWithdraw()
+    // {
+    //     var result = await GameState.AccountRequester.GetBankDetails();
+
+    //     var expansionCost = result.Data.NextExpansionCost;
+
+    //     var goldInBank = result.Data.Gold;
+
+    //     return 0;
+    // }
+
+    // public async Task<WithdrawGold?> GetWithdrawGoldJobIfNeed(int totalAmountNeeded) { }
+
+    public static int GetAllowedBudget(GameState gameState, int goldInBank, int nextExpansionCost)
+    {
+        int goldAllCharacters = gameState.Characters.Sum(character => character.Schema.Gold);
+
+        int goldInTotal = goldAllCharacters + goldInBank;
+
+        if (nextExpansionCost >= goldInTotal)
+        {
+            return 0;
+        }
+
+        /**
+        ** As long as we can afford the next bank expansion, we can spend whatever gold we want.
+        ** We could potentially make this more advanced, e.g. if we have 60% of the gold needed for the next expansion,
+        ** then our characters can spend everything above that.
+        */
+        return (goldAllCharacters - nextExpansionCost) / gameState.Characters.Count;
     }
 }

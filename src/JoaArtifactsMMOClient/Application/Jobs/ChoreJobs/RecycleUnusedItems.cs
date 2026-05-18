@@ -64,7 +64,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 // Iterations like this is good enough for now, we could be more accurate
                 List<int> iterations = ObtainItem.CalculateObtainItemIterations(
                     matchingItem,
-                    Character.GetInventorySpaceLeft(),
+                    Character.GetAvailableInventorySpace(),
                     item.Quantity
                 );
 

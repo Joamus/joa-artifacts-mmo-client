@@ -114,7 +114,10 @@ public class ItemTask : CharacterJob
 
             int amountInInventory = Character.GetItemFromInventory(itemCode)?.Quantity ?? 0;
 
-            int amountToObtain = Math.Min(Character.GetInventorySpaceLeft() - 1, remainingToGather);
+            int amountToObtain = Math.Min(
+                Character.GetAvailableInventorySpace() - 1,
+                remainingToGather
+            );
 
             if (amountInInventory >= amountToObtain)
             {
@@ -151,7 +154,7 @@ public class ItemTask : CharacterJob
 
                 List<int> iterations = ObtainItem.CalculateObtainItemIterations(
                     matchingItem,
-                    Character.GetInventorySpaceLeft(),
+                    Character.GetAvailableInventorySpace(),
                     amountToObtain
                 );
 

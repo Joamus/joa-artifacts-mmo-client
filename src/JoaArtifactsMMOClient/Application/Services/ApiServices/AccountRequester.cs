@@ -76,6 +76,18 @@ public class AccountRequester
         return JsonSerializer.Deserialize<MonstersResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
+    public async Task<PendingItemsResponse> GetPendingItems(int pageNumber = 1)
+    {
+        var response = await _apiService.GetAsync($"/my/pending-items?page={pageNumber}");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<PendingItemsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
     public async Task<MapsResponse> GetMaps(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync(

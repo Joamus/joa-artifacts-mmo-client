@@ -478,7 +478,7 @@ public class FightMonster : CharacterJob
             )
             {
                 int amountToUnequip = Math.Min(
-                    Character.GetInventorySpaceLeft() - 5,
+                    Character.GetAvailableInventorySpace() - 5,
                     utility.Amount
                 );
 
@@ -682,7 +682,7 @@ public class FightMonster : CharacterJob
 
     public static int GetFoodAmountToObtain(PlayerCharacter character, int? amountToKill)
     {
-        int maxAmount = character.GetInventorySpaceLeft() / 3;
+        int maxAmount = character.GetAvailableInventorySpace() / 3;
 
         if (amountToKill is not null)
         {

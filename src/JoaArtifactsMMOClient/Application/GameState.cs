@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
@@ -22,6 +23,10 @@ public class GameState
     public List<PlayerCharacter> Characters { get; private set; } = [];
     public List<PlayerAI> CharacterAIs { get; private set; } = [];
     public List<ItemSchema> Items { get; set; } = [];
+    List<PendingItemSchema> PendingItems { get; set; } = [];
+
+    public bool ShouldUpdatePendingItems { get; set; } = false;
+
     public List<TasksFullSchema> Tasks { get; set; } = [];
 
     public CharacterChoreService ChoreService { get; set; }
@@ -78,6 +83,7 @@ public class GameState
         await LoadNpcItems();
         await LoadResources();
         await LoadMonsters();
+        await LoadPendingItems();
         await LoadAccountAchievements();
         await LoadTasksList();
         await EventService.LoadEvents();
@@ -99,10 +105,13 @@ public class GameState
 
         // Just reload achievements for now, for things that are limited by achievements
         await LoadAccountAchievements();
+        await LoadMaps();
+        AvailableMonsters = GetAvailableMonsters(Monsters);
+        AvailableMonstersDict = Monsters.ToDictionary(monster => monster.Code);
+        AvailableNpcs = GetAvailableNpcs(Npcs);
+
         await EventService.LoadActiveEvents();
         // Loading these for when events update
-        await LoadNpcs();
-        await LoadMonsters();
     }
 
     public async Task LoadCharacters(List<CharacterConfig> characterConfigs)
@@ -312,7 +321,6 @@ public class GameState
         logger.LogInformation("Loading NPCs...");
         bool doneLoading = false;
         List<NpcSchema> npcs = [];
-        List<NpcSchema> availableNpcs = [];
         int pageNumber = 1;
 
         while (!doneLoading)
@@ -332,21 +340,35 @@ public class GameState
             pageNumber++;
         }
 
-        foreach (var npc in npcs)
-        {
-            var mapForNpc = Maps.Exists(map =>
-                map.Interactions.Content?.Code == npc.Code
-                && !NavigationService.UnavailableIslands.Contains(map.Name)
-            );
-
-            if (mapForNpc)
-            {
-                availableNpcs.Add(npc);
-            }
-        }
         Npcs = npcs;
-        AvailableNpcs = availableNpcs;
+        AvailableNpcs = GetAvailableNpcs(npcs);
         logger.LogInformation("Loading NPCs - DONE;");
+    }
+
+    private List<NpcSchema> GetAvailableNpcs(List<NpcSchema> npcs)
+    {
+        return
+        [
+            .. npcs.Where(npc =>
+                Maps.Exists(map =>
+                    map.Interactions.Content?.Code == npc.Code
+                    && !NavigationService.UnavailableIslands.Contains(map.Name)
+                )
+            ),
+        ];
+    }
+
+    private List<MonsterSchema> GetAvailableMonsters(List<MonsterSchema> monsters)
+    {
+        return
+        [
+            .. monsters.Where(monster =>
+                Maps.Exists(map =>
+                    map.Interactions.Content?.Code == monster.Code
+                    && !NavigationService.UnavailableIslands.Contains(map.Name)
+                )
+            ),
+        ];
     }
 
     public async Task LoadAccountAchievements()
@@ -391,9 +413,7 @@ public class GameState
         logger.LogInformation("Loading monsters...");
         bool doneLoading = false;
         List<MonsterSchema> monsters = [];
-        List<MonsterSchema> availableMonsters = [];
         Dictionary<string, MonsterSchema> monstersDict = [];
-        Dictionary<string, MonsterSchema> availableMonstersDict = [];
         int pageNumber = 1;
 
         while (!doneLoading)
@@ -415,24 +435,48 @@ public class GameState
             pageNumber++;
         }
 
-        foreach (var monster in monsters)
-        {
-            var mapForMonster = Maps.Exists(map =>
-                map.Interactions.Content?.Code == monster.Code
-                && !NavigationService.UnavailableIslands.Contains(map.Name)
-            );
-
-            if (mapForMonster)
-            {
-                availableMonsters.Add(monster);
-                availableMonstersDict.Add(monster.Code, monster);
-            }
-        }
-
         Monsters = monsters;
         MonstersDict = monstersDict;
-        AvailableMonsters = availableMonsters;
-        AvailableMonstersDict = availableMonstersDict;
+        AvailableMonsters = GetAvailableMonsters(monsters);
+        AvailableMonstersDict = AvailableMonsters.ToDictionary(monster => monster.Code);
         logger.LogInformation("Loading monsters - DONE;");
+    }
+
+    async Task LoadPendingItems()
+    {
+        logger.LogInformation("Loading pending items...");
+        bool doneLoading = false;
+        List<PendingItemSchema> pendingItems = [];
+        int pageNumber = 1;
+
+        while (!doneLoading)
+        {
+            var result = await AccountRequester.GetPendingItems(pageNumber);
+
+            foreach (var pendingItem in result.Data)
+            {
+                pendingItems.Add(pendingItem);
+            }
+
+            if (result.Data.Count == 0)
+            {
+                doneLoading = true;
+            }
+
+            pageNumber++;
+        }
+
+        PendingItems = pendingItems;
+        logger.LogInformation("Loading pending items - DONE;");
+    }
+
+    public async Task<ReadOnlyCollection<PendingItemSchema>> GetPendingItems()
+    {
+        if (ShouldUpdatePendingItems)
+        {
+            await LoadPendingItems();
+        }
+
+        return PendingItems.AsReadOnly();
     }
 }

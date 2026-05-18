@@ -7,6 +7,7 @@ using Application.Jobs;
 using Application.Jobs.Chores;
 using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
+using Microsoft.Extensions.ObjectPool;
 using Microsoft.OpenApi.Extensions;
 
 namespace Application.Services;
@@ -46,6 +47,9 @@ public class PlayerAI
             )
                 is not null;
 
+        // Claim all the items that you can
+        await ClaimPendingItems();
+
         var job =
             await EnsureWeapon()
             ?? await EnsureTools()
@@ -60,6 +64,43 @@ public class PlayerAI
 
         logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName}");
         return job!;
+    }
+
+    async Task ClaimPendingItems()
+    {
+        bool canClaimItems = true;
+
+        while (canClaimItems)
+        {
+            var pendingItems = await gameState.GetPendingItems();
+
+            var itemWeCanClaim = pendingItems.FirstOrDefault(pendingItem =>
+            {
+                int slotsNeeded = 0;
+                int spaceNeeded = 0;
+
+                foreach (var item in pendingItem.Items)
+                {
+                    slotsNeeded++;
+                    spaceNeeded += item.Quantity;
+                }
+
+                return Character.GetAvailableInventorySpace() > spaceNeeded
+                    && Character.GetAvailableInventorySlots() >= slotsNeeded;
+            });
+
+            if (itemWeCanClaim is not null)
+            {
+                logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: Can claim item {itemWeCanClaim.Id} - description: {itemWeCanClaim.Description}"
+                );
+                await Character.ClaimPendingItem(itemWeCanClaim.Id);
+            }
+            else
+            {
+                canClaimItems = false;
+            }
+        }
     }
 
     async Task<CharacterJob?> EnsureAccessories()
@@ -829,23 +870,25 @@ public class PlayerAI
 
     public async Task EvaluateEventsChanged()
     {
-        var eventJob = await GetEventJob();
+        var nextJob = await GetNextJob();
 
         logger.LogInformation(
-            $"{Character.Name} - events changed, found {eventJob?.Code ?? "n/a"} job for them"
+            $"{Character.Name} - events changed, found {nextJob?.Code ?? "n/a"} x ${nextJob?.Amount} job for them"
         );
 
         if (
-            eventJob is not null
-            && Character.CurrentJob?.Code != eventJob.Code
-            && !Character.Jobs.Exists(job => job.Code == eventJob.Code)
+            nextJob is not null
+            && Character.CurrentJob?.Code != nextJob.Code
+            && !Character.Jobs.Exists(job =>
+                job.Code == nextJob.Code || job.ParentJob?.Code == nextJob.Code
+            )
         )
         {
             logger.LogInformation(
-                $"{Character.Name} - assigning job \"{eventJob.Code}\" - clearing job queue, scheduling this job as highest priority"
+                $"{Character.Name} - assigning job \"{nextJob.Code}\" - clearing job queue, scheduling this job as highest priority"
             );
             Character.ClearJobs();
-            await Character.QueueJob(eventJob);
+            await Character.QueueJob(nextJob);
         }
     }
 

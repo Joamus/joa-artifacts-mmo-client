@@ -476,11 +476,11 @@ public class PlayerActionService
 
     public async Task DepositPotions(int utilitySlot, string itemCode, int amount)
     {
-        int amountToUnequip = Math.Min(character.GetInventorySpaceLeft() - 5, amount);
+        int amountToUnequip = Math.Min(character.GetAvailableInventorySpace() - 5, amount);
 
         while (amountToUnequip > 0)
         {
-            int amountToDeposit = Math.Min(character.GetInventorySpaceLeft(), amountToUnequip);
+            int amountToDeposit = Math.Min(character.GetAvailableInventorySpace(), amountToUnequip);
 
             if (amountToDeposit == 0)
             {
@@ -525,7 +525,7 @@ public class PlayerActionService
 
         if (await CancelTaskJob.ShouldCancelTask(gameState, itemFromTask))
         {
-           return false; 
+            return false;
         }
 
         return await CanObtainItem(

@@ -61,7 +61,7 @@ public class ObtainSuitablePotions : CharacterJob
     public static int GetPotionsToObtain(PlayerCharacter character)
     {
         // We want to ensure that we don't fill our inventory
-        int inventorySpaceLeft = character.GetInventorySpaceLeft();
+        int inventorySpaceLeft = character.GetAvailableInventorySpace();
 
         return Math.Min(
             PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
@@ -263,7 +263,7 @@ public class ObtainSuitablePotions : CharacterJob
             if (potion.amountInBank > 0)
             {
                 var amount = Math.Min(
-                    character.GetInventorySpaceLeft() - 1,
+                    character.GetAvailableInventorySpace() - 1,
                     Math.Min(preferedAmount, potion.amountInBank)
                 );
 

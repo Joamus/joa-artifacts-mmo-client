@@ -66,7 +66,7 @@ public class WithdrawItem : CharacterJob
         }
 
         if (
-            Character.GetInventorySpaceLeft() <= foundQuantity
+            Character.GetAvailableInventorySpace() <= foundQuantity
             || Character.Schema.Inventory.Count(item => string.IsNullOrWhiteSpace(item.Code)) < 1
         )
         {
