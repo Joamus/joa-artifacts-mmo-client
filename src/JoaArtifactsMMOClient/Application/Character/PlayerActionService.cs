@@ -523,6 +523,11 @@ public class PlayerActionService
 
         ItemSchema itemFromTask = gameState.ItemsDict[character.Schema.Task];
 
+        if (await CancelTaskJob.ShouldCancelTask(gameState, itemFromTask))
+        {
+           return false; 
+        }
+
         return await CanObtainItem(
             itemFromTask,
             character.Schema.TaskTotal - character.Schema.TaskProgress

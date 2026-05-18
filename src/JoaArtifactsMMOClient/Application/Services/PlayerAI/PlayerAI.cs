@@ -602,9 +602,9 @@ public class PlayerAI
             }
             else
             {
-                if (await CancelTask.CanCancelTask(Character, gameState))
+                if (await CancelTaskJob.CanCancelTask(Character, gameState))
                 {
-                    return new CancelTask(Character, gameState);
+                    return new CancelTaskJob(Character, gameState);
                 }
             }
         }

@@ -1,3 +1,4 @@
+using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
 using Application.Dtos;
@@ -9,9 +10,9 @@ using OneOf.Types;
 
 namespace Application.Jobs;
 
-public class CancelTask : CharacterJob
+public class CancelTaskJob : CharacterJob
 {
-    public CancelTask(PlayerCharacter playerCharacter, GameState gameState)
+    public CancelTaskJob(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -84,10 +85,10 @@ public class CancelTask : CharacterJob
         return new None();
     }
 
-    public static async Task<bool> CanCancelTask(PlayerCharacter Character, GameState gameState)
+    public static async Task<bool> CanCancelTask(PlayerCharacter character, GameState gameState)
     {
         int tasksCoinsInInventory =
-            Character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
+            character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
 
         if (tasksCoinsInInventory >= ItemService.CancelTaskPrice)
         {
@@ -95,10 +96,29 @@ public class CancelTask : CharacterJob
         }
 
         int tasksCoinsInBank =
-            (await gameState.BankItemCache.GetBankItems(Character))
+            (await gameState.BankItemCache.GetBankItems(character))
                 .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                 ?.Quantity ?? 0;
 
         return tasksCoinsInInventory + tasksCoinsInBank > ItemService.CancelTaskPrice;
+    }
+    
+    public static async Task<bool> ShouldCancelTask(GameState gameState, ItemSchema item)
+    {
+        /**
+        ** If the item is an event item, e.g. strange_ore, we want to cancel it if we have the tasks coins for it.
+        ** In the worst case scenario, we might not have the coins, but let's fake not being able to do it.
+        */
+        // 
+        // 
+        return gameState.EventService.IsEntityFromEvent(item.Code);
+        // if (gameState.EventService.IsEntityFromEvent(item.Code))
+        // {
+        //     return await CanCancelTask(character, gameState);
+        // } else
+        // {
+        //     return false;
+        // }
+
     }
 }
