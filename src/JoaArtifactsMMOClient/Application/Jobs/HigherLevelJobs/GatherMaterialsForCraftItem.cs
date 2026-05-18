@@ -292,7 +292,7 @@ public class GatherMaterialsForItem : CharacterJob
             {
                 var result = character.GetEquippedItemOrInInventory(matchingItem.Code);
 
-                (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+                (EquipmentSlot inventorySlot, bool isEquipped)? itemInInventory =
                     result.Count > 0 ? result.ElementAt(0)! : null;
 
                 int amountToObtain = craftIngredient.Quantity * itemQuantity;
@@ -303,7 +303,7 @@ public class GatherMaterialsForItem : CharacterJob
                     if (itemInInventory.Value.isEquipped)
                     {
                         await character.UnequipItem(
-                            itemInInventory.Value.inventorySlot.Code.FromPascalToSnakeCase(),
+                            itemInInventory.Value.inventorySlot.Slot.FromPascalToSnakeCase(),
                             itemInInventory.Value.inventorySlot.Quantity
                         );
                     }

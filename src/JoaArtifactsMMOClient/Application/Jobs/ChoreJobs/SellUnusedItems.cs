@@ -12,6 +12,8 @@ namespace Application.Jobs;
 
 public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 {
+    public const int SELL_LEVEL_DIFF = 10;
+
     public SellUnusedItems(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
@@ -22,6 +24,11 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] running - found {items.Count} different items to deposit"
         );
+
+        if (items.Count == 0)
+        {
+            return new None();
+        }
 
         Dictionary<string, List<DropSchema>> npcToItemsDict = [];
 
@@ -189,6 +196,14 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
+            if (
+                lowestCharacterLevel
+                <= Math.Min(matchingItem.Level + SELL_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL)
+            )
+            {
+                continue;
+            }
+
             bool isEquipmentThatShouldBeSold =
                 matchingItem.Craft is not null
                 && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
@@ -232,8 +247,10 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
         return !isUsedAsCurrency;
     }
 
-    public Task<bool> NeedsToBeDone()
+    public async Task<bool> NeedsToBeDone()
     {
-        return Task.FromResult(true);
+        List<DropSchema> items = await GetItemsToSell();
+
+        return items.Count > 0;
     }
 }

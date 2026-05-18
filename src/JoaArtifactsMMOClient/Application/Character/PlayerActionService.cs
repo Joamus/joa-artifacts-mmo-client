@@ -419,7 +419,7 @@ public class PlayerActionService
 
             var result = character.GetEquippedItemOrInInventory(item.Code);
 
-            (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+            (EquipmentSlot inventorySlot, bool isEquipped)? itemInInventory =
                 result.Count > 0 ? result.ElementAt(0)! : null;
 
             int amountToObtain = item.Quantity;

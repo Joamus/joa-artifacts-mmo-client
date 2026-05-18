@@ -1015,44 +1015,44 @@ public class PlayerCharacter
         return items;
     }
 
-    public List<InventorySlot> GetAllItemSlots()
+    public List<EquipmentSlot> GetAllEquipmentSlots()
     {
-        List<InventorySlot> itemSlots =
+        List<EquipmentSlot> itemSlots =
         [
-            new InventorySlot { Code = Schema.WeaponSlot, Quantity = 1 },
-            new InventorySlot { Code = Schema.RuneSlot, Quantity = 1 },
-            new InventorySlot { Code = Schema.ShieldSlot, Quantity = 1 },
-            new InventorySlot { Code = Schema.HelmetSlot, Quantity = 1 },
-            new InventorySlot { Code = Schema.BodyArmorSlot, Quantity = 1 },
-            new InventorySlot { Code = Schema.LegArmorSlot, Quantity = 1 },
-            new InventorySlot { Code = Schema.BootsSlot, Quantity = 1 },
-            new InventorySlot { Code = Schema.Ring1Slot, Quantity = 1 },
-            new InventorySlot { Code = Schema.Ring2Slot, Quantity = 1 },
-            new InventorySlot { Code = Schema.AmuletSlot, Quantity = 1 },
-            new InventorySlot { Code = Schema.Artifact1Slot, Quantity = 1 },
-            new InventorySlot { Code = Schema.Artifact2Slot, Quantity = 1 },
-            new InventorySlot { Code = Schema.Artifact3Slot, Quantity = 1 },
-            new InventorySlot
+            new EquipmentSlot { Slot = Schema.WeaponSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.RuneSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.ShieldSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.HelmetSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.BodyArmorSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.LegArmorSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.BootsSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.Ring1Slot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.Ring2Slot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.AmuletSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.Artifact1Slot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.Artifact2Slot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.Artifact3Slot, Quantity = 1 },
+            new EquipmentSlot
             {
-                Code = Schema.Utility1Slot,
+                Slot = Schema.Utility1Slot,
                 Quantity = Schema.Utility1SlotQuantity,
             },
-            new InventorySlot
+            new EquipmentSlot
             {
-                Code = Schema.Utility2Slot,
+                Slot = Schema.Utility2Slot,
                 Quantity = Schema.Utility2SlotQuantity,
             },
-            new InventorySlot { Code = Schema.BagSlot, Quantity = 1 },
+            new EquipmentSlot { Slot = Schema.BagSlot, Quantity = 1 },
         ];
 
         return itemSlots;
     }
 
-    public List<InventorySlot> GetEquippedItem(string itemCode)
+    public List<EquipmentSlot> GetEquippedItem(string itemCode)
     {
-        List<InventorySlot> itemSlots = [];
+        List<EquipmentSlot> itemSlots = [];
 
-        foreach (var slot in GetAllItemSlots())
+        foreach (var slot in GetAllEquipmentSlots())
         {
             if (slot.Code == itemCode)
             {
@@ -1063,11 +1063,11 @@ public class PlayerCharacter
         return itemSlots;
     }
 
-    public List<(InventorySlot inventorySlot, bool isEquipped)> GetEquippedItemOrInInventory(
+    public List<(EquipmentSlot equipmentSlot, bool isEquipped)> GetEquippedItemOrInInventory(
         string itemCode
     )
     {
-        List<(InventorySlot inventorySlot, bool isEquipped)> allItems = [];
+        List<(EquipmentSlot equipmentSlot, bool isEquipped)> allItems = [];
 
         var equippedItems = GetEquippedItem(itemCode);
 
@@ -1080,7 +1080,17 @@ public class PlayerCharacter
 
         if (itemInInventory is not null)
         {
-            allItems.Add((itemInInventory, false));
+            allItems.Add(
+                (
+                    new EquipmentSlot
+                    {
+                        Code = itemInInventory.Code,
+                        Quantity = itemInInventory.Quantity,
+                        Slot = "",
+                    },
+                    false
+                )
+            );
         }
 
         return allItems;

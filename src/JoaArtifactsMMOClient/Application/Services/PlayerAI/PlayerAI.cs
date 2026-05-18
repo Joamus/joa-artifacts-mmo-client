@@ -110,7 +110,7 @@ public class PlayerAI
             {
                 var result = Character.GetEquippedItemOrInInventory(artifact.Code);
 
-                (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+                (EquipmentSlot inventorySlot, bool isEquipped)? itemInInventory =
                     result.Count > 0 ? result.ElementAt(0)! : null;
 
                 if (itemInInventory is not null && !itemInInventory.Value.isEquipped)
@@ -120,7 +120,7 @@ public class PlayerAI
                         Slot.FromPascalToSnakeCase(),
                         1
                     );
-                    return null;
+                    continue;
                 }
 
                 var matchInBank = bankItemsDict.GetValueOrNull(artifact.Code);
@@ -222,7 +222,7 @@ public class PlayerAI
 
             var result = Character.GetEquippedItemOrInInventory(item.Code);
 
-            (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+            (EquipmentSlot inventorySlot, bool isEquipped)? itemInInventory =
                 result.Count > 0 ? result.ElementAt(0)! : null;
 
             if (itemInInventory is not null)
@@ -372,7 +372,7 @@ public class PlayerAI
         {
             var result = Character.GetEquippedItemOrInInventory(tool.Code);
 
-            (InventorySlot inventorySlot, bool isEquipped)? itemInInventory =
+            (EquipmentSlot inventorySlot, bool isEquipped)? itemInInventory =
                 result.Count > 0 ? result.ElementAt(0)! : null;
 
             if (itemInInventory is not null)
