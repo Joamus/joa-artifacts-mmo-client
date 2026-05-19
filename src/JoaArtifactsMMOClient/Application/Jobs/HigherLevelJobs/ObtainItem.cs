@@ -988,12 +988,26 @@ public class ObtainItem : CharacterJob
             );
         }
 
+        var npcIsAccessible = gameState.AvailableNpcs.Exists(npc =>
+            npc.Code == matchingNpcItem.Npc
+        );
+
+        if (!npcIsAccessible)
+        {
+            return new AppError(
+                $"NPC \"{matchingNpcItem.Code}\" is not accessible",
+                ErrorStatus.Undefined
+            );
+        }
+
         int amountOfCurrency =
             matchingNpcItem.Currency == "gold"
                 ? character.Schema.Gold
                 : character.GetItemFromInventory(matchingNpcItem.Currency)?.Quantity ?? 0;
 
-        if (matchingNpcItem.Currency == "gold" && matchingNpcItem.BuyPrice > amountOfCurrency)
+        int neededCurrency = (int)matchingNpcItem.BuyPrice * requiredAmount;
+
+        if (matchingNpcItem.Currency == "gold" && neededCurrency > amountOfCurrency)
         {
             return new AppError(
                 $"Matching item costs more gold than the character currently has - cannot obtain",
@@ -1001,13 +1015,38 @@ public class ObtainItem : CharacterJob
             );
         }
 
-        int neededCurrency = (int)matchingNpcItem.BuyPrice * requiredAmount;
-
         if (amountOfCurrency < neededCurrency)
         {
             bool canObtainCurrencyFromMonsters = true;
 
-            if (matchingNpcItem.Currency != "gold")
+            var amountInBank =
+                itemsInBank.FirstOrDefault(item => item.Code == matchingNpcItem.Currency)?.Quantity
+                ?? 0;
+
+            if (amountInBank > 0)
+            {
+                int amountToWithdraw =
+                    amountInBank >= neededCurrency ? neededCurrency : amountInBank;
+
+                jobs.Add(
+                    new WithdrawItem(
+                        character,
+                        gameState,
+                        matchingNpcItem.Currency,
+                        amountToWithdraw
+                    )
+                );
+
+                neededCurrency -= amountToWithdraw;
+
+                if (neededCurrency < 0)
+                {
+                    // Should not happen
+                    neededCurrency = 0;
+                }
+            }
+
+            if (matchingNpcItem.Currency != "gold" && neededCurrency > 0)
             {
                 var monstersThatDropCurrency = gameState.AvailableMonsters.FindAll(monster =>
                     monster.Drops.Exists(drop => drop.Code == matchingNpcItem.Currency)
@@ -1042,26 +1081,17 @@ public class ObtainItem : CharacterJob
                 );
             }
 
-            jobs.Add(
-                new ObtainOrFindItem(
-                    character,
-                    gameState,
-                    matchingNpcItem.Currency,
-                    neededCurrency - amountOfCurrency
-                )
-            );
-        }
-
-        var npcIsAccessible = gameState.AvailableNpcs.Exists(npc =>
-            npc.Code == matchingNpcItem.Npc
-        );
-
-        if (!npcIsAccessible)
-        {
-            return new AppError(
-                $"NPC \"{matchingNpcItem.Code}\" is not accessible",
-                ErrorStatus.Undefined
-            );
+            if (neededCurrency > 0)
+            {
+                jobs.Add(
+                    new ObtainOrFindItem(
+                        character,
+                        gameState,
+                        matchingNpcItem.Currency,
+                        neededCurrency - amountOfCurrency
+                    )
+                );
+            }
         }
 
         jobs.Add(
