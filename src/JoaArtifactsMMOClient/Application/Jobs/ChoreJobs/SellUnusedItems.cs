@@ -62,7 +62,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                     }
 
                     int amountToWithdraw = Math.Min(
-                        Character.GetInventorySpaceLeft(),
+                        Character.GetAvailableInventorySpace(),
                         item.Quantity
                     );
 
@@ -86,7 +86,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
                     item.Quantity -= amountToWithdraw;
 
-                    if (Character.GetInventorySpaceLeft() == 0)
+                    if (Character.GetAvailableInventorySpace() == 0)
                     {
                         await SellAllItemsToNpc(npc.Key);
                     }
@@ -221,7 +221,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
     public static bool IsSellableTrashItem(ItemSchema item, GameState gameState)
     {
-        if (item.Craft is not null)
+        if (item.Craft is not null || item.Type != "resource")
         {
             return false;
         }

@@ -648,7 +648,7 @@ public class ObtainItem : CharacterJob
             matchingItem,
             ignoreInventoryFull
                 ? character.Schema.InventoryMaxItems
-                : character.GetInventorySpaceLeft(),
+                : character.GetAvailableInventorySpace(),
             requiredAmount
         );
 

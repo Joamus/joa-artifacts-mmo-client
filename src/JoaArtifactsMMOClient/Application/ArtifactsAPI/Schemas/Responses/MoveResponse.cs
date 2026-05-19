@@ -1,6 +1,6 @@
 namespace Application.ArtifactsApi.Schemas.Responses;
 
-public record MoveResponse
+public record MoveResponse : PaginatedResult
 {
     public MoveResponseData Data { get; set; }
 }
