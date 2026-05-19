@@ -1044,30 +1044,102 @@ public class PlayerCharacter
     {
         List<EquipmentSlot> itemSlots =
         [
-            new EquipmentSlot { Slot = Schema.WeaponSlot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.RuneSlot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.ShieldSlot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.HelmetSlot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.BodyArmorSlot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.LegArmorSlot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.BootsSlot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.Ring1Slot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.Ring2Slot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.AmuletSlot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.Artifact1Slot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.Artifact2Slot, Quantity = 1 },
-            new EquipmentSlot { Slot = Schema.Artifact3Slot, Quantity = 1 },
             new EquipmentSlot
             {
-                Slot = Schema.Utility1Slot,
+                Code = Schema.WeaponSlot,
+                Slot = "weapon",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.RuneSlot,
+                Slot = "rune",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.ShieldSlot,
+                Slot = "shield",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.HelmetSlot,
+                Slot = "helmet",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.BodyArmorSlot,
+                Slot = "body_armor",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.LegArmorSlot,
+                Slot = "leg_armor",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.BootsSlot,
+                Slot = "boots",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.Ring1Slot,
+                Slot = "ring1",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.Ring2Slot,
+                Slot = "ring2",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.AmuletSlot,
+                Slot = "amulet",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.Artifact1Slot,
+                Slot = "artifact1",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.Artifact2Slot,
+                Slot = "artifact2",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.Artifact3Slot,
+                Slot = "artifact3",
+                Quantity = 1,
+            },
+            new EquipmentSlot
+            {
+                Code = Schema.Utility1Slot,
+                Slot = "utility1",
                 Quantity = Schema.Utility1SlotQuantity,
             },
             new EquipmentSlot
             {
-                Slot = Schema.Utility2Slot,
+                Code = Schema.Utility2Slot,
+                Slot = "utility2",
                 Quantity = Schema.Utility2SlotQuantity,
             },
-            new EquipmentSlot { Slot = Schema.BagSlot, Quantity = 1 },
+            new EquipmentSlot
+            {
+                Code = Schema.BagSlot,
+                Slot = "bag",
+                Quantity = 1,
+            },
         ];
 
         return itemSlots;

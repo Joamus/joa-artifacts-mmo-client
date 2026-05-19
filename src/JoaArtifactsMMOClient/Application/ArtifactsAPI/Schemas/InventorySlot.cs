@@ -9,9 +9,9 @@ public record InventorySlot
 
 public record EquipmentSlot
 {
-    public string Slot { get; set; } = "";
+    public required string Slot { get; set; }
 
-    public string Code { get; set; } = "";
+    public required string Code { get; set; }
 
-    public int Quantity { get; set; }
+    public required int Quantity { get; set; }
 }
