@@ -131,9 +131,9 @@ public class PlayerAI
 
         List<(string ItemCode, string Slot)> slots =
         [
-            (Character.Schema.Artifact1Slot, "Artifact1Slot"),
-            (Character.Schema.Artifact2Slot, "Artifact2Slot"),
-            (Character.Schema.Artifact3Slot, "Artifact3Slot"),
+            (Character.Schema.Artifact1Slot, "artifact1"),
+            (Character.Schema.Artifact2Slot, "artifact2"),
+            (Character.Schema.Artifact3Slot, "artifact3"),
         ];
 
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
@@ -157,11 +157,7 @@ public class PlayerAI
 
                 if (itemInInventory is not null && !itemInInventory.Value.isEquipped)
                 {
-                    await Character.EquipItem(
-                        itemInInventory.Value.inventorySlot.Code,
-                        Slot.FromPascalToSnakeCase(),
-                        1
-                    );
+                    await Character.EquipItem(itemInInventory.Value.inventorySlot.Code, Slot, 1);
                     continue;
                 }
 
@@ -173,11 +169,7 @@ public class PlayerAI
                     {
                         onAfterSuccessEndHook = async () =>
                         {
-                            await Character.EquipItem(
-                                artifact.Code,
-                                Slot.FromPascalToSnakeCase(),
-                                1
-                            );
+                            await Character.EquipItem(artifact.Code, Slot, 1);
                         },
                     };
 
@@ -203,7 +195,7 @@ public class PlayerAI
                 {
                     onAfterSuccessEndHook = async () =>
                     {
-                        await Character.EquipItem(artifact.Code, Slot.FromPascalToSnakeCase(), 1);
+                        await Character.EquipItem(artifact.Code, Slot, 1);
                     },
                 };
 
