@@ -96,6 +96,9 @@ public class FightMonster : CharacterJob
             {
                 job.onAfterSuccessEndHook = async () =>
                 {
+                    logger.LogInformation(
+                        $"{JobName}: [{Character.Schema.Name}] equipping {job.Code} x {job.Amount} after withdrawing, before fighting"
+                    );
                     await Character.PlayerActionService.SmartItemEquip(job.Code, job.Amount);
                 };
             }

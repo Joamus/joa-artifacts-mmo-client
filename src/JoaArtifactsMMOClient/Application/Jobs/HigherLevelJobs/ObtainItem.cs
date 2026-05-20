@@ -273,6 +273,13 @@ public class ObtainItem : CharacterJob
             return new None();
         }
 
+        /**
+        ** If we can buy an item, we should prioritize it, as long as the characters are allowed to spend the money on it.
+        ** E.g. if we have the money to buy algae, it might be worth doing, instead of gathering it.
+        */
+
+        var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
+
         var resourceResult = ObtainResourceRelatedJob(
             gameState,
             character,
@@ -327,7 +334,6 @@ public class ObtainItem : CharacterJob
                 }
             );
         }
-        var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
 
         var taskCoinsResult = matchingNpcItem is not null
             ? await ObtainTaskCoinsRelatedJob(
@@ -361,30 +367,6 @@ public class ObtainItem : CharacterJob
             );
         }
 
-        var monsterDropsResult = await ObtainMonsterDropsRelatedJob(
-            character,
-            gameState,
-            itemsInBankClone,
-            code,
-            requiredAmount
-        );
-
-        if (monsterDropsResult is not null)
-        {
-            return monsterDropsResult.Value.Match<OneOf<AppError, None>>(
-                error =>
-                {
-                    return error;
-                },
-                job =>
-                {
-                    jobs.Add(job);
-
-                    return new None();
-                }
-            );
-        }
-
         var npcItemsResult = matchingNpcItem is not null
             ? await ObtainNpcItemRelatedJob(
                 character,
@@ -410,6 +392,30 @@ public class ObtainItem : CharacterJob
                     {
                         jobs.Add(job);
                     }
+
+                    return new None();
+                }
+            );
+        }
+
+        var monsterDropsResult = await ObtainMonsterDropsRelatedJob(
+            character,
+            gameState,
+            itemsInBankClone,
+            code,
+            requiredAmount
+        );
+
+        if (monsterDropsResult is not null)
+        {
+            return monsterDropsResult.Value.Match<OneOf<AppError, None>>(
+                error =>
+                {
+                    return error;
+                },
+                job =>
+                {
+                    jobs.Add(job);
 
                     return new None();
                 }
@@ -967,37 +973,13 @@ public class ObtainItem : CharacterJob
     {
         List<CharacterJob> jobs = [];
 
-        if (matchingNpcItem.BuyPrice is null)
+        if (matchingNpcItem.BuyPrice is null || !IsNpcAvailable(gameState, matchingNpcItem.Code))
         {
-            return new AppError(
-                $"The item with code {code} is an NPC item, but the buyPrice is null - currency is {matchingNpcItem.Currency}",
-                ErrorStatus.NotFound
-            );
-        }
-
-        var npcIsFromEvent = gameState.EventService.IsEntityFromEvent(matchingNpcItem.Npc);
-
-        if (
-            npcIsFromEvent
-            && gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null
-        )
-        {
-            return new AppError(
-                $"Cannot buy from NPC \"{matchingNpcItem.Npc}\" - it is from an event, but the event is not active",
-                ErrorStatus.InsufficientSkill
-            );
-        }
-
-        var npcIsAccessible = gameState.AvailableNpcs.Exists(npc =>
-            npc.Code == matchingNpcItem.Npc
-        );
-
-        if (!npcIsAccessible)
-        {
-            return new AppError(
-                $"NPC \"{matchingNpcItem.Code}\" is not accessible",
-                ErrorStatus.Undefined
-            );
+            return null;
+            // return new AppError(
+            //     $"The item with code {code} is an NPC item, but the buyPrice is null - currency is {matchingNpcItem.Currency}",
+            //     ErrorStatus.NotFound
+            // );
         }
 
         int amountOfCurrency =
@@ -1107,5 +1089,21 @@ public class ObtainItem : CharacterJob
         );
 
         return jobs;
+    }
+
+    static bool IsNpcAvailable(GameState gameState, string code)
+    {
+        var npcIsFromEvent = gameState.EventService.IsEntityFromEvent(code);
+
+        if (npcIsFromEvent && gameState.EventService.WhereIsEntityActive(code) is null)
+        {
+            return false;
+        }
+
+        var npcIsAccessible = gameState.AvailableNpcs.Exists(availableNpc =>
+            availableNpc.Code == code
+        );
+
+        return npcIsAccessible;
     }
 }

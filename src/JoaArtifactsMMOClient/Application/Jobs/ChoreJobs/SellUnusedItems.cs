@@ -14,6 +14,8 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 {
     public const int SELL_LEVEL_DIFF = 10;
 
+    public const bool SELL_SMALL_PEARLS_IF_FULL_PERFECT_PEARLS = true;
+
     public SellUnusedItems(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
@@ -195,6 +197,18 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             }
 
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+
+            // Sell all the unneeded small pearls - they currently don't have any other use than buying perfect peals.
+            if (
+                item.Code == "small_pearls"
+                && SELL_SMALL_PEARLS_IF_FULL_PERFECT_PEARLS
+                && await gameState.GetAmountOfItemFromAll("perfect_pearl")
+                    >= gameState.Characters.Count
+            )
+            {
+                items.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
+                continue;
+            }
 
             if (
                 lowestCharacterLevel

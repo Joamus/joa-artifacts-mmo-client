@@ -617,6 +617,7 @@ public class PlayerCharacter
         );
 
         GameState.BankItemCache.shouldRequestAgain = true;
+        GameState.BankItemCache.shouldRequestDetailsAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<BankGoldTransactionResponse>(
@@ -640,6 +641,7 @@ public class PlayerCharacter
         var content = await response.Content.ReadAsStringAsync();
 
         GameState.BankItemCache.shouldRequestAgain = true;
+        GameState.BankItemCache.shouldRequestDetailsAgain = true;
 
         var result = JsonSerializer.Deserialize<BankGoldTransactionResponse>(
             content,
@@ -660,14 +662,13 @@ public class PlayerCharacter
         var content = await response.Content.ReadAsStringAsync();
 
         GameState.BankItemCache.shouldRequestAgain = true;
+        GameState.ShouldUpdatePendingItems = true;
 
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
             content,
             ApiRequester.getJsonOptions()
         )!;
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
-
-        GameState.ShouldUpdatePendingItems = true;
     }
 
     public async Task DepositBankItem(List<WithdrawOrDepositItemRequest> depositItems)
@@ -959,6 +960,8 @@ public class PlayerCharacter
             $"/my/{characterName}/action/bank/buy_expansion",
             null
         );
+
+        GameState.BankItemCache.shouldRequestDetailsAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
 
@@ -1283,26 +1286,11 @@ public class PlayerCharacter
         return Schema.Inventory.Count((item) => string.IsNullOrWhiteSpace(item.Code));
     }
 
-    // public async Task<int> GetMoneyAllowedToWithdraw()
-    // {
-    //     var result = await GameState.AccountRequester.GetBankDetails();
-
-    //     var expansionCost = result.Data.NextExpansionCost;
-
-    //     var goldInBank = result.Data.Gold;
-
-    //     return 0;
-    // }
-
-    // public async Task<WithdrawGold?> GetWithdrawGoldJobIfNeed(int totalAmountNeeded) { }
-
-    public static int GetAllowedBudget(GameState gameState, int goldInBank, int nextExpansionCost)
+    public async Task<int> GetAllowedWithdrawAmount()
     {
-        int goldAllCharacters = gameState.Characters.Sum(character => character.Schema.Gold);
+        var totalBudget = await GameState.BankItemCache.GetTotalBudgetInBank();
 
-        int goldInTotal = goldAllCharacters + goldInBank;
-
-        if (nextExpansionCost >= goldInTotal)
+        if (totalBudget == 0)
         {
             return 0;
         }
@@ -1312,6 +1300,13 @@ public class PlayerCharacter
         ** We could potentially make this more advanced, e.g. if we have 60% of the gold needed for the next expansion,
         ** then our characters can spend everything above that.
         */
-        return (goldAllCharacters - nextExpansionCost) / gameState.Characters.Count;
+        return totalBudget / GameState.Characters.Count;
+    }
+
+    public async Task<int> GetAllowedBudget()
+    {
+        var allowedWithdrawAmount = await GetAllowedWithdrawAmount();
+
+        return allowedWithdrawAmount + Schema.Gold;
     }
 }

@@ -53,9 +53,9 @@ public class BuyItemNpc : CharacterJob
         {
             if (isGold)
             {
-                var bankResponse = await gameState.AccountRequester.GetBankDetails();
+                var allowedGoldToWithdraw = await Character.GetAllowedWithdrawAmount();
 
-                int amountNeeded = Math.Min(bankResponse.Data.Gold, amountLeft);
+                int amountNeeded = Math.Min(allowedGoldToWithdraw, amountLeft);
                 amountLeft -= amountNeeded;
 
                 jobs.Add(new WithdrawGold(Character, gameState, amountNeeded));
@@ -110,7 +110,7 @@ public class BuyItemNpc : CharacterJob
             else
             {
                 jobs.Add(
-                    new ObtainOrFindItem(Character, gameState, matchingCurrency.Code, amountLeft)
+                    new ObtainOrFindItem(Character, gameState, matchingCurrency!.Code, amountLeft)
                 );
 
                 await Character.QueueJobsBefore(Id, jobs);
@@ -122,7 +122,7 @@ public class BuyItemNpc : CharacterJob
         if (amountLeft > 0)
         {
             return new AppError(
-                $"{JobName}: [{Character.Schema.Name}] Still have {amountLeft} x {matchingCurrency.Code} left to find when buying item"
+                $"{JobName}: [{Character.Schema.Name}] Still have {amountLeft} x {matchingCurrency!.Code} left to find when buying item"
             );
         }
         await Character.NavigateTo(itemToBuy.Npc);

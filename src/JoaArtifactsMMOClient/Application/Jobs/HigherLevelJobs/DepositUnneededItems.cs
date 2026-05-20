@@ -417,21 +417,34 @@ public class DepositUnneededItems : CharacterJob
 
     public async Task BuyBankSpaceIfNeeded()
     {
-        var result = await gameState.AccountRequester.GetBankDetails();
+        var result = await gameState.BankItemCache.GetBankDetails();
 
         if (
-            result.Data.NextExpansionCost
-            <= Character.Schema.Gold * NEXT_BANK_EXPANION_COST_PERCENTAGE_OF_TOTAL
+            result.NextExpansionCost
+            <= (Character.Schema.Gold + result.Gold) * NEXT_BANK_EXPANION_COST_PERCENTAGE_OF_TOTAL
         )
         {
             var itemsInBank = await gameState.AccountRequester.GetBankItems();
 
-            int amountFree = result.Data.Slots - itemsInBank.Data.Count();
+            int amountFree = result.Slots - itemsInBank.Data.Count;
 
             if (amountFree <= MIN_FREE_BANK_SLOTS)
             {
+                int amountNeededToWithdraw =
+                    result.NextExpansionCost > Character.Schema.Gold
+                        ? result.NextExpansionCost - Character.Schema.Gold
+                        : 0;
+
+                if (amountNeededToWithdraw > 0)
+                {
+                    logger.LogInformation(
+                        $"{JobName}: [{Character.Schema.Name}] withdrawing {amountNeededToWithdraw} to buy bank expansions"
+                    );
+                    await Character.WithdrawBankGold(amountNeededToWithdraw);
+                }
+
                 logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got ${Character.Schema.Gold} gold, next expansion costs ${result.Data.NextExpansionCost}"
+                    $"{JobName}: [{Character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got {Character.Schema.Gold} gold, next expansion costs {result.NextExpansionCost}"
                 );
                 // Buy bank expansion
                 await Character.NavigateTo("bank");

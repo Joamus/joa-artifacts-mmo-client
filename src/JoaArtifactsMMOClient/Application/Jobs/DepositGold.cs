@@ -8,11 +8,9 @@ namespace Application.Jobs;
 /*
  * Looks in the bank, or possibly has another player deliver item to bank maybe?
 */
-public class WithdrawGold : CharacterJob
+public class DepositGold : CharacterJob
 {
-    private readonly bool _canTriggerObtain = false;
-
-    public WithdrawGold(PlayerCharacter character, GameState gameState, int amount)
+    public DepositGold(PlayerCharacter character, GameState gameState, int amount)
         : base(character, gameState)
     {
         Amount = amount;
@@ -20,16 +18,9 @@ public class WithdrawGold : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var result = await gameState.BankItemCache.GetBankDetails();
+        await Character.NavigateTo("bank");
 
-        int goldInBank = result.Gold;
-
-        if (goldInBank > 0)
-        {
-            await Character.NavigateTo("bank");
-
-            await Character.WithdrawBankGold(goldInBank);
-        }
+        await Character.DepositBankGold(Amount);
 
         // TODO: Allow grinding for gold?
         return new None();

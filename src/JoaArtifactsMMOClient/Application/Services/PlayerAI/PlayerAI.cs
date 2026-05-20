@@ -16,6 +16,7 @@ public class PlayerAI
 {
     private const string Name = "PlayerAI";
     private const int SKILL_LEVEL_OFFSET = 1;
+    private const int PERSONAL_GOLD_THRESHOLD = 10_000;
 
     private const bool PREFER_MONSTER_TASK = true;
     public PlayerCharacter Character { get; init; }
@@ -50,8 +51,11 @@ public class PlayerAI
         // Claim all the items that you can
         await ClaimPendingItems();
 
+        // Deposit all gold above threshold - shared economy
+
         var job =
-            await EnsureAccessories()
+            await DepositUnneededGold()
+            ?? await EnsureAccessories()
             ?? await EnsureWeapon()
             ?? await EnsureTools()
             ?? await GetEventJob()
@@ -102,6 +106,22 @@ public class PlayerAI
                 canClaimItems = false;
             }
         }
+    }
+
+    async Task<DepositGold?> DepositUnneededGold()
+    {
+        if (Character.Schema.Gold > PERSONAL_GOLD_THRESHOLD)
+        {
+            int goldAboveThreshold = Character.Schema.Gold - PERSONAL_GOLD_THRESHOLD;
+
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: Depositing unneeded gold ({goldAboveThreshold})"
+            );
+
+            return new DepositGold(Character, gameState, goldAboveThreshold);
+        }
+
+        return null;
     }
 
     async Task<CharacterJob?> EnsureAccessories()
@@ -214,7 +234,15 @@ public class PlayerAI
         * which slows down things like fighting slimes for potions, etc.
         */
 
-        return await FightEquipmentAI.EnsureFightEquipment(Character, gameState);
+        logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Ensure fight equipment");
+
+        var job = await FightEquipmentAI.EnsureFightEquipment(Character, gameState);
+
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: Evaluating fight equipment - found job {job?.Code ?? "(none)"}"
+        );
+
+        return job;
     }
 
     async Task<CharacterJob?> EnsureBag()
@@ -865,16 +893,19 @@ public class PlayerAI
     {
         var nextJob = await GetNextJob();
 
+        if (nextJob is null)
+        {
+            return;
+        }
+
         logger.LogInformation(
-            $"{Character.Name} - events changed, found {nextJob?.Code ?? "n/a"} x ${nextJob?.Amount} job for them"
+            $"{Character.Name} - events changed, found {nextJob.Code} x {nextJob?.Amount} job for them"
         );
 
         if (
             nextJob is not null
-            && Character.CurrentJob?.Code != nextJob.Code
-            && !Character.Jobs.Exists(job =>
-                job.Code == nextJob.Code || job.ParentJob?.Code == nextJob.Code
-            )
+            && !JobsHaveOverlap(nextJob, Character.CurrentJob)
+            && !Character.Jobs.Exists(job => JobsHaveOverlap(job, nextJob))
         )
         {
             logger.LogInformation(
@@ -1160,6 +1191,19 @@ public class PlayerAI
         );
 
         return job;
+    }
+
+    static bool JobsHaveOverlap(CharacterJob? a, CharacterJob? b)
+    {
+        if (a is null || b is null)
+        {
+            return false;
+        }
+
+        return a.Code == b.Code
+            || a.ParentJob?.Code == b.Code
+            || a.ParentJob?.Code == b.ParentJob?.Code
+            || a.Code == b.ParentJob?.Code;
     }
 }
 

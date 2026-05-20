@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
@@ -38,9 +40,30 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
     async Task<List<CharacterJob>> GetJobs()
     {
+        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+
+        var jobsToCookUncookedResources = GetListToCookAllUncookedMeatOrFish(bankResponse.Data);
+
+        if (jobsToCookUncookedResources.Count > 0)
+        {
+            return jobsToCookUncookedResources;
+        }
+
+        var charactersToObtainFoodFor = GetCharactersToObtainFoodFor(
+            gameState.Characters,
+            gameState,
+            bankResponse.Data,
+            JobParams
+        );
+
+        if (charactersToObtainFoodFor.Count == 0)
+        {
+            return [];
+        }
+
         List<ItemSchema> bestFoodItems =
         [
-            .. gameState.Characters.Select(recipientCharacter =>
+            .. charactersToObtainFoodFor.Select(recipientCharacter =>
                 GetIdealFoodForCharacter(Character, recipientCharacter, gameState)
             ),
         ];
@@ -48,8 +71,6 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         // We want to prioritize high level items first, so the highest lvl chars get food.
         // The issue is that if making the low level food, the high lvl characters will also eat it, but they need it also
         bestFoodItems.Sort((a, b) => b.Level - a.Level);
-
-        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
         Dictionary<string, DropSchema> bestFoodItemsInBank = bankResponse
             .Data.Where(item =>
@@ -141,6 +162,102 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
             },
             _ => throw new NotImplementedException(),
         };
+    }
+
+    List<CharacterJob> GetListToCookAllUncookedMeatOrFish(List<DropSchema> itemsInBank)
+    {
+        List<(DropSchema, ItemSchema)> uncookedMeatOrFishInBank =
+        [
+            .. itemsInBank
+                .Select(item =>
+                {
+                    var matchingItem = gameState.ItemsDict[item.Code];
+                    return (item, matchingItem);
+                })
+                .Where(item =>
+                {
+                    return IsItemUncookedMeatOrFish(item.matchingItem, gameState);
+                })
+                .Select(item =>
+                {
+                    // For now, we always assume that if item is uncooked meat or fish, there should be a recipe with only 1 ingredient.
+                    var cookedItem = gameState
+                        .CraftingLookupDict.GetValueOrNull(item.Item2.Code)!
+                        .First(recipe => recipe!.Craft!.Items.Count == 1);
+
+                    return (item.item, cookedItem);
+                })
+                .Where((item) => Character.Schema.CookingLevel >= item.cookedItem.Craft!.Level),
+        ];
+
+        List<CharacterJob> jobs =
+            uncookedMeatOrFishInBank
+                .Select(lol =>
+                {
+                    (DropSchema drop, ItemSchema item) = lol;
+
+                    List<int> iterations = ObtainItem.CalculateObtainItemIterations(
+                        item,
+                        Character.GetAvailableInventorySpace(),
+                        JobParams.AmountToGather
+                    );
+
+                    List<CharacterJob> jobs = [];
+
+                    foreach (var iteration in iterations)
+                    {
+                        var job = new ObtainItem(Character, gameState, item.Code, iteration);
+
+                        job.ForBank();
+
+                        jobs.Add(job);
+                    }
+
+                    return jobs;
+                })
+                .FirstOrDefault() ?? [];
+
+        return jobs;
+    }
+
+    static bool IsItemUncookedMeatOrFish(ItemSchema item, GameState gameState)
+    {
+        return item.Type == "resource"
+            && (gameState.CraftingLookupDict.GetValueOrNull(item.Code) ?? []).Exists(craftedItem =>
+                ItemService.IsItemCookedFish(craftedItem, gameState)
+                || ItemService.IsItemCookedMeat(craftedItem, gameState)
+            );
+    }
+
+    static List<PlayerCharacter> GetCharactersToObtainFoodFor(
+        List<PlayerCharacter> characters,
+        GameState gameState,
+        List<DropSchema> itemsInBank,
+        RestockFoodParams jobParams
+    )
+    {
+        return
+        [
+            .. characters.Where(character =>
+            {
+                var goodEnoughFoodMatch = itemsInBank.Exists(item =>
+                {
+                    var matchingItem = gameState.ItemsDict[item.Code];
+
+                    /**
+                    ** We want to verify that it's some kind of cooked food - it's OK if it's apple pies etc., and not meat or fish.
+                    ** We want to eat all kinds of cooked food, if available
+                    */
+                    return matchingItem.Type == "consumable"
+                        && matchingItem.Subtype == "food"
+                        && matchingItem.Craft is not null
+                        && item.Quantity >= jobParams.MinimumAmountInBank
+                        && ItemService.CanUseItem(matchingItem, character.Schema);
+                });
+
+                return !goodEnoughFoodMatch;
+            }),
+        ];
     }
 }
 

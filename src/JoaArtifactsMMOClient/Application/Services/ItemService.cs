@@ -801,6 +801,13 @@ public static class ItemService
                 return isOnlyUsedForFood;
             });
     }
+
+    public static bool IsTeleportPotion(ItemSchema item)
+    {
+        // There are multiple kinds of recall potions
+        return item.Type == "consumable"
+            && item.Effects.Exists(effect => effect.Code == "teleport");
+    }
 }
 
 public record BestFightItemsResult

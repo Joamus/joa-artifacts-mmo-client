@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
+using Application.Dtos;
 using Application.Errors;
 using Application.Services;
 using Applicaton.Jobs.Chores;
@@ -72,12 +73,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
     {
         // The cheeky one is just to look at the level of the resource
 
-        return
-        [
-            .. gameState
-            // .Resources.Where(x => x.Level >= levelRange.Lowest && x.Level <= levelRange.Highest)
-            .Resources.Where(x => x.Level <= levelRange.Highest),
-        ];
+        return [.. gameState.Resources.Where(x => x.Level <= levelRange.Highest)];
     }
 
     public List<DropSchema> GetNextItemToRestock(
@@ -213,7 +209,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
 
     static bool IsTooRareToRestock(DropRateSchema drop)
     {
-        return CalculateDropRate(drop.Rate) <= RESTOCK_ITEM_DROP_RATE_THRESHOLD;
+        return CalculateDropRate(drop.Rate) < RESTOCK_ITEM_DROP_RATE_THRESHOLD;
     }
 
     public static LevelRange GetCharacterLevelRange(GameState gameState)
@@ -250,12 +246,6 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
     {
         return (await GetNextJob()) is not null;
     }
-}
-
-public struct LevelRange
-{
-    public int Lowest;
-    public int Highest;
 }
 
 public record RestockResourcesParams

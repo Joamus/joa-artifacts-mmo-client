@@ -102,23 +102,20 @@ public class CancelTaskJob : CharacterJob
 
         return tasksCoinsInInventory + tasksCoinsInBank > ItemService.CancelTaskPrice;
     }
-    
+
     public static async Task<bool> ShouldCancelTask(GameState gameState, ItemSchema item)
     {
         /**
         ** If the item is an event item, e.g. strange_ore, we want to cancel it if we have the tasks coins for it.
         ** In the worst case scenario, we might not have the coins, but let's fake not being able to do it.
         */
-        // 
-        // 
-        return gameState.EventService.IsEntityFromEvent(item.Code);
-        // if (gameState.EventService.IsEntityFromEvent(item.Code))
-        // {
-        //     return await CanCancelTask(character, gameState);
-        // } else
-        // {
-        //     return false;
-        // }
+        return gameState.EventService.IsEntityFromEvent(item.Code)
+            || item.Craft is not null
+                && item.Craft.Items.Exists(itemComponent =>
+                {
+                    var matchingItemComponent = gameState.ItemsDict[itemComponent.Code];
 
+                    return gameState.EventService.IsEntityFromEvent(matchingItemComponent.Code);
+                });
     }
 }

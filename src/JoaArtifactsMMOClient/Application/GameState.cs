@@ -479,4 +479,24 @@ public class GameState
 
         return PendingItems.AsReadOnly();
     }
+
+    public async Task<int> GetAmountOfItemFromAll(string itemCode)
+    {
+        int amountOnCharacters = Characters.Sum(character =>
+        {
+            var equippedOrInventoryItem = character.GetEquippedItemOrInInventory(itemCode);
+
+            return equippedOrInventoryItem.Sum(equippedOrInventory =>
+                equippedOrInventory.equipmentSlot.Quantity
+            );
+        });
+
+        var bankResponse = await BankItemCache.GetBankItems(Characters.First(), false);
+
+        int amountInBank = bankResponse.Data.Sum(bankItem =>
+            bankItem.Code == itemCode ? bankItem.Quantity : 0
+        );
+
+        return amountOnCharacters + amountInBank;
+    }
 }

@@ -160,8 +160,19 @@ public class PlayerActionService
     {
         var result = FightSimulator.FindBestFightEquipment(character, gameState, monster);
 
+        AppLogger
+            .GetLogger()
+            .LogInformation(
+                $"EquipBestFightEquipment: [{character.Schema.Name}]: Found {result.ItemsToEquip.Count} items to equip before fighting {monster.Code}"
+            );
+
         foreach (var item in result.ItemsToEquip)
         {
+            AppLogger
+                .GetLogger()
+                .LogInformation(
+                    $"EquipBestFightEquipment: [{character.Schema.Name}]: Equipping {item.Code}"
+                );
             await character.EquipItem(item.Code, item.Slot, item.Quantity);
         }
 
