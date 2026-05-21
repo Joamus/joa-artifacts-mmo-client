@@ -42,16 +42,14 @@ public class GatherResourceItem : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook = () =>
+        onSuccessEndHook = async () =>
         {
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
             var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
 
-            Character.QueueJob(depositItemJob, true);
-
-            return Task.Run(() => { });
+            await Character.QueueJob(depositItemJob, true);
         };
     }
 
@@ -193,15 +191,6 @@ public class GatherResourceItem : CharacterJob
             }
         }
 
-        // var resource = ItemService.FindBestResourceToGatherItem(Character, gameState, Code);
-
-        // if (resource is null)
-        // {
-        //     return new AppError(
-        //         $"{JobName}: [{Character.Schema.Name}] appError: Could not find resource to gather {Code}",
-        //         ErrorStatus.InsufficientSkill
-        //     );
-        // }
         await Character.NavigateTo(resource.Code);
 
         await Character.PlayerActionService.EquipBestGatheringEquipment(skill);

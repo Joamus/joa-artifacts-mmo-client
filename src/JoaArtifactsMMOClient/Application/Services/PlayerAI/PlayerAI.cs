@@ -67,7 +67,9 @@ public class PlayerAI
             ?? await GetRoleJob()
             ?? await GetIndividualLowPrioJob();
 
-        logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName}");
+        logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName} - code {job?.Code} x ${job?.Amount}"
+        );
         return job!;
     }
 
