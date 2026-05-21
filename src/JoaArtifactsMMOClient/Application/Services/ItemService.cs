@@ -1,3 +1,4 @@
+using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
@@ -807,6 +808,12 @@ public static class ItemService
         // There are multiple kinds of recall potions
         return item.Type == "consumable"
             && item.Effects.Exists(effect => effect.Code == "teleport");
+    }
+
+    public static bool IsToolForSkill(ItemSchema item, Skill skill)
+    {
+        return item.Subtype == "tool"
+            && item.Effects.Exists(effect => effect.Code == SkillService.GetSkillName(skill));
     }
 }
 

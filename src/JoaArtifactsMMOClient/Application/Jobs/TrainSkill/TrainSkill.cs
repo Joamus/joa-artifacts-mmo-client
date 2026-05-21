@@ -16,18 +16,16 @@ public class TrainSkill : CharacterJob
 
     public static int LEVEL_DIFF_FOR_NO_XP = 10;
 
-    // public static readonly string[] JobTypesToAvoidWhenCrafting = ["FightMonster", "CompleteTask"];
-    public static readonly string[] JobTypesToAvoidWhenCrafting = [];
     public Skill Skill { get; init; }
 
-    private string skillName { get; set; }
+    private string SkillName { get; set; }
     public int LevelOffset { get; private set; }
 
     public bool Relative { get; init; }
 
     public int SkillLevel { get; set; }
 
-    bool firstRun { get; set; } = true;
+    bool FirstRun { get; set; } = true;
 
     public TrainSkill(
         PlayerCharacter character,
@@ -41,15 +39,15 @@ public class TrainSkill : CharacterJob
         Skill = skill;
         LevelOffset = level;
         Relative = relative;
-        skillName = SkillService.GetSkillName(Skill);
+        SkillName = SkillService.GetSkillName(Skill);
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         // Only runs the first time this job runs, if it's a relative level job. If it queues a job before itself, it shouldn't recalculate the level
-        if (Relative && firstRun || !Relative)
+        if (Relative && FirstRun || !Relative)
         {
-            SkillLevel = Character.GetSkillLevel(skillName);
+            SkillLevel = Character.GetSkillLevel(SkillName);
         }
 
         int untilLevel;
@@ -58,7 +56,7 @@ public class TrainSkill : CharacterJob
         {
             untilLevel = SkillLevel + LevelOffset;
 
-            if (!firstRun && untilLevel <= Character.GetSkillLevel(skillName))
+            if (!FirstRun && untilLevel <= Character.GetSkillLevel(SkillName))
             {
                 return new None();
             }
@@ -74,7 +72,7 @@ public class TrainSkill : CharacterJob
         }
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] run started - training {skillName} until level {untilLevel}"
+            $"{JobName}: [{Character.Schema.Name}] run started - training {SkillName} until level {untilLevel}"
         );
 
         SkillKind skillKind = SkillService.GetSkillKind(Skill);
@@ -94,7 +92,7 @@ public class TrainSkill : CharacterJob
                 {
                     if (jobs.Count > 0)
                     {
-                        firstRun = false;
+                        FirstRun = false;
                         Character.QueueJobsBefore(Id, jobs);
                     }
                 },

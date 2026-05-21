@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Xml.Schema;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
@@ -280,9 +282,10 @@ public class ObtainItem : CharacterJob
 
         var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(matchingItem.Code);
 
-        var resourceResult = ObtainResourceRelatedJob(
+        var resourceResult = await ObtainResourceRelatedJob(
             gameState,
             character,
+            itemsInBankClone,
             code,
             requiredAmount,
             canTriggerTraining
@@ -295,9 +298,13 @@ public class ObtainItem : CharacterJob
                 {
                     return error;
                 },
-                job =>
+                resourceJobs =>
                 {
-                    jobs.Add(job);
+                    foreach (var job in resourceJobs)
+                    {
+                        jobs.Add(job);
+                    }
+
                     return new None();
                 }
             );
@@ -562,9 +569,10 @@ public class ObtainItem : CharacterJob
         return monstersThatCanBeDefeated;
     }
 
-    static OneOf<AppError, CharacterJob>? ObtainResourceRelatedJob(
+    static async Task<OneOf<AppError, List<CharacterJob>>?> ObtainResourceRelatedJob(
         GameState gameState,
         PlayerCharacter character,
+        List<DropSchema> itemsInBank,
         string code,
         int requiredAmount,
         bool canTriggerTraining
@@ -574,46 +582,111 @@ public class ObtainItem : CharacterJob
             resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null
         );
 
-        if (resources.Count > 0)
+        if (resources.Count == 0)
         {
-            bool allResourcesAreFromEvents = true;
-
-            foreach (var resource in resources)
-            {
-                var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
-
-                if (
-                    resourceIsFromEvent
-                    && gameState.EventService.WhereIsEntityActive(resource.Code) is null
-                )
-                {
-                    continue;
-                }
-                else
-                {
-                    allResourcesAreFromEvents = false;
-                    break;
-                }
-            }
-
-            if (allResourcesAreFromEvents)
-            {
-                return new AppError(
-                    $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",
-                    ErrorStatus.InsufficientSkill
-                );
-            }
-            var gatherJob = new GatherResourceItem(character, gameState, code, requiredAmount)
-            {
-                CanTriggerTraining = canTriggerTraining,
-            };
-
-            return gatherJob;
-            // jobs.Add(gatherJob);
-            // return new None();
+            return null;
         }
 
-        return null;
+        List<CharacterJob> jobs = [];
+
+        /** A bit ugly, but allows us to buy some/all of a required source if we can */
+        var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(code);
+
+        if (
+            matchingNpcItem is not null
+            && matchingNpcItem.BuyPrice is not null
+            && matchingNpcItem.Currency == "gold"
+            && IsNpcAvailable(gameState, matchingNpcItem.Npc)
+        )
+        {
+            var matchingItem = gameState.ItemsDict[code];
+
+            int buyPrice = matchingNpcItem.BuyPrice.Value;
+
+            int priceForAllRequiredItems = buyPrice * requiredAmount;
+
+            if (priceForAllRequiredItems >= character.Schema.Gold)
+            {
+                int allowedAmountToWithdraw = await character.GetAllowedWithdrawAmount();
+
+                int amountOfGoldToWithdraw =
+                    character.Schema.Gold + allowedAmountToWithdraw > priceForAllRequiredItems
+                        ? character.Schema.Gold + allowedAmountToWithdraw - priceForAllRequiredItems
+                        : allowedAmountToWithdraw;
+
+                jobs.Add(new WithdrawGold(character, gameState, amountOfGoldToWithdraw));
+
+                int amountThatCanBeBought = Math.Min(
+                    requiredAmount,
+                    (amountOfGoldToWithdraw + character.Schema.Gold) / buyPrice
+                );
+
+                jobs.Add(
+                    new BuyItemNpc(
+                        character,
+                        gameState,
+                        code,
+                        amountThatCanBeBought,
+                        false,
+                        true,
+                        true
+                    )
+                );
+                requiredAmount -= amountThatCanBeBought;
+            }
+            else
+            {
+                jobs.Add(
+                    new BuyItemNpc(character, gameState, code, requiredAmount, false, true, true)
+                );
+
+                requiredAmount = 0;
+            }
+
+            if (requiredAmount <= 0)
+            {
+                return jobs;
+            }
+        }
+
+        bool allResourcesAreFromEvents = true;
+
+        foreach (var resource in resources)
+        {
+            var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
+
+            if (
+                resourceIsFromEvent
+                && gameState.EventService.WhereIsEntityActive(resource.Code) is null
+            )
+            {
+                continue;
+            }
+            else
+            {
+                allResourcesAreFromEvents = false;
+                break;
+            }
+        }
+
+        if (allResourcesAreFromEvents)
+        {
+            return new AppError(
+                $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",
+                ErrorStatus.InsufficientSkill
+            );
+        }
+        var gatherJob = new GatherResourceItem(character, gameState, code, requiredAmount)
+        {
+            CanTriggerTraining = canTriggerTraining,
+        };
+
+        jobs.Add(gatherJob);
+        // jobs.Add(gatherJob);
+        // return new None();
+        //
+
+        return jobs;
     }
 
     static async Task<OneOf<AppError, List<CharacterJob>>?> ObtainCraftItemRelatedJob(
@@ -975,11 +1048,11 @@ public class ObtainItem : CharacterJob
 
         if (matchingNpcItem.BuyPrice is null || !IsNpcAvailable(gameState, matchingNpcItem.Code))
         {
-            return null;
-            // return new AppError(
-            //     $"The item with code {code} is an NPC item, but the buyPrice is null - currency is {matchingNpcItem.Currency}",
-            //     ErrorStatus.NotFound
-            // );
+            // return null;
+            return new AppError(
+                $"The item with code {code} is an NPC item, but the buyPrice is null - currency is {matchingNpcItem.Currency}",
+                ErrorStatus.NotFound
+            );
         }
 
         int amountOfCurrency =
@@ -991,10 +1064,19 @@ public class ObtainItem : CharacterJob
 
         if (matchingNpcItem.Currency == "gold" && neededCurrency > amountOfCurrency)
         {
-            return new AppError(
-                $"Matching item costs more gold than the character currently has - cannot obtain",
-                ErrorStatus.Undefined
-            );
+            int allowedAmountToWithdraw = await character.GetAllowedWithdrawAmount();
+
+            if (neededCurrency < amountOfCurrency + allowedAmountToWithdraw)
+            {
+                jobs.Add(new WithdrawGold(character, gameState, allowedAmountToWithdraw));
+            }
+            else
+            {
+                return new AppError(
+                    $"Matching item costs more gold than the character currently has - cannot obtain",
+                    ErrorStatus.Undefined
+                );
+            }
         }
 
         if (amountOfCurrency < neededCurrency)

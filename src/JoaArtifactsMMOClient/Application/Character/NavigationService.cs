@@ -15,6 +15,8 @@ public class NavigationService
     public static string SandwhisperIsle = "Sandwhisper Isle";
     public static string ChristmasIsland = "Christmas Island";
 
+    const int COOLDOWN_PER_MAP_SECONDS = 5;
+
     public static List<string> Islands = new List<string> { SandwhisperIsle, ChristmasIsland };
     public static List<string> UnavailableIslands = new List<string> { ChristmasIsland };
 
@@ -171,6 +173,49 @@ public class NavigationService
         }
 
         var currentMap = gameState.MapsDict[character.Schema.MapId];
+
+        // var potionsInInventory = character
+        //     .Schema.Inventory.Select(item =>
+        //     {
+        //         if (!string.IsNullOrWhiteSpace(item.Code))
+        //         {
+        //             return gameState.ItemsDict[item.Code];
+        //         }
+
+        //         return null;
+        //     })
+        //     .Where(item =>
+        //     {
+        //         if (item is null || !ItemService.IsTeleportPotion(item))
+        //         {
+        //             return false;
+        //         }
+
+        //         var teleportToMap = gameState.MapsDict[
+        //             item.Effects.First(effect => effect.Code == "teleport").Value
+        //         ];
+
+        //         if (teleportToMap.Layer == destinationMap.Layer)
+        //         {
+        //             // Basically we only want to teleport to the island if either the maps are both at the same island, or neither are island maps
+        //             if (
+        //                 teleportToMap.Name == destinationMap.Name
+        //                 || !Islands.Contains(teleportToMap.Name)
+        //                     && !Islands.Contains(destinationMap.Name)
+        //             )
+        //             {
+        //                 return true;
+        //             }
+        //         }
+
+        //         return false;
+        //     })
+        //     .ToList();
+
+        // if (potionsInInventory.Count > 0)
+        // {
+        //     potionsInInventory = potionsInInventory;
+        // }
 
         var steps = CalculateStepsToDestination(currentMap, destinationMap);
 
@@ -594,6 +639,8 @@ public class NavigationService
                 Layer = destinationMap.Layer,
                 ShouldTransition = false,
                 AfterMoveAction = AfterMoveAction,
+                RequiredItemInteractionCode = null,
+                TeleportPotionCode = null,
             },
             NewMap = destinationMap,
         };
@@ -623,6 +670,8 @@ public class NavigationService
                 Layer = currentMap.Layer,
                 ShouldTransition = true,
                 AfterMoveAction = AfterMoveAction,
+                RequiredItemInteractionCode = null,
+                TeleportPotionCode = null,
             },
             NewMap = destinationMap,
         };
@@ -644,6 +693,13 @@ public class NavigationService
             await move.AfterMoveAction();
         }
     }
+
+    public static int CalculateMovementCostSeconds(MapSchema mapA, MapSchema mapB)
+    {
+        int cost = CalculationService.CalculateDistanceToMap(mapA.X, mapA.Y, mapB.X, mapB.Y);
+
+        return cost * COOLDOWN_PER_MAP_SECONDS;
+    }
 }
 
 public record NavigationStep
@@ -660,6 +716,8 @@ public record Move
     public required MapLayer Layer { get; init; }
 
     public required bool ShouldTransition { get; init; }
+    public required string? RequiredItemInteractionCode { get; init; }
+    public required string? TeleportPotionCode { get; init; }
 
     public Func<Task>? AfterMoveAction { get; init; }
 }

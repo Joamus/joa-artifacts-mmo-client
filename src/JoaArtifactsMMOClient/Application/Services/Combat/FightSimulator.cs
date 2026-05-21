@@ -465,7 +465,7 @@ public class FightSimulator
 
             if (burn is not null)
             {
-                // Decrease burn damage by 10% each turn. So if burn value is 20%, then it's 20, 10, 0.
+                // Decrease burn damage by 10% each turn. So if burn value is 20%, 18%, 16%, 14%
                 int multiplicationFactor = Math.Max(burn.Value - (turnNumber - 1), 0);
 
                 // int initialDmg = burn.Value - multiplicationFactor;

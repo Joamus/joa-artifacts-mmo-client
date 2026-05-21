@@ -1,8 +1,10 @@
+using System.Diagnostics.Eventing.Reader;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Application.Records;
 using Application.Services;
 using Applicaton.Jobs;
 using OneOf;
@@ -72,6 +74,33 @@ public class GatherResourceItem : CharacterJob
                 $"{JobName}: [{Character.Schema.Name}] found {amountInInventory} in inventory - progress {Code} ({ProgressAmount}/{Amount})"
             );
         }
+        var resource = ItemService
+            .FindBestResourceToGatherItem(Character, gameState, Code)
+            ?.Resource;
+
+        if (resource is null)
+        {
+            return new AppError($"Could not find a resource to gather {Code} from");
+        }
+
+        Skill skill = resource.Skill;
+
+        WithdrawItem? withdrawItemJob = await GetWithdrawItemJobsIfBetterToolInBank(
+            Character,
+            gameState,
+            skill
+        );
+
+        if (withdrawItemJob is not null)
+        {
+            logger.LogInformation(
+                $"{JobName}: [{Character.Schema.Name}] found job to withdraw better tool to gather {resource.Name} - tool is {withdrawItemJob.Code}"
+            );
+
+            await Character.QueueJobsBefore(Id, [withdrawItemJob]);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
 
         while (ProgressAmount < Amount)
         {
@@ -97,17 +126,6 @@ public class GatherResourceItem : CharacterJob
             {
                 return new AppError($"Could not find item with code {Code} - could not gather it");
             }
-
-            var resource = ItemService
-                .FindBestResourceToGatherItem(Character, gameState, Code)
-                ?.Resource;
-
-            if (resource is null)
-            {
-                return new AppError($"Could not find a resource to gather {Code} from");
-            }
-
-            Skill skill = resource.Skill;
 
             var result = await InnerJobAsync(matchingItem, resource, skill);
 
@@ -232,5 +250,92 @@ public class GatherResourceItem : CharacterJob
         }
 
         return characterSkillLevel >= resource.Level;
+    }
+
+    public static async Task<WithdrawItem?> GetWithdrawItemJobsIfBetterToolInBank(
+        PlayerCharacter character,
+        GameState gameState,
+        Skill skill
+    )
+    {
+        List<ItemSchema> availableToolsOnCharacter = [];
+
+        var equippedItem = !string.IsNullOrWhiteSpace(character.Schema.WeaponSlot)
+            ? gameState.ItemsDict.GetValueOrNull(character.Schema.WeaponSlot)
+            : null;
+
+        if (equippedItem is not null && !ItemService.IsToolForSkill(equippedItem, skill))
+        {
+            availableToolsOnCharacter.Add(equippedItem);
+        }
+
+        var bankResponse = await gameState.BankItemCache.GetBankItems(character);
+
+        var toolsFromBank = bankResponse
+            .Data.Where(item =>
+                !string.IsNullOrWhiteSpace(item.Code)
+                && ItemService.IsToolForSkill(gameState.ItemsDict[item.Code], skill)
+            )
+            .Select(item => gameState.ItemsDict[item.Code])
+            .ToList();
+
+        foreach (var item in character.Schema.Inventory)
+        {
+            if (string.IsNullOrWhiteSpace(item.Code))
+            {
+                continue;
+            }
+
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            if (ItemService.IsToolForSkill(matchingItem, skill))
+            {
+                availableToolsOnCharacter.Add(matchingItem);
+            }
+        }
+
+        string skillName = SkillService.GetSkillName(skill);
+
+        // Remember, a -10 gather effect is worse than a -20
+
+        CalculationService.SortItemsBasedOnEffect(availableToolsOnCharacter, skillName, true);
+        CalculationService.SortItemsBasedOnEffect(toolsFromBank, skillName, true);
+
+        var bestItemOnCharacter = availableToolsOnCharacter.FirstOrDefault();
+        var bestItemInBank = availableToolsOnCharacter.FirstOrDefault();
+
+        // There is nothing at all to get from the bank, so we cannot withdraw
+        if (bestItemInBank is null)
+        {
+            return null;
+        }
+
+        if (bestItemOnCharacter is null)
+        {
+            return new WithdrawItem(character, gameState, bestItemInBank.Code, 1);
+        }
+
+        // We already have the same tool
+        if (bestItemOnCharacter.Code == bestItemInBank.Code)
+        {
+            int bestItemOnCharacterEffect = bestItemOnCharacter
+                .Effects.First(effect => effect.Code == skillName)
+                .Value;
+            int bestItemInBankEffect = bestItemInBank
+                .Effects.First(effect => effect.Code == skillName)
+                .Value;
+
+            if (bestItemInBankEffect < bestItemOnCharacterEffect)
+            {
+                return new WithdrawItem(character, gameState, bestItemInBank.Code, 1);
+            }
+        }
+
+        if (bestItemOnCharacter is null && bestItemInBank is null)
+        {
+            return null;
+        }
+
+        return null;
     }
 }

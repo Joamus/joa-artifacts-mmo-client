@@ -3,12 +3,14 @@ using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
+using Application.Errors;
 using Application.Jobs;
 using Application.Jobs.Chores;
 using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.OpenApi.Extensions;
+using OneOf.Types;
 
 namespace Application.Services;
 
@@ -68,7 +70,7 @@ public class PlayerAI
             ?? await GetIndividualLowPrioJob();
 
         logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName} - code {job?.Code} x ${job?.Amount}"
+            $"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName} - code {job?.Code} x {job?.Amount}"
         );
         return job!;
     }
@@ -573,89 +575,26 @@ public class PlayerAI
     {
         foreach (var role in Character.Roles)
         {
-            switch (role)
+            var job = role switch
             {
-                case Skill.Weaponcrafting:
-                    if (
-                        Character.Schema.WeaponcraftingLevel + SKILL_LEVEL_OFFSET
-                        <= Character.Schema.Level
-                    )
-                    {
-                        logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: GetRoleJob: Training Weaponcrafting - current level is {Character.Schema.WeaponcraftingLevel}, compared to character level {Character.Schema.Level}"
-                        );
-                        bool canTrainWepCrafting = await TrainSkill.CanDoJob(
-                            Character,
-                            gameState,
-                            Skill.Weaponcrafting
-                        );
+                Skill.Weaponcrafting => await GetCraftingTrainingJob(
+                    Skill.Weaponcrafting,
+                    Character.Schema.WeaponcraftingLevel
+                ),
+                Skill.Gearcrafting => await GetCraftingTrainingJob(
+                    Skill.Gearcrafting,
+                    Character.Schema.GearcraftingLevel
+                ),
+                Skill.Jewelrycrafting => await GetCraftingTrainingJob(
+                    Skill.Jewelrycrafting,
+                    Character.Schema.JewelrycraftingLevel
+                ),
+                _ => null,
+            };
 
-                        if (canTrainWepCrafting)
-                        {
-                            return new TrainSkill(
-                                Character,
-                                gameState,
-                                Skill.Weaponcrafting,
-                                1,
-                                true
-                            );
-                        }
-                    }
-                    break;
-                case Skill.Gearcrafting:
-                    if (
-                        Character.Schema.GearcraftingLevel + SKILL_LEVEL_OFFSET
-                        <= Character.Schema.Level
-                    )
-                    {
-                        logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: GetRoleJob: Training Gearcrafting - current level is {Character.Schema.GearcraftingLevel}, compared to character level {Character.Schema.Level}"
-                        );
-                        bool canTrainGearCrafting = await TrainSkill.CanDoJob(
-                            Character,
-                            gameState,
-                            Skill.Gearcrafting
-                        );
-
-                        if (canTrainGearCrafting)
-                        {
-                            return new TrainSkill(
-                                Character,
-                                gameState,
-                                Skill.Gearcrafting,
-                                1,
-                                true
-                            );
-                        }
-                    }
-                    break;
-                case Skill.Jewelrycrafting:
-                    if (
-                        Character.Schema.JewelrycraftingLevel + SKILL_LEVEL_OFFSET
-                        <= Character.Schema.Level
-                    )
-                    {
-                        logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: GetRoleJob: Training Jewelrycrafting - current level is {Character.Schema.JewelrycraftingLevel}, compared to character level {Character.Schema.Level}"
-                        );
-                        bool canTrainJewelryCrafting = await TrainSkill.CanDoJob(
-                            Character,
-                            gameState,
-                            Skill.Jewelrycrafting
-                        );
-
-                        if (canTrainJewelryCrafting)
-                        {
-                            return new TrainSkill(
-                                Character,
-                                gameState,
-                                Skill.Jewelrycrafting,
-                                1,
-                                true
-                            );
-                        }
-                    }
-                    break;
+            if (job is not null)
+            {
+                return job;
             }
         }
 
@@ -1217,6 +1156,49 @@ public class PlayerAI
             || a.ParentJob?.Code == b.Code
             || a.ParentJob?.Code == b.ParentJob?.Code
             || a.Code == b.ParentJob?.Code;
+    }
+
+    async Task<CharacterJob?> GetCraftingTrainingJob(Skill skill, int skillLevel)
+    {
+        if (skillLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
+        {
+            logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetRoleJob: Training {skill.GetDisplayName()} - current level is {skillLevel}, compared to character level {Character.Schema.Level}"
+            );
+            bool canTrainCraftingSkill = await TrainSkill.CanDoJob(Character, gameState, skill);
+
+            if (canTrainCraftingSkill)
+            {
+                // return new TrainSkill(
+                //     Character,
+                //     gameState,
+                //     skill,
+                //     1,
+                //     true
+                // );
+
+                /**
+                ** We want to only craft one at a time, in case the crafter gets a new job assigned,
+                ** e.g. other characters want to have an item crafted for them
+                */
+                //
+                var itemToCraft = await TrainSkill.GetJobsRequired(
+                    Character,
+                    gameState,
+                    skill,
+                    SkillKind.Crafting,
+                    skillLevel
+                );
+
+                return itemToCraft.Value switch
+                {
+                    List<CharacterJob> list => list.First(),
+                    _ => null,
+                };
+            }
+        }
+
+        return null;
     }
 }
 

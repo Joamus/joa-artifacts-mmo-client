@@ -419,10 +419,7 @@ public class DepositUnneededItems : CharacterJob
     {
         var result = await gameState.BankItemCache.GetBankDetails();
 
-        if (
-            result.NextExpansionCost
-            <= (Character.Schema.Gold + result.Gold) * NEXT_BANK_EXPANION_COST_PERCENTAGE_OF_TOTAL
-        )
+        if (result.NextExpansionCost < Character.Schema.Gold + result.Gold)
         {
             var itemsInBank = await gameState.AccountRequester.GetBankItems();
 
