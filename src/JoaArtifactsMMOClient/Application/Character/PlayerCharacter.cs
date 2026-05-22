@@ -620,7 +620,7 @@ public class PlayerCharacter
         GameState.BankItemCache.shouldRequestDetailsAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<BankGoldTransactionResponse>(
+        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
             content,
             ApiRequester.getJsonOptions()
         )!;

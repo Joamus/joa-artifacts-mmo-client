@@ -215,7 +215,8 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
                     return jobs;
                 })
-                .FirstOrDefault() ?? [];
+                .FirstOrDefault()
+            ?? [];
 
         return jobs;
     }

@@ -58,37 +58,54 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
                 foreach (var item in npc.Value)
                 {
-                    if (item.Quantity > 0)
-                    {
-                        allAtZero = false;
-                    }
+                    var bankResponse = await gameState.BankItemCache.GetBankItems(Character, true);
+
+                    int amountInBank =
+                        bankResponse
+                            .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
+                            ?.Quantity
+                        ?? 0;
 
                     int amountToWithdraw = Math.Min(
                         Character.GetAvailableInventorySpace(),
-                        item.Quantity
+                        amountInBank
                     );
 
-                    if (amountToWithdraw == 0)
+                    int amountInInventory =
+                        Character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
+
+                    allAtZero = item.Quantity == 0;
+
+                    if (amountToWithdraw > 0)
                     {
-                        continue;
+                        await Character.NavigateTo("bank");
+
+                        await Character.WithdrawBankItem(
+                            new List<WithdrawOrDepositItemRequest>
+                            {
+                                new WithdrawOrDepositItemRequest
+                                {
+                                    Code = item.Code,
+                                    Quantity = amountToWithdraw,
+                                },
+                            }
+                        );
+
+                        item.Quantity -= amountToWithdraw;
                     }
 
-                    await Character.NavigateTo("bank");
+                    if (
+                        amountToWithdraw == 0
+                        && (Character.GetItemFromInventory(item.Code)?.Quantity ?? 0) == 0
+                    )
+                    {
+                        allAtZero = true;
+                    }
 
-                    await Character.WithdrawBankItem(
-                        new List<WithdrawOrDepositItemRequest>
-                        {
-                            new WithdrawOrDepositItemRequest
-                            {
-                                Code = item.Code,
-                                Quantity = amountToWithdraw,
-                            },
-                        }
-                    );
-
-                    item.Quantity -= amountToWithdraw;
-
-                    if (Character.GetAvailableInventorySpace() == 0)
+                    if (
+                        Character.GetAvailableInventorySpace() == 0 && amountInInventory > 0
+                        || amountInInventory > 0 && amountInBank == 0
+                    )
                     {
                         await SellAllItemsToNpc(npc.Key);
                     }
@@ -131,7 +148,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
-            if (!IsSellableTrashItem(matchingItem, gameState))
+            if (!IsSellableTrashItem(matchingItem, gameState, true))
             {
                 continue;
             }
@@ -236,7 +253,11 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
         return items;
     }
 
-    public static bool IsSellableTrashItem(ItemSchema item, GameState gameState)
+    public static bool IsSellableTrashItem(
+        ItemSchema item,
+        GameState gameState,
+        bool allowCurrency = false
+    )
     {
         if (item.Craft is not null || item.Type != "resource")
         {
@@ -253,6 +274,11 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
         if (gameState.CraftingLookupDict.GetValueOrNull(item.Code) is not null)
         {
             return false;
+        }
+
+        if (allowCurrency)
+        {
+            return true;
         }
 
         var isUsedAsCurrency =
