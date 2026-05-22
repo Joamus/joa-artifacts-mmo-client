@@ -366,7 +366,7 @@ public class PlayerCharacter
             catch (Exception e)
             {
                 Logger.LogError(
-                    $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - threw exception: {e.Message} - stack {e.StackTrace}"
+                    $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - threw exception: {e.Message} - stack {e.StackTrace} - source: {e.Source}"
                 );
                 failed = true;
             }

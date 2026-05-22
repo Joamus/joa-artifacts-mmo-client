@@ -264,7 +264,7 @@ public class GatherResourceItem : CharacterJob
             ? gameState.ItemsDict.GetValueOrNull(character.Schema.WeaponSlot)
             : null;
 
-        if (equippedItem is not null && !ItemService.IsToolForSkill(equippedItem, skill))
+        if (equippedItem is not null && ItemService.IsToolForSkill(equippedItem, skill))
         {
             availableToolsOnCharacter.Add(equippedItem);
         }
