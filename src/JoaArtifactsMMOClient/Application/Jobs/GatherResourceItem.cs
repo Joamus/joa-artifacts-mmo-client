@@ -302,7 +302,7 @@ public class GatherResourceItem : CharacterJob
         CalculationService.SortItemsBasedOnEffect(toolsFromBank, skillName, true);
 
         var bestItemOnCharacter = availableToolsOnCharacter.FirstOrDefault();
-        var bestItemInBank = availableToolsOnCharacter.FirstOrDefault();
+        var bestItemInBank = toolsFromBank.FirstOrDefault();
 
         // There is nothing at all to get from the bank, so we cannot withdraw
         if (bestItemInBank is null)
@@ -321,6 +321,7 @@ public class GatherResourceItem : CharacterJob
             int bestItemOnCharacterEffect = bestItemOnCharacter
                 .Effects.First(effect => effect.Code == skillName)
                 .Value;
+
             int bestItemInBankEffect = bestItemInBank
                 .Effects.First(effect => effect.Code == skillName)
                 .Value;
