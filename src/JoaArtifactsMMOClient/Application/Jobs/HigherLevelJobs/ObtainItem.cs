@@ -621,18 +621,21 @@ public class ObtainItem : CharacterJob
                     (amountOfGoldToWithdraw + character.Schema.Gold) / buyPrice
                 );
 
-                jobs.Add(
-                    new BuyItemNpc(
-                        character,
-                        gameState,
-                        code,
-                        amountThatCanBeBought,
-                        false,
-                        true,
-                        true
-                    )
-                );
-                requiredAmount -= amountThatCanBeBought;
+                if (amountThatCanBeBought > 0)
+                {
+                    jobs.Add(
+                        new BuyItemNpc(
+                            character,
+                            gameState,
+                            code,
+                            amountThatCanBeBought,
+                            false,
+                            true,
+                            true
+                        )
+                    );
+                    requiredAmount -= amountThatCanBeBought;
+                }
             }
             else
             {
