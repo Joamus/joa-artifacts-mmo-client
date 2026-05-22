@@ -273,9 +273,17 @@ public class GatherResourceItem : CharacterJob
 
         var toolsFromBank = bankResponse
             .Data.Where(item =>
-                !string.IsNullOrWhiteSpace(item.Code)
-                && ItemService.IsToolForSkill(gameState.ItemsDict[item.Code], skill)
-            )
+            {
+                if (!string.IsNullOrWhiteSpace(item.Code))
+                {
+                    return false;
+                }
+
+                var matchingItem = gameState.ItemsDict[item.Code];
+
+                return ItemService.IsToolForSkill(matchingItem, skill)
+                    && ItemService.CanUseItem(matchingItem, character.Schema);
+            })
             .Select(item => gameState.ItemsDict[item.Code])
             .ToList();
 
@@ -288,7 +296,10 @@ public class GatherResourceItem : CharacterJob
 
             var matchingItem = gameState.ItemsDict[item.Code];
 
-            if (ItemService.IsToolForSkill(matchingItem, skill))
+            if (
+                ItemService.IsToolForSkill(matchingItem, skill)
+                && ItemService.CanUseItem(matchingItem, character.Schema)
+            )
             {
                 availableToolsOnCharacter.Add(matchingItem);
             }
@@ -317,6 +328,12 @@ public class GatherResourceItem : CharacterJob
 
         // We already have the same tool
         if (bestItemOnCharacter.Code == bestItemInBank.Code)
+        {
+            return null;
+        }
+
+        // We already have the same tool
+        if (bestItemOnCharacter.Code != bestItemInBank.Code)
         {
             int bestItemOnCharacterEffect = bestItemOnCharacter
                 .Effects.First(effect => effect.Code == skillName)

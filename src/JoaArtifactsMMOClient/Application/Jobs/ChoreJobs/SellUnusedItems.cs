@@ -191,7 +191,10 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             // Incorporate evaluating whether a "fight item" is still relevant (look at RecycleUnusedItems), else we can sell them, e.g forest_ring.
             var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(item.Code);
 
-            if (matchingNpcItem is null || !activeNpcs.ContainsKey(matchingNpcItem.Npc))
+            if (
+                matchingNpcItem is null
+                || !EventService.IsNpcActive(gameState, matchingNpcItem.Npc)
+            )
             {
                 continue;
             }

@@ -596,7 +596,7 @@ public class ObtainItem : CharacterJob
             matchingNpcItem is not null
             && matchingNpcItem.BuyPrice is not null
             && matchingNpcItem.Currency == "gold"
-            && IsNpcAvailable(gameState, matchingNpcItem.Npc)
+            && EventService.IsNpcActive(gameState, matchingNpcItem.Npc)
         )
         {
             var matchingItem = gameState.ItemsDict[code];
@@ -1046,7 +1046,10 @@ public class ObtainItem : CharacterJob
     {
         List<CharacterJob> jobs = [];
 
-        if (matchingNpcItem.BuyPrice is null || !IsNpcAvailable(gameState, matchingNpcItem.Code))
+        if (
+            matchingNpcItem.BuyPrice is null
+            || !EventService.IsNpcActive(gameState, matchingNpcItem.Code)
+        )
         {
             // return null;
             return new AppError(
@@ -1171,21 +1174,5 @@ public class ObtainItem : CharacterJob
         );
 
         return jobs;
-    }
-
-    static bool IsNpcAvailable(GameState gameState, string code)
-    {
-        var npcIsFromEvent = gameState.EventService.IsEntityFromEvent(code);
-
-        if (npcIsFromEvent && gameState.EventService.WhereIsEntityActive(code) is null)
-        {
-            return false;
-        }
-
-        var npcIsAccessible = gameState.AvailableNpcs.Exists(availableNpc =>
-            availableNpc.Code == code
-        );
-
-        return npcIsAccessible;
     }
 }

@@ -66,10 +66,10 @@ public class FightEquipmentAI
             {
                 if (
                     item.Type == equipmentType.ItemType
+                    && ItemService.CanUseItem(item, character.Schema)
                     && (character.GetItemFromInventory(item.Code)?.Quantity ?? 0)
                         <= maxAllowedOfItem
                     && !character.ExistsInWishlist(item.Code)
-                    && ItemService.CanUseItem(item, character.Schema)
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
                     && item.Craft is not null
                     && await character.PlayerActionService.CanObtainItem(item, 1)

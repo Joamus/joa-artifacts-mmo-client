@@ -225,4 +225,20 @@ public class EventService
 
         return false;
     }
+
+    public static bool IsNpcActive(GameState gameState, string code)
+    {
+        var npcIsFromEvent = gameState.EventService.IsEntityFromEvent(code);
+
+        if (npcIsFromEvent && gameState.EventService.WhereIsEntityActive(code) is null)
+        {
+            return false;
+        }
+
+        var npcIsAccessible = gameState.AvailableNpcs.Exists(availableNpc =>
+            availableNpc.Code == code
+        );
+
+        return npcIsAccessible;
+    }
 }
