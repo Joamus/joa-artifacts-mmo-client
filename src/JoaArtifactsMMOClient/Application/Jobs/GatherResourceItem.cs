@@ -274,7 +274,7 @@ public class GatherResourceItem : CharacterJob
         var toolsFromBank = bankResponse
             .Data.Where(item =>
             {
-                if (!string.IsNullOrWhiteSpace(item.Code))
+                if (string.IsNullOrWhiteSpace(item.Code))
                 {
                     return false;
                 }
