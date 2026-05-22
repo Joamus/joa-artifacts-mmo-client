@@ -252,7 +252,7 @@ public class GatherResourceItem : CharacterJob
         return characterSkillLevel >= resource.Level;
     }
 
-    public static async Task<WithdrawItem?> GetWithdrawItemJobsIfBetterToolInBank(
+    public static async Task<List<CharacterJob>> GetWithdrawItemJobsIfBetterToolInBank(
         PlayerCharacter character,
         GameState gameState,
         Skill skill
@@ -318,18 +318,18 @@ public class GatherResourceItem : CharacterJob
         // There is nothing at all to get from the bank, so we cannot withdraw
         if (bestItemInBank is null)
         {
-            return null;
+            return [];
         }
 
         if (bestItemOnCharacter is null)
         {
-            return new WithdrawItem(character, gameState, bestItemInBank.Code, 1);
+            return [new WithdrawItem(character, gameState, bestItemInBank.Code, 1)];
         }
 
         // We already have the same tool
         if (bestItemOnCharacter.Code == bestItemInBank.Code)
         {
-            return null;
+            return [];
         }
 
         // We already have the same tool
@@ -345,15 +345,19 @@ public class GatherResourceItem : CharacterJob
 
             if (bestItemInBankEffect < bestItemOnCharacterEffect)
             {
-                return new WithdrawItem(character, gameState, bestItemInBank.Code, 1);
+                return
+                [
+                    new WithdrawItem(character, gameState, bestItemInBank.Code, 1),
+                    new DepositItems(character, gameState, bestItemOnCharacter.Code, 1),
+                ];
             }
         }
 
         if (bestItemOnCharacter is null && bestItemInBank is null)
         {
-            return null;
+            return [];
         }
 
-        return null;
+        return [];
     }
 }
