@@ -85,19 +85,19 @@ public class GatherResourceItem : CharacterJob
 
         Skill skill = resource.Skill;
 
-        WithdrawItem? withdrawItemJob = await GetWithdrawItemJobsIfBetterToolInBank(
+        List<CharacterJob> itemJobs = await GetItemJobsIfBetterToolInBank(
             Character,
             gameState,
             skill
         );
 
-        if (withdrawItemJob is not null)
+        if (itemJobs.Count > 0)
         {
             logger.LogInformation(
-                $"{JobName}: [{Character.Schema.Name}] found job to withdraw better tool to gather {resource.Name} - tool is {withdrawItemJob.Code}"
+                $"{JobName}: [{Character.Schema.Name}] found job to withdraw better tool to gather {resource.Name}"
             );
 
-            await Character.QueueJobsBefore(Id, [withdrawItemJob]);
+            await Character.QueueJobsBefore(Id, itemJobs);
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -252,7 +252,7 @@ public class GatherResourceItem : CharacterJob
         return characterSkillLevel >= resource.Level;
     }
 
-    public static async Task<List<CharacterJob>> GetWithdrawItemJobsIfBetterToolInBank(
+    public static async Task<List<CharacterJob>> GetItemJobsIfBetterToolInBank(
         PlayerCharacter character,
         GameState gameState,
         Skill skill
