@@ -366,7 +366,7 @@ public class PlayerCharacter
             catch (Exception e)
             {
                 Logger.LogError(
-                    $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - threw exception: {e.Message} - stack {e.StackTrace}"
+                    $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - threw exception: {e.Message} - stack {e.StackTrace} - source: {e.Source}"
                 );
                 failed = true;
             }
@@ -620,7 +620,7 @@ public class PlayerCharacter
         GameState.BankItemCache.shouldRequestDetailsAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<BankGoldTransactionResponse>(
+        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
             content,
             ApiRequester.getJsonOptions()
         )!;

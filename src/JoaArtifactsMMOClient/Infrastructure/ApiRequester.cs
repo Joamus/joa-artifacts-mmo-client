@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Application;
+using Application.Errors;
 
 namespace Infrastructure;
 
@@ -127,7 +128,7 @@ public class ApiRequester
 
                 if ((int)response.StatusCode == 499)
                 {
-                    await Task.Delay((int)((_secondsBetweenRequests + 1) * 1000 * (i + 1) * 10));
+                    await Task.Delay((int)((_secondsBetweenRequests + 1) * 1000 * (i + 1)));
                 }
                 else
                 {
@@ -162,7 +163,7 @@ public class ApiRequester
 
         if (response is not null && (int)response.StatusCode >= 400)
         {
-            logger.LogWarning(
+            throw new AppError(
                 $"POST Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {await response.Content.ReadAsStringAsync()}"
             );
         }

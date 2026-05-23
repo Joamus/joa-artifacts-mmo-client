@@ -85,19 +85,19 @@ public class GatherResourceItem : CharacterJob
 
         Skill skill = resource.Skill;
 
-        WithdrawItem? withdrawItemJob = await GetWithdrawItemJobsIfBetterToolInBank(
+        List<CharacterJob> itemJobs = await GetItemJobsIfBetterToolInBank(
             Character,
             gameState,
             skill
         );
 
-        if (withdrawItemJob is not null)
+        if (itemJobs.Count > 0)
         {
             logger.LogInformation(
-                $"{JobName}: [{Character.Schema.Name}] found job to withdraw better tool to gather {resource.Name} - tool is {withdrawItemJob.Code}"
+                $"{JobName}: [{Character.Schema.Name}] found job to withdraw better tool to gather {resource.Name}"
             );
 
-            await Character.QueueJobsBefore(Id, [withdrawItemJob]);
+            await Character.QueueJobsBefore(Id, itemJobs);
             Status = JobStatus.Suspend;
             return new None();
         }
@@ -252,7 +252,7 @@ public class GatherResourceItem : CharacterJob
         return characterSkillLevel >= resource.Level;
     }
 
-    public static async Task<WithdrawItem?> GetWithdrawItemJobsIfBetterToolInBank(
+    public static async Task<List<CharacterJob>> GetItemJobsIfBetterToolInBank(
         PlayerCharacter character,
         GameState gameState,
         Skill skill
@@ -264,7 +264,7 @@ public class GatherResourceItem : CharacterJob
             ? gameState.ItemsDict.GetValueOrNull(character.Schema.WeaponSlot)
             : null;
 
-        if (equippedItem is not null && !ItemService.IsToolForSkill(equippedItem, skill))
+        if (equippedItem is not null && ItemService.IsToolForSkill(equippedItem, skill))
         {
             availableToolsOnCharacter.Add(equippedItem);
         }
@@ -273,9 +273,17 @@ public class GatherResourceItem : CharacterJob
 
         var toolsFromBank = bankResponse
             .Data.Where(item =>
-                !string.IsNullOrWhiteSpace(item.Code)
-                && ItemService.IsToolForSkill(gameState.ItemsDict[item.Code], skill)
-            )
+            {
+                if (string.IsNullOrWhiteSpace(item.Code))
+                {
+                    return false;
+                }
+
+                var matchingItem = gameState.ItemsDict[item.Code];
+
+                return ItemService.IsToolForSkill(matchingItem, skill)
+                    && ItemService.CanUseItem(matchingItem, character.Schema);
+            })
             .Select(item => gameState.ItemsDict[item.Code])
             .ToList();
 
@@ -288,7 +296,10 @@ public class GatherResourceItem : CharacterJob
 
             var matchingItem = gameState.ItemsDict[item.Code];
 
-            if (ItemService.IsToolForSkill(matchingItem, skill))
+            if (
+                ItemService.IsToolForSkill(matchingItem, skill)
+                && ItemService.CanUseItem(matchingItem, character.Schema)
+            )
             {
                 availableToolsOnCharacter.Add(matchingItem);
             }
@@ -302,40 +313,51 @@ public class GatherResourceItem : CharacterJob
         CalculationService.SortItemsBasedOnEffect(toolsFromBank, skillName, true);
 
         var bestItemOnCharacter = availableToolsOnCharacter.FirstOrDefault();
-        var bestItemInBank = availableToolsOnCharacter.FirstOrDefault();
+        var bestItemInBank = toolsFromBank.FirstOrDefault();
 
         // There is nothing at all to get from the bank, so we cannot withdraw
         if (bestItemInBank is null)
         {
-            return null;
+            return [];
         }
 
         if (bestItemOnCharacter is null)
         {
-            return new WithdrawItem(character, gameState, bestItemInBank.Code, 1);
+            return [new WithdrawItem(character, gameState, bestItemInBank.Code, 1)];
         }
 
         // We already have the same tool
         if (bestItemOnCharacter.Code == bestItemInBank.Code)
         {
+            return [];
+        }
+
+        // We already have the same tool
+        if (bestItemOnCharacter.Code != bestItemInBank.Code)
+        {
             int bestItemOnCharacterEffect = bestItemOnCharacter
                 .Effects.First(effect => effect.Code == skillName)
                 .Value;
+
             int bestItemInBankEffect = bestItemInBank
                 .Effects.First(effect => effect.Code == skillName)
                 .Value;
 
             if (bestItemInBankEffect < bestItemOnCharacterEffect)
             {
-                return new WithdrawItem(character, gameState, bestItemInBank.Code, 1);
+                return
+                [
+                    new WithdrawItem(character, gameState, bestItemInBank.Code, 1),
+                    new DepositItems(character, gameState, bestItemOnCharacter.Code, 1),
+                ];
             }
         }
 
         if (bestItemOnCharacter is null && bestItemInBank is null)
         {
-            return null;
+            return [];
         }
 
-        return null;
+        return [];
     }
 }
