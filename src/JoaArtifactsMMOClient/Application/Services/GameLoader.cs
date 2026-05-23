@@ -45,12 +45,12 @@ public class GameLoader
 
                 var now = DateTime.UtcNow.AddSeconds(-2);
                 var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
+
                 if (cooldownExpiresIn.TotalSeconds > 0)
                 {
                     continue;
                 }
 
-                // if (character.Jobs.Count > 0)
                 if (playerAI.Character.Idle)
                 {
                     if (playerAI.Enabled)
@@ -63,10 +63,10 @@ public class GameLoader
                             var job = await playerAI.GetNextJob();
 
                             // Change
-                            await playerAI.Character.QueueJob(job);
+                            _ = playerAI.Character.QueueJob(job);
                         }
                     }
-                    var _ = playerAI.Character.RunJob();
+                    _ = playerAI.Character.RunJob();
                 }
             }
 

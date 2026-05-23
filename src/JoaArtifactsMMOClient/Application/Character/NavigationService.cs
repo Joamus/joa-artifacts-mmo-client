@@ -217,14 +217,14 @@ public class NavigationService
         //     potionsInInventory = potionsInInventory;
         // }
 
-        var steps = CalculateStepsToDestination(currentMap, destinationMap);
+        var result = CalculateStepsToDestination(currentMap, destinationMap);
 
-        await ExecuteNavigations(character, steps);
+        await ExecuteNavigations(character, result.Steps);
 
         return new None();
     }
 
-    public List<NavigationStep> CalculateStepsToDestination(
+    public NavigationStepsAndRequirements CalculateStepsToDestination(
         MapSchema currentMap,
         MapSchema destinationMap
     )
@@ -232,6 +232,10 @@ public class NavigationService
         List<NavigationStep> steps = [];
 
         int safetyCounter = 0;
+
+        // Implement later
+        List<DropSchema> itemRequirements = [];
+        int goldRequirement = 0;
 
         while (currentMap.MapId != destinationMap.MapId)
         {
@@ -261,7 +265,12 @@ public class NavigationService
             }
         }
 
-        return steps;
+        return new NavigationStepsAndRequirements
+        {
+            Steps = steps,
+            ItemRequirements = itemRequirements,
+            GoldRequirement = goldRequirement,
+        };
     }
 
     public static async Task ExecuteNavigations(
@@ -391,7 +400,7 @@ public class NavigationService
                     (MonsterSchema closestMonster, MapSchema closestMonsterMap) =
                         closestMonsterResult.Value;
 
-                    var steps = CalculateStepsToDestination(currentMap, closestMonsterMap);
+                    var result = CalculateStepsToDestination(currentMap, closestMonsterMap);
 
                     async Task afterMoveAction()
                     {
@@ -400,6 +409,8 @@ public class NavigationService
                             await character.Fight();
                         }
                     }
+
+                    var steps = result.Steps;
 
                     var lastStep = steps.Last();
 
@@ -639,7 +650,6 @@ public class NavigationService
                 Layer = destinationMap.Layer,
                 ShouldTransition = false,
                 AfterMoveAction = AfterMoveAction,
-                RequiredItemInteractionCode = null,
                 TeleportPotionCode = null,
             },
             NewMap = destinationMap,
@@ -670,7 +680,6 @@ public class NavigationService
                 Layer = currentMap.Layer,
                 ShouldTransition = true,
                 AfterMoveAction = AfterMoveAction,
-                RequiredItemInteractionCode = null,
                 TeleportPotionCode = null,
             },
             NewMap = destinationMap,
@@ -700,6 +709,59 @@ public class NavigationService
 
         return cost * COOLDOWN_PER_MAP_SECONDS;
     }
+
+    public static Move? GetPotionMove(
+        PlayerCharacter character,
+        GameState gameState,
+        MapSchema currentMap,
+        MapSchema destinationMap
+    )
+    {
+        var potionsInInventory = character
+            .Schema.Inventory.Select(item =>
+            {
+                if (!string.IsNullOrWhiteSpace(item.Code))
+                {
+                    return gameState.ItemsDict[item.Code];
+                }
+
+                return null;
+            })
+            .Where(item =>
+            {
+                if (item is null || !ItemService.IsTeleportPotion(item))
+                {
+                    return false;
+                }
+
+                var teleportToMap = gameState.MapsDict[
+                    item.Effects.First(effect => effect.Code == "teleport").Value
+                ];
+
+                if (teleportToMap.Layer == destinationMap.Layer)
+                {
+                    // Basically we only want to teleport to the island if either the maps are both at the same island, or neither are island maps
+                    if (
+                        teleportToMap.Name == destinationMap.Name
+                        || !Islands.Contains(teleportToMap.Name)
+                            && !Islands.Contains(destinationMap.Name)
+                    )
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            .ToList();
+
+        // if (potionsInInventory.Count > 0)
+        // {
+        //     potionsInInventory = potionsInInventory;
+        // }
+
+        return null;
+    }
 }
 
 public record NavigationStep
@@ -716,8 +778,16 @@ public record Move
     public required MapLayer Layer { get; init; }
 
     public required bool ShouldTransition { get; init; }
-    public required string? RequiredItemInteractionCode { get; init; }
+
+    // public required string? RequiredItemInteractionCode { get; init; }
     public required string? TeleportPotionCode { get; init; }
 
     public Func<Task>? AfterMoveAction { get; init; }
+}
+
+public record NavigationStepsAndRequirements
+{
+    public required List<NavigationStep> Steps { get; set; } = [];
+    public required List<DropSchema> ItemRequirements { get; set; } = [];
+    public required int GoldRequirement { get; set; } = 0;
 }

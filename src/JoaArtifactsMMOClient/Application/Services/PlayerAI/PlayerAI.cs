@@ -56,7 +56,8 @@ public class PlayerAI
         // Deposit all gold above threshold - shared economy
 
         var job =
-            await DepositUnneededGold()
+            await WithdrawAllowance()
+            ?? await DepositUnneededGold()
             ?? await EnsureAccessories()
             ?? await EnsureWeapon()
             ?? await EnsureTools()
@@ -125,15 +126,39 @@ public class PlayerAI
             return new DepositGold(Character, gameState, goldAboveThreshold);
         }
 
-        int budgetInBank = await gameState.BankItemCache.GetTotalBudgetInBank();
+        // int budgetInBank = await gameState.BankItemCache.GetTotalBudgetInBank();
 
-        if (budgetInBank == 0 && Character.Schema.Gold > 0)
+        // if (budgetInBank == 0 && Character.Schema.Gold > 0)
+        // {
+        //     logger.LogInformation(
+        //         $"{Name}: [{Character.Schema.Name}]: Depositing all gold - budget in bank is {budgetInBank}, so we prioritize filling up bank with gold"
+        //     );
+
+        //     return new DepositGold(Character, gameState, Character.Schema.Gold);
+        // }
+
+        return null;
+    }
+
+    async Task<WithdrawGold?> WithdrawAllowance()
+    {
+        if (Character.Schema.Gold < PERSONAL_GOLD_THRESHOLD)
         {
-            logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: Depositing all gold - budget in bank is {budgetInBank}, so we prioritize filling up bank with gold"
+            int budgetInBank = await Character.GetAllowedWithdrawAmount();
+
+            int amountNeeded = PERSONAL_GOLD_THRESHOLD - Character.Schema.Gold;
+
+            int amountToWithdraw = Math.Min(
+                PERSONAL_GOLD_THRESHOLD,
+                budgetInBank >= amountNeeded ? amountNeeded : budgetInBank
             );
 
-            return new DepositGold(Character, gameState, Character.Schema.Gold);
+            if (amountToWithdraw <= 0)
+            {
+                return null;
+            }
+
+            return new WithdrawGold(Character, gameState, amountToWithdraw);
         }
 
         return null;
