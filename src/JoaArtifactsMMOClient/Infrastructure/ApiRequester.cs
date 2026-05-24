@@ -128,7 +128,7 @@ public class ApiRequester
 
                 if ((int)response.StatusCode == 499)
                 {
-                    await Task.Delay((int)((_secondsBetweenRequests + 1) * 1000 * (i + 1)));
+                    await Task.Delay((int)(_secondsBetweenRequests * 1000));
                 }
                 else
                 {

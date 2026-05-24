@@ -51,6 +51,14 @@ public class GameLoader
                     continue;
                 }
 
+                AppLogger
+                    .GetLogger()
+                    .LogDebug(
+                        "GameLoop: [{Name}]: Running AI loop - idle: {Idle}",
+                        playerAI.Character.Name,
+                        playerAI.Character.Idle
+                    );
+
                 if (playerAI.Character.Idle)
                 {
                     if (playerAI.Enabled)
@@ -60,12 +68,23 @@ public class GameLoader
                             && playerAI.Character.Jobs.Count == 0
                         )
                         {
+                            AppLogger
+                                .GetLogger()
+                                .LogDebug(
+                                    "GameLoop: [{Name}]: Running AI loop - getting next job and queueing it",
+                                    playerAI.Character.Name
+                                );
+
                             var job = await playerAI.GetNextJob();
 
                             // Change
                             _ = playerAI.Character.QueueJob(job);
                         }
                     }
+                    AppLogger
+                        .GetLogger()
+                        .LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
+
                     _ = playerAI.Character.RunJob();
                 }
             }

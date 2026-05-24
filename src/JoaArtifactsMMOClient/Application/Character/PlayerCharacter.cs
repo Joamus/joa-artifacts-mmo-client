@@ -475,7 +475,7 @@ public class PlayerCharacter
         }
         await PreTaskHandler();
 
-        var _body = JsonSerializer.Serialize(new { x = x, y = y });
+        var _body = JsonSerializer.Serialize(new { x, y });
         StringContent body = new StringContent(_body, Encoding.UTF8, MediaType);
 
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/move", body);

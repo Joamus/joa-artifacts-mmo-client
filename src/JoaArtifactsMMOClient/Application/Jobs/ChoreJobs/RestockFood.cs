@@ -215,16 +215,22 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
                     return jobs;
                 })
-                .FirstOrDefault()
-            ?? [];
+                .FirstOrDefault() ?? [];
 
         return jobs;
     }
 
     static bool IsItemUncookedMeatOrFish(ItemSchema item, GameState gameState)
     {
-        return item.Type == "resource"
-            && (gameState.CraftingLookupDict.GetValueOrNull(item.Code) ?? []).Exists(craftedItem =>
+        if (item.Type != "resource")
+        {
+            return false;
+        }
+
+        var itemsThatCanBeCrafted = gameState.CraftingLookupDict.GetValueOrNull(item.Code) ?? [];
+
+        return itemsThatCanBeCrafted.All(craftedItem => craftedItem.Type == "consumable")
+            && itemsThatCanBeCrafted.Exists(craftedItem =>
                 ItemService.IsItemCookedFish(craftedItem, gameState)
                 || ItemService.IsItemCookedMeat(craftedItem, gameState)
             );
