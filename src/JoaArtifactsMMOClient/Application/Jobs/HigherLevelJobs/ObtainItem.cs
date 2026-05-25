@@ -637,7 +637,7 @@ public class ObtainItem : CharacterJob
                     requiredAmount -= amountThatCanBeBought;
                 }
             }
-            else
+            else if (requiredAmount > 0)
             {
                 jobs.Add(
                     new BuyItemNpc(character, gameState, code, requiredAmount, false, true, true)
@@ -853,7 +853,7 @@ public class ObtainItem : CharacterJob
             taskCoinsInInventory.Quantity -= taskCoinsNeededFromInventory;
         }
 
-        if (taskCoinsNeeded == 0)
+        if (taskCoinsNeeded == 0 && requiredAmount > 0)
         {
             jobs.Add(new BuyItemNpc(character, gameState, code, requiredAmount, true, true, true));
             return jobs;
@@ -1164,17 +1164,20 @@ public class ObtainItem : CharacterJob
             }
         }
 
-        jobs.Add(
-            new BuyItemNpc(
-                character,
-                gameState,
-                matchingItem.Code,
-                requiredAmount,
-                true,
-                true,
-                true
-            )
-        );
+        if (requiredAmount > 0)
+        {
+            jobs.Add(
+                new BuyItemNpc(
+                    character,
+                    gameState,
+                    matchingItem.Code,
+                    requiredAmount,
+                    true,
+                    true,
+                    true
+                )
+            );
+        }
 
         return jobs;
     }
