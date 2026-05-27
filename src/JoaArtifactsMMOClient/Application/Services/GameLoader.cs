@@ -9,7 +9,10 @@ public class GameLoader
     public GameLoader()
     {
         _gameState = GameServiceProvider.GetInstance().GetService<GameState>()!;
+        Logger = AppLogger.loggerFactory.CreateLogger<GameLoader>();
     }
+
+    public ILogger Logger { get; init; }
 
     public static string LoadApiToken()
     {
@@ -51,13 +54,11 @@ public class GameLoader
                     continue;
                 }
 
-                AppLogger
-                    .GetLogger()
-                    .LogDebug(
-                        "GameLoop: [{Name}]: Running AI loop - idle: {Idle}",
-                        playerAI.Character.Name,
-                        playerAI.Character.Idle
-                    );
+                Logger.LogInformation(
+                    "GameLoop: [{Name}]: Running AI loop - idle: {Idle}",
+                    playerAI.Character.Name,
+                    playerAI.Character.Idle
+                );
 
                 if (playerAI.Character.Idle)
                 {
@@ -68,12 +69,10 @@ public class GameLoader
                             && playerAI.Character.Jobs.Count == 0
                         )
                         {
-                            AppLogger
-                                .GetLogger()
-                                .LogDebug(
-                                    "GameLoop: [{Name}]: Running AI loop - getting next job and queueing it",
-                                    playerAI.Character.Name
-                                );
+                            Logger.LogInformation(
+                                "GameLoop: [{Name}]: Running AI loop - getting next job and queueing it",
+                                playerAI.Character.Name
+                            );
 
                             var job = await playerAI.GetNextJob();
 
@@ -81,9 +80,7 @@ public class GameLoader
                             _ = playerAI.Character.QueueJob(job);
                         }
                     }
-                    AppLogger
-                        .GetLogger()
-                        .LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
+                    Logger.LogInformation("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
 
                     _ = playerAI.Character.RunJob();
                 }

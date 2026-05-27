@@ -30,7 +30,7 @@ public class PlayerAI
     bool hasDoneItemTask { get; set; } = false;
 
     [JsonIgnore]
-    public ILogger<CharacterJob> logger { get; init; } =
+    public ILogger<CharacterJob> Logger { get; init; } =
         AppLogger.loggerFactory.CreateLogger<CharacterJob>();
 
     public PlayerAI(PlayerCharacter character, GameState gameState, bool enabled = true)
@@ -42,7 +42,11 @@ public class PlayerAI
 
     public async Task<CharacterJob> GetNextJob()
     {
-        logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating next job");
+        Logger.LogInformation(
+            "{Name}: [{CharacterName}]: Evaluating next job",
+            Name,
+            Character.Schema.Name
+        );
 
         hasDoneItemTask =
             gameState.AccountAchievements.FirstOrDefault(achiev =>
@@ -70,7 +74,7 @@ public class PlayerAI
             ?? await GetRoleJob()
             ?? await GetIndividualLowPrioJob();
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName} - code {job?.Code} x {job?.Amount}"
         );
         return job!;
@@ -101,7 +105,7 @@ public class PlayerAI
 
             if (itemWeCanClaim is not null)
             {
-                logger.LogInformation(
+                Logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: Can claim item {itemWeCanClaim.Id} - description: {itemWeCanClaim.Description}"
                 );
                 await Character.ClaimPendingItem(itemWeCanClaim.Id);
@@ -119,7 +123,7 @@ public class PlayerAI
         {
             int goldAboveThreshold = Character.Schema.Gold - PERSONAL_GOLD_THRESHOLD;
 
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: Depositing unneeded gold ({goldAboveThreshold})"
             );
 
@@ -274,11 +278,11 @@ public class PlayerAI
         * which slows down things like fighting slimes for potions, etc.
         */
 
-        logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Ensure fight equipment");
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Ensure fight equipment");
 
         var job = await FightEquipmentAI.EnsureFightEquipment(Character, gameState);
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: Evaluating fight equipment - found job {job?.Code ?? "(none)"}"
         );
 
@@ -440,13 +444,13 @@ public class PlayerAI
 
         if (bestCandidate is not null)
         {
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: Current weapon was {currentWeapon?.Code ?? "n/a"} - withdrawing 1 x {bestCandidate.Code}"
             );
             return new WithdrawItem(Character, gameState, bestCandidate.Code, 1, false);
         }
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: Could not find weapon from bank - cannot handle at the moment"
         );
 
@@ -455,13 +459,13 @@ public class PlayerAI
 
     async Task<CharacterJob?> EnsureTools()
     {
-        logger.LogInformation($"{Name}: [{Character.Schema.Name}]: EnsureTools: Start");
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: EnsureTools: Start");
 
         var bestTools = await ItemService.GetBestTools(Character, gameState, null, hasDoneItemTask);
 
         if (!hasDoneItemTask)
         {
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: EnsureTools: Tasks farmer achievement is not completed yet - evaluating best tools, which don't require task materials"
             );
         }
@@ -484,7 +488,7 @@ public class PlayerAI
 
             if (Character.ExistsInWishlist(tool.Code))
             {
-                logger.LogInformation(
+                Logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: EnsureTools: Skipping obtaining tool {tool.Code} - is already in wish list"
                 );
                 continue;
@@ -540,7 +544,7 @@ public class PlayerAI
 
             string itemCode = tool.Code;
 
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: EnsureTools: Job found - get {itemCode}"
             );
 
@@ -554,7 +558,7 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetIndividualHighPrioJob()
     {
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Start"
         );
 
@@ -587,7 +591,7 @@ public class PlayerAI
 
         if (Character.Schema.AlchemyLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
         {
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Alchemy - current level is {Character.Schema.AlchemyLevel}, compared to character level {Character.Schema.Level}"
             );
             return new TrainSkill(Character, gameState, Skill.Alchemy, 1, true);
@@ -632,7 +636,7 @@ public class PlayerAI
 
         if (Character.Schema.TaskType == TaskType.items.ToString())
         {
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Already has an item task - beginning/resuming item task"
             );
             if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
@@ -659,7 +663,7 @@ public class PlayerAI
                 {
                     var nextJob = nextJobResult.Job;
 
-                    logger.LogInformation(
+                    Logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight monster from monster task: {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {Character.Schema.Task} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
                     );
                     // Do the first job in the list, we only do one thing at a time
@@ -673,7 +677,7 @@ public class PlayerAI
             }
             else
             {
-                logger.LogInformation(
+                Logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Falling back - could not do jobs to defeat monster \"{Character.Schema.Task}\" from monster task"
                 );
             }
@@ -692,7 +696,7 @@ public class PlayerAI
 
             if (fightMonster is not null)
             {
-                logger.LogInformation(
+                Logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting {fightMonster.Amount} x {fightMonster.Code}"
                 );
                 var nextJobResult = await GetNextJobToFightMonster(
@@ -705,7 +709,7 @@ public class PlayerAI
                     {
                         var nextJob = nextJobResult.Job;
 
-                        logger.LogInformation(
+                        Logger.LogInformation(
                             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
                         );
                         // Do the first job in the list, we only do one thing at a time
@@ -713,7 +717,7 @@ public class PlayerAI
                     }
                     else
                     {
-                        logger.LogInformation(
+                        Logger.LogInformation(
                             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fighting {fightMonster.Amount} x {fightMonster.Code}"
                         );
                         return fightMonster;
@@ -722,20 +726,20 @@ public class PlayerAI
             }
         }
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job"
         );
 
         if (hasNoTask)
         {
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Got no task - take item task"
             );
 
             return new AcceptNewTask(Character, gameState, TaskType.items);
         }
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fallback job - leveling mining"
         );
         return new TrainSkill(Character, gameState, Skill.Mining, 1, true);
@@ -786,13 +790,13 @@ public class PlayerAI
             {
                 if (nextJobResult.Job is not null)
                 {
-                    logger.LogInformation(
+                    Logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do monster task ({monster.Code})"
                     );
 
                     var nextJob = nextJobResult.Job;
 
-                    logger.LogInformation(
+                    Logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
                     );
                     // Do the first job in the list, we only do one thing at a time
@@ -800,7 +804,7 @@ public class PlayerAI
                 }
                 else
                 {
-                    logger.LogInformation(
+                    Logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
                     );
                     return new MonsterTask(Character, gameState);
@@ -828,7 +832,7 @@ public class PlayerAI
             return null;
         }
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetEventJob: Evaluating active events - there are {activeEvents.Count} active events"
         );
 
@@ -859,7 +863,7 @@ public class PlayerAI
             }
         }
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetEventJob: No event job scheduled out of {activeEvents.Count} active events"
         );
 
@@ -875,7 +879,7 @@ public class PlayerAI
             return;
         }
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Character.Name} - events changed, found {nextJob.Code} x {nextJob?.Amount} job for them"
         );
 
@@ -885,7 +889,7 @@ public class PlayerAI
             && !Character.Jobs.Exists(job => JobsHaveOverlap(job, nextJob))
         )
         {
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Character.Name} - assigning job \"{nextJob.Code}\" - clearing job queue, scheduling this job as highest priority"
             );
             Character.ClearJobs();
@@ -905,14 +909,14 @@ public class PlayerAI
             {
                 var nextJob = jobsToFightMonster.Job;
 
-                logger.LogInformation(
+                Logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: GetEventJob: Doing first job to fight event monster - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
                 );
                 return nextJob;
             }
             else if (jobsToFightMonster is not null && jobsToFightMonster.Job is null)
             {
-                logger.LogInformation(
+                Logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
                 );
                 return new FightMonster(
@@ -1050,7 +1054,7 @@ public class PlayerAI
         {
             nextJob.Job.onAfterSuccessEndHook = async () =>
             {
-                logger.LogInformation(
+                Logger.LogInformation(
                     $"{Name}: [{Character.Name}]: onAfterSuccessEndHook: Equipping {nextJob.Job.Amount} x {nextJob.Job.Code}"
                 );
                 // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?
@@ -1067,7 +1071,7 @@ public class PlayerAI
 
     public async Task<CharacterJob?> GetChoreJob()
     {
-        logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
 
         List<ChorePriority> chorePriorities = [ChorePriority.High, ChorePriority.Low];
 
@@ -1129,7 +1133,7 @@ public class PlayerAI
                         continue;
                     }
 
-                    logger.LogInformation(
+                    Logger.LogInformation(
                         $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{chore.GetDisplayName()}\""
                     );
 
@@ -1138,7 +1142,7 @@ public class PlayerAI
                     {
                         job.onAfterSuccessEndHook = async () =>
                         {
-                            logger.LogInformation(
+                            Logger.LogInformation(
                                 $"{Name}: [{Character.Name}]: Done running chore \"{chore.GetDisplayName()}\""
                             );
                             gameState.ChoreService.FinishChore(chore);
@@ -1163,7 +1167,7 @@ public class PlayerAI
             return null;
         }
 
-        logger.LogInformation(
+        Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{chore.GetDisplayName()}\""
         );
 
@@ -1187,7 +1191,7 @@ public class PlayerAI
     {
         if (skillLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
         {
-            logger.LogInformation(
+            Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetRoleJob: Training {skill.GetDisplayName()} - current level is {skillLevel}, compared to character level {Character.Schema.Level}"
             );
             bool canTrainCraftingSkill = await TrainSkill.CanDoJob(Character, gameState, skill);
