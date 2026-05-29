@@ -49,7 +49,7 @@ public class PlayerCharacter
     public List<CharacterChoreKind> Chores { get; init; } = [];
 
     // Poor man's semaphor - make something sturdier
-    private bool Busy { get; set; } = false;
+    public bool Busy { get; set; } = false;
 
     [JsonIgnore]
     private const string MediaType = "application/json";
@@ -398,6 +398,7 @@ public class PlayerCharacter
             );
             Jobs = [];
             CurrentJob = null;
+            Busy = false;
         }
 
         return new None();

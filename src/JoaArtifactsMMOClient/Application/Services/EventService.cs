@@ -162,7 +162,10 @@ public class EventService
 
         foreach (var characterAi in gameState.CharacterAIs.Where(ai => ai.Enabled))
         {
-            await characterAi.EvaluateEventsChanged();
+            _ = Task.Run(async () =>
+            {
+                await characterAi.EvaluateEventsChanged();
+            });
         }
     }
 

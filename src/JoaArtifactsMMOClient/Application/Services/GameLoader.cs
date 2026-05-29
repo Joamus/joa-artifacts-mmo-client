@@ -49,16 +49,17 @@ public class GameLoader
                 var now = DateTime.UtcNow.AddSeconds(-2);
                 var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
 
+                Logger.LogInformation(
+                    "GameLoop: [{Name}]: Running AI loop - idle: {Idle} - cooldown expires in {cooldownExpiration}",
+                    playerAI.Character.Name,
+                    playerAI.Character.Idle,
+                    cooldownExpiresIn.TotalSeconds
+                );
+
                 if (cooldownExpiresIn.TotalSeconds > 0)
                 {
                     continue;
                 }
-
-                Logger.LogInformation(
-                    "GameLoop: [{Name}]: Running AI loop - idle: {Idle}",
-                    playerAI.Character.Name,
-                    playerAI.Character.Idle
-                );
 
                 if (playerAI.Character.Idle)
                 {
@@ -82,7 +83,13 @@ public class GameLoader
                     }
                     Logger.LogInformation("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
 
-                    _ = playerAI.Character.RunJob();
+                    playerAI.Character.Busy = true;
+                    _ = Task.Run(async () =>
+                    {
+                        await playerAI.Character.RunJob();
+
+                        playerAI.Character.Busy = false;
+                    });
                 }
             }
 
