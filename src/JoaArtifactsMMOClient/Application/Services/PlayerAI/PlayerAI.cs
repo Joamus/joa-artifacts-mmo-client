@@ -283,7 +283,7 @@ public class PlayerAI
         var job = await FightEquipmentAI.EnsureFightEquipment(Character, gameState);
 
         Logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: Evaluating fight equipment - found job {job?.Code ?? "(none)"}"
+            $"{Name}: [{Character.Schema.Name}]: Ensuring fight equipment - found job {job?.Code ?? "(none)"}"
         );
 
         return job;
@@ -637,16 +637,28 @@ public class PlayerAI
         if (Character.Schema.TaskType == TaskType.items.ToString())
         {
             Logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Already has an item task - beginning/resuming item task"
+                "{Name}: [{CharacterName}]: GetIndividualLowPrioJob: Already has an item task - calculating what to do",
+                Name,
+                Character.Schema.Name
             );
-            if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+            if (await Character.PlayerActionService.CanItemFromItemTaskShouldBeObtained())
             {
+                Logger.LogInformation(
+                    "{Name}: [{CharacterName}]: GetIndividualLowPrioJob: Already has an item task - beginning/resuming item task",
+                    Name,
+                    Character.Schema.Name
+                );
                 return new ItemTask(Character, gameState);
             }
             else
             {
                 if (await CancelTaskJob.CanCancelTask(Character, gameState))
                 {
+                    Logger.LogInformation(
+                        "{Name}: [{CharacterName}]: GetIndividualLowPrioJob: Already has an item task - cancelling it, item should not be obtained",
+                        Name,
+                        Character.Schema.Name
+                    );
                     return new CancelTaskJob(Character, gameState);
                 }
             }
@@ -664,7 +676,9 @@ public class PlayerAI
                     var nextJob = nextJobResult.Job;
 
                     Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight monster from monster task: {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {Character.Schema.Task} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight monster from monster task: {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {Character.Schema.Task} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}",
+                        Name,
+                        Character.Schema.Name
                     );
                     // Do the first job in the list, we only do one thing at a time
                     return nextJob;
@@ -815,7 +829,7 @@ public class PlayerAI
         {
             return new MonsterTask(Character, gameState);
         }
-        if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+        if (await Character.PlayerActionService.CanItemFromItemTaskShouldBeObtained())
         {
             return new ItemTask(Character, gameState);
         }

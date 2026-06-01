@@ -889,7 +889,7 @@ public class ObtainItem : CharacterJob
         }
         else if (
             string.IsNullOrEmpty(character.Schema.Task)
-            || await character.PlayerActionService.CanItemFromItemTaskBeObtained()
+            || await character.PlayerActionService.CanItemFromItemTaskShouldBeObtained()
         )
         {
             jobs.Add(

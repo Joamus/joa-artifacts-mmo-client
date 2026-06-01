@@ -70,7 +70,7 @@ public class GameLoader
                             && playerAI.Character.Jobs.Count == 0
                         )
                         {
-                            Logger.LogInformation(
+                            Logger.LogDebug(
                                 "GameLoop: [{Name}]: Running AI loop - getting next job and queueing it",
                                 playerAI.Character.Name
                             );
@@ -81,7 +81,7 @@ public class GameLoader
                             _ = playerAI.Character.QueueJob(job);
                         }
                     }
-                    Logger.LogInformation("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
+                    Logger.LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
 
                     playerAI.Character.Busy = true;
                     _ = Task.Run(async () =>

@@ -359,7 +359,11 @@ public class PlayerActionService
         return itemSlot;
     }
 
-    public async Task<bool> CanObtainItem(ItemSchema item, int Quantity = 1)
+    public async Task<bool> CanObtainItem(
+        ItemSchema item,
+        int Quantity = 1,
+        bool allowTriggerTraining = true
+    )
     {
         var canObtainIt = await ObtainItem.GetJobsRequired(
             character,
@@ -368,7 +372,7 @@ public class PlayerActionService
             item.Code,
             Quantity,
             true,
-            false,
+            allowTriggerTraining,
             true
         );
 
@@ -520,7 +524,7 @@ public class PlayerActionService
     /**
     ** Item tasks require you to gather items from events, which might not currently be ongoing.
     */
-    public async Task<bool> CanItemFromItemTaskBeObtained()
+    public async Task<bool> CanItemFromItemTaskShouldBeObtained()
     {
         if (string.IsNullOrWhiteSpace(character.Schema.TaskType))
         {
@@ -534,7 +538,15 @@ public class PlayerActionService
 
         ItemSchema itemFromTask = gameState.ItemsDict[character.Schema.Task];
 
-        if (await CancelTaskJob.ShouldCancelTask(gameState, itemFromTask))
+        if (
+            await CancelTaskJob.ShouldCancelTask(gameState, itemFromTask)
+            // This is mostly to prevent having to gather fish that we are too low level to catch, but high enough cooking level to cook
+            || !await CanObtainItem(
+                itemFromTask,
+                character.Schema.TaskTotal - character.Schema.TaskProgress,
+                false
+            )
+        )
         {
             return false;
         }
