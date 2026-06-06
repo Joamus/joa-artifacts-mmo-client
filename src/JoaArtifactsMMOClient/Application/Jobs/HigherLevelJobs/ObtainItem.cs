@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Net;
 using System.Xml.Schema;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
@@ -538,6 +539,16 @@ public class ObtainItem : CharacterJob
                 gameState,
                 monster
             );
+
+            var jobsNeededForNavigationResult =
+                await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(
+                    monster.Code
+                );
+
+            if (jobsNeededForNavigationResult.Value is AppError)
+            {
+                continue;
+            }
 
             if (fightSim.Outcome.ShouldFight)
             {

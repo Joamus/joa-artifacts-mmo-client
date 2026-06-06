@@ -3,6 +3,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Application.Jobs;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.OpenApi.Extensions;
 using OneOf;
@@ -78,6 +79,22 @@ public class NavigationService
 
     public async Task<OneOf<AppError, None>> NavigateTo(string contentCode)
     {
+        var result = GetAllStepsToDestination(contentCode);
+
+        if (result.Value is AppError)
+        {
+            return result.AsT0;
+        }
+
+        await ExecuteNavigations(character, result.AsT1.Steps);
+
+        return new None();
+    }
+
+    public OneOf<AppError, NavigationStepsAndRequirements> GetAllStepsToDestination(
+        string contentCode
+    )
+    {
         // // We don't know what it is, but it might be an item we wish to get
 
         var maps = gameState.Maps.FindAll(map =>
@@ -151,7 +168,12 @@ public class NavigationService
                 map.Y
             );
 
-            if (cost < closestCost)
+            if (
+                cost < closestCost
+                || destinationMap is not null
+                    && destinationMap.Access?.Conditions?.Count > 0
+                    && (map.Access?.Conditions ?? []).Count == 0
+            )
             {
                 destinationMap = map;
                 closestCost = cost;
@@ -217,11 +239,69 @@ public class NavigationService
         //     potionsInInventory = potionsInInventory;
         // }
 
-        var result = CalculateStepsToDestination(currentMap, destinationMap);
+        return CalculateStepsToDestination(currentMap, destinationMap);
+    }
 
-        await ExecuteNavigations(character, result.Steps);
+    public async Task<OneOf<AppError, List<CharacterJob>>> GetJobsNeededForNavigation(
+        string contentCode
+    )
+    {
+        var result = GetAllStepsToDestination(contentCode);
 
-        return new None();
+        if (result.Value is AppError)
+        {
+            return result.AsT0;
+        }
+
+        var steps = result.AsT1;
+
+        List<CharacterJob> jobs = [];
+
+        foreach (var itemCondition in steps.ItemRequirements)
+        {
+            int amountOfItemOnCharacter =
+                character
+                    .GetEquippedItemOrInInventory(itemCondition.Code)
+                    ?.Sum(item => item.equipmentSlot.Quantity) ?? 0;
+
+            int amountToObtain =
+                itemCondition.Quantity > amountOfItemOnCharacter
+                    ? itemCondition.Quantity - amountOfItemOnCharacter
+                    : 0;
+
+            if (amountToObtain > 0)
+            {
+                if (
+                    !await character.PlayerActionService.CanObtainItem(
+                        gameState.ItemsDict[itemCondition.Code],
+                        amountToObtain
+                    )
+                )
+                {
+                    return new AppError(
+                        $"GetJobsNeededForNavigation: Cannot obtain item {amountToObtain} x {itemCondition.Code} for {character.Name}"
+                    );
+                }
+
+                jobs.Add(
+                    new ObtainOrFindItem(character, gameState, itemCondition.Code, amountToObtain)
+                );
+            }
+        }
+
+        // TODO: Should acquire gold if needed
+        if (steps.GoldRequirement > character.Schema.Gold)
+        {
+            jobs.Add(
+                new WithdrawGold(
+                    character,
+                    gameState,
+                    steps.GoldRequirement - character.Schema.Gold
+                )
+            );
+        }
+
+        return jobs;
     }
 
     public NavigationStepsAndRequirements CalculateStepsToDestination(
@@ -262,6 +342,35 @@ public class NavigationService
                 throw new AppError(
                     $"Infinite loop detected while navigating from {currentMap.MapId} to {destinationMap.MapId}"
                 );
+            }
+        }
+
+        foreach (var step in steps)
+        {
+            List<MapSchema> maps = [step.CurrentMap, step.NewMap];
+
+            foreach (var map in maps)
+            {
+                List<ItemOrMapCondition> conditions =
+                [
+                    .. (map.Access?.Conditions ?? []).Union(
+                        map.Interactions?.Transition?.Conditions ?? []
+                    ),
+                ];
+
+                foreach (var condition in conditions)
+                {
+                    if (condition.Operator == ItemConditionOperator.HasItem)
+                    {
+                        itemRequirements.Add(
+                            new DropSchema { Code = condition.Code, Quantity = condition.Value }
+                        );
+                    }
+                    else if (condition.Operator == ItemConditionOperator.Cost)
+                    {
+                        goldRequirement += condition.Value;
+                    }
+                }
             }
         }
 

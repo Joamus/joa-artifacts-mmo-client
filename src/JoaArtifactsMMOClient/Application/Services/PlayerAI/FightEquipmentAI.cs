@@ -62,10 +62,16 @@ public class FightEquipmentAI
 
             int maxAllowedOfItem = equipmentType.ItemType == "ring" ? 1 : 0;
 
+            var equippedItemInSlot = character.GetEquipmentSlot(equipmentType.Slot);
+            var equippedItemInSlotLevel = string.IsNullOrWhiteSpace(equippedItemInSlot.Code)
+                ? 0
+                : gameState.ItemsDict[equippedItemInSlot.Code].Level;
+
             foreach (var item in gameState.Items)
             {
                 if (
                     item.Type == equipmentType.ItemType
+                    && equippedItemInSlotLevel <= item.Level + 5
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
                     && item.Craft is not null
                     && ItemService.CanUseItem(item, character.Schema)

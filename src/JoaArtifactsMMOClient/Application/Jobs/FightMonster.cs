@@ -130,7 +130,37 @@ public class FightMonster : CharacterJob
 
         if (obtainPotionJobs.Count > 0)
         {
+            logger.LogInformation(
+                "{JobName}: [{Character.Schema.Name}] obtaining potions before fighting {Code}",
+                JobName,
+                Character.Schema.Name,
+                Code
+            );
             await Character.QueueJobsBefore(Id, obtainPotionJobs);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
+        var jobsNeededForNavigationResult =
+            await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(Code);
+
+        if (jobsNeededForNavigationResult.Value is AppError)
+        {
+            return jobsNeededForNavigationResult.AsT0;
+        }
+
+        var jobsNeededForNavigation = jobsNeededForNavigationResult.AsT1;
+
+        if (jobsNeededForNavigation.Count > 0)
+        {
+            logger.LogInformation(
+                "{JobName}: [{Character.Schema.Name}] need to do {count} jobs before we can navigate to {Code}",
+                JobName,
+                Character.Schema.Name,
+                jobsNeededForNavigation.Count,
+                Code
+            );
+            await Character.QueueJobsBefore(Id, jobsNeededForNavigation);
             Status = JobStatus.Suspend;
             return new None();
         }

@@ -49,12 +49,12 @@ public class GameLoader
                 var now = DateTime.UtcNow.AddSeconds(-2);
                 var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
 
-                Logger.LogInformation(
-                    "GameLoop: [{Name}]: Running AI loop - idle: {Idle} - cooldown expires in {cooldownExpiration}",
-                    playerAI.Character.Name,
-                    playerAI.Character.Idle,
-                    cooldownExpiresIn.TotalSeconds
-                );
+                // Logger.LogInformation(
+                //     "GameLoop: [{Name}]: Running AI loop - idle: {Idle} - cooldown expires in {cooldownExpiration}",
+                //     playerAI.Character.Name,
+                //     playerAI.Character.Idle,
+                //     cooldownExpiresIn.TotalSeconds
+                // );
 
                 if (cooldownExpiresIn.TotalSeconds > 0)
                 {
