@@ -15,6 +15,7 @@ public class GameState
     readonly ApiRequester apiRequester;
 
     DateTime cacheReload = DateTime.UtcNow;
+    public DateTime PendingItemClaimEvaluation { get; set; } = DateTime.UtcNow;
 
     ILogger logger { get; init; }
 
@@ -95,6 +96,13 @@ public class GameState
     {
         DateTime now = DateTime.UtcNow;
         double secondsDiff = (now - cacheReload).TotalSeconds;
+        return secondsDiff > 60 * 5;
+    }
+
+    public bool ShouldClaimPendingItems()
+    {
+        DateTime now = DateTime.UtcNow;
+        double secondsDiff = (now - PendingItemClaimEvaluation).TotalSeconds;
         return secondsDiff > 60 * 5;
     }
 

@@ -42,7 +42,9 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
     {
         var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
-        var jobsToCookUncookedResources = GetListToCookAllUncookedMeatOrFish(bankResponse.Data);
+        var jobsToCookUncookedResources = await GetListToCookAllUncookedMeatOrFish(
+            bankResponse.Data
+        );
 
         if (jobsToCookUncookedResources.Count > 0)
         {
@@ -164,7 +166,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         };
     }
 
-    List<CharacterJob> GetListToCookAllUncookedMeatOrFish(List<DropSchema> itemsInBank)
+    async Task<List<CharacterJob>> GetListToCookAllUncookedMeatOrFish(List<DropSchema> itemsInBank)
     {
         List<(DropSchema, ItemSchema)> uncookedMeatOrFishInBank =
         [
@@ -217,7 +219,22 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
                 })
                 .FirstOrDefault() ?? [];
 
-        return jobs;
+        List<CharacterJob> possibleJobs = [];
+
+        foreach (var job in jobs)
+        {
+            if (
+                await Character.PlayerActionService.CanObtainItem(
+                    gameState.ItemsDict[job.Code],
+                    job.Amount
+                )
+            )
+            {
+                possibleJobs.Add(job);
+            }
+        }
+
+        return possibleJobs;
     }
 
     static bool IsItemUncookedMeatOrFish(ItemSchema item, GameState gameState)

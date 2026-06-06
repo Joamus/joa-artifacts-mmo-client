@@ -63,8 +63,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                     int amountInBank =
                         bankResponse
                             .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                            ?.Quantity
-                        ?? 0;
+                            ?.Quantity ?? 0;
 
                     int amountToWithdraw = Math.Min(
                         Character.GetAvailableInventorySpace(),

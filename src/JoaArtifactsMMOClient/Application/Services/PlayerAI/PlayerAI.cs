@@ -55,7 +55,11 @@ public class PlayerAI
                 is not null;
 
         // Claim all the items that you can
-        await ClaimPendingItems();
+        if (gameState.ShouldClaimPendingItems())
+        {
+            gameState.PendingItemClaimEvaluation = DateTime.UtcNow;
+            await ClaimPendingItems();
+        }
 
         // Deposit all gold above threshold - shared economy
 
@@ -82,6 +86,12 @@ public class PlayerAI
 
     async Task ClaimPendingItems()
     {
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: Claiming pending items",
+            Name,
+            Character.Schema.Name
+        );
+
         bool canClaimItems = true;
 
         while (canClaimItems)
@@ -106,7 +116,11 @@ public class PlayerAI
             if (itemWeCanClaim is not null)
             {
                 Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: Can claim item {itemWeCanClaim.Id} - description: {itemWeCanClaim.Description}"
+                    "{Name}: [{Character.Schema.Name}]: Can claim item {itemWeCanClaim.Id} - description: {itemWeCanClaim.Description}",
+                    Name,
+                    Character.Schema.Name,
+                    itemWeCanClaim.Id,
+                    itemWeCanClaim.Description
                 );
                 await Character.ClaimPendingItem(itemWeCanClaim.Id);
             }
@@ -115,6 +129,12 @@ public class PlayerAI
                 canClaimItems = false;
             }
         }
+
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: Claiming pending items - done",
+            Name,
+            Character.Schema.Name
+        );
     }
 
     async Task<DepositGold?> DepositUnneededGold()
@@ -553,6 +573,11 @@ public class PlayerAI
             return new ObtainOrFindItem(Character, gameState, tool.Code, itemAmount);
         }
 
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: EnsureTools: Ended - found no job",
+            Name,
+            Character.Schema.Name
+        );
         return null;
     }
 
@@ -841,14 +866,14 @@ public class PlayerAI
     {
         var activeEvents = gameState.EventService.ActiveEvents;
 
+        Logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: GetEventJob: Evaluating active events - there are {activeEvents.Count} active events"
+        );
+
         if (activeEvents.Count == 0)
         {
             return null;
         }
-
-        Logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: GetEventJob: Evaluating active events - there are {activeEvents.Count} active events"
-        );
 
         foreach (var activeEvent in activeEvents)
         {
@@ -1085,7 +1110,11 @@ public class PlayerAI
 
     public async Task<CharacterJob?> GetChoreJob()
     {
-        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Evaluating chore jobs");
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: Evaluating chore jobs",
+            Name,
+            Character.Schema.Name
+        );
 
         List<ChorePriority> chorePriorities = [ChorePriority.High, ChorePriority.Low];
 
