@@ -42,14 +42,14 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
     {
         var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
-        var jobsToCookUncookedResources = await GetListToCookAllUncookedMeatOrFish(
-            bankResponse.Data
-        );
+        // var jobsToCookUncookedResources = await GetListToCookAllUncookedMeatOrFish(
+        //     bankResponse.Data
+        // );
 
-        if (jobsToCookUncookedResources.Count > 0)
-        {
-            return jobsToCookUncookedResources;
-        }
+        // if (jobsToCookUncookedResources.Count > 0)
+        // {
+        //     return jobsToCookUncookedResources;
+        // }
 
         var charactersToObtainFoodFor = GetCharactersToObtainFoodFor(
             gameState.Characters,
@@ -268,15 +268,23 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
                 {
                     var matchingItem = gameState.ItemsDict[item.Code];
 
+                    bool isFoodish =
+                        (
+                            matchingItem.Type == "consumable"
+                            && matchingItem.Subtype == "food"
+                            && matchingItem.Craft is not null
+                            && ItemService.CanUseItem(matchingItem, character.Schema)
+                        )
+                        || (
+                            IsItemUncookedMeatOrFish(matchingItem, gameState)
+                            && matchingItem.Level > character.Schema.Level
+                        );
+
                     /**
                     ** We want to verify that it's some kind of cooked food - it's OK if it's apple pies etc., and not meat or fish.
-                    ** We want to eat all kinds of cooked food, if available
+                    ** We want to eat all kinds of cooked food, if available. It's also okay that it's uncooked, cuz then we can cook it.
                     */
-                    return matchingItem.Type == "consumable"
-                        && matchingItem.Subtype == "food"
-                        && matchingItem.Craft is not null
-                        && item.Quantity >= jobParams.MinimumAmountInBank
-                        && ItemService.CanUseItem(matchingItem, character.Schema);
+                    return isFoodish && item.Quantity >= jobParams.MinimumAmountInBank;
                 });
 
                 return !goodEnoughFoodMatch;
