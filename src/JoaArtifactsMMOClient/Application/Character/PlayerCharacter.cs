@@ -913,7 +913,9 @@ public class PlayerCharacter
 
         int remainingQuantity = quantity - spillOverQuantity;
 
-        string _body = JsonSerializer.Serialize(new { code = itemCode, remainingQuantity });
+        string _body = JsonSerializer.Serialize(
+            new { code = itemCode, quantity = remainingQuantity }
+        );
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
 
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/npc/buy", body);
