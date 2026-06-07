@@ -181,7 +181,7 @@ public class GatherResourceItem : CharacterJob
                 break;
         }
 
-        if (resource.Level > characterSkillLevel)
+        if (!CanGatherResource(resource, Character.Schema))
         {
             if (CanTriggerTraining)
             {

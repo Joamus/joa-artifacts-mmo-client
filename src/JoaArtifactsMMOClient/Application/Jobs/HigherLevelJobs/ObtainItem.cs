@@ -663,30 +663,36 @@ public class ObtainItem : CharacterJob
             }
         }
 
-        bool allResourcesAreFromEvents = true;
-
-        foreach (var resource in resources)
-        {
-            var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
-
-            if (
-                resourceIsFromEvent
-                && gameState.EventService.WhereIsEntityActive(resource.Code) is null
-            )
+        List<ResourceSchema>? viableResources =
+        [
+            .. resources.Where(resource =>
             {
-                continue;
-            }
-            else
-            {
-                allResourcesAreFromEvents = false;
-                break;
-            }
-        }
+                var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
 
-        if (allResourcesAreFromEvents)
+                if (
+                    resourceIsFromEvent
+                    && gameState.EventService.WhereIsEntityActive(resource.Code) is null
+                )
+                {
+                    return false;
+                }
+
+                if (
+                    !GatherResourceItem.CanGatherResource(resource, character.Schema)
+                    && !canTriggerTraining
+                )
+                {
+                    return false;
+                }
+
+                return true;
+            }),
+        ];
+
+        if (viableResources.Count == 0)
         {
             return new AppError(
-                $"Cannot gather item \"{code}\" - it is from an event, but the event is not active",
+                $"Cannot gather item \"{code}\" - no available resources for it",
                 ErrorStatus.InsufficientSkill
             );
         }
