@@ -108,7 +108,7 @@ public class AccountRequester
 
         while (!doneFetching)
         {
-            var response = await _apiService.GetAsync($"/my/bank/items?page={pageNumber}");
+            var response = await _apiService.GetAsync($"/my/bank/items?page={pageNumber}&size=100");
 
             var result = await response.Content.ReadAsStringAsync();
 

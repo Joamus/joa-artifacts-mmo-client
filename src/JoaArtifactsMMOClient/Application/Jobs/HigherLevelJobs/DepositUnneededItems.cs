@@ -421,7 +421,7 @@ public class DepositUnneededItems : CharacterJob
 
         if (result.NextExpansionCost < Character.Schema.Gold + result.Gold)
         {
-            var itemsInBank = await gameState.AccountRequester.GetBankItems();
+            var itemsInBank = await gameState.BankItemCache.GetBankItems(null);
 
             int amountFree = result.Slots - itemsInBank.Data.Count;
 

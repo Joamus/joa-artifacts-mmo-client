@@ -54,7 +54,7 @@ public static class ObtainItemEndpoint
                 break;
             }
 
-            matchingCharacter.QueueJob(job);
+            _ = matchingCharacter.QueueJob(job);
         }
         matchingCharacter.Unsuspend();
 

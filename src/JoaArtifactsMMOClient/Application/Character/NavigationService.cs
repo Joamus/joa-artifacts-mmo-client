@@ -447,9 +447,9 @@ public class NavigationService
         MapSchema destinationMap
     )
     {
-        Logger.LogInformation(
-            $"{Name}: [{character.Name}]: Transitioning involving islands - moving from {currentMap.Name} -> {destinationMap.Name}"
-        );
+        // Logger.LogInformation(
+        //     $"{Name}: [{character.Name}]: Transitioning involving islands - moving from {currentMap.Name} -> {destinationMap.Name}"
+        // );
 
         if (currentMap.Layer != MapLayer.Overworld)
         {
@@ -457,9 +457,9 @@ public class NavigationService
                 FindClosestTransition(currentMap, null, false)
                 ?? throw new Exception($"Cannot find transition, should not happen");
 
-            Logger.LogInformation(
-                $"{Name}: [{character.Name}]: Transitioning involving islands - not in the overworld, going up"
-            );
+            // Logger.LogInformation(
+            //     $"{Name}: [{character.Name}]: Transitioning involving islands - not in the overworld, going up"
+            // );
 
             var moveStep = CreateMoveStep(currentMap, closestTransition);
             var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
@@ -469,9 +469,9 @@ public class NavigationService
 
         if (goingFromIslandToIsland)
         {
-            Logger.LogInformation(
-                $"{Name}: [{character.Name}]: Transitioning involving islands - island hopping! We need to go from {currentMap.Name} -> main land first"
-            );
+            // Logger.LogInformation(
+            //     $"{Name}: [{character.Name}]: Transitioning involving islands - island hopping! We need to go from {currentMap.Name} -> main land first"
+            // );
             // We want to go to the mainland, to go to the other island
             goingFromIslandToMainland = true;
         }
@@ -566,9 +566,9 @@ public class NavigationService
     {
         // No matter what, we need to find out whether we are moving within the same "underground cell", or to another one
 
-        Logger.LogInformation(
-            $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer})"
-        );
+        // Logger.LogInformation(
+        //     $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer})"
+        // );
 
         MapSchema? currentClosestTransition = FindClosestTransition(currentMap, null, false)!;
 
@@ -583,16 +583,16 @@ public class NavigationService
             // We are in the same cell, the transitions are the same
             if (currentClosestTransition.MapId == destinationClosestTransition.MapId)
             {
-                Logger.LogInformation(
-                    $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}), but moving inside the same \"cell\" - no need to transition"
-                );
+                // Logger.LogInformation(
+                //     $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}), but moving inside the same \"cell\" - no need to transition"
+                // );
                 return [CreateMoveStep(currentMap, destinationMap)];
             }
         }
 
-        Logger.LogInformation(
-            $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}) - need to transition first - moving to ({currentClosestTransition.X}, {currentClosestTransition.Y})"
-        );
+        // Logger.LogInformation(
+        //     $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}) - need to transition first - moving to ({currentClosestTransition.X}, {currentClosestTransition.Y})"
+        // );
         // Don't care if we are going from e.g. underground -> overworld or interior, we need to go to the overworld first
         var moveStep = CreateMoveStep(currentMap, currentClosestTransition);
         var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
@@ -626,18 +626,18 @@ public class NavigationService
 
         if (closestTransitionNotInTheOverworld.Access?.Conditions?.Count > 0)
         {
-            Logger.LogDebug(
-                $"Condition to go to {destinationMap.MapId} ({destinationMap.X}, {destinationMap.Y})"
-            );
+            // Logger.LogDebug(
+            //     $"Condition to go to {destinationMap.MapId} ({destinationMap.X}, {destinationMap.Y})"
+            // );
         }
 
         var transitionToUse = gameState.MapsDict[
             closestTransitionNotInTheOverworld.Interactions.Transition!.MapId
         ];
 
-        Logger.LogInformation(
-            $"{Name}: [{character.Name}]: Going inside from the overworld - moving to ({transitionToUse.X}, {transitionToUse.Y}, {transitionToUse.Layer.GetDisplayName()}) and transitioning"
-        );
+        // Logger.LogInformation(
+        //     $"{Name}: [{character.Name}]: Going inside from the overworld - moving to ({transitionToUse.X}, {transitionToUse.Y}, {transitionToUse.Layer.GetDisplayName()}) and transitioning"
+        // );
 
         var moveStep = CreateMoveStep(currentMap, transitionToUse);
 

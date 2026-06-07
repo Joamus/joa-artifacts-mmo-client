@@ -568,7 +568,7 @@ public class FightSimulator
                         break;
                 }
 
-                int newResistance = (int)Math.Round((1 - corrupted.Value * 0.01) * resistance);
+                int newResistance = resistance - corrupted.Value;
 
                 switch (elementalAttack.Elemental)
                 {
@@ -590,7 +590,7 @@ public class FightSimulator
                     individualTurn,
                     attacker.Entity,
                     defender.Entity,
-                    $"[{defender.Entity.Name}] is corrupted and received {elementalAttack.Elemental} element damage for {elementalAttack.Damage}"
+                    $"[{defender.Entity.Name}] is corrupted and received {elementalAttack.Elemental} element damage for {elementalAttack.Damage} (new resistance is {newResistance})"
                 );
             }
         }

@@ -130,7 +130,7 @@ public class BankItemCache
     }
 
     public async Task<BankItemsResponse> GetBankItems(
-        PlayerCharacter playerCharacter,
+        PlayerCharacter? playerCharacter,
         bool hideOwnReservations = false
     )
     {
@@ -162,7 +162,8 @@ public class BankItemCache
                 foreach (var reservation in reservationsInCache)
                 {
                     if (
-                        reservation.CharacterName == playerCharacter.Schema.Name
+                        playerCharacter is not null
+                        && reservation.CharacterName == playerCharacter.Schema.Name
                         && !hideOwnReservations
                     )
                     {

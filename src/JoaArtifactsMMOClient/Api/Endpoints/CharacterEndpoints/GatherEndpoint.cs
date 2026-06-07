@@ -35,7 +35,7 @@ public static class GatherEndpoint
                 job.ForBank();
             }
 
-            matchingCharacter.QueueJob(job);
+            _ = matchingCharacter.QueueJob(job);
         }
 
         matchingCharacter.Unsuspend();

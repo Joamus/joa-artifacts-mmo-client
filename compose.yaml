@@ -6,7 +6,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - DOTNET_GCHeapHardLimitPercent=75
-    mem_limit: 150MB
+    mem_limit: 200MB
     restart: always
     logging:
       driver: "json-file"

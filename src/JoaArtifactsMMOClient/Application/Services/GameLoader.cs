@@ -40,6 +40,7 @@ public class GameLoader
             if (_gameState.ShouldReload())
             {
                 await _gameState.ReloadAll();
+                GC.Collect();
             }
 
             foreach (var playerAI in _gameState.CharacterAIs)
@@ -70,11 +71,12 @@ public class GameLoader
                             && playerAI.Character.Jobs.Count == 0
                         )
                         {
-                            Logger.LogDebug(
+                            Logger.LogInformation(
                                 "GameLoop: [{Name}]: Running AI loop - getting next job and queueing it",
                                 playerAI.Character.Name
                             );
 
+                            playerAI.Character.Busy = true;
                             var job = await playerAI.GetNextJob();
 
                             // Change
@@ -83,9 +85,9 @@ public class GameLoader
                     }
                     Logger.LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
 
-                    playerAI.Character.Busy = true;
                     _ = Task.Run(async () =>
                     {
+                        playerAI.Character.Busy = true;
                         await playerAI.Character.RunJob();
 
                         playerAI.Character.Busy = false;

@@ -42,7 +42,7 @@ public static class MonsterTaskEndpoint
             }
             else
             {
-                matchingCharacter.QueueJob(job);
+                _ = matchingCharacter.QueueJob(job);
             }
         }
 

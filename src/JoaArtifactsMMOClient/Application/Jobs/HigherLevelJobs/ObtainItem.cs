@@ -64,7 +64,7 @@ public class ObtainItem : CharacterJob
                 );
                 recipient.RemoveFromWishlist(Code, Amount);
 
-                await recipient.QueueJob(
+                _ = recipient.QueueJob(
                     new WithdrawItem(recipient, gameState, Code, Amount, false),
                     true
                 );

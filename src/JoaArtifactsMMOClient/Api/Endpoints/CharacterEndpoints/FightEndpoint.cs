@@ -48,7 +48,7 @@ public static class FightEndpoint
                 matchingCharacter.AddIdleJob(job);
                 break;
             }
-            matchingCharacter.QueueJob(job);
+            _ = matchingCharacter.QueueJob(job);
         }
 
         matchingCharacter.Unsuspend();

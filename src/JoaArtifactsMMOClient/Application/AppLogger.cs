@@ -18,7 +18,12 @@ public static class AppLogger
 
     public static readonly Action<ILoggingBuilder> options = builder =>
     {
-        builder.AddConsole();
+        builder.AddSimpleConsole(options =>
+        {
+            options.IncludeScopes = true;
+            options.SingleLine = true;
+            options.TimestampFormat = "HH:mm:ss ";
+        });
     };
     public static ILoggerFactory loggerFactory { get; } = LoggerFactory.Create(options);
 }

@@ -22,16 +22,14 @@ public class CraftItem : CharacterJob
 
     public void ForBank()
     {
-        onSuccessEndHook = () =>
+        onSuccessEndHook = async () =>
         {
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
             var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
 
-            Character.QueueJob(depositItemJob, true);
-
-            return Task.Run(() => { });
+            await Character.QueueJob(depositItemJob, true);
         };
     }
 

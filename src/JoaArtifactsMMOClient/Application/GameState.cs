@@ -87,6 +87,7 @@ public class GameState
         await LoadPendingItems();
         await LoadAccountAchievements();
         await LoadTasksList();
+        await BankItemCache.GetBankItems(null);
         await EventService.LoadEvents();
         await EventService.LoadActiveEvents();
         await LoadCharacters(characterConfigs);

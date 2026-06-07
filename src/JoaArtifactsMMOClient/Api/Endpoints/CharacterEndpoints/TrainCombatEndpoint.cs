@@ -34,7 +34,7 @@ public static class TrainCombatEndpoint
         }
         else
         {
-            matchingCharacter.QueueJob(job);
+            _ = matchingCharacter.QueueJob(job);
         }
 
         matchingCharacter.Unsuspend();

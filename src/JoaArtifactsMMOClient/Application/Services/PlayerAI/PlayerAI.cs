@@ -303,7 +303,7 @@ public class PlayerAI
         var job = await FightEquipmentAI.EnsureFightEquipment(Character, gameState);
 
         Logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: Ensuring fight equipment - found job {job?.Code ?? "(none)"}"
+            $"{Name}: [{Character.Schema.Name}]: Ensure fight equipment - found job {job?.Code ?? "(none)"}"
         );
 
         return job;
