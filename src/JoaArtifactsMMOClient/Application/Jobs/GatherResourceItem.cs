@@ -210,7 +210,9 @@ public class GatherResourceItem : CharacterJob
         }
 
         var jobsNeededForNavigationResult =
-            await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(Code);
+            await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(
+                resource.Code
+            );
 
         if (jobsNeededForNavigationResult.Value is AppError)
         {

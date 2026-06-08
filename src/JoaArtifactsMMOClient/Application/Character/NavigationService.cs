@@ -95,8 +95,6 @@ public class NavigationService
         string contentCode
     )
     {
-        // // We don't know what it is, but it might be an item we wish to get
-
         var maps = gameState.Maps.FindAll(map =>
         {
             bool matchesCode = map.Interactions.Content?.Code == contentCode;

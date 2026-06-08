@@ -165,7 +165,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
                     gameState,
                     true,
                     potion.Code,
-                    1,
+                    100,
                     true,
                     true,
                     true
