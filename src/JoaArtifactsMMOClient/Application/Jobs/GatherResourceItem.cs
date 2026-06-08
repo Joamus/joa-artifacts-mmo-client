@@ -217,6 +217,22 @@ public class GatherResourceItem : CharacterJob
             return jobsNeededForNavigationResult.AsT0;
         }
 
+        var jobsNeededForNavigation = jobsNeededForNavigationResult.AsT1;
+
+        if (jobsNeededForNavigation.Count > 0)
+        {
+            logger.LogInformation(
+                "{JobName}: [{Character.Schema.Name}] need to do {count} jobs before we can navigate to {Code}",
+                JobName,
+                Character.Schema.Name,
+                jobsNeededForNavigation.Count,
+                Code
+            );
+            await Character.QueueJobsBefore(Id, jobsNeededForNavigation);
+            Status = JobStatus.Suspend;
+            return new None();
+        }
+
         await Character.NavigateTo(resource.Code);
 
         await Character.PlayerActionService.EquipBestGatheringEquipment(skill);
