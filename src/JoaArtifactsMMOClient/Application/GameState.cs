@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
+using Application.Dtos;
 using Application.Services;
 using Application.Services.ApiServices;
 using Infrastructure;
@@ -507,5 +508,17 @@ public class GameState
         );
 
         return amountOnCharacters + amountInBank;
+    }
+
+    public static LevelRange GetCharacterLevelRange(GameState gameState)
+    {
+        List<int> characterLevels = [.. gameState.Characters.Select((x) => x.Schema.Level)];
+        characterLevels.Sort((a, b) => a - b);
+
+        return new LevelRange
+        {
+            Lowest = characterLevels.First(),
+            Highest = characterLevels.Last(),
+        };
     }
 }

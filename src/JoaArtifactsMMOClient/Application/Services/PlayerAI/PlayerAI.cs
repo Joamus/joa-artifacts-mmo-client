@@ -144,7 +144,7 @@ public class PlayerAI
             int goldAboveThreshold = Character.Schema.Gold - PERSONAL_GOLD_THRESHOLD;
 
             Logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: Depositing unneeded gold ({goldAboveThreshold})"
+                $"{Name}: [{Character.Schema.Name}]: Depositing unneeded gold - depositing ({goldAboveThreshold})"
             );
 
             return new DepositGold(Character, gameState, goldAboveThreshold);
@@ -170,6 +170,10 @@ public class PlayerAI
             {
                 return null;
             }
+
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: Withdraw allowance - withdrawing {amountToWithdraw}"
+            );
 
             return new WithdrawGold(Character, gameState, amountToWithdraw);
         }
@@ -1104,6 +1108,17 @@ public class PlayerAI
             Name,
             Character.Schema.Name
         );
+
+        var levelRange = GameState.GetCharacterLevelRange(gameState);
+
+        if (levelRange.Highest >= Character.Schema.Level + 20)
+        {
+            Logger.LogInformation(
+                "{Name}: [{Character.Schema.Name}]: Evaluating chore jobs - skipping chore jobs, because character is underlevelled",
+                Name,
+                Character.Schema.Name
+            );
+        }
 
         List<ChorePriority> chorePriorities = [ChorePriority.High, ChorePriority.Low];
 

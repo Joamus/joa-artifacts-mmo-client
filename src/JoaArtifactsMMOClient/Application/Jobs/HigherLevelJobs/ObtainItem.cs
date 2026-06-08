@@ -625,7 +625,13 @@ public class ObtainItem : CharacterJob
                         ? character.Schema.Gold + allowedAmountToWithdraw - priceForAllRequiredItems
                         : allowedAmountToWithdraw;
 
-                jobs.Add(new WithdrawGold(character, gameState, amountOfGoldToWithdraw));
+                jobs.Add(
+                    new WithdrawGold(
+                        character,
+                        gameState,
+                        Math.Min(allowedAmountToWithdraw, amountOfGoldToWithdraw)
+                    )
+                );
 
                 int amountThatCanBeBought = Math.Min(
                     requiredAmount,
@@ -1089,9 +1095,10 @@ public class ObtainItem : CharacterJob
         {
             int allowedAmountToWithdraw = await character.GetAllowedWithdrawAmount();
 
-            if (neededCurrency < amountOfCurrency + allowedAmountToWithdraw)
+            if (neededCurrency <= amountOfCurrency + allowedAmountToWithdraw)
             {
-                jobs.Add(new WithdrawGold(character, gameState, allowedAmountToWithdraw));
+                jobs.Add(new WithdrawGold(character, gameState, neededCurrency));
+                neededCurrency = 0;
             }
             else
             {

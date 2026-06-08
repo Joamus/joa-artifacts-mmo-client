@@ -32,7 +32,7 @@ public class RestockEventRelatedItems : CharacterJob, ICharacterChoreJob
 
     public async Task<CharacterJob?> GetNextJob()
     {
-        var levelRange = GetCharacterLevelRange(gameState);
+        var levelRange = GameState.GetCharacterLevelRange(gameState);
 
         var bankItems = (await gameState.BankItemCache.GetBankItems(Character)).Data;
 
@@ -114,18 +114,6 @@ public class RestockEventRelatedItems : CharacterJob, ICharacterChoreJob
         }
 
         return null;
-    }
-
-    public static LevelRange GetCharacterLevelRange(GameState gameState)
-    {
-        List<int> characterLevels = [.. gameState.Characters.Select((x) => x.Schema.Level)];
-        characterLevels.Sort((a, b) => a - b);
-
-        return new LevelRange
-        {
-            Lowest = characterLevels.First(),
-            Highest = characterLevels.Last(),
-        };
     }
 
     public async Task<bool> NeedsToBeDone()

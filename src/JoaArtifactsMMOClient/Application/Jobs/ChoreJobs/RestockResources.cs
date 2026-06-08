@@ -44,7 +44,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
 
     public async Task<CharacterJob?> GetNextJob()
     {
-        var levelRange = GetCharacterLevelRange(gameState);
+        var levelRange = GameState.GetCharacterLevelRange(gameState);
 
         var relevantResources = GetResourcesToConsider(gameState, levelRange);
 
@@ -210,18 +210,6 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
     static bool IsTooRareToRestock(DropRateSchema drop)
     {
         return CalculateDropRate(drop.Rate) < RESTOCK_ITEM_DROP_RATE_THRESHOLD;
-    }
-
-    public static LevelRange GetCharacterLevelRange(GameState gameState)
-    {
-        List<int> characterLevels = gameState.Characters.Select((x) => x.Schema.Level).ToList();
-        characterLevels.Sort((a, b) => a - b);
-
-        return new LevelRange
-        {
-            Lowest = characterLevels.First(),
-            Highest = characterLevels.Last(),
-        };
     }
 
     static RestockResourcesParams GetJobParams(ChorePriority priority)
