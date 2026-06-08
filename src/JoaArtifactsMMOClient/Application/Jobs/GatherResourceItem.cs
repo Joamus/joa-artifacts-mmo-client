@@ -209,6 +209,14 @@ public class GatherResourceItem : CharacterJob
             }
         }
 
+        var jobsNeededForNavigationResult =
+            await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(Code);
+
+        if (jobsNeededForNavigationResult.Value is AppError)
+        {
+            return jobsNeededForNavigationResult.AsT0;
+        }
+
         await Character.NavigateTo(resource.Code);
 
         await Character.PlayerActionService.EquipBestGatheringEquipment(skill);

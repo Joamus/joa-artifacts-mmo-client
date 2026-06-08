@@ -150,17 +150,6 @@ public class PlayerAI
             return new DepositGold(Character, gameState, goldAboveThreshold);
         }
 
-        // int budgetInBank = await gameState.BankItemCache.GetTotalBudgetInBank();
-
-        // if (budgetInBank == 0 && Character.Schema.Gold > 0)
-        // {
-        //     logger.LogInformation(
-        //         $"{Name}: [{Character.Schema.Name}]: Depositing all gold - budget in bank is {budgetInBank}, so we prioritize filling up bank with gold"
-        //     );
-
-        //     return new DepositGold(Character, gameState, Character.Schema.Gold);
-        // }
-
         return null;
     }
 
