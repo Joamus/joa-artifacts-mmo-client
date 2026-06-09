@@ -64,13 +64,6 @@ public class ItemTask : CharacterJob
     {
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
 
-        if (DepositUnneededItems.ShouldInitDepositItems(Character))
-        {
-            await Character.QueueJobsBefore(Id, [new DepositUnneededItems(Character, gameState)]);
-            Status = JobStatus.Suspend;
-            return new None();
-        }
-
         List<CharacterJob> jobs = [];
 
         if (Character.Schema.TaskType == "")
@@ -107,6 +100,24 @@ public class ItemTask : CharacterJob
         if (remainingToGather > 0)
         {
             string itemCode = Character.Schema.Task;
+
+            if (DepositUnneededItems.ShouldInitDepositItems(Character))
+            {
+                await HandInItemsInInventory(itemCode);
+
+                List<CharacterJob> jobsToDoFirst = [];
+
+                if (Character.Schema.TaskTotal - Character.Schema.TaskProgress == 0)
+                {
+                    jobsToDoFirst.Add(GetCompleteTask());
+                }
+
+                jobsToDoFirst.Add(new DepositUnneededItems(Character, gameState));
+
+                await Character.QueueJobsBefore(Id, jobsToDoFirst);
+                Status = JobStatus.Suspend;
+                return new None();
+            }
 
             // We can be told to do a job that requires us to gather more items than we can carry.
             // We queue the job to gather and deposit it before the current job, so we essentially loop this until we are done
@@ -214,6 +225,19 @@ public class ItemTask : CharacterJob
             }
         }
 
+        jobs.Add(GetCompleteTask());
+
+        await Character.QueueJobsAfter(Id, jobs);
+
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"
+        );
+
+        return new None();
+    }
+
+    public CompleteTask GetCompleteTask()
+    {
         var completeTask = new CompleteTask(
             Character,
             gameState,
@@ -221,19 +245,28 @@ public class ItemTask : CharacterJob
             ItemAmount
         ).SetParent<CompleteTask>(this);
 
-        jobs.Add(completeTask);
-
         completeTask.onSuccessEndHook = onSuccessEndHook;
-
-        await Character.QueueJobsAfter(Id, jobs);
 
         // Reset it
         onSuccessEndHook = null;
 
-        logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] - found {jobs.Count} jobs to run, to complete task {Code}"
-        );
+        return completeTask;
+    }
 
-        return new None();
+    public async Task HandInItemsInInventory(string itemCode)
+    {
+        int amountInInventory = Character.GetItemFromInventory(itemCode)?.Quantity ?? 0;
+
+        // Being absolutely sure that we are still working on this task.
+        int remainingToGather =
+            Character.Schema.Task == itemCode
+                ? Character.Schema.TaskTotal - Character.Schema.TaskProgress
+                : 0;
+
+        if (amountInInventory > 0 && remainingToGather > 0)
+        {
+            await Character.NavigateTo("items");
+            await Character.TaskTrade(itemCode, Math.Min(amountInInventory, remainingToGather));
+        }
     }
 }
