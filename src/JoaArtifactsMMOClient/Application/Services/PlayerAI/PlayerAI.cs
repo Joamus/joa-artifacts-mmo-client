@@ -1118,6 +1118,8 @@ public class PlayerAI
                 Name,
                 Character.Schema.Name
             );
+
+            return null;
         }
 
         List<ChorePriority> chorePriorities = [ChorePriority.High, ChorePriority.Low];
