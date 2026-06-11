@@ -62,7 +62,8 @@ public class ApiRequester
     private async Task ThrottleRequest()
     {
         DateTime now = DateTime.UtcNow;
-        double secondsDiff = (now - _lastRequest).TotalSeconds;
+        double secondsDiff = Math.Floor((now - _lastRequest).TotalSeconds);
+
         if (secondsDiff < _secondsBetweenRequests)
         {
             await Task.Delay((int)(_secondsBetweenRequests * 1000));
@@ -128,7 +129,7 @@ public class ApiRequester
 
                 if ((int)response.StatusCode == 499)
                 {
-                    await Task.Delay((int)(_secondsBetweenRequests * 1000));
+                    await Task.Delay(1 * 1000);
                 }
                 else
                 {

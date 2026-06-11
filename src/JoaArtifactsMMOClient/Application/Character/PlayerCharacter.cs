@@ -460,7 +460,10 @@ public class PlayerCharacter
     {
         if (Cooldown is not null)
         {
-            double waitingTime = (Cooldown.Expiration - DateTime.UtcNow).TotalSeconds;
+            var now = DateTime.UtcNow;
+
+            double waitingTime = Math.Ceiling((Cooldown.Expiration - now).TotalSeconds);
+
             if (waitingTime > 0)
             {
                 await Task.Delay((int)(waitingTime * 1000));
@@ -474,6 +477,7 @@ public class PlayerCharacter
         {
             return;
         }
+
         await PreTaskHandler();
 
         var _body = JsonSerializer.Serialize(new { x, y });
@@ -968,6 +972,8 @@ public class PlayerCharacter
 
     public async Task BuyBankExpansion(string characterName)
     {
+        await PreTaskHandler();
+
         var response = await ApiRequester.PostAsync(
             $"/my/{characterName}/action/bank/buy_expansion",
             null
