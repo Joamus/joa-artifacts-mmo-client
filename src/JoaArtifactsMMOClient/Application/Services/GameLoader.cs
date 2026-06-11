@@ -47,8 +47,8 @@ public class GameLoader
             {
                 playerAI.Character.CleanupOldWishlistItems();
 
-                var now = DateTime.UtcNow.AddSeconds(-2);
-                var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
+                // var now = DateTime.UtcNow.AddSeconds(-20);
+                // var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
 
                 // Logger.LogInformation(
                 //     "GameLoop: [{Name}]: Running AI loop - idle: {Idle} - cooldown expires in {cooldownExpiration}",
@@ -57,10 +57,10 @@ public class GameLoader
                 //     cooldownExpiresIn.TotalSeconds
                 // );
 
-                if (cooldownExpiresIn.TotalSeconds > 0)
-                {
-                    continue;
-                }
+                // if (cooldownExpiresIn.TotalSeconds > 0)
+                // {
+                //     continue;
+                // }
 
                 if (playerAI.Character.Idle)
                 {
