@@ -46,10 +46,10 @@ public class PlayerAI
 
     public async Task<CharacterJob?> GetNextJob()
     {
-        if (FindingJob)
-        {
-            return null;
-        }
+        // if (FindingJob)
+        // {
+        //     return null;
+        // }
 
         Logger.LogInformation(
             "{Name}: [{CharacterName}]: Evaluating next job",
