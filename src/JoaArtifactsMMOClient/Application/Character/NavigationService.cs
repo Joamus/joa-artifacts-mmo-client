@@ -509,7 +509,7 @@ public class NavigationService
 
                     var result = CalculateStepsToDestination(currentMap, closestMonsterMap);
 
-                    async Task moveAction()
+                    async Task afterMoveAction()
                     {
                         while (character.Schema.X != 0 && character.Schema.Y != 0)
                         {
@@ -521,12 +521,27 @@ public class NavigationService
 
                     var lastStep = steps.LastOrDefault();
 
-                    // We are already standing here - we make a fake step, so we can attach the moveAction
-                    lastStep ??= CreateMoveStep(currentMap, destinationMap);
+                    // We are already standing here - we make a fake step, so we can attach the afterMoveAction
+                    if (lastStep is null)
+                    {
+                        lastStep = CreateMoveStep(currentMap, destinationMap);
+                        lastStep = lastStep with
+                        {
+                            Move = new Move
+                            {
+                                X = currentMap.X,
+                                Y = currentMap.Y,
+                                Layer = currentMap.Layer,
+                                ShouldTransition = false,
+                                AfterMoveAction = lastStep.Move.AfterMoveAction,
+                                TeleportPotionCode = null,
+                            },
+                        };
+                    }
 
                     lastStep = lastStep with
                     {
-                        Move = lastStep.Move with { MoveAction = moveAction },
+                        Move = lastStep.Move with { AfterMoveAction = afterMoveAction },
                         NewMap =
                             gameState.Maps.FirstOrDefault(map =>
                                 map.Name.Equals("spawn", StringComparison.CurrentCultureIgnoreCase)
@@ -756,7 +771,7 @@ public class NavigationService
                 Y = destinationMap.Y,
                 Layer = destinationMap.Layer,
                 ShouldTransition = false,
-                MoveAction = MoveAction,
+                AfterMoveAction = MoveAction,
                 TeleportPotionCode = null,
             },
             NewMap = destinationMap,
@@ -786,7 +801,7 @@ public class NavigationService
                 Y = currentMap.Y,
                 Layer = currentMap.Layer,
                 ShouldTransition = true,
-                MoveAction = MoveAction,
+                AfterMoveAction = MoveAction,
                 TeleportPotionCode = null,
             },
             NewMap = destinationMap,
@@ -799,13 +814,14 @@ public class NavigationService
         {
             await character.Transition();
         }
-        else if (move.MoveAction is not null)
-        {
-            await move.MoveAction();
-        }
         else
         {
             await character.Move(move.X, move.Y);
+        }
+
+        if (move.AfterMoveAction is not null)
+        {
+            await move.AfterMoveAction();
         }
     }
 
@@ -888,7 +904,7 @@ public record Move
     public required string? TeleportPotionCode { get; init; }
 
     /** An action that can be run, which will take the character to the destinationMap of a move. E.g. using a recall potion*/
-    public Func<Task>? MoveAction { get; init; }
+    public Func<Task>? AfterMoveAction { get; init; }
 }
 
 public record NavigationStepsAndRequirements

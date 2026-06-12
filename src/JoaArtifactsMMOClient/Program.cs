@@ -109,7 +109,7 @@ await loader.Start();
 GameState SetupGameServiceProvider(IServiceCollection collection, string token, string accountName)
 {
     ApiRequester apiRequester = new ApiRequester(token);
-    AccountRequester accountRequester = new AccountRequester(apiRequester, accountName);
+    AccountRequester accountRequester = new AccountRequester(apiRequester, accountName, logger);
 
     collection.AddSingleton(apiRequester);
     collection.AddSingleton(accountRequester);

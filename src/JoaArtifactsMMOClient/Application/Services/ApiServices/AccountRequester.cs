@@ -10,10 +10,13 @@ public class AccountRequester
     readonly ApiRequester _apiService;
     readonly string _accountName;
 
-    public AccountRequester(ApiRequester apiRequester, string accountName)
+    ILogger Logger;
+
+    public AccountRequester(ApiRequester apiRequester, string accountName, ILogger logger)
     {
         _apiService = apiRequester;
         _accountName = accountName;
+        Logger = logger;
     }
 
     public async Task<CharactersResponse> GetCharacters()
@@ -108,6 +111,8 @@ public class AccountRequester
 
         while (!doneFetching)
         {
+            // Logger.LogInformation($"Fetching bank items");
+
             var response = await _apiService.GetAsync($"/my/bank/items?page={pageNumber}&size=100");
 
             var result = await response.Content.ReadAsStringAsync();
