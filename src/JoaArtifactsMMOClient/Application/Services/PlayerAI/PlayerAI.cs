@@ -20,6 +20,8 @@ public class PlayerAI
     private const int SKILL_LEVEL_OFFSET = 1;
     private const int PERSONAL_GOLD_THRESHOLD = 10_000;
 
+    private const int CHORE_LEVEL_OFFSET = 12;
+
     private const bool PREFER_MONSTER_TASK = true;
     public PlayerCharacter Character { get; init; }
 
@@ -1120,7 +1122,7 @@ public class PlayerAI
 
         var levelRange = GameState.GetCharacterLevelRange(gameState);
 
-        if (levelRange.Highest >= Character.Schema.Level + 20)
+        if (levelRange.Highest >= Character.Schema.Level + CHORE_LEVEL_OFFSET)
         {
             Logger.LogInformation(
                 "{Name}: [{Character.Schema.Name}]: Evaluating chore jobs - skipping chore jobs, because character is underlevelled",
