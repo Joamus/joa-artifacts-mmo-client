@@ -103,7 +103,7 @@ public abstract class CharacterJob
         return new None();
     }
 
-    public virtual void Interrrupt()
+    public virtual void Interrupt()
     {
         ShouldInterrupt = true;
     }

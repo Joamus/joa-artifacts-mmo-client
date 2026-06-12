@@ -325,7 +325,7 @@ public static class CharacterEndpoints
         // matchingCharacter.SetBusy(true);
         if (matchingCharacter.CurrentJob is not null)
         {
-            matchingCharacter.CurrentJob.Interrrupt();
+            matchingCharacter.CurrentJob.Interrupt();
         }
 
         return TypedResults.NoContent();

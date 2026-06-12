@@ -82,7 +82,7 @@ public class PlayerCharacter
     {
         if (CurrentJob is not null && interrupt)
         {
-            CurrentJob.Interrrupt();
+            CurrentJob.Interrupt();
         }
 
         Suspended = true;
@@ -267,7 +267,7 @@ public class PlayerCharacter
         IdleJobs = IdleJobs.Where(job => !job.Id.Equals(id)).ToList();
         if (CurrentJob is not null && CurrentJob.Id.Equals(id))
         {
-            CurrentJob.Interrrupt();
+            CurrentJob.Interrupt();
             CurrentJob = null;
         }
         Busy = false;
@@ -278,7 +278,7 @@ public class PlayerCharacter
         Busy = true;
         Jobs = [];
 
-        CurrentJob?.Interrrupt();
+        CurrentJob?.Interrupt();
         CurrentJob = null;
         Busy = false;
     }
@@ -292,7 +292,7 @@ public class PlayerCharacter
             && IdleJobs.Find(job => job.Id.Equals(CurrentJob.Id)) is not null
         )
         {
-            CurrentJob.Interrrupt();
+            CurrentJob.Interrupt();
             CurrentJob = null;
         }
         Busy = false;

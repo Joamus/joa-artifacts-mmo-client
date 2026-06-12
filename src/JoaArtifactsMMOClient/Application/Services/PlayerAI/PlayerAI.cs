@@ -29,6 +29,8 @@ public class PlayerAI
 
     bool hasDoneItemTask { get; set; } = false;
 
+    public bool FindingJob { get; private set; } = false;
+
     [JsonIgnore]
     public ILogger<CharacterJob> Logger { get; init; } =
         AppLogger.loggerFactory.CreateLogger<CharacterJob>();
@@ -40,8 +42,13 @@ public class PlayerAI
         Enabled = enabled;
     }
 
-    public async Task<CharacterJob> GetNextJob()
+    public async Task<CharacterJob?> GetNextJob()
     {
+        if (FindingJob)
+        {
+            return null;
+        }
+
         Logger.LogInformation(
             "{Name}: [{CharacterName}]: Evaluating next job",
             Name,
@@ -81,7 +88,9 @@ public class PlayerAI
         Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName} - code {job?.Code} x {job?.Amount}"
         );
-        return job!;
+
+        FindingJob = false;
+        return job;
     }
 
     async Task ClaimPendingItems()
@@ -925,7 +934,7 @@ public class PlayerAI
                 $"{Character.Name} - assigning job \"{nextJob.Code}\" - clearing job queue, scheduling this job as highest priority"
             );
             Character.ClearJobs();
-            await Character.QueueJob(nextJob);
+            await Character.QueueJob(nextJob, true);
         }
     }
 

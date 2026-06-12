@@ -45,57 +45,65 @@ public class GameLoader
 
             foreach (var playerAI in _gameState.CharacterAIs)
             {
-                playerAI.Character.CleanupOldWishlistItems();
-
-                // var now = DateTime.UtcNow.AddSeconds(-20);
-                // var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
-
-                // Logger.LogInformation(
-                //     "GameLoop: [{Name}]: Running AI loop - idle: {Idle} - cooldown expires in {cooldownExpiration}",
-                //     playerAI.Character.Name,
-                //     playerAI.Character.Idle,
-                //     cooldownExpiresIn.TotalSeconds
-                // );
-
-                // if (cooldownExpiresIn.TotalSeconds > 0)
-                // {
-                //     continue;
-                // }
-
-                if (playerAI.Character.Idle)
-                {
-                    if (playerAI.Enabled)
-                    {
-                        if (
-                            playerAI.Character.CurrentJob is null
-                            && playerAI.Character.Jobs.Count == 0
-                        )
-                        {
-                            Logger.LogInformation(
-                                "GameLoop: [{Name}]: Running AI loop - getting next job and queueing it",
-                                playerAI.Character.Name
-                            );
-
-                            playerAI.Character.Busy = true;
-                            var job = await playerAI.GetNextJob();
-
-                            // Change
-                            _ = playerAI.Character.QueueJob(job);
-                        }
-                    }
-                    Logger.LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
-
-                    _ = Task.Run(async () =>
-                    {
-                        playerAI.Character.Busy = true;
-                        await playerAI.Character.RunJob();
-
-                        playerAI.Character.Busy = false;
-                    });
-                }
+                _ = HandleCharacterLoop(playerAI);
             }
 
             await Task.Delay(1 * 1000);
+        }
+    }
+
+    async Task HandleCharacterLoop(PlayerAI playerAI)
+    {
+        if (playerAI.FindingJob)
+        {
+            return;
+        }
+
+        playerAI.Character.CleanupOldWishlistItems();
+
+        // var now = DateTime.UtcNow.AddSeconds(-20);
+        // var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
+
+        // Logger.LogInformation(
+        //     "GameLoop: [{Name}]: Running AI loop - idle: {Idle} - cooldown expires in {cooldownExpiration}",
+        //     playerAI.Character.Name,
+        //     playerAI.Character.Idle,
+        //     cooldownExpiresIn.TotalSeconds
+        // );
+
+        // if (cooldownExpiresIn.TotalSeconds > 0)
+        // {
+        //     continue;
+        // }
+
+        if (playerAI.Character.Idle)
+        {
+            if (playerAI.Enabled)
+            {
+                if (playerAI.Character.CurrentJob is null && playerAI.Character.Jobs.Count == 0)
+                {
+                    Logger.LogInformation(
+                        "GameLoop: [{Name}]: Running AI loop - getting next job and queueing it",
+                        playerAI.Character.Name
+                    );
+
+                    playerAI.Character.Busy = true;
+
+                    var job = await playerAI.GetNextJob();
+
+                    // Change
+                    if (job is not null)
+                    {
+                        await playerAI.Character.QueueJob(job);
+                    }
+                }
+
+                return;
+            }
+
+            Logger.LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
+
+            await playerAI.Character.RunJob();
         }
     }
 }
