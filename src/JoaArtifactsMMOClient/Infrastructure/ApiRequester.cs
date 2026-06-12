@@ -78,7 +78,7 @@ public class ApiRequester
         }
         finally
         {
-            await ThrottleLock.WaitAsync();
+            ThrottleLock.Release();
         }
     }
 
