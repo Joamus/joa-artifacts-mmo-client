@@ -16,6 +16,8 @@ public class ApiRequester
 
     private readonly string _token;
 
+    private SemaphoreSlim ThrottleLock = new SemaphoreSlim(1, 1);
+
     private static readonly ILogger logger = LoggerFactory
         .Create(AppLogger.options)
         .CreateLogger<ApiRequester>();
@@ -61,14 +63,23 @@ public class ApiRequester
 
     private async Task ThrottleRequest()
     {
-        DateTime now = DateTime.UtcNow;
-        double secondsDiff = Math.Floor((now - _lastRequest).TotalSeconds);
+        await ThrottleLock.WaitAsync();
 
-        if (secondsDiff < _secondsBetweenRequests)
+        try
         {
-            await Task.Delay((int)(_secondsBetweenRequests * 1000));
+            DateTime now = DateTime.UtcNow;
+            double secondsDiff = Math.Floor((now - _lastRequest).TotalSeconds);
+
+            if (secondsDiff < _secondsBetweenRequests)
+            {
+                await Task.Delay((int)(_secondsBetweenRequests * 1000));
+            }
+            _lastRequest = DateTime.UtcNow;
         }
-        _lastRequest = DateTime.UtcNow;
+        finally
+        {
+            await ThrottleLock.WaitAsync();
+        }
     }
 
     public async Task<HttpResponseMessage> GetAsync(string requestUri)

@@ -89,7 +89,9 @@ public class GameLoader
 
                     playerAI.Character.Busy = true;
 
+                    playerAI.FindingJob = true;
                     var job = await playerAI.GetNextJob();
+                    playerAI.FindingJob = false;
 
                     // Change
                     if (job is not null)

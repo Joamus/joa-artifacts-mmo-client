@@ -31,7 +31,7 @@ public class PlayerAI
 
     bool hasDoneItemTask { get; set; } = false;
 
-    public bool FindingJob { get; private set; } = false;
+    public bool FindingJob { get; set; } = false;
 
     [JsonIgnore]
     public ILogger<CharacterJob> Logger { get; init; } =
@@ -91,7 +91,6 @@ public class PlayerAI
             $"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName} - code {job?.Code} x {job?.Amount}"
         );
 
-        FindingJob = false;
         return job;
     }
 
