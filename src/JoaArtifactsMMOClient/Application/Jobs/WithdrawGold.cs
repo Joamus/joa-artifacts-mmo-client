@@ -20,16 +20,16 @@ public class WithdrawGold : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var result = await gameState.BankItemCache.GetBankDetails();
+        // var result = await gameState.BankItemCache.GetBankDetails();
 
-        int goldInBank = result.Gold;
+        // int goldInBank = result.Gold;
 
-        if (goldInBank > 0)
-        {
-            await Character.NavigateTo("bank");
+        // if (goldInBank >= Amount)
+        // {
+        await Character.NavigateTo("bank");
 
-            await Character.WithdrawBankGold(goldInBank);
-        }
+        await Character.WithdrawBankGold(Amount);
+        // }
 
         // TODO: Allow grinding for gold?
         return new None();
