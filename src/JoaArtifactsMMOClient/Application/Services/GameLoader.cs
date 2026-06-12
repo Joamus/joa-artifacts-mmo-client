@@ -97,8 +97,6 @@ public class GameLoader
                         await playerAI.Character.QueueJob(job);
                     }
                 }
-
-                return;
             }
 
             Logger.LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
