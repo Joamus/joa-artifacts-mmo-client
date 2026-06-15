@@ -387,9 +387,7 @@ public class PlayerCharacter
                 Logger.LogInformation($"{GetType().Name}: [{Schema.Name}] run job completed");
             }
 
-            CurrentJob = null;
-
-            Busy = false;
+            AfterRunJobClear();
             return result ?? new None();
         }
 
@@ -399,11 +397,16 @@ public class PlayerCharacter
                 $"{GetType().Name}: [{Schema.Name}] - detected job loop - reset all jobs."
             );
             Jobs = [];
-            CurrentJob = null;
-            Busy = false;
+            AfterRunJobClear();
         }
 
         return new None();
+    }
+
+    void AfterRunJobClear()
+    {
+        Busy = false;
+        CurrentJob = null;
     }
 
     public PlayerCharacter(

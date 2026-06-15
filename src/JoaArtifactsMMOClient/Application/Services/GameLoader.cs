@@ -40,7 +40,6 @@ public class GameLoader
             if (_gameState.ShouldReload())
             {
                 await _gameState.ReloadAll();
-                GC.Collect();
             }
 
             if (firstRun)
@@ -76,8 +75,6 @@ public class GameLoader
                     e.Source
                 );
             }
-
-            await Task.Delay(1 * 1000);
         }
     }
 
@@ -122,8 +119,9 @@ public class GameLoader
 
             Logger.LogDebug("HandleCharacterLoop: [{Name}]: Run job", playerAI.Character.Name);
 
-            // _ = playerAI.Character.RunJob();
             await playerAI.Character.RunJob();
         }
+
+        await Task.Delay(1 * 1000);
     }
 }

@@ -813,6 +813,12 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetTaskJob(bool preferMonsterTask)
     {
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
+            Name,
+            Character.Schema.Name
+        );
+
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
             var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
@@ -823,13 +829,13 @@ public class PlayerAI
                 if (nextJobResult.Job is not null)
                 {
                     Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Job found - do monster task ({monster.Code})"
+                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Job found - do monster task ({monster.Code})"
                     );
 
                     var nextJob = nextJobResult.Job;
 
                     Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
                     );
                     // Do the first job in the list, we only do one thing at a time
                     return nextJob;
@@ -837,7 +843,7 @@ public class PlayerAI
                 else
                 {
                     Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
+                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
                     );
                     return new MonsterTask(Character, gameState);
                 }
@@ -845,12 +851,23 @@ public class PlayerAI
         }
         if (preferMonsterTask && CanHandlePotentialMonsterTasks())
         {
+            Logger.LogInformation(
+                "{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new monster task",
+                Name,
+                Character.Schema.Name
+            );
+
             return new MonsterTask(Character, gameState);
         }
         if (await Character.PlayerActionService.CanItemFromItemTaskShouldBeObtained())
         {
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+            );
             return new ItemTask(Character, gameState);
         }
+
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: GetTaskJob: No job found");
 
         return null;
     }
@@ -891,6 +908,12 @@ public class PlayerAI
 
             if (job is not null)
             {
+                Logger.LogInformation(
+                    "{Name}: [{Character.Schema.Name}]: GetEventJob: Found event job - code: {code}",
+                    Name,
+                    Character.Schema.Name,
+                    job.Code
+                );
                 return job;
             }
         }
