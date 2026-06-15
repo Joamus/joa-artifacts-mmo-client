@@ -317,7 +317,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -395,7 +396,7 @@ public class PlayerActionService
 
         var bankItemDict = new Dictionary<string, DropSchema>();
 
-        foreach (var item in bankItems.Data)
+        foreach (var item in bankItems)
         {
             // Cloning for changing the quantity
             bankItemDict.Add(item.Code, item with { });
@@ -571,7 +572,7 @@ public class PlayerActionService
         {
             int tasksCoinsInBank =
                 (await gameState.BankItemCache.GetBankItems(character))
-                    .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
+                    .FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                     ?.Quantity ?? 0;
 
             if (tasksCoinsInBank >= ItemService.CancelTaskPrice)

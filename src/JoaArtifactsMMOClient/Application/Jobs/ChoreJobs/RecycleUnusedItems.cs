@@ -1,11 +1,9 @@
-using System.Text.RegularExpressions;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
 using Application.Records;
 using Application.Services;
-using Applicaton.Jobs;
 using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -130,10 +128,11 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
         var itemsWeShouldNotRecycle = GetRelevantEquipment(
             gameState,
-            bankItems
-                .Data.Select(item => gameState.ItemsDict[item.Code])
-                .Where(item => item.Craft is not null)
-                .ToList()
+            [
+                .. bankItems
+                    .Select(item => gameState.ItemsDict[item.Code])
+                    .Where(item => item.Craft is not null),
+            ]
         );
 
         foreach (var item in gameState.Items)
@@ -153,7 +152,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
             toolsByEffect[gatheringEffect.Code].Add(item);
         }
 
-        foreach (var item in bankItems.Data)
+        foreach (var item in bankItems)
         {
             var matchingItem = gameState.ItemsDict[item.Code];
 

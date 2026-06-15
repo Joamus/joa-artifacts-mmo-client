@@ -1,4 +1,3 @@
-using System.Runtime.Serialization;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
@@ -62,7 +61,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
                     int amountInBank =
                         bankResponse
-                            .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
+                            .FirstOrDefault(bankItem => bankItem.Code == item.Code)
                             ?.Quantity ?? 0;
 
                     int amountToWithdraw = Math.Min(
@@ -196,12 +195,12 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             gameState,
             [
                 .. bankItems
-                    .Data.Select(item => gameState.ItemsDict[item.Code])
+                    .Select(item => gameState.ItemsDict[item.Code])
                     .Where(item => item.Craft is not null),
             ]
         );
 
-        foreach (var item in bankItems.Data)
+        foreach (var item in bankItems)
         {
             // For now, we just want to sell "trash" items like golden_shrimp, holey_boot etc., so only items that have no value apart
             // Incorporate evaluating whether a "fight item" is still relevant (look at RecycleUnusedItems), else we can sell them, e.g forest_ring.

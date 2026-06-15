@@ -1,5 +1,4 @@
 using Application.ArtifactsApi.Schemas.Requests;
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
 using Applicaton.Jobs;
@@ -29,24 +28,17 @@ public class WithdrawItem : CharacterJob
         Amount = amount;
         CanTriggerObtain = canTriggerObtain;
 
-        onJobQueuedHook = () =>
+        onJobQueuedHook = async () =>
         {
             gameState.BankItemCache.ReserveItem(character, code, amount);
-
-            return Task.Run(() => { });
         };
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var result = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
-        if (result is not BankItemsResponse bankItemsResponse)
-        {
-            return new AppError("Failed to get bank items");
-        }
-
-        var matchingItemInBank = bankItemsResponse.Data.FirstOrDefault(item => item.Code == Code);
+        var matchingItemInBank = bankItems.FirstOrDefault(item => item.Code == Code);
 
         int foundQuantity = 0;
 

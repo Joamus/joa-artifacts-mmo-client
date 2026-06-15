@@ -507,7 +507,7 @@ public static class ItemService
             }
 
             var currentBestTool = relevantToolsDict.GetValueOrNull(gatheringEffect.Code);
-            bool isInBank = bankData.Data.Exists(bankItem =>
+            bool isInBank = bankData.Exists(bankItem =>
                 bankItem.Code == item.Code && item.Quantity > 0
             );
 
@@ -797,7 +797,8 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
+                    ?? true;
 
                 return isOnlyUsedForFood;
             });

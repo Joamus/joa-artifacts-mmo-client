@@ -206,7 +206,7 @@ public class TrainSkill : CharacterJob
                             GetInconvenienceCostCraftItem(
                                 a,
                                 gameState,
-                                bankItemsResponse.Data,
+                                bankItemsResponse,
                                 Character
                             )
                         // + skillLevel
@@ -223,7 +223,7 @@ public class TrainSkill : CharacterJob
                         var resultB = GetInconvenienceCostCraftItem(
                             b,
                             gameState,
-                            bankItemsResponse.Data,
+                            bankItemsResponse,
                             Character
                         );
 

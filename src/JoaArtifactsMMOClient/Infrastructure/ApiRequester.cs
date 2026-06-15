@@ -16,7 +16,7 @@ public class ApiRequester
 
     private readonly string _token;
 
-    private SemaphoreSlim ThrottleLock = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim ThrottleLock = new(1, 1);
 
     private static readonly ILogger logger = LoggerFactory
         .Create(AppLogger.options)

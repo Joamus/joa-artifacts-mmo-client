@@ -166,6 +166,7 @@ public class PlayerCharacter
     public async Task QueueJob(CharacterJob job, bool highestPriority = false)
     {
         Busy = true;
+
         if (highestPriority)
         {
             Jobs.Insert(0, job);
@@ -179,6 +180,7 @@ public class PlayerCharacter
         {
             await job.onJobQueuedHook.Invoke();
         }
+
         Busy = false;
     }
 

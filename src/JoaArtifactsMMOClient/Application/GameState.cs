@@ -503,7 +503,7 @@ public class GameState
 
         var bankResponse = await BankItemCache.GetBankItems(Characters.First(), false);
 
-        int amountInBank = bankResponse.Data.Sum(bankItem =>
+        int amountInBank = bankResponse.Sum(bankItem =>
             bankItem.Code == itemCode ? bankItem.Quantity : 0
         );
 

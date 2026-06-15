@@ -1,7 +1,6 @@
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
 using Application.Jobs;
@@ -53,14 +52,9 @@ public class DepositUnneededItems : CharacterJob
 
         var result = await gameState.BankItemCache.GetBankItems(Character);
 
-        if (result is not BankItemsResponse bankItemsResponse)
-        {
-            return new AppError("Failed to get bank items");
-        }
+        Dictionary<string, int> bankItems = [];
 
-        Dictionary<string, int> bankItems = new();
-
-        foreach (var item in bankItemsResponse.Data)
+        foreach (var item in result)
         {
             bankItems.Add(item.Code, item.Quantity);
         }
@@ -423,7 +417,7 @@ public class DepositUnneededItems : CharacterJob
         {
             var itemsInBank = await gameState.BankItemCache.GetBankItems(null);
 
-            int amountFree = result.Slots - itemsInBank.Data.Count;
+            int amountFree = result.Slots - itemsInBank.Count;
 
             if (amountFree <= MIN_FREE_BANK_SLOTS)
             {

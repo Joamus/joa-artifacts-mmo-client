@@ -6,6 +6,7 @@ using Application.Services.ApiServices;
 
 public class BankItemCache
 {
+    private readonly SemaphoreSlim LoadItemsLock = new(1, 1);
     public bool shouldRequestAgain { get; set; } = true;
     public bool shouldRequestDetailsAgain { get; set; } = true;
 
@@ -129,7 +130,7 @@ public class BankItemCache
         reservations = newReservations;
     }
 
-    public async Task<BankItemsResponse> GetBankItems(
+    public async Task<List<DropSchema>> GetBankItems(
         PlayerCharacter? playerCharacter,
         bool hideOwnReservations = false
     )
@@ -139,21 +140,51 @@ public class BankItemCache
         // Maybe lazy cleanup the cache? Do it on an interval of every 30 min or so
         // Allow boolean parameter to get all anyway
 
-        bool requestAgain = lastResponse is null || shouldRequestAgain;
-
-        BankItemsResponse bankItems = requestAgain
-            ? await accountRequester.GetBankItems()
-            : lastResponse! with
-            { }; // dunno if the cloning really works here, or is necessary
-
-        if (requestAgain)
-        {
-            lastResponse = bankItems with { };
-        }
+        BankItemsResponse bankItemsResponse = await LazyGetBankItems();
 
         shouldRequestAgain = false;
 
-        foreach (var item in bankItems.Data)
+        List<DropSchema> items =
+        [
+            .. bankItemsResponse
+                .Data.Select(item =>
+                {
+                    int quantity = item.Quantity;
+
+                    var reservationsForItem = reservations.GetValueOrNull(item.Code);
+
+                    if (reservationsForItem is not null)
+                    {
+                        foreach (var reservation in reservationsForItem)
+                        {
+                            if (
+                                playerCharacter is not null
+                                && reservation.CharacterName == playerCharacter.Schema.Name
+                                && !hideOwnReservations
+                            )
+                            {
+                                continue;
+                            }
+                            quantity -= reservation.Item.Quantity;
+
+                            if (quantity < 0)
+                            {
+                                quantity = 0;
+                                break;
+                            }
+                        }
+                    }
+
+                    return item with
+                    {
+                        Code = item.Code,
+                        Quantity = quantity,
+                    };
+                })
+                .Where(item => item.Quantity > 0),
+        ];
+
+        foreach (var item in bankItemsResponse.Data)
         {
             var reservationsInCache = reservations.GetValueOrNull(item.Code);
 
@@ -180,9 +211,32 @@ public class BankItemCache
             }
         }
 
-        bankItems.Data = bankItems.Data.Where(item => item.Quantity > 0).ToList();
+        return items;
+    }
 
-        return bankItems;
+    async Task<BankItemsResponse> LazyGetBankItems()
+    {
+        if (!shouldRequestAgain && lastResponse is not null)
+        {
+            return lastResponse with { }; // dunno if the cloning really works here, or is necessary
+        }
+
+        await LoadItemsLock.WaitAsync();
+
+        BankItemsResponse? bankResponseResponse = null;
+
+        try
+        {
+            BankItemsResponse bankResponse = await accountRequester.GetBankItems();
+
+            bankResponseResponse = bankResponse;
+        }
+        finally
+        {
+            LoadItemsLock.Release();
+        }
+
+        return bankResponseResponse;
     }
 
     public async Task<BankDetails> GetBankDetails()

@@ -1,10 +1,8 @@
-using System.Diagnostics.Eventing.Reader;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
-using Application.Records;
 using Application.Services;
 using Applicaton.Jobs;
 using OneOf;
@@ -298,7 +296,7 @@ public class GatherResourceItem : CharacterJob
         var bankResponse = await gameState.BankItemCache.GetBankItems(character);
 
         var toolsFromBank = bankResponse
-            .Data.Where(item =>
+            .Where(item =>
             {
                 if (string.IsNullOrWhiteSpace(item.Code))
                 {

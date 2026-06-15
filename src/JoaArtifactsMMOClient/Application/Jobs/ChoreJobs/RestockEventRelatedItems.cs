@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Application.ArtifactsApi.Schemas;
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
@@ -34,7 +33,7 @@ public class RestockEventRelatedItems : CharacterJob, ICharacterChoreJob
     {
         var levelRange = GameState.GetCharacterLevelRange(gameState);
 
-        var bankItems = (await gameState.BankItemCache.GetBankItems(Character)).Data;
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
         var itemToRestock = await GetNextItemToRestock(gameState, bankItems, levelRange);
 

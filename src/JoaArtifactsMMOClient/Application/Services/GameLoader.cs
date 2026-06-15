@@ -45,7 +45,7 @@ public class GameLoader
 
             foreach (var playerAI in _gameState.CharacterAIs)
             {
-                _ = HandleCharacterLoop(playerAI);
+                await HandleCharacterLoop(playerAI);
             }
 
             await Task.Delay(1 * 1000);
@@ -54,11 +54,6 @@ public class GameLoader
 
     async Task HandleCharacterLoop(PlayerAI playerAI)
     {
-        if (playerAI.FindingJob)
-        {
-            return;
-        }
-
         playerAI.Character.CleanupOldWishlistItems();
 
         // var now = DateTime.UtcNow.AddSeconds(-20);
@@ -87,23 +82,18 @@ public class GameLoader
                         playerAI.Character.Name
                     );
 
-                    playerAI.Character.Busy = true;
-
-                    playerAI.FindingJob = true;
                     var job = await playerAI.GetNextJob();
-                    playerAI.FindingJob = false;
 
-                    // Change
                     if (job is not null)
                     {
-                        await playerAI.Character.QueueJob(job);
+                        _ = playerAI.Character.QueueJob(job);
                     }
                 }
             }
 
             Logger.LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
 
-            await playerAI.Character.RunJob();
+            _ = playerAI.Character.RunJob();
         }
     }
 }

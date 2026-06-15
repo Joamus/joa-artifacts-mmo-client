@@ -1,6 +1,4 @@
 using System.Collections.Immutable;
-using System.Collections.Specialized;
-using System.ComponentModel;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
@@ -54,7 +52,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         var charactersToObtainFoodFor = GetCharactersToObtainFoodFor(
             gameState.Characters,
             gameState,
-            bankResponse.Data,
+            bankResponse,
             JobParams
         );
 
@@ -75,7 +73,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         bestFoodItems.Sort((a, b) => b.Level - a.Level);
 
         Dictionary<string, DropSchema> bestFoodItemsInBank = bankResponse
-            .Data.Where(item =>
+            .Where(item =>
             {
                 if (string.IsNullOrWhiteSpace(item.Code))
                 {
@@ -217,7 +215,8 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
                     return jobs;
                 })
-                .FirstOrDefault() ?? [];
+                .FirstOrDefault()
+            ?? [];
 
         List<CharacterJob> possibleJobs = [];
 

@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
@@ -72,9 +71,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
         List<string> potionCodesWeHaveEnoughOf = [];
 
-        var potionsInBank = bankResponse.Data;
-
-        foreach (var item in potionsInBank)
+        foreach (var item in bankResponse)
         {
             if (string.IsNullOrWhiteSpace(item.Code))
             {

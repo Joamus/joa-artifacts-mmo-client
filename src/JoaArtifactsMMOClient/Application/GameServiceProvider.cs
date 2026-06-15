@@ -2,7 +2,7 @@ namespace Application.Services;
 
 public static class GameServiceProvider
 {
-    private static IServiceProvider _serviceProvider { get; set; }
+    private static IServiceProvider? _serviceProvider { get; set; }
 
     public static IServiceProvider GetInstance()
     {

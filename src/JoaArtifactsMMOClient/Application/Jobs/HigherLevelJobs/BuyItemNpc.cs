@@ -70,7 +70,7 @@ public class BuyItemNpc : CharacterJob
                 }
                 var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
-                var itemInBank = bankResponse.Data.Find(item => item.Code == matchingCurrency.Code);
+                var itemInBank = bankResponse.Find(item => item.Code == matchingCurrency.Code);
 
                 if (itemInBank is not null)
                 {

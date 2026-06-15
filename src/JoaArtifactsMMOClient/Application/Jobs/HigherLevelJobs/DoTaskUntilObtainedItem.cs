@@ -36,8 +36,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
 
         var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
 
-        int amountInBank =
-            bankResponse.Data.FirstOrDefault(item => item.Code == Code)?.Quantity ?? 0;
+        int amountInBank = bankResponse.FirstOrDefault(item => item.Code == Code)?.Quantity ?? 0;
 
         if (amountInBank > 0)
         {
@@ -55,9 +54,8 @@ public class DoTaskUntilObtainedItem : CharacterJob
                 Character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
 
             int tasksCoinsInBank =
-                bankResponse
-                    .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                    ?.Quantity ?? 0;
+                bankResponse.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
+                ?? 0;
 
             int priceToBuyItem =
                 (int)gameState.NpcItemsDict.GetValueOrNull(Code)!.BuyPrice! * Amount;

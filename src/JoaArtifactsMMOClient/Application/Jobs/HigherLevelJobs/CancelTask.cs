@@ -43,7 +43,7 @@ public class CancelTaskJob : CharacterJob
         {
             int tasksCoinsInBank =
                 (await gameState.BankItemCache.GetBankItems(character))
-                    .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
+                    .FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                     ?.Quantity ?? 0;
 
             if (tasksCoinsInBank >= ItemService.CancelTaskPrice)
@@ -97,7 +97,7 @@ public class CancelTaskJob : CharacterJob
 
         int tasksCoinsInBank =
             (await gameState.BankItemCache.GetBankItems(character))
-                .Data.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
+                .FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                 ?.Quantity ?? 0;
 
         return tasksCoinsInInventory + tasksCoinsInBank > ItemService.CancelTaskPrice;

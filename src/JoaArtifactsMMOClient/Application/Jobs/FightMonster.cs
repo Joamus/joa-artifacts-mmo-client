@@ -762,7 +762,7 @@ public class FightMonster : CharacterJob
         var bankResponse = await gameState.BankItemCache.GetBankItems(character);
 
         var items = bankResponse
-            .Data.Select(item => new ItemInInventory
+            .Select(item => new ItemInInventory
             {
                 Item = gameState.ItemsDict[item.Code],
                 Quantity = item.Quantity,
@@ -805,8 +805,7 @@ public class FightMonster : CharacterJob
             int amountInInventory = character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
 
             int amountInBank =
-                bankResponse.Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)?.Quantity
-                ?? 0;
+                bankResponse.FirstOrDefault(bankItem => bankItem.Code == item.Code)?.Quantity ?? 0;
 
             if (amountInBank > 0 && item.Quantity > amountInInventory)
             {

@@ -96,9 +96,8 @@ public class ObtainSuitablePotions : CharacterJob
                 && character.Schema.AlchemyLevel >= item.Craft.Level;
 
             int amountInBank =
-                bankItemsResponse
-                    .Data.FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                    ?.Quantity ?? 0;
+                bankItemsResponse.FirstOrDefault(bankItem => bankItem.Code == item.Code)?.Quantity
+                ?? 0;
 
             if (!canCraftItem && amountInBank == 0)
             {

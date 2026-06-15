@@ -3,14 +3,11 @@ using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Dtos;
-using Application.Errors;
 using Application.Jobs;
 using Application.Jobs.Chores;
 using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
-using Microsoft.Extensions.ObjectPool;
 using Microsoft.OpenApi.Extensions;
-using OneOf.Types;
 
 namespace Application.Services;
 
@@ -31,8 +28,6 @@ public class PlayerAI
 
     bool hasDoneItemTask { get; set; } = false;
 
-    public bool FindingJob { get; set; } = false;
-
     [JsonIgnore]
     public ILogger<CharacterJob> Logger { get; init; } =
         AppLogger.loggerFactory.CreateLogger<CharacterJob>();
@@ -46,11 +41,6 @@ public class PlayerAI
 
     public async Task<CharacterJob?> GetNextJob()
     {
-        // if (FindingJob)
-        // {
-        //     return null;
-        // }
-
         Logger.LogInformation(
             "{Name}: [{CharacterName}]: Evaluating next job",
             Name,
@@ -225,7 +215,7 @@ public class PlayerAI
 
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
-        var bankItemsDict = bankItems.Data.ToDictionary((item) => item.Code);
+        var bankItemsDict = bankItems.ToDictionary((item) => item.Code);
 
         foreach (var (ItemCode, Slot) in slots)
         {
@@ -340,7 +330,7 @@ public class PlayerAI
 
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
-        var bankItemsDict = bankItems.Data.ToDictionary((item) => item.Code);
+        var bankItemsDict = bankItems.ToDictionary((item) => item.Code);
 
         foreach (var item in bagItems)
         {
@@ -445,7 +435,7 @@ public class PlayerAI
 
         ItemSchema? bestCandidate = null;
 
-        foreach (var item in bankItems.Data)
+        foreach (var item in bankItems)
         {
             var matchingItem = gameState.ItemsDict[item.Code];
 
@@ -1052,11 +1042,11 @@ public class PlayerAI
         jobsToGetItems.Sort(
             (a, b) =>
             {
-                bool aIsInBank = bankItems.Data.Exists(item =>
+                bool aIsInBank = bankItems.Exists(item =>
                     item.Code == a.Job.Code && item.Quantity >= a.Job.Amount
                 );
 
-                bool bIsInBank = bankItems.Data.Exists(item =>
+                bool bIsInBank = bankItems.Exists(item =>
                     item.Code == b.Job.Code && item.Quantity >= b.Job.Amount
                 );
 

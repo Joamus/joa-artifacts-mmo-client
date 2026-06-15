@@ -38,7 +38,7 @@ public class ObtainOrFindItem : CharacterJob
 
         var itemsInBank = await gameState.BankItemCache.GetBankItems(Character);
 
-        var matchInBank = itemsInBank.Data.FirstOrDefault(item => item.Code == Code);
+        var matchInBank = itemsInBank.FirstOrDefault(item => item.Code == Code);
 
         if (matchInBank is not null)
         {

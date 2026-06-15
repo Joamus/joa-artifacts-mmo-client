@@ -1,5 +1,4 @@
 using Application.ArtifactsApi.Schemas;
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
 using Application.Records;
@@ -56,7 +55,7 @@ public class ObtainSuitableFood : CharacterJob
 
     private async Task<OneOf<AppError, List<CharacterJob>>> GetJobsToObtainFood()
     {
-        var bankItems = (await gameState.BankItemCache.GetBankItems(Character)).Data;
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
         int amountFound = 0;
 

@@ -1,10 +1,8 @@
-using System.Collections.Immutable;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
-using Application.Services;
 using Applicaton.Jobs.Chores;
 using OneOf;
 using OneOf.Types;
@@ -48,7 +46,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
 
         var relevantResources = GetResourcesToConsider(gameState, levelRange);
 
-        var bankItems = (await gameState.BankItemCache.GetBankItems(Character)).Data;
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
         var itemsToRestock = GetNextItemToRestock(gameState, bankItems, levelRange);
 

@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Jobs;
