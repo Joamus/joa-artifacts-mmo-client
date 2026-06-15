@@ -173,12 +173,12 @@ public class ApiRequester
             Environment.Exit(1);
         }
 
-        if (response is not null && (int)response.StatusCode >= 400)
-        {
-            throw new AppError(
-                $"POST Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {await response.Content.ReadAsStringAsync()}"
-            );
-        }
+        // if (response is not null && (int)response.StatusCode >= 400)
+        // {
+        //     throw new AppError(
+        //         $"POST Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {await response.Content.ReadAsStringAsync()}"
+        //     );
+        // }
 
         return response!;
     }

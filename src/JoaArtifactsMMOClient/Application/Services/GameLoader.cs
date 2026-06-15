@@ -33,9 +33,9 @@ public class GameLoader
 
     public async Task GameLoop()
     {
-        bool running = true;
+        bool firstRun = true;
 
-        while (running)
+        while (true)
         {
             if (_gameState.ShouldReload())
             {
@@ -43,9 +43,38 @@ public class GameLoader
                 GC.Collect();
             }
 
-            foreach (var playerAI in _gameState.CharacterAIs)
+            if (firstRun)
+            {
+                firstRun = false;
+
+                foreach (var playerAI in _gameState.CharacterAIs)
+                {
+                    // await HandleCharacterLoop(playerAI);
+                    _ = StartCharacterLoop(playerAI);
+                }
+            }
+
+            await Task.Delay(10 * 1000);
+        }
+    }
+
+    async Task StartCharacterLoop(PlayerAI playerAI)
+    {
+        while (true)
+        {
+            try
             {
                 await HandleCharacterLoop(playerAI);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(
+                    "HandleCharacterLoop: [{Name}]: Failed job in loop - threw exception: {e.Message} - stack {e.StackTrace} - source: {e.Source}",
+                    playerAI.Character.Name,
+                    e.Message,
+                    e.StackTrace,
+                    e.Source
+                );
             }
 
             await Task.Delay(1 * 1000);
@@ -78,7 +107,7 @@ public class GameLoader
                 if (playerAI.Character.CurrentJob is null && playerAI.Character.Jobs.Count == 0)
                 {
                     Logger.LogInformation(
-                        "GameLoop: [{Name}]: Running AI loop - getting next job and queueing it",
+                        "HandleCharacterLoop: [{Name}]: Running AI loop - getting next job and queueing it",
                         playerAI.Character.Name
                     );
 
@@ -86,14 +115,15 @@ public class GameLoader
 
                     if (job is not null)
                     {
-                        _ = playerAI.Character.QueueJob(job);
+                        await playerAI.Character.QueueJob(job);
                     }
                 }
             }
 
-            Logger.LogDebug("GameLoop: [{Name}]: Run job", playerAI.Character.Name);
+            Logger.LogDebug("HandleCharacterLoop: [{Name}]: Run job", playerAI.Character.Name);
 
-            _ = playerAI.Character.RunJob();
+            // _ = playerAI.Character.RunJob();
+            await playerAI.Character.RunJob();
         }
     }
 }

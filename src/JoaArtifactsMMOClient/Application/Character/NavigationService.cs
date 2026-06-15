@@ -1,10 +1,7 @@
-using System.Reflection.Metadata.Ecma335;
 using Application.ArtifactsApi.Schemas;
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
 using Application.Jobs;
-using Microsoft.Extensions.ObjectPool;
 using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;

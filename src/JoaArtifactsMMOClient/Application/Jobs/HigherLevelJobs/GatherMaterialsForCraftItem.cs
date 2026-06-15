@@ -1,5 +1,4 @@
 using Application.ArtifactsApi.Schemas;
-using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
 using Application.Services;

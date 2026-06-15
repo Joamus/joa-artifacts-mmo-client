@@ -805,6 +805,15 @@ public class PlayerCharacter
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/unequip", body);
 
+        // Cannot unequip item because of HP difference - just needs to rest first (could eat food, but this is an edgecase anyway)
+        if ((int)response.StatusCode == 483)
+        {
+            await Rest();
+
+            await UnequipItem(slot, quantity);
+            return;
+        }
+
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
             content,

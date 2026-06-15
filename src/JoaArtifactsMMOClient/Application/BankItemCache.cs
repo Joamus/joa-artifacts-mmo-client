@@ -142,8 +142,6 @@ public class BankItemCache
 
         BankItemsResponse bankItemsResponse = await LazyGetBankItems();
 
-        shouldRequestAgain = false;
-
         List<DropSchema> items =
         [
             .. bankItemsResponse
@@ -184,59 +182,37 @@ public class BankItemCache
                 .Where(item => item.Quantity > 0),
         ];
 
-        foreach (var item in bankItemsResponse.Data)
-        {
-            var reservationsInCache = reservations.GetValueOrNull(item.Code);
-
-            if (reservationsInCache is not null)
-            {
-                foreach (var reservation in reservationsInCache)
-                {
-                    if (
-                        playerCharacter is not null
-                        && reservation.CharacterName == playerCharacter.Schema.Name
-                        && !hideOwnReservations
-                    )
-                    {
-                        continue;
-                    }
-                    item.Quantity -= reservation.Item.Quantity;
-
-                    if (item.Quantity < 0)
-                    {
-                        item.Quantity = 0;
-                        break;
-                    }
-                }
-            }
-        }
-
         return items;
     }
 
     async Task<BankItemsResponse> LazyGetBankItems()
     {
-        if (!shouldRequestAgain && lastResponse is not null)
-        {
-            return lastResponse with { }; // dunno if the cloning really works here, or is necessary
-        }
-
         await LoadItemsLock.WaitAsync();
 
-        BankItemsResponse? bankResponseResponse = null;
+        if (!shouldRequestAgain && lastResponse is not null)
+        {
+            LoadItemsLock.Release();
+            return lastResponse;
+        }
+
+        BankItemsResponse? bankResponseResult = null;
 
         try
         {
             BankItemsResponse bankResponse = await accountRequester.GetBankItems();
 
-            bankResponseResponse = bankResponse;
+            bankResponseResult = bankResponse;
+
+            lastResponse = bankResponse;
         }
         finally
         {
             LoadItemsLock.Release();
         }
 
-        return bankResponseResponse;
+        shouldRequestAgain = false;
+
+        return bankResponseResult;
     }
 
     public async Task<BankDetails> GetBankDetails()
@@ -255,7 +231,7 @@ public class BankItemCache
             lastDetailsResponse = bankDetails with { };
         }
 
-        shouldRequestAgain = false;
+        shouldRequestDetailsAgain = false;
 
         return bankDetails.Data;
     }

@@ -1,4 +1,3 @@
-using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
