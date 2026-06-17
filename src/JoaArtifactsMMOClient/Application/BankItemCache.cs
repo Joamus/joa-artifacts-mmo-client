@@ -28,7 +28,7 @@ public class BankItemCache
 
     public async void ReserveItem(PlayerCharacter character, string code, int amount)
     {
-        await PreRun();
+        PreRun();
 
         var existingReservations = reservations.GetValueOrNull(code);
 
@@ -58,7 +58,7 @@ public class BankItemCache
 
     public async void RemoveReservation(PlayerCharacter character, string code, int amount)
     {
-        await PreRun();
+        PreRun();
 
         var existingReservations = reservations.GetValueOrNull(code);
 
@@ -94,7 +94,7 @@ public class BankItemCache
         RemoveEmptyReservations();
     }
 
-    public async Task PreRun()
+    public void PreRun()
     {
         if (lastCleanUpAt <= DateTime.UtcNow.AddMinutes(-CLEAN_UP_MINUTE_INTERVAL))
         {
@@ -102,6 +102,7 @@ public class BankItemCache
             // Just for good measure
             shouldRequestAgain = true;
             shouldRequestDetailsAgain = true;
+            lastCleanUpAt = DateTime.UtcNow;
         }
     }
 
@@ -135,7 +136,7 @@ public class BankItemCache
         bool hideOwnReservations = false
     )
     {
-        await PreRun();
+        PreRun();
         // Apply all reservations to the bank items
         // Maybe lazy cleanup the cache? Do it on an interval of every 30 min or so
         // Allow boolean parameter to get all anyway
@@ -207,17 +208,16 @@ public class BankItemCache
         }
         finally
         {
+            shouldRequestAgain = false;
             LoadItemsLock.Release();
         }
-
-        shouldRequestAgain = false;
 
         return bankResponseResult;
     }
 
     public async Task<BankDetails> GetBankDetails()
     {
-        await PreRun();
+        PreRun();
 
         bool requestAgain = lastDetailsResponse is null || shouldRequestDetailsAgain;
 

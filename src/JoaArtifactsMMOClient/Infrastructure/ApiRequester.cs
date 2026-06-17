@@ -68,7 +68,7 @@ public class ApiRequester
         try
         {
             DateTime now = DateTime.UtcNow;
-            double secondsDiff = Math.Floor((now - _lastRequest).TotalSeconds);
+            double secondsDiff = (now - _lastRequest).TotalSeconds;
 
             if (secondsDiff < _secondsBetweenRequests)
             {
@@ -86,10 +86,23 @@ public class ApiRequester
     {
         await ThrottleRequest();
 
-        HttpResponseMessage response;
+        HttpResponseMessage? response = null;
+
         try
         {
-            response = await _httpClient.GetAsync(requestUri);
+            for (var i = 0; i < MAX_RETRIES; i++)
+            {
+                response = await _httpClient.GetAsync(requestUri);
+
+                if ((int)response.StatusCode == 499)
+                {
+                    await Task.Delay(1 * 1000);
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
         catch (TaskCanceledException ex)
         {

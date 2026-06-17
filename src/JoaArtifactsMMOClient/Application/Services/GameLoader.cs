@@ -53,7 +53,7 @@ public class GameLoader
                 }
             }
 
-            await Task.Delay(10 * 1000);
+            await Task.Delay(5 * 1000);
         }
     }
 
@@ -80,8 +80,6 @@ public class GameLoader
 
     async Task HandleCharacterLoop(PlayerAI playerAI)
     {
-        playerAI.Character.CleanupOldWishlistItems();
-
         // var now = DateTime.UtcNow.AddSeconds(-20);
         // var cooldownExpiresIn = playerAI.Character.Schema.CooldownExpiration - now;
 
@@ -99,6 +97,8 @@ public class GameLoader
 
         if (playerAI.Character.Idle)
         {
+            playerAI.Character.CleanupOldWishlistItems();
+
             if (playerAI.Enabled)
             {
                 if (playerAI.Character.CurrentJob is null && playerAI.Character.Jobs.Count == 0)

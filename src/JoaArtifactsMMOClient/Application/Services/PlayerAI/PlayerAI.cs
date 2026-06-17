@@ -882,6 +882,9 @@ public class PlayerAI
 
         if (activeEvents.Count == 0)
         {
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetEventJob: Evaluating active events - found no events"
+            );
             return null;
         }
 
@@ -972,7 +975,7 @@ public class PlayerAI
             else if (jobsToFightMonster is not null && jobsToFightMonster.Job is null)
             {
                 Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualHighPrioJob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
+                    $"{Name}: [{Character.Schema.Name}]: GetMonsterEventjob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
                 );
                 return new FightMonster(
                     Character,
