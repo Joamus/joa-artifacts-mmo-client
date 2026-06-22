@@ -64,17 +64,19 @@ public class PlayerAI
 
         var job =
             await WithdrawAllowance()
-            ?? await DepositUnneededGold()
+            ?? DepositUnneededGold()
             ?? await EnsureAccessories()
             ?? await EnsureWeapon()
             ?? await EnsureTools()
             ?? await GetEventJob()
-            ?? await GetChoreJob()
+            // Support characters should have the chores higher up in their prio list
+            ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
             ?? await GetIndividualHighPrioJob()
             ?? await EnsureFightEquipment()
             ?? await EnsureBag()
             ?? GetSkillJob()
             ?? await GetRoleJob()
+            ?? await GetChoreJob()
             ?? await GetIndividualLowPrioJob();
 
         Logger.LogInformation(
@@ -137,7 +139,7 @@ public class PlayerAI
         );
     }
 
-    async Task<DepositGold?> DepositUnneededGold()
+    DepositGold? DepositUnneededGold()
     {
         if (Character.Schema.Gold > PERSONAL_GOLD_THRESHOLD)
         {
@@ -652,67 +654,11 @@ public class PlayerAI
     {
         bool hasNoTask = string.IsNullOrWhiteSpace(Character.Schema.Task);
 
-        if (Character.Schema.TaskType == TaskType.items.ToString())
-        {
-            Logger.LogInformation(
-                "{Name}: [{CharacterName}]: GetIndividualLowPrioJob: Already has an item task - calculating what to do",
-                Name,
-                Character.Schema.Name
-            );
-            if (await Character.PlayerActionService.CanItemFromItemTaskShouldBeObtained())
-            {
-                Logger.LogInformation(
-                    "{Name}: [{CharacterName}]: GetIndividualLowPrioJob: Already has an item task - beginning/resuming item task",
-                    Name,
-                    Character.Schema.Name
-                );
-                return new ItemTask(Character, gameState);
-            }
-            else
-            {
-                if (await CancelTaskJob.CanCancelTask(Character, gameState))
-                {
-                    Logger.LogInformation(
-                        "{Name}: [{CharacterName}]: GetIndividualLowPrioJob: Already has an item task - cancelling it, item should not be obtained",
-                        Name,
-                        Character.Schema.Name
-                    );
-                    return new CancelTaskJob(Character, gameState);
-                }
-            }
-        }
-        else if (Character.Schema.TaskType == TaskType.monsters.ToString())
-        {
-            var nextJobResult = await GetNextJobToFightMonster(
-                gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!
-            );
+        var newTask = await GetTaskJob(PREFER_MONSTER_TASK);
 
-            if (nextJobResult is not null)
-            {
-                if (nextJobResult.Job is not null)
-                {
-                    var nextJob = nextJobResult.Job;
-
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight monster from monster task: {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {Character.Schema.Task} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}",
-                        Name,
-                        Character.Schema.Name
-                    );
-                    // Do the first job in the list, we only do one thing at a time
-                    return nextJob;
-                }
-                // else
-                // {
-                // Monster tasks aren't that good, because you can get monsters that don't give XP.
-                // return new MonsterTask(Character, gameState);
-                // }
-            }
-            else
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Falling back - could not do jobs to defeat monster \"{Character.Schema.Task}\" from monster task"
-                );
-            }
+        if (newTask is not null)
+        {
+            return newTask;
         }
 
         // A bit dirty - we first want to try to find something to fight, allowing the character get better equipment.
@@ -1152,6 +1098,11 @@ public class PlayerAI
 
         foreach (var priority in chorePriorities)
         {
+            if (!(Character.CharacterConfig?.SupportRole ?? false) && priority < ChorePriority.High)
+            {
+                continue;
+            }
+
             foreach (var chore in Character.Chores)
             {
                 if (gameState.ChoreService.ShouldChoreBeStarted(chore))
@@ -1197,6 +1148,12 @@ public class PlayerAI
                             job = await ProcessChoreJob(
                                 new RestockResources(Character, gameState, priority),
                                 CharacterChoreKind.RestockResources
+                            );
+                            break;
+                        case CharacterChoreKind.RestockEventRelatedItems:
+                            job = await ProcessChoreJob(
+                                new RestockEventRelatedItems(Character, gameState),
+                                CharacterChoreKind.RestockEventRelatedItems
                             );
                             break;
                         default:

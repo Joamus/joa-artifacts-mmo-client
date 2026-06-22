@@ -20,7 +20,10 @@ public class DepositGold : CharacterJob
     {
         await Character.NavigateTo("bank");
 
-        await Character.DepositBankGold(Amount);
+        if (Amount > 0)
+        {
+            await Character.DepositBankGold(Amount);
+        }
 
         // TODO: Allow grinding for gold?
         return new None();

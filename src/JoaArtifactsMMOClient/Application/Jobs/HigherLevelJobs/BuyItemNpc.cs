@@ -49,7 +49,25 @@ public class BuyItemNpc : CharacterJob
 
         var matchingCurrency = gameState.ItemsDict.GetValueOrNull(itemToBuy.Currency);
 
-        if (UseBank)
+        if (amountLeft > 0 && UseInventory)
+        {
+            if (isGold)
+            {
+                amountLeft -= Character.Schema.Gold;
+            }
+            else
+            {
+                var itemInInventory = Character.GetItemFromInventory(matchingCurrency!.Code);
+
+                if (itemInInventory is not null)
+                {
+                    int amountNeeded = Math.Min(itemInInventory.Quantity, amountLeft);
+                    amountLeft -= amountNeeded;
+                }
+            }
+        }
+
+        if (UseBank && amountLeft > 0)
         {
             if (isGold)
             {
@@ -78,24 +96,6 @@ public class BuyItemNpc : CharacterJob
                     amountLeft -= amountNeeded;
 
                     jobs.Add(new WithdrawItem(Character, gameState, itemInBank.Code, amountNeeded));
-                }
-            }
-        }
-
-        if (amountLeft > 0 && UseInventory)
-        {
-            if (isGold)
-            {
-                amountLeft -= Character.Schema.Gold;
-            }
-            else
-            {
-                var itemInInventory = Character.GetItemFromInventory(matchingCurrency!.Code);
-
-                if (itemInInventory is not null)
-                {
-                    int amountNeeded = Math.Min(itemInInventory.Quantity, amountLeft);
-                    amountLeft -= amountNeeded;
                 }
             }
         }

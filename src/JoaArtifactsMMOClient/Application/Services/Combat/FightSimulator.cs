@@ -4,6 +4,7 @@ using Application.Character;
 using Application.Records;
 using Application.Services;
 using Application.Services.Combat;
+using OneOf.Types;
 
 namespace Applicaton.Services.FightSimulator;
 
@@ -12,8 +13,12 @@ public class FightSimulator
     private static readonly double CRIT_DAMAGE_MODIFIER = 0.5;
     private static readonly int MAX_LEVEL = 50;
     private static readonly double PERCENTAGE_OF_SIMS_TO_WIN = 0.85;
+    private static readonly double RESTORE_EFFECT_MAX_HP_THRESHOLD = 0.50;
 
     private static readonly int MAX_AMOUNT_OF_USED_POTIONS = 10;
+    private static readonly int SHELL_EFFECT_DURATION = 3;
+    private static readonly int VAMPIRIC_STRIKE_COOLDOWN_TURNS = 3;
+    private static readonly int SHELL_ACTIVATION_THRESHOLD_HP_PERCENTAGE = 40;
     private static List<EquipmentTypeMapping> allEquipmentTypes { get; } =
         new List<EquipmentTypeMapping>
         {
@@ -226,13 +231,27 @@ public class FightSimulator
                     }
 
                     ProcessParticipantTurn(
-                        attacker,
-                        defender,
-                        potionEffectsForTurn,
-                        combatLog,
-                        turnNumber,
-                        individualTurn
+                        new ProcessParticipantTurnParams
+                        {
+                            Attacker = attacker,
+                            OtherAttackers = [],
+                            Defender = defender,
+                            OtherDefenders = [],
+                            IsBossFight = false,
+                            AttackerPotionEffects = potionEffectsForTurn,
+                            CombatLog = combatLog,
+                            TurnNumber = turnNumber,
+                            IndividualTurn = individualTurn,
+                        }
                     );
+                    // ProcessParticipantTurn(
+                    //     attacker,
+                    //     defender,
+                    //     potionEffectsForTurn,
+                    //     combatLog,
+                    //     turnNumber,
+                    //     individualTurn
+                    // );
 
                     bool attackerWon = defender.Entity.Hp <= 0;
 
@@ -346,12 +365,25 @@ public class FightSimulator
         FightSimParticipant defender
     )
     {
-        TurnDamageResult result = new TurnDamageResult
+        TurnDamageResult result = new()
         {
             ElementalAttacks = [],
             TotalDamage = 0,
             IsCrit = false,
         };
+
+        int resFire = defender.Entity.ResFire;
+        int resEarth = defender.Entity.ResEarth;
+        int resWater = defender.Entity.ResWater;
+        int resAir = defender.Entity.ResAir;
+
+        if (defender.ShellResistanceBoost is not null)
+        {
+            resFire += defender.ShellResistanceBoost.ResFire;
+            resEarth += defender.ShellResistanceBoost.ResEarth;
+            resWater += defender.ShellResistanceBoost.ResWater;
+            resAir += defender.ShellResistanceBoost.ResAir;
+        }
 
         if (attacker.CritCalculator.CalculateIsCriticalStrike())
         {
@@ -363,7 +395,7 @@ public class FightSimulator
             attacker.Entity.DmgFire,
             attacker.Entity.Dmg,
             result.IsCrit,
-            defender.Entity.ResFire
+            resFire
         );
 
         if (fireDamage > 0)
@@ -376,7 +408,7 @@ public class FightSimulator
             attacker.Entity.DmgEarth,
             attacker.Entity.Dmg,
             result.IsCrit,
-            defender.Entity.ResEarth
+            resEarth
         );
 
         if (earthDamage > 0)
@@ -389,7 +421,7 @@ public class FightSimulator
             attacker.Entity.DmgWater,
             attacker.Entity.Dmg,
             result.IsCrit,
-            defender.Entity.ResWater
+            resWater
         );
 
         if (waterDamage > 0)
@@ -402,7 +434,7 @@ public class FightSimulator
             attacker.Entity.DmgAir,
             attacker.Entity.Dmg,
             result.IsCrit,
-            defender.Entity.ResAir
+            resAir
         );
 
         if (airDamage > 0)
@@ -436,110 +468,102 @@ public class FightSimulator
         return damage;
     }
 
-    public static void ProcessParticipantTurn(
-        FightSimParticipant attacker,
-        FightSimParticipant defender,
-        List<FightSimUtility> attackerPotionEffects,
-        CombatLog combatLog,
-        int turnNumber,
-        int individualTurn
-    )
+    public static void ProcessParticipantTurn(ProcessParticipantTurnParams participantTurnParams)
     {
-        var attack = CalculateTurnDamage(attacker, defender);
+        var attacker = participantTurnParams.Attacker;
+        var otherAttackers = participantTurnParams.OtherAttackers;
+        var defender = participantTurnParams.Defender;
+        var otherDefenders = participantTurnParams.OtherDefenders;
+        var isBossFight = participantTurnParams.IsBossFight;
 
-        var damageWithEffects = attack.TotalDamage;
+        var attackerPotionEffects = participantTurnParams.AttackerPotionEffects;
+        var combatLog = participantTurnParams.CombatLog;
+        var turnNumber = participantTurnParams.TurnNumber;
+        var individualTurn = participantTurnParams.IndividualTurn;
 
-        // Amplify damage if needed, e.g. burn rune. Figure out how we handle poisons, because technically it might be easier
-        // to handle those outside of this function, because the poison damage can be mitigated
-        //
-
-        SimpleEffectSchema? burn = attacker.Effects.FirstOrDefault(effect =>
-            effect.Code == Effect.Burn
-        );
-
-        if (burn is not null)
+        // Reset shell if needed
+        if (defender.ShellTurnsRemaining > 0)
         {
-            int burnDamage = 0;
+            defender.ShellTurnsRemaining -= 1;
 
-            if (turnNumber == 1)
+            if (defender.ShellTurnsRemaining == 0)
             {
-                /**
-                ** Calculate the initial burn damage - all subsequent turns will use this intial damage,
-                ** but 10% is removed each turn
-                */
-                double burnFactor = burn.Value * 0.01;
-
-                burnDamage = (int)Math.Round(attack.TotalDamage * burnFactor);
+                defender.ShellResistanceBoost = null;
             }
-            else
-            {
-                // Damage decreases by 10% each turn
-                burnDamage = (int)Math.Round(attacker.BurnDamageForNextTurn * 0.9);
-            }
-
-            if (burnDamage < 0)
-            {
-                // Should never happen
-                burnDamage = 0;
-            }
-
-            // Update for next turn
-            attacker.BurnDamageForNextTurn = burnDamage;
-
-            damageWithEffects += burnDamage;
-
-            combatLog.Log(
-                individualTurn,
-                attacker.Entity,
-                defender.Entity,
-                $"[{attacker.Entity.Name}] deals {burnDamage} burn damage to {defender.Entity.Name}"
-            );
         }
 
-        foreach (var effect in attackerPotionEffects)
+        // Count down vampiric strike cooldown
+        if (attacker.VampiricStrikeCooldown > 0)
         {
-            if (effect.Quantity < 0)
+            attacker.VampiricStrikeCooldown -= 1;
+        }
+
+        var attack = CalculateTurnDamage(attacker, defender);
+
+        int currentFrenzyValue = attacker.Frenzy;
+
+        // Only lasts one turn
+        attacker.Frenzy = 0;
+
+        int damageToDeal = HandleAttackerBurnDamage(
+            attacker,
+            defender,
+            attack,
+            combatLog,
+            turnNumber,
+            individualTurn
+        );
+
+        foreach (var potionUtility in attackerPotionEffects)
+        {
+            if (potionUtility.Quantity < 0)
             {
                 continue;
             }
 
-            var restoreEffect = effect.Item.Effects.FirstOrDefault(effect =>
+            var restoreEffect = potionUtility.Item.Effects.FirstOrDefault(effect =>
                 effect.Code == Effect.Restore
             );
 
             if (restoreEffect is not null)
             {
-                if (attacker.Entity.Hp <= attacker.Entity.MaxHp / 2)
-                {
-                    int amountHealed = GetAmountToHeal(
-                        restoreEffect.Value,
-                        attacker.Entity.Hp,
-                        attacker.Entity.MaxHp
-                    );
+                HandleAttackerRestorePotionEffect(
+                    attacker,
+                    potionUtility,
+                    restoreEffect,
+                    defender,
+                    combatLog,
+                    individualTurn
+                );
+            }
 
-                    attacker.Entity.Hp += amountHealed;
+            var splashRestoreEffect = potionUtility.Item.Effects.FirstOrDefault(effect =>
+                effect.Code == Effect.SplashRestore
+            );
 
-                    amountHealed = effect.Quantity--;
-
-                    combatLog.Log(
-                        individualTurn,
-                        attacker.Entity,
-                        defender.Entity,
-                        $"[{attacker.Entity.Name}] heals {amountHealed} from a health potion"
-                    );
-                }
+            if (splashRestoreEffect is not null)
+            {
+                HandleAttackerRestoreSplashPotionEffect(
+                    attacker,
+                    otherAttackers,
+                    potionUtility,
+                    splashRestoreEffect,
+                    defender,
+                    combatLog,
+                    individualTurn
+                );
             }
         }
 
-        foreach (var elementalAttack in attack.ElementalAttacks)
+        foreach (var (Damage, Element) in attack.ElementalAttacks)
         {
-            defender.Entity.Hp -= elementalAttack.Damage;
+            damageToDeal += Damage;
 
             combatLog.Log(
                 individualTurn,
                 attacker.Entity,
                 defender.Entity,
-                $"[{attacker.Entity.Name}] used {elementalAttack.Elemental} attack and dealt {elementalAttack.Damage} damage"
+                $"[{attacker.Entity.Name}] used {Element} attack and dealt {Damage} damage"
             );
 
             SimpleEffectSchema? corrupted = defender.Effects.FirstOrDefault(effect =>
@@ -550,7 +574,7 @@ public class FightSimulator
             {
                 int resistance = 0;
 
-                switch (elementalAttack.Elemental)
+                switch (Element)
                 {
                     case "air":
                         resistance = defender.Entity.ResAir;
@@ -568,7 +592,7 @@ public class FightSimulator
 
                 int newResistance = resistance - corrupted.Value;
 
-                switch (elementalAttack.Elemental)
+                switch (Element)
                 {
                     case "air":
                         defender.Entity.ResAir = resistance;
@@ -588,14 +612,78 @@ public class FightSimulator
                     individualTurn,
                     attacker.Entity,
                     defender.Entity,
-                    $"[{defender.Entity.Name}] is corrupted and received {elementalAttack.Elemental} element damage for {elementalAttack.Damage} (new resistance is {newResistance})"
+                    $"[{defender.Entity.Name}] is corrupted and received {Element} element damage for {Damage} (new resistance is {newResistance})"
                 );
             }
         }
 
+        damageToDeal *= 1 + currentFrenzyValue;
+
+        if (currentFrenzyValue > 0)
+        {
+            int oldDamageToDeal = damageToDeal;
+            damageToDeal *= 1 + currentFrenzyValue;
+
+            combatLog.Log(
+                individualTurn,
+                attacker.Entity,
+                defender.Entity,
+                $"[{attacker.Entity.Name}] boosting all damage, due to {currentFrenzyValue}% frenzy - total damage for turn is {damageToDeal} (originally {oldDamageToDeal})"
+            );
+        }
+
+        if (defender.Barrier > 0)
+        {
+            if (defender.Barrier >= damageToDeal)
+            {
+                defender.Barrier -= damageToDeal;
+                damageToDeal = 0;
+            }
+            else
+            {
+                damageToDeal -= defender.Barrier;
+                defender.Barrier = 0;
+            }
+        }
+
+        defender.Entity.Hp -= damageToDeal;
+
         if (defender.Entity.Hp <= 0)
         {
             return;
+        }
+
+        if (
+            isBossFight
+            && !defender.ShellHasBeenActivated
+            && defender.Entity.Hp
+                <= defender.Entity.MaxHp * SHELL_ACTIVATION_THRESHOLD_HP_PERCENTAGE
+        )
+        {
+            SimpleEffectSchema? shell = attacker.Effects.FirstOrDefault(effect =>
+                effect.Code == Effect.Shell
+            );
+
+            if (shell is not null)
+            {
+                defender.ShellHasBeenActivated = true;
+                defender.ShellTurnsRemaining = SHELL_EFFECT_DURATION;
+
+                defender.ShellResistanceBoost = new ResistanceBoost
+                {
+                    ResAir = shell.Value,
+                    ResEarth = shell.Value,
+                    ResFire = shell.Value,
+                    ResWater = shell.Value,
+                };
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{defender.Entity.Name}] gains shell effect - {shell.Value}% resistance to all elements"
+                );
+            }
         }
 
         if (attack.IsCrit)
@@ -616,9 +704,118 @@ public class FightSimulator
                 combatLog.Log(
                     individualTurn,
                     attacker.Entity,
-                    attacker.Entity,
-                    $"[{attacker.Entity.Name}] heals {heal} from Life steal effect"
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] heals {heal} HP from Life steal effect"
                 );
+            }
+
+            if (isBossFight)
+            {
+                SimpleEffectSchema? vampiricStrike = attacker.Effects.FirstOrDefault(effect =>
+                    effect.Code == Effect.VampiricStrike
+                );
+
+                if (vampiricStrike is not null && attacker.VampiricStrikeCooldown == 0)
+                {
+                    // We use the raw damage here, don't think lifesteal works with burn
+                    int heal = (int)Math.Round(attack.TotalDamage * vampiricStrike.Value * 0.01);
+
+                    FightSimParticipant? attackerWithLowestHp = null;
+
+                    foreach (var otherAttacker in otherAttackers)
+                    {
+                        if (
+                            attackerWithLowestHp is null
+                            || otherAttacker.Entity.Hp < attackerWithLowestHp.Entity.Hp
+                        )
+                        {
+                            attackerWithLowestHp = otherAttacker;
+                        }
+                    }
+
+                    if (attackerWithLowestHp is not null)
+                    {
+                        heal = GetAmountToHeal(
+                            heal,
+                            attackerWithLowestHp.Entity.Hp,
+                            attackerWithLowestHp.Entity.MaxHp
+                        );
+
+                        attackerWithLowestHp.Entity.Hp += heal;
+
+                        combatLog.Log(
+                            individualTurn,
+                            attacker.Entity,
+                            defender.Entity,
+                            $"[{attacker.Entity.Name}] heals {attackerWithLowestHp.Entity.Name} {heal} HP from Vampiric strike effect"
+                        );
+
+                        attacker.VampiricStrikeCooldown = VAMPIRIC_STRIKE_COOLDOWN_TURNS;
+                    }
+                }
+            }
+
+            SimpleEffectSchema? frenzy = attacker.Effects.FirstOrDefault(effect =>
+                effect.Code == Effect.Frenzy
+            );
+
+            if (frenzy is not null)
+            {
+                attacker.Frenzy = frenzy.Value;
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    attacker.Entity,
+                    $"[{attacker.Entity.Name}] got Frenzy from critting - {frenzy.Value}% damage boost for them and their allies until next turn"
+                );
+
+                if (isBossFight)
+                {
+                    foreach (var otherAttacker in otherAttackers)
+                    {
+                        if (otherAttacker.Frenzy < frenzy.Value)
+                        {
+                            combatLog.Log(
+                                individualTurn,
+                                attacker.Entity,
+                                defender.Entity,
+                                $"[{attacker.Entity.Name}] grants Frenzy to {otherAttacker.Entity.Name} - {frenzy.Value}% damage boost until next turn"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        if (isBossFight && turnNumber % 2 == 0)
+        {
+            SimpleEffectSchema? healingAura = attacker.Effects.FirstOrDefault(effect =>
+                effect.Code == Effect.HealingAura
+            );
+
+            if (healingAura is not null)
+            {
+                foreach (var otherAttacker in otherAttackers)
+                {
+                    int amountToHeal = (int)
+                        Math.Round(otherAttacker.Entity.MaxHp * (healingAura.Value * 0.01));
+
+                    amountToHeal = GetAmountToHeal(
+                        amountToHeal,
+                        otherAttacker.Entity.Hp,
+                        otherAttacker.Entity.MaxHp
+                    );
+
+                    otherAttacker.Entity.Hp += amountToHeal;
+
+                    combatLog.Log(
+                        individualTurn,
+                        attacker.Entity,
+                        defender.Entity,
+                        $"[{attacker.Entity.Name}] heals {amountToHeal} for {otherAttacker.Entity.Name} from Healing aura effect"
+                    );
+                }
             }
         }
 
@@ -630,7 +827,6 @@ public class FightSimulator
 
             if (heal is not null)
             {
-                // We use the raw damage here, don't think lifesteal works with burn
                 int amountToHeal = (int)Math.Round(attacker.Entity.MaxHp * (heal.Value * 0.01));
 
                 amountToHeal = GetAmountToHeal(
@@ -638,13 +834,51 @@ public class FightSimulator
                     attacker.Entity.Hp,
                     attacker.Entity.MaxHp
                 );
+
                 attacker.Entity.Hp += amountToHeal;
 
                 combatLog.Log(
                     individualTurn,
                     attacker.Entity,
-                    attacker.Entity,
+                    defender.Entity,
                     $"[{attacker.Entity.Name}] heals {amountToHeal} from Healing effect"
+                );
+            }
+        }
+
+        if (turnNumber % 5 == 0)
+        {
+            SimpleEffectSchema? barrier = attacker.Effects.FirstOrDefault(effect =>
+                effect.Code == Effect.Barrier
+            );
+
+            if (barrier is not null)
+            {
+                attacker.Barrier = barrier.Value;
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] gains a barrier defending {barrier.Value} HP"
+                );
+            }
+        }
+
+        if (turnNumber % 20 == 0)
+        {
+            SimpleEffectSchema? reconstitution = attacker.Effects.FirstOrDefault(effect =>
+                effect.Code == Effect.Reconstitution
+            );
+
+            if (reconstitution is not null)
+            {
+                attacker.Entity.Hp = attacker.Entity.MaxHp;
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] heals to max HP {attacker.Entity.MaxHp} from Reconstitution effect"
                 );
             }
         }
@@ -1413,6 +1647,140 @@ public class FightSimulator
 
         return amountToHeal;
     }
+
+    static int HandleAttackerBurnDamage(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        TurnDamageResult attack,
+        CombatLog combatLog,
+        int turnNumber,
+        int individualTurn
+    )
+    {
+        SimpleEffectSchema? burn = attacker.Effects.FirstOrDefault(effect =>
+            effect.Code == Effect.Burn
+        );
+
+        if (burn is null)
+        {
+            return 0;
+        }
+
+        int burnDamage = 0;
+
+        if (turnNumber == 1)
+        {
+            /**
+            ** Calculate the initial burn damage - all subsequent turns will use this intial damage,
+            ** but 10% is removed each turn
+            */
+            double burnFactor = burn.Value * 0.01;
+
+            burnDamage = (int)Math.Round(attack.TotalDamage * burnFactor);
+        }
+        else
+        {
+            // Damage decreases by 10% each turn
+            burnDamage = (int)Math.Round(attacker.BurnDamageForNextTurn * 0.9);
+        }
+
+        if (burnDamage < 0)
+        {
+            // Should never happen
+            burnDamage = 0;
+        }
+
+        // Update for next turn
+        attacker.BurnDamageForNextTurn = burnDamage;
+
+        combatLog.Log(
+            individualTurn,
+            attacker.Entity,
+            defender.Entity,
+            $"[{attacker.Entity.Name}] deals {burnDamage} burn damage to {defender.Entity.Name}"
+        );
+
+        // defender.Entity.Hp -= burnDamage;
+        return burnDamage;
+    }
+
+    static void HandleAttackerRestorePotionEffect(
+        FightSimParticipant attacker,
+        FightSimUtility fightSimEffect,
+        SimpleEffectSchema restoreEffect,
+        FightSimParticipant defender,
+        CombatLog combatLog,
+        int individualTurn
+    )
+    {
+        if (attacker.Entity.Hp <= attacker.Entity.MaxHp * RESTORE_EFFECT_MAX_HP_THRESHOLD)
+        {
+            int amountHealed = GetAmountToHeal(
+                restoreEffect.Value,
+                attacker.Entity.Hp,
+                attacker.Entity.MaxHp
+            );
+
+            attacker.Entity.Hp += amountHealed;
+
+            fightSimEffect.Quantity--;
+
+            combatLog.Log(
+                individualTurn,
+                attacker.Entity,
+                defender.Entity,
+                $"[{attacker.Entity.Name}] heals {amountHealed} from a health potion"
+            );
+        }
+    }
+
+    static void HandleAttackerRestoreSplashPotionEffect(
+        FightSimParticipant attacker,
+        List<FightSimParticipant> otherAttackers,
+        FightSimUtility fightSimEffect,
+        SimpleEffectSchema splashRestoreEffect,
+        FightSimParticipant defender,
+        CombatLog combatLog,
+        int individualTurn
+    )
+    {
+        FightSimParticipant? attackerWithLowestHp = null;
+
+        foreach (var otherAttacker in otherAttackers)
+        {
+            if (
+                attackerWithLowestHp is null
+                || otherAttacker.Entity.Hp < attackerWithLowestHp.Entity.Hp
+            )
+            {
+                attackerWithLowestHp = otherAttacker;
+            }
+        }
+
+        if (
+            attackerWithLowestHp is not null
+            && attackerWithLowestHp.Entity.Hp
+                <= attackerWithLowestHp.Entity.MaxHp * RESTORE_EFFECT_MAX_HP_THRESHOLD
+        )
+        {
+            int amountHealed = GetAmountToHeal(
+                splashRestoreEffect.Value,
+                attackerWithLowestHp.Entity.Hp,
+                attackerWithLowestHp.Entity.MaxHp
+            );
+
+            attackerWithLowestHp.Entity.Hp += amountHealed;
+
+            fightSimEffect.Quantity--;
+
+            combatLog.Log(
+                individualTurn,
+                attacker.Entity,
+                defender.Entity,
+                $"[{attacker.Entity.Name}] heals {attackerWithLowestHp.Entity.Name} {amountHealed} HP from a health splash potion"
+            );
+        }
+    }
 }
 
 public record FightOutcome
@@ -1431,15 +1799,6 @@ public record FightOutcome
     public int PotionsUsed { get; set; } = 0;
 
     public required CombatLog FirstSimCombatLog { get; set; }
-}
-
-record AttackResult
-{
-    // public string Element { get; set; } = "";
-
-    public int Damage { get; set; }
-
-    public bool WasCrit { get; set; }
 }
 
 public record FightSimUtility
@@ -1475,8 +1834,40 @@ public record FightSimParticipant
 {
     public required FightEntity Entity { get; set; }
 
+    public int Barrier { get; set; } = 0;
+    public int Frenzy { get; set; } = 0;
+    public bool ShellHasBeenActivated { get; set; } = false;
+    public int ShellTurnsRemaining { get; set; } = 0;
+    public ResistanceBoost? ShellResistanceBoost { get; set; }
+
+    public int VampiricStrikeCooldown { get; set; } = 0;
+
     public int BurnDamageForNextTurn { get; set; } = 0;
     public required ICritCalculator CritCalculator { get; set; }
     public required List<SimpleEffectSchema> Effects { get; set; }
     public required bool IsPlayer { get; set; }
+}
+
+public record ProcessParticipantTurnParams
+{
+    public required FightSimParticipant Attacker { get; set; }
+    public required List<FightSimParticipant> OtherAttackers { get; set; }
+    public required FightSimParticipant Defender { get; set; }
+    public required List<FightSimParticipant> OtherDefenders { get; set; }
+    public required bool IsBossFight { get; set; }
+    public required List<FightSimUtility> AttackerPotionEffects { get; set; }
+    public required CombatLog CombatLog { get; set; }
+    public required int TurnNumber { get; set; }
+    public required int IndividualTurn { get; set; }
+}
+
+public record ResistanceBoost
+{
+    public int ResFire { get; set; } = 0;
+
+    public int ResEarth { get; set; } = 0;
+
+    public int ResWater { get; set; } = 0;
+
+    public int ResAir { get; set; } = 0;
 }

@@ -3,6 +3,7 @@ using Application.Character;
 using Application.Jobs;
 using Application.Records;
 using Applicaton.Services.FightSimulator;
+using OneOf.Types;
 
 namespace Application.Services;
 
@@ -13,16 +14,27 @@ public class FightEquipmentAI
     static List<EquipmentTypeMapping> craftableEquipmentTypes { get; } =
         new List<EquipmentTypeMapping>
         {
-            new EquipmentTypeMapping { ItemType = "weapon", Slot = "WeaponSlot" },
-            new EquipmentTypeMapping { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-            new EquipmentTypeMapping { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-            new EquipmentTypeMapping { ItemType = "helmet", Slot = "HelmetSlot" },
-            new EquipmentTypeMapping { ItemType = "boots", Slot = "BootsSlot" },
-            new EquipmentTypeMapping { ItemType = "ring", Slot = "Ring1Slot" },
-            new EquipmentTypeMapping { ItemType = "ring", Slot = "Ring2Slot" },
-            new EquipmentTypeMapping { ItemType = "amulet", Slot = "AmuletSlot" },
-            new EquipmentTypeMapping { ItemType = "shield", Slot = "ShieldSlot" },
+            new() { ItemType = "weapon", Slot = "WeaponSlot" },
+            new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+            new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+            new() { ItemType = "helmet", Slot = "HelmetSlot" },
+            new() { ItemType = "boots", Slot = "BootsSlot" },
+            new() { ItemType = "ring", Slot = "Ring1Slot" },
+            new() { ItemType = "ring", Slot = "Ring2Slot" },
+            new() { ItemType = "amulet", Slot = "AmuletSlot" },
+            new() { ItemType = "shield", Slot = "ShieldSlot" },
         };
+
+    static List<EquipmentTypeMapping> allEquipmentTypes { get; } =
+        [
+            .. new List<EquipmentTypeMapping>
+            {
+                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+                new() { ItemType = "rune", Slot = "RuneSlot" },
+            }.Union(craftableEquipmentTypes),
+        ];
 
     public static async Task<CharacterJob?> EnsureFightEquipment(
         PlayerCharacter character,
@@ -55,7 +67,7 @@ public class FightEquipmentAI
         }
 
         // We basically just want to take the first equipment type, and give one job, to get the best we can of that one
-        foreach (var equipmentType in equipmentTypes)
+        foreach (var (equipmentType, isCraftable) in equipmentTypes)
         {
             List<ItemSchema> items = [];
 
@@ -72,7 +84,7 @@ public class FightEquipmentAI
                     item.Type == equipmentType.ItemType
                     && equippedItemInSlotLevel <= item.Level + 5
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
-                    && item.Craft is not null
+                    && (!isCraftable || item.Craft is not null)
                     && ItemService.CanUseItem(item, character.Schema)
                     && (character.GetItemFromInventory(item.Code)?.Quantity ?? 0)
                         <= maxAllowedOfItem
@@ -94,18 +106,36 @@ public class FightEquipmentAI
                 .ToList();
 
             relevantItemsFromSim.Sort(
-                (a, b) => gameState.ItemsDict[b].Level - gameState.ItemsDict[a].Level
+                (a, b) =>
+                {
+                    var itemA = gameState.ItemsDict[a];
+                    var itemB = gameState.ItemsDict[b];
+
+                    int aWinsValue = -1;
+                    int bWinsValue = 1;
+
+                    if (itemB.Craft is null && itemA.Craft is not null)
+                    {
+                        return bWinsValue;
+                    }
+                    else if (itemA.Craft is null && itemA.Craft is not null)
+                    {
+                        return aWinsValue;
+                    }
+
+                    return itemB.Level - itemA.Level;
+                }
             );
 
-            var highestLevelItem = relevantItemsFromSim.FirstOrDefault();
+            var highestPriorityItem = relevantItemsFromSim.FirstOrDefault();
 
-            if (highestLevelItem is not null)
+            if (highestPriorityItem is not null)
             {
-                var job = new ObtainOrFindItem(character, gameState, highestLevelItem, 1)
+                var job = new ObtainOrFindItem(character, gameState, highestPriorityItem, 1)
                 {
                     onAfterSuccessEndHook = async () =>
                     {
-                        await character.SmartItemEquip(highestLevelItem, 1);
+                        await character.SmartItemEquip(highestPriorityItem, 1);
                     },
                 };
 
@@ -116,14 +146,14 @@ public class FightEquipmentAI
         return null;
     }
 
-    public static List<EquipmentTypeMapping> GetItemSlotsToUpgrade(
-        PlayerCharacter character,
-        GameState gameState
-    )
+    public static List<(
+        EquipmentTypeMapping equipmentType,
+        bool isCraftable
+    )> GetItemSlotsToUpgrade(PlayerCharacter character, GameState gameState)
     {
         int minimumItemLevel = Math.Max(character.Schema.Level - ITEM_LEVEL_BUFFER, 0);
 
-        var equipmentTypesToUpgrade = craftableEquipmentTypes
+        var equipmentTypesToUpgrade = allEquipmentTypes
             .Where(equipmentType =>
             {
                 var equippedItemInSlot = character.GetEquipmentSlot(equipmentType.Slot);
@@ -139,6 +169,14 @@ public class FightEquipmentAI
                 var matchingItem = gameState.ItemsDict[equippedItemInSlot.Code];
 
                 return matchingItem.Level < minimumItemLevel;
+            })
+            .Select(equipmentType =>
+            {
+                bool isCraftable = craftableEquipmentTypes.Exists(craftableType =>
+                    equipmentType.ItemType == craftableType.ItemType
+                );
+
+                return (equipmentType, isCraftable);
             })
             .ToList();
 

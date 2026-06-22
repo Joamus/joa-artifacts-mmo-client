@@ -43,7 +43,7 @@ public class PlayerCharacter
     [JsonInclude]
     private Dictionary<string, ItemReservation> itemWishlist { get; set; } = [];
 
-    private CharacterConfig? CharacterConfig { get; set; }
+    public CharacterConfig CharacterConfig { get; private set; }
 
     public List<Skill> Roles { get; init; } = [];
     public List<CharacterChoreKind> Chores { get; init; } = [];

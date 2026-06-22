@@ -28,7 +28,10 @@ public class WithdrawGold : CharacterJob
         // {
         await Character.NavigateTo("bank");
 
-        await Character.WithdrawBankGold(Amount);
+        if (Amount > 0)
+        {
+            await Character.WithdrawBankGold(Amount);
+        }
         // }
 
         // TODO: Allow grinding for gold?
