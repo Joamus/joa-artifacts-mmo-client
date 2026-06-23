@@ -355,9 +355,8 @@ public class PlayerCharacter
                 {
                     case AppError appError:
                         Logger.LogError(
-                            $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()}"
+                            $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - {appError.Message}"
                         );
-                        Logger.LogError($"{GetType().Name}: [{Schema.Name}]: {appError.Message}");
                         failed = true;
 
                         break;
