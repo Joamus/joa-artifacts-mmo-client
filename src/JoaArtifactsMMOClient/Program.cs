@@ -130,5 +130,7 @@ public record CharacterConfig
     [System.Text.Json.Serialization.JsonConverter(typeof(StringEnumConverter))]
     public List<CharacterChoreKind> Chores { get; set; } = [];
 
+    public bool SupportRole { get; set; } = false;
+
     public bool AI { get; set; } = true;
 }

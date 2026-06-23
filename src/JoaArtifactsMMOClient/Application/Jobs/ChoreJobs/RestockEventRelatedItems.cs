@@ -88,9 +88,13 @@ public class RestockEventRelatedItems : CharacterJob, ICharacterChoreJob
                         // These potions are obtained by buying them currently - could change
                         if (matchingNpcItem?.BuyPrice is not null)
                         {
-                            int amountWeCanBuy = amountInBank / (int)matchingNpcItem.BuyPrice;
+                            int pricePerPotion = (int)matchingNpcItem.BuyPrice;
+
+                            int amountWeCanBuy = totalBudget / pricePerPotion;
 
                             quantity = Math.Min(totalAmountWanted, amountWeCanBuy);
+
+                            totalBudget -= pricePerPotion * quantity;
                         }
                     }
 
