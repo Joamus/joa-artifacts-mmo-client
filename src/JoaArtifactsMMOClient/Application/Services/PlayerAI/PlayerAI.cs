@@ -905,7 +905,11 @@ public class PlayerAI
     {
         var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(eventContent.Code);
 
-        if (matchingMonster is not null && matchingMonster.Level <= Character.Schema.Level)
+        if (
+            matchingMonster is not null
+            && matchingMonster.Level <= Character.Schema.Level
+            && matchingMonster.Type != MonsterType.Boss
+        )
         {
             var jobsToFightMonster = await GetNextJobToFightMonster(matchingMonster);
 
