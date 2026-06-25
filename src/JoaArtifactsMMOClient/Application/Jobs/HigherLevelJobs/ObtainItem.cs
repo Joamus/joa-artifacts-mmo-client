@@ -376,12 +376,14 @@ public class ObtainItem : CharacterJob
             )
             : null;
 
-        if (npcItemsResult is not null)
+        // Fall through, allow to check alternatives
+        if (npcItemsResult is not null && npcItemsResult.Value.IsT1)
         {
             return npcItemsResult.Value.Match<OneOf<AppError, None>>(
                 error =>
                 {
-                    return error;
+                    // noop
+                    return new None();
                 },
                 npcItemJobs =>
                 {
@@ -420,7 +422,7 @@ public class ObtainItem : CharacterJob
         }
 
         return new AppError(
-            $"This should not happen - we cannot find any way to obtain item {code} for {character.Schema.Name}",
+            $"Cannot find any way to obtain item {code} for {character.Schema.Name}",
             ErrorStatus.InsufficientSkill
         );
     }
