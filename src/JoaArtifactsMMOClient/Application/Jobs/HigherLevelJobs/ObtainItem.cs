@@ -1063,10 +1063,12 @@ public class ObtainItem : CharacterJob
     {
         List<CharacterJob> jobs = [];
 
-        if (
-            matchingNpcItem.BuyPrice is null
-            || !EventService.IsNpcActive(gameState, matchingNpcItem.Code)
-        )
+        if (matchingNpcItem.BuyPrice is null)
+        {
+            return null;
+        }
+
+        if (!EventService.IsNpcActive(gameState, matchingNpcItem.Code))
         {
             // return null;
             return new AppError(
