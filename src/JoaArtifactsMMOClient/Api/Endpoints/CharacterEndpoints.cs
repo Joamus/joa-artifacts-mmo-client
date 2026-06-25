@@ -376,5 +376,5 @@ public record GenericActionRequest
 
 public record UpdatePlayerAIRequest
 {
-    public bool Enabled { get; set; } = true;
+    public required bool Enabled { get; set; }
 }
