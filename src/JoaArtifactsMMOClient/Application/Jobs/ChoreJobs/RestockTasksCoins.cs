@@ -122,11 +122,11 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
             ChorePriority.Low => new RestockTasksCoinsParams
             {
                 AmountOfJobsToDo = 5,
-                LowerCoinsThreshold = 400,
+                LowerCoinsThreshold = 200,
             },
             ChorePriority.High => new RestockTasksCoinsParams
             {
-                AmountOfJobsToDo = 10,
+                AmountOfJobsToDo = 5,
                 LowerCoinsThreshold = 100,
             },
             _ => throw new NotImplementedException(),

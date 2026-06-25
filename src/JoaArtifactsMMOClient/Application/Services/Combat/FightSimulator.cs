@@ -617,8 +617,6 @@ public class FightSimulator
             }
         }
 
-        damageToDeal *= 1 + currentFrenzyValue;
-
         if (currentFrenzyValue > 0)
         {
             int oldDamageToDeal = damageToDeal;

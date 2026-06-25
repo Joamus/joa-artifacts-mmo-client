@@ -205,6 +205,7 @@ public static class ItemService
                         character.Schema.CookingLevel >= food.Level
                         && food.Subtype == "food"
                         && CanUseItem(food, character.Schema)
+                        && (IsItemCookedMeat(food, gameState) || IsItemCookedFish(food, gameState))
                     )
                     {
                         if (!potentialFoodsToCookDict.ContainsKey(food.Code))
