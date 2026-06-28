@@ -87,8 +87,22 @@ public class PlayerActionService
         {
             if (quantity == 2)
             {
-                await character.EquipItem(code, "ring1", 1);
-                await character.EquipItem(code, "ring2", 1);
+                await character.EquipItem(
+                    new EquipRequest
+                    {
+                        Code = code,
+                        Slot = "ring1",
+                        Quantity = 1,
+                    }
+                );
+                await character.EquipItem(
+                    new EquipRequest
+                    {
+                        Code = code,
+                        Slot = "ring2",
+                        Quantity = 1,
+                    }
+                );
                 return new None();
             }
             List<string> itemSlotCodes = new List<string>
@@ -125,7 +139,7 @@ public class PlayerActionService
         switch (itemSlot.Value.Value)
         {
             case EquipmentSlot equipmentSlot:
-                equipmentSlot.Slot = equipmentSlot.Slot.Replace("Slot", "").FromPascalToSnakeCase();
+                var pascalCaseSlot = equipmentSlot.Slot.Replace("Slot", "").FromPascalToSnakeCase();
                 if (equipmentSlot.Code != "")
                 {
                     // Trying to equip the same item - at the moment we don't allow using both utility slots for same item
@@ -135,7 +149,14 @@ public class PlayerActionService
 
                         int amountToEquip = Math.Min(amountThatCanBeAdded, quantity);
 
-                        await character.EquipItem(code, equipmentSlot.Slot, amountToEquip);
+                        await character.EquipItem(
+                            new EquipRequest
+                            {
+                                Code = code,
+                                Slot = pascalCaseSlot,
+                                Quantity = amountToEquip,
+                            }
+                        );
 
                         return new None();
                     }
@@ -143,9 +164,12 @@ public class PlayerActionService
 
                 // TODO FIX
                 await character.EquipItem(
-                    code,
-                    equipmentSlot.Slot.FromPascalToSnakeCase(),
-                    quantity
+                    new EquipRequest
+                    {
+                        Code = code,
+                        Slot = pascalCaseSlot,
+                        Quantity = quantity,
+                    }
                 );
 
                 break;
@@ -166,15 +190,17 @@ public class PlayerActionService
                 $"EquipBestFightEquipment: [{character.Schema.Name}]: Found {result.ItemsToEquip.Count} items to equip before fighting {monster.Code}"
             );
 
-        foreach (var item in result.ItemsToEquip)
-        {
-            AppLogger
-                .GetLogger()
-                .LogInformation(
-                    $"EquipBestFightEquipment: [{character.Schema.Name}]: Equipping {item.Code}"
-                );
-            await character.EquipItem(item.Code, item.Slot, item.Quantity);
-        }
+        List<EquipRequest> equipRequests =
+        [
+            .. result.ItemsToEquip.Select(item => new EquipRequest
+            {
+                Code = item.Code,
+                Slot = item.Slot,
+                Quantity = item.Quantity,
+            }),
+        ];
+
+        await character.EquipItems(equipRequests);
 
         return new None();
     }
@@ -504,8 +530,11 @@ public class PlayerActionService
             }
             await character.NavigateTo("bank");
             await character.UnequipItem(
-                $"Utility{utilitySlot}".FromPascalToSnakeCase(),
-                amountToDeposit
+                new UnequipRequest
+                {
+                    Slot = $"Utility{utilitySlot}".FromPascalToSnakeCase(),
+                    Quantity = amountToDeposit,
+                }
             );
             await character.DepositBankItem(
                 new List<WithdrawOrDepositItemRequest>
@@ -525,7 +554,7 @@ public class PlayerActionService
     /**
     ** Item tasks require you to gather items from events, which might not currently be ongoing.
     */
-    public async Task<bool> CanItemFromItemTaskShouldBeObtained()
+    public async Task<bool> CanItemFromItemTaskBeObtained()
     {
         if (string.IsNullOrWhiteSpace(character.Schema.TaskType))
         {

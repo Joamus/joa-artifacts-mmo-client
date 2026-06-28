@@ -767,19 +767,29 @@ public class PlayerCharacter
         await PlayerActionService.SmartItemEquip(itemCode, quantity);
     }
 
-    public async Task EquipItem(string itemCode, string slot, int quantity)
+    public async Task EquipItem(EquipRequest request)
+    {
+        List<EquipRequest> equipRequests = [request];
+
+        await EquipItems(equipRequests);
+    }
+
+    public async Task EquipItems(List<EquipRequest> request)
     {
         await PreTaskHandler();
 
         string _body = JsonSerializer.Serialize(
-            new
-            {
-                code = itemCode,
-                slot,
-                quantity,
-            }
+            request
+                .Select(item => new
+                {
+                    code = item.Code,
+                    slot = item.Slot,
+                    quantity = item.Quantity,
+                })
+                .ToList()
         );
-        StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
+
+        StringContent body = new(_body, Encoding.UTF8, "application/json");
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/equip", body);
 
         // Cannot equip item because of HP difference - just needs to rest first (could eat food, but this is an edgecase anyway)
@@ -787,7 +797,7 @@ public class PlayerCharacter
         {
             await Rest();
 
-            await EquipItem(itemCode, slot, quantity);
+            await EquipItems(request);
             return;
         }
 
@@ -799,12 +809,22 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
-    public async Task UnequipItem(string slot, int quantity)
+    public async Task UnequipItem(UnequipRequest request)
+    {
+        List<UnequipRequest> unequipRequests = [request];
+
+        await UnequipItems(unequipRequests);
+    }
+
+    public async Task UnequipItems(List<UnequipRequest> request)
     {
         await PreTaskHandler();
 
-        string _body = JsonSerializer.Serialize(new { slot, quantity });
-        StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
+        string _body = JsonSerializer.Serialize(
+            request.Select(item => new { slot = item.Slot, quantity = item.Quantity }).ToList()
+        );
+
+        StringContent body = new(_body, Encoding.UTF8, "application/json");
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/unequip", body);
 
         // Cannot unequip item because of HP difference - just needs to rest first (could eat food, but this is an edgecase anyway)
@@ -812,7 +832,7 @@ public class PlayerCharacter
         {
             await Rest();
 
-            await UnequipItem(slot, quantity);
+            await UnequipItems(request);
             return;
         }
 

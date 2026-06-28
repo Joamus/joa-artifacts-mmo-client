@@ -26,15 +26,15 @@ public class FightEquipmentAI
         };
 
     static List<EquipmentTypeMapping> allEquipmentTypes { get; } =
-        [
-            .. new List<EquipmentTypeMapping>
-            {
-                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
-                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
-                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
-                new() { ItemType = "rune", Slot = "RuneSlot" },
-            }.Union(craftableEquipmentTypes),
-        ];
+    [
+        .. new List<EquipmentTypeMapping>
+        {
+            new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+            new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+            new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+            new() { ItemType = "rune", Slot = "RuneSlot" },
+        }.Union(craftableEquipmentTypes),
+    ];
 
     public static async Task<CharacterJob?> EnsureFightEquipment(
         PlayerCharacter character,

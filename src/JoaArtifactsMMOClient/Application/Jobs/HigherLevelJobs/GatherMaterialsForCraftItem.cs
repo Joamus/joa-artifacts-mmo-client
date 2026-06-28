@@ -1,4 +1,5 @@
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
 using Application.Errors;
 using Application.Services;
@@ -302,8 +303,12 @@ public class GatherMaterialsForItem : CharacterJob
                     if (itemInInventory.Value.isEquipped)
                     {
                         await character.UnequipItem(
-                            itemInInventory.Value.inventorySlot.Slot.FromPascalToSnakeCase(),
-                            itemInInventory.Value.inventorySlot.Quantity
+                            new UnequipRequest
+                            {
+                                Slot =
+                                    itemInInventory.Value.inventorySlot.Slot.FromPascalToSnakeCase(),
+                                Quantity = itemInInventory.Value.inventorySlot.Quantity,
+                            }
                         );
                     }
                     if (itemInInventory.Value.inventorySlot.Quantity >= amountToObtain)

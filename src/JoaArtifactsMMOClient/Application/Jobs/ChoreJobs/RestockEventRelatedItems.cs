@@ -35,7 +35,7 @@ public class RestockEventRelatedItems : CharacterJob, ICharacterChoreJob
 
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
-        var itemToRestock = await GetNextItemToRestock(gameState, bankItems, levelRange);
+        var itemToRestock = await GetNextTeleportPotionToRestock(gameState, bankItems, levelRange);
 
         if (itemToRestock is null)
         {
@@ -45,7 +45,7 @@ public class RestockEventRelatedItems : CharacterJob, ICharacterChoreJob
         return new ObtainItem(Character, gameState, itemToRestock.Code, itemToRestock.Quantity);
     }
 
-    public async Task<DropSchema?> GetNextItemToRestock(
+    public async Task<DropSchema?> GetNextTeleportPotionToRestock(
         GameState gameState,
         List<DropSchema> bankItems,
         LevelRange levelRange

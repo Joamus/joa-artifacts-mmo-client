@@ -89,14 +89,21 @@ public class DepositUnneededItems : CharacterJob
 
         if (bestFightItems.Count > 0)
         {
+            List<EquipRequest> equipRequests = [];
+
             foreach (var item in bestFightItems)
             {
-                await Character.EquipItem(
-                    item.Key,
-                    item.Value.Slot.FromPascalToSnakeCase(),
-                    item.Value.Quantity
+                equipRequests.Add(
+                    new EquipRequest
+                    {
+                        Code = item.Key,
+                        Slot = item.Value.Slot.FromPascalToSnakeCase(),
+                        Quantity = item.Value.Quantity,
+                    }
                 );
             }
+
+            await Character.EquipItems(equipRequests);
         }
 
         foreach (var item in Character.Schema.Inventory)
@@ -239,25 +246,19 @@ public class DepositUnneededItems : CharacterJob
             );
         }
 
-        if (itemToTurnIn is not null && itemToTurnIn.Value.Quantity > 0)
-        {
-            // int amountInInventory =
-            //     Character.GetItemFromInventory(itemToTurnIn.Value.Code)?.Quantity ?? 0;
+        int amountNeededToTurnIn = Character.Schema.TaskTotal - Character.Schema.TaskProgress;
 
+        if (itemToTurnIn is not null && itemToTurnIn.Value.Quantity > 0 && amountNeededToTurnIn > 0)
+        {
             await Character.NavigateTo("items");
 
-            int amountLeft = Character.Schema.TaskTotal - Character.Schema.TaskProgress;
-
-            if (amountLeft > 0)
-            {
-                await Character.TaskTrade(
-                    itemToTurnIn.Value.Code,
-                    Math.Min(
-                        Character.Schema.TaskTotal - Character.Schema.TaskProgress,
-                        itemToTurnIn.Value.Quantity
-                    )
-                );
-            }
+            await Character.TaskTrade(
+                itemToTurnIn.Value.Code,
+                Math.Min(
+                    Character.Schema.TaskTotal - Character.Schema.TaskProgress,
+                    itemToTurnIn.Value.Quantity
+                )
+            );
         }
 
         foreach (var item in itemsToDeposit)

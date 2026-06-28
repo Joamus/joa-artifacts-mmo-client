@@ -45,7 +45,7 @@ public class AccountRequester
 
     public async Task<ItemsResponse> GetItems(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/items?page={pageNumber}");
+        var response = await _apiService.GetAsync($"/items?page={pageNumber}&size=10000");
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -54,7 +54,7 @@ public class AccountRequester
 
     public async Task<ResourceResponse> GetResources(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/resources?page={pageNumber}");
+        var response = await _apiService.GetAsync($"/resources?page={pageNumber}&size=10000");
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -63,7 +63,7 @@ public class AccountRequester
 
     public async Task<NpcResponse> GetNpcs(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/npcs/details?page={pageNumber}");
+        var response = await _apiService.GetAsync($"/npcs/details?page={pageNumber}&size=10000");
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -72,7 +72,7 @@ public class AccountRequester
 
     public async Task<MonstersResponse> GetMonsters(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/monsters?page={pageNumber}");
+        var response = await _apiService.GetAsync($"/monsters?page={pageNumber}&size=10000");
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -81,7 +81,7 @@ public class AccountRequester
 
     public async Task<PendingItemsResponse> GetPendingItems(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/my/pending-items?page={pageNumber}");
+        var response = await _apiService.GetAsync($"/my/pending_items?page={pageNumber}&size=100");
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -94,7 +94,7 @@ public class AccountRequester
     public async Task<MapsResponse> GetMaps(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync(
-            $"/maps?page={pageNumber}&hide_blocked_maps=true"
+            $"/maps?page={pageNumber}&size=10000&hide_blocked_maps=true"
         );
 
         var result = await response.Content.ReadAsStringAsync();

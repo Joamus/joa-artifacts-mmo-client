@@ -72,14 +72,14 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
     )
     {
         while (
-            !await character.PlayerActionService.CanItemFromItemTaskShouldBeObtained()
+            !await character.PlayerActionService.CanItemFromItemTaskBeObtained()
             && await CancelTaskJob.CanCancelTask(character, gameState)
         )
         {
             await CancelTaskJob.DoCancelTask(character, gameState);
         }
 
-        if (await character.PlayerActionService.CanItemFromItemTaskShouldBeObtained())
+        if (await character.PlayerActionService.CanItemFromItemTaskBeObtained())
         {
             var job = new ItemTask(character, gameState);
             job.ForBank();

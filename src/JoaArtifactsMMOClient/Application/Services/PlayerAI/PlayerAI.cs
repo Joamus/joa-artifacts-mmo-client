@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.Character;
 using Application.Dtos;
 using Application.Jobs;
@@ -236,7 +237,14 @@ public class PlayerAI
 
                 if (itemInInventory is not null && !itemInInventory.Value.isEquipped)
                 {
-                    await Character.EquipItem(itemInInventory.Value.inventorySlot.Code, Slot, 1);
+                    await Character.EquipItem(
+                        new EquipRequest
+                        {
+                            Code = itemInInventory.Value.inventorySlot.Code,
+                            Slot = Slot,
+                            Quantity = 1,
+                        }
+                    );
                     continue;
                 }
 
@@ -248,7 +256,14 @@ public class PlayerAI
                     {
                         onAfterSuccessEndHook = async () =>
                         {
-                            await Character.EquipItem(artifact.Code, Slot, 1);
+                            await Character.EquipItem(
+                                new EquipRequest
+                                {
+                                    Code = artifact.Code,
+                                    Slot = Slot,
+                                    Quantity = 1,
+                                }
+                            );
                         },
                     };
 
@@ -274,7 +289,14 @@ public class PlayerAI
                 {
                     onAfterSuccessEndHook = async () =>
                     {
-                        await Character.EquipItem(artifact.Code, Slot, 1);
+                        await Character.EquipItem(
+                            new EquipRequest
+                            {
+                                Code = artifact.Code,
+                                Slot = Slot,
+                                Quantity = 1,
+                            }
+                        );
                     },
                 };
 
@@ -350,7 +372,14 @@ public class PlayerAI
             {
                 if (!itemInInventory.Value.isEquipped)
                 {
-                    await Character.EquipItem(itemInInventory.Value.inventorySlot.Code, "bag", 1);
+                    await Character.EquipItem(
+                        new EquipRequest
+                        {
+                            Code = itemInInventory.Value.inventorySlot.Code,
+                            Slot = "bag",
+                            Quantity = 1,
+                        }
+                    );
                 }
                 continue;
             }
@@ -369,11 +398,12 @@ public class PlayerAI
 
             if (matchInBank is not null)
             {
-                var withdrawItem = new WithdrawItem(Character, gameState, item.Code, 1);
-
-                withdrawItem.onAfterSuccessEndHook = async () =>
+                var withdrawItem = new WithdrawItem(Character, gameState, item.Code, 1)
                 {
-                    await Character.SmartItemEquip(item.Code, 1);
+                    onAfterSuccessEndHook = async () =>
+                    {
+                        await Character.SmartItemEquip(item.Code, 1);
+                    },
                 };
 
                 return withdrawItem;
@@ -390,7 +420,14 @@ public class PlayerAI
 
                 if (inventoryBag.Item.Level > equippedBag?.Level)
                 {
-                    await Character.EquipItem(inventoryBag.Item.Code, "bag", 1);
+                    await Character.EquipItem(
+                        new EquipRequest
+                        {
+                            Code = inventoryBag.Item.Code,
+                            Slot = "bag",
+                            Quantity = 1,
+                        }
+                    );
                     return null;
                 }
             }
@@ -585,7 +622,7 @@ public class PlayerAI
         // Highest prio is completing this achievement, else all task items are locked.
         if (!hasDoneItemTask)
         {
-            return await GetTaskJob(PREFER_MONSTER_TASK);
+            return await GetTaskJobIfPossible(PREFER_MONSTER_TASK);
         }
 
         return null;
@@ -654,12 +691,12 @@ public class PlayerAI
     {
         bool hasNoTask = string.IsNullOrWhiteSpace(Character.Schema.Task);
 
-        var newTask = await GetTaskJob(PREFER_MONSTER_TASK);
+        // var newTask = await GetTaskJob(PREFER_MONSTER_TASK);
 
-        if (newTask is not null)
-        {
-            return newTask;
-        }
+        // if (newTask is not null)
+        // {
+        //     return newTask;
+        // }
 
         // A bit dirty - we first want to try to find something to fight, allowing the character get better equipment.
         // After that, we will try without allowing it, in case items are on the wish list.
@@ -757,7 +794,7 @@ public class PlayerAI
         return true;
     }
 
-    async Task<CharacterJob?> GetTaskJob(bool preferMonsterTask)
+    async Task<CharacterJob?> GetTaskJobIfPossible(bool preferMonsterTask)
     {
         Logger.LogInformation(
             "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
@@ -795,6 +832,25 @@ public class PlayerAI
                 }
             }
         }
+        else if (Character.Schema.TaskType == TaskType.monsters.ToString())
+        {
+            if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+            {
+                Logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+                );
+                return new ItemTask(Character, gameState);
+            }
+            else if (await CancelTaskJob.CanCancelTask(Character, gameState))
+            {
+                await CancelTaskJob.DoCancelTask(Character, gameState);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
         if (preferMonsterTask && CanHandlePotentialMonsterTasks())
         {
             Logger.LogInformation(
@@ -805,7 +861,7 @@ public class PlayerAI
 
             return new MonsterTask(Character, gameState);
         }
-        if (await Character.PlayerActionService.CanItemFromItemTaskShouldBeObtained())
+        if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
         {
             Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
@@ -1067,9 +1123,12 @@ public class PlayerAI
                 );
                 // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?
                 await Character.EquipItem(
-                    nextJob.Job.Code,
-                    nextJob.Slot.Slot.FromPascalToSnakeCase(),
-                    nextJob.Job.Amount
+                    new EquipRequest
+                    {
+                        Code = nextJob.Job.Code,
+                        Slot = nextJob.Slot.Slot.FromPascalToSnakeCase(),
+                        Quantity = nextJob.Job.Amount,
+                    }
                 );
             };
         }

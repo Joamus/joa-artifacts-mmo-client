@@ -75,6 +75,8 @@ if (string.IsNullOrWhiteSpace(token))
     throw new Exception("API Token not found");
 }
 
+bool beta = builder.Configuration.GetValue<bool>("Beta");
+
 logger.LogInformation($"Accountname: {accountName}");
 
 GameState? gameState = SetupGameServiceProvider(builder.Services, token, accountName);
@@ -108,7 +110,7 @@ await loader.Start();
 
 GameState SetupGameServiceProvider(IServiceCollection collection, string token, string accountName)
 {
-    ApiRequester apiRequester = new ApiRequester(token);
+    ApiRequester apiRequester = new ApiRequester(token, beta);
     AccountRequester accountRequester = new AccountRequester(apiRequester, accountName, logger);
 
     collection.AddSingleton(apiRequester);

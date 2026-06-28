@@ -1,4 +1,5 @@
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
@@ -501,6 +502,8 @@ public class FightMonster : CharacterJob
         utilitySlots.Add(utility1);
         utilitySlots.Add(utility2);
 
+        List<UnequipRequest> unequipRequests = [];
+
         foreach (var utility in utilitySlots)
         {
             var matchingItem = gameState.ItemsDict.GetValueOrNull(utility.ItemCode);
@@ -517,12 +520,20 @@ public class FightMonster : CharacterJob
 
                 if (amountToUnequip > 0)
                 {
-                    await Character.UnequipItem(
-                        utility.SlotName.FromPascalToSnakeCase(),
-                        amountToUnequip
+                    unequipRequests.Add(
+                        new UnequipRequest
+                        {
+                            Slot = utility.SlotName.FromPascalToSnakeCase(),
+                            Quantity = amountToUnequip,
+                        }
                     );
                 }
             }
+        }
+
+        if (unequipRequests.Count > 0)
+        {
+            await Character.UnequipItems(unequipRequests);
         }
 
         string slot1Equip = Character.Schema.Utility1Slot;
@@ -540,6 +551,8 @@ public class FightMonster : CharacterJob
             )
             .ToList();
 
+        List<EquipRequest> equipRequests = [];
+
         foreach (var potion in potionsInInventory)
         {
             if (ItemService.CanUseItem(potion.Item, Character.Schema))
@@ -549,14 +562,28 @@ public class FightMonster : CharacterJob
                     slot1Equip = potion.Item.Code;
                     slot1EquipAmount = potion.Quantity;
                     equippedSlot1 = true;
-                    await Character.EquipItem(slot1Equip, "utility1", slot1EquipAmount);
+                    equipRequests.Add(
+                        new EquipRequest
+                        {
+                            Code = slot1Equip,
+                            Slot = "utility1",
+                            Quantity = slot1EquipAmount,
+                        }
+                    );
                 }
                 else if (string.IsNullOrEmpty(slot2Equip))
                 {
                     slot2Equip = potion.Item.Code;
                     slot2EquipAmount = potion.Quantity;
                     equippedSlot2 = true;
-                    await Character.EquipItem(slot2Equip, "utility2", slot2EquipAmount);
+                    equipRequests.Add(
+                        new EquipRequest
+                        {
+                            Code = slot2Equip,
+                            Slot = "utility2",
+                            Quantity = slot2EquipAmount,
+                        }
+                    );
                 }
                 else
                 {
@@ -565,17 +592,20 @@ public class FightMonster : CharacterJob
             }
         }
 
+        if (equipRequests.Count > 0)
+        {
+            await Character.EquipItems(equipRequests);
+        }
+
         if (!equippedSlot1 || !equippedSlot2)
         {
             // We still have a slot available
 
-            int amountOfPossiblePotionsToConsider = gameState
-                .Items.Where(item =>
-                    item.Type == "utility"
-                    && ItemService.CanUseItem(item, Character.Schema)
-                    && !item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
-                )
-                .Count();
+            int amountOfPossiblePotionsToConsider = gameState.Items.Count(item =>
+                item.Type == "utility"
+                && ItemService.CanUseItem(item, Character.Schema)
+                && !item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
+            );
 
             int amountUnusedSlots = 0;
 

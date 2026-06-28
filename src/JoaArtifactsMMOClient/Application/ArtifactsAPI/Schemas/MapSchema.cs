@@ -27,7 +27,7 @@ public record AccessSchema
 public enum AccessType
 {
     Standard,
-    Teleportation,
+    Restricted,
     Conditional,
     Blocked,
 }

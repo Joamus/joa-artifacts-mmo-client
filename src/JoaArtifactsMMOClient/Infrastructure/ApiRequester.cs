@@ -9,6 +9,7 @@ namespace Infrastructure;
 public class ApiRequester
 {
     private readonly float _secondsBetweenRequests = 0.6f;
+    static int AMOUNT_OF_500_REQUESTS = 0;
 
     private readonly int MAX_RETRIES = 3;
 
@@ -43,7 +44,7 @@ public class ApiRequester
 
     private HttpClient _httpClient { get; set; }
 
-    public ApiRequester(string token)
+    public ApiRequester(string token, bool beta)
     {
         _token = token;
         _lastRequest = DateTime.UtcNow;
@@ -52,7 +53,9 @@ public class ApiRequester
 
         _httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri("https://api.artifactsmmo.com"),
+            BaseAddress = new Uri(
+                beta ? "https://api.beta.artifactsmmo.com" : "https://api.artifactsmmo.com"
+            ),
             Timeout = TimeSpan.FromSeconds(30),
         };
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
@@ -123,10 +126,24 @@ public class ApiRequester
 
         if (response is not null && (int)response.StatusCode >= 500)
         {
-            logger.LogError(
-                $"GET Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - terminating application"
-            );
-            Environment.Exit(1);
+            string errorMessage =
+                $"GET Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - terminating application";
+
+            logger.LogError(errorMessage);
+
+            AMOUNT_OF_500_REQUESTS += 1;
+
+            if (AMOUNT_OF_500_REQUESTS >= 10)
+            {
+                logger.LogError(
+                    $"Terminating application - {AMOUNT_OF_500_REQUESTS} x 500 requests reached"
+                );
+                Environment.Exit(1);
+            }
+            else
+            {
+                throw new Exception(errorMessage);
+            }
         }
 
         if (response is not null && (int)response.StatusCode >= 400)

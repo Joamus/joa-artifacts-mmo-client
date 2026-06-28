@@ -14,6 +14,7 @@ public class NavigationService
     public static string ChristmasIsland = "Christmas Island";
 
     const int COOLDOWN_PER_MAP_SECONDS = 5;
+    const int SECONDS_SAVED_TO_USE_TELEPORT_POTION = 45;
 
     public static List<string> Islands = new List<string> { SandwhisperIsle, ChristmasIsland };
     public static List<string> UnavailableIslands = new List<string> { ChristmasIsland };
@@ -27,12 +28,15 @@ public class NavigationService
 
     private readonly PlayerCharacter character;
 
+    public PathfindingService PathfindingService { get; private set; }
+
     public NavigationService(PlayerCharacter character, GameState gameState)
     {
         this.gameState = gameState;
         this.character = character;
 
         Logger = AppLogger.loggerFactory.CreateLogger<NavigationService>();
+        PathfindingService = PathfindingService.GetInstance(this.gameState.Maps);
 
         SetIslandTransitions();
     }
@@ -191,116 +195,18 @@ public class NavigationService
 
         var currentMap = gameState.MapsDict[character.Schema.MapId];
 
-        var result = CalculateStepsToDestination(currentMap, destinationMap);
+        NavigationStepsAndRequirements result = CalculateStepsToDestination_V2(
+            currentMap,
+            destinationMap
+        );
 
-        var lastStep = result.Steps.LastOrDefault();
+        var potionMove = GetPotionMove(character, gameState, result, currentMap, destinationMap);
 
-        if (lastStep is not null)
+        if (potionMove is not null)
         {
-            var eligleRecallPotions = character
-                .Schema.Inventory.Where(item => !string.IsNullOrWhiteSpace(item.Code))
-                .Select(item =>
-                {
-                    var matchingItem = gameState.ItemsDict[item.Code];
-
-                    (ItemSchema Item, SimpleEffectSchema? TeleportEffect) result = (
-                        gameState.ItemsDict[item.Code],
-                        matchingItem.Effects.FirstOrDefault(effect => effect.Code == "teleport")
-                    );
-
-                    return result;
-                })
-                .Where(item => item.TeleportEffect is not null)
-                .Where(item =>
-                {
-                    var teleportToMap = gameState.MapsDict[item.TeleportEffect!.Value];
-
-                    if (teleportToMap.Layer == destinationMap.Layer)
-                    {
-                        // Basically we only want to teleport to the island if either the maps are both at the same island, or neither are island maps
-                        if (
-                            teleportToMap.Name == destinationMap.Name
-                            || !Islands.Contains(teleportToMap.Name)
-                                && !Islands.Contains(destinationMap.Name)
-                        )
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                })
-                .ToList();
-
-            if (eligleRecallPotions.Count > 0)
-            {
-                int lastStepDistance = CalculationService.CalculateDistanceToMap(
-                    lastStep.CurrentMap.X,
-                    lastStep.CurrentMap.Y,
-                    destinationMap.X,
-                    destinationMap.Y
-                );
-
-                var potionsWithDistances = eligleRecallPotions
-                    .Select(item =>
-                    {
-                        var teleportToMap = gameState.MapsDict[item.TeleportEffect!.Value];
-
-                        int lastStepDistanceWithPotion = CalculationService.CalculateDistanceToMap(
-                            teleportToMap.X,
-                            teleportToMap.Y,
-                            destinationMap.X,
-                            destinationMap.Y
-                        );
-
-                        return (item, lastStepDistanceWithPotion);
-                    })
-                    .ToList();
-
-                potionsWithDistances.Sort(
-                    (a, b) => a.lastStepDistanceWithPotion - b.lastStepDistanceWithPotion
-                );
-
-                var bestCandidate = potionsWithDistances.LastOrDefault();
-
-                if (bestCandidate.lastStepDistanceWithPotion < lastStepDistance)
-                {
-                    var teleportToMap = gameState.MapsDict[
-                        bestCandidate.item.TeleportEffect!.Value
-                    ];
-
-                    var resultWithTeleportPotion = CalculateStepsToDestination(
-                        teleportToMap,
-                        destinationMap
-                    );
-
-                    // We are already standing here - we make a fake step, so we can attach the afterMoveAction
-                    var usePotionStep = CreateMoveStep(currentMap, destinationMap);
-                    usePotionStep = usePotionStep with
-                    {
-                        Move = new Move
-                        {
-                            X = currentMap.X,
-                            Y = currentMap.Y,
-                            Layer = currentMap.Layer,
-                            ShouldTransition = false,
-                            AfterMoveAction = async () =>
-                            {
-                                await character.UseItem(bestCandidate.item.Item.Code, 1);
-                            },
-                        },
-                        NewMap = teleportToMap with { },
-                    };
-
-                    resultWithTeleportPotion.Steps =
-                    [
-                        .. resultWithTeleportPotion.Steps.Prepend(usePotionStep),
-                    ];
-
-                    result = resultWithTeleportPotion;
-                }
-            }
+            return potionMove;
         }
+
         return result;
     }
 
@@ -444,6 +350,116 @@ public class NavigationService
         };
     }
 
+    public NavigationStepsAndRequirements CalculateStepsToDestination_V2(
+        MapSchema currentMap,
+        MapSchema destinationMap
+    )
+    {
+        List<DropSchema> itemRequirements = [];
+        int goldRequirement = 0;
+
+        var destinationZone = PathfindingService.MapIdToZoneMap[destinationMap.MapId];
+
+        var zoneHopsRequiredResult = PathfindingService.GetZonesToDestination(
+            PathfindingService.MapIdToZoneMap[currentMap.MapId],
+            destinationZone
+        );
+
+        if (zoneHopsRequiredResult.IsT0)
+        {
+            throw zoneHopsRequiredResult.AsT0;
+        }
+
+        var zoneHopsRequired = zoneHopsRequiredResult.AsT1;
+
+        Queue<MapSchema> transitionMaps = [];
+
+        for (int i = 0; i < zoneHopsRequired.Count - 1; i++)
+        {
+            Zone thisZone = zoneHopsRequired[i];
+
+            Zone nextZone = zoneHopsRequired[i + 1];
+
+            MapSchema transitionToNextZone = thisZone.TransitionMaps.First(transition =>
+            {
+                var destinationTransitionMapId = transition.Interactions.Transition!.MapId;
+
+                return nextZone.TransitionMaps.Exists(transition =>
+                    transition.MapId == destinationTransitionMapId
+                );
+            });
+
+            transitionMaps.Enqueue(transitionToNextZone);
+        }
+
+        List<NavigationStep> steps = [];
+
+        while (currentMap.MapId != destinationMap.MapId)
+        {
+            var thereIsTransition = transitionMaps.TryDequeue(
+                out MapSchema? nextTransitionInSameZoneMap
+            );
+
+            /**
+            ** We might be moving in the same zone, so there were no zone hops at all. Then we just skip moving to the transition.
+            */
+            if (nextTransitionInSameZoneMap is not null)
+            {
+                var moveStep = CreateMoveStep(currentMap, nextTransitionInSameZoneMap);
+
+                var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
+
+                steps.AddRange([moveStep, transitionStep]);
+
+                currentMap = transitionStep.NewMap;
+            }
+
+            if (PathfindingService.MapIdToZoneMap[currentMap.MapId].Id == destinationZone.Id)
+            {
+                var moveToDestination = CreateMoveStep(currentMap, destinationMap);
+                steps.Add(moveToDestination);
+
+                currentMap = moveToDestination.NewMap;
+            }
+        }
+
+        foreach (var step in steps)
+        {
+            List<MapSchema> maps = [step.CurrentMap, step.NewMap];
+
+            foreach (var map in maps)
+            {
+                List<ItemOrMapCondition> conditions =
+                [
+                    .. (map.Access?.Conditions ?? []).Union(
+                        map.Interactions?.Transition?.Conditions ?? []
+                    ),
+                ];
+
+                foreach (var condition in conditions)
+                {
+                    if (condition.Operator == ItemConditionOperator.HasItem)
+                    {
+                        itemRequirements.Add(
+                            new DropSchema { Code = condition.Code, Quantity = condition.Value }
+                        );
+                    }
+                    else if (condition.Operator == ItemConditionOperator.Cost)
+                    {
+                        goldRequirement += condition.Value;
+                    }
+                }
+            }
+        }
+
+        return new NavigationStepsAndRequirements
+        {
+            Steps = steps,
+            ItemRequirements = itemRequirements,
+            GoldRequirement = goldRequirement,
+        };
+    }
+
     public static async Task ExecuteNavigations(
         PlayerCharacter character,
         IList<NavigationStep> steps
@@ -500,6 +516,16 @@ public class NavigationService
 
         throw new AppError($"Should never get here");
     }
+
+    // public List<NavigationStep> GetNextStepsToDestination_V2(
+    //     MapSchema currentMap,
+    //     Zone currentZone,
+    //     MapSchema destinationMap,
+    //     Zone destinationZone
+    // )
+    // {
+    //     var transitionPointTo
+    // }
 
     List<NavigationStep> GetNextNavigationStepInvolvingIslands(
         bool goingFromIslandToMainland,
@@ -957,57 +983,125 @@ public class NavigationService
         return cost * COOLDOWN_PER_MAP_SECONDS;
     }
 
-    public static Move? GetPotionMove(
+    public NavigationStepsAndRequirements? GetPotionMove(
         PlayerCharacter character,
         GameState gameState,
+        NavigationStepsAndRequirements currentToDestinationSteps,
         MapSchema currentMap,
         MapSchema destinationMap
     )
     {
-        var potionsInInventory = character
-            .Schema.Inventory.Select(item =>
+        int currentToDestinationDistance = GetDistanceFromNavigationSteps(
+            currentToDestinationSteps
+        );
+
+        // Don't even bother considering teleport potions then
+        if (
+            GetSecondsToMoveToMap(currentToDestinationDistance)
+            < SECONDS_SAVED_TO_USE_TELEPORT_POTION
+        )
+        {
+            return null;
+        }
+
+        NavigationStepsAndRequirements? result = null;
+
+        var eligibleTeleportPotions = character
+            .Schema.Inventory.Where(item => !string.IsNullOrWhiteSpace(item.Code))
+            .Select(item =>
             {
-                if (!string.IsNullOrWhiteSpace(item.Code))
-                {
-                    return gameState.ItemsDict[item.Code];
-                }
+                var matchingItem = gameState.ItemsDict[item.Code];
 
-                return null;
+                (ItemSchema Item, SimpleEffectSchema? TeleportEffect) result = (
+                    gameState.ItemsDict[item.Code],
+                    matchingItem.Effects.FirstOrDefault(effect => effect.Code == "teleport")
+                );
+
+                return result;
             })
-            .Where(item =>
-            {
-                if (item is null || !ItemService.IsTeleportPotion(item))
-                {
-                    return false;
-                }
-
-                var teleportToMap = gameState.MapsDict[
-                    item.Effects.First(effect => effect.Code == "teleport").Value
-                ];
-
-                if (teleportToMap.Layer == destinationMap.Layer)
-                {
-                    // Basically we only want to teleport to the island if either the maps are both at the same island, or neither are island maps
-                    if (
-                        teleportToMap.Name == destinationMap.Name
-                        || !Islands.Contains(teleportToMap.Name)
-                            && !Islands.Contains(destinationMap.Name)
-                    )
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            })
+            .Where(item => item.TeleportEffect is not null)
             .ToList();
 
-        // if (potionsInInventory.Count > 0)
-        // {
-        //     potionsInInventory = potionsInInventory;
-        // }
+        if (eligibleTeleportPotions.Count > 0)
+        {
+            var potionsWithDistances = eligibleTeleportPotions
+                .Select(item =>
+                {
+                    var teleportToMap = gameState.MapsDict[item.TeleportEffect!.Value];
 
-        return null;
+                    var resultWithTeleportPotion = CalculateStepsToDestination(
+                        teleportToMap,
+                        destinationMap
+                    );
+
+                    int teleportToDestinationDistance = GetDistanceFromNavigationSteps(
+                        resultWithTeleportPotion
+                    );
+
+                    return (item, resultWithTeleportPotion, teleportToDestinationDistance);
+                })
+                .ToList();
+
+            potionsWithDistances.Sort(
+                (a, b) => a.teleportToDestinationDistance - b.teleportToDestinationDistance
+            );
+
+            var bestCandidate = potionsWithDistances.LastOrDefault();
+
+            if (
+                bestCandidate.teleportToDestinationDistance
+                < currentToDestinationDistance + SECONDS_SAVED_TO_USE_TELEPORT_POTION
+            )
+            {
+                var teleportToMap = gameState.MapsDict[bestCandidate.item.TeleportEffect!.Value];
+
+                var resultWithTeleportPotion = bestCandidate.resultWithTeleportPotion;
+
+                // We are already standing here - we make a fake step, so we can attach the afterMoveAction
+                var usePotionStep = CreateMoveStep(currentMap, destinationMap);
+                usePotionStep = usePotionStep with
+                {
+                    Move = new Move
+                    {
+                        X = currentMap.X,
+                        Y = currentMap.Y,
+                        Layer = currentMap.Layer,
+                        ShouldTransition = false,
+                        AfterMoveAction = async () =>
+                        {
+                            await character.UseItem(bestCandidate.item.Item.Code, 1);
+                        },
+                    },
+                    NewMap = teleportToMap with { },
+                };
+
+                resultWithTeleportPotion.Steps =
+                [
+                    .. resultWithTeleportPotion.Steps.Prepend(usePotionStep),
+                ];
+
+                result = resultWithTeleportPotion;
+            }
+        }
+
+        return result;
+    }
+
+    public int GetSecondsToMoveToMap(int distance)
+    {
+        return distance * COOLDOWN_PER_MAP_SECONDS;
+    }
+
+    public static int GetDistanceFromNavigationSteps(NavigationStepsAndRequirements steps)
+    {
+        return steps.Steps.Sum(step =>
+            CalculationService.CalculateDistanceToMap(
+                step.CurrentMap.X,
+                step.CurrentMap.Y,
+                step.Move.X,
+                step.Move.Y
+            )
+        );
     }
 }
 

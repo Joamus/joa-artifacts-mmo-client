@@ -24,4 +24,5 @@ public enum ContentType
 
     Npc,
     TasksTrader,
+    Raid,
 }
