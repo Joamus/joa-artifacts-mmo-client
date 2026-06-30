@@ -402,7 +402,8 @@ public class ObtainItem : CharacterJob
             gameState,
             itemsInBankClone,
             code,
-            requiredAmount
+            requiredAmount,
+            !firstIteration
         );
 
         if (monsterDropsResult is not null)
@@ -938,7 +939,8 @@ public class ObtainItem : CharacterJob
         GameState gameState,
         List<DropSchema> itemsInBank,
         string code,
-        int requiredAmount
+        int requiredAmount,
+        bool isMaterialForCraftedItem
     )
     {
         List<MonsterSchema> suitableMonsters = [];
@@ -1029,9 +1031,10 @@ public class ObtainItem : CharacterJob
                     lowestLevelMonster.Code,
                     requiredAmount,
                     code
-                );
-
-                // job.AllowUsingMaterialsFromInventory = true;
+                )
+                {
+                    AllowUsingMaterialsFromInventory = isMaterialForCraftedItem,
+                };
                 return job;
             }
         }

@@ -577,9 +577,10 @@ public static class ItemService
                 gameState,
                 item.Code,
                 amount
-            );
-
-            gatherMaterialsJob.Crafter = crafter;
+            )
+            {
+                Crafter = crafter,
+            };
 
             job = gatherMaterialsJob;
         }
