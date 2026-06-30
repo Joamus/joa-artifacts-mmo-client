@@ -730,6 +730,12 @@ public class ObtainItem : CharacterJob
 
         int totalIngredientsForCrafting = 0;
 
+        /**
+        ** E.g. if we are trying to craft 10 potions, requiredAmount would be 10,
+        ** but if we item.Craft.Quantity is 2, then we only need to craft 5 times to get 10 potions.
+        */
+        requiredAmount = (int)Math.Ceiling((double)requiredAmount / matchingItem.Craft.Quantity);
+
         foreach (var item in matchingItem.Craft.Items)
         {
             totalIngredientsForCrafting += item.Quantity * requiredAmount;
