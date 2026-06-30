@@ -78,11 +78,16 @@ public class FightEquipmentAI
                 ? 0
                 : gameState.ItemsDict[equippedItemInSlot.Code].Level;
 
+            int itemLevelDiff =
+                character.Schema.Level >= ITEM_LEVEL_BUFFER
+                    ? ITEM_LEVEL_BUFFER
+                    : character.Schema.Level;
+
             foreach (var item in gameState.Items)
             {
                 if (
                     item.Type == equipmentType.ItemType
-                    && equippedItemInSlotLevel <= item.Level + 5
+                    && equippedItemInSlotLevel <= item.Level + itemLevelDiff
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
                     && (!isCraftable || item.Craft is not null)
                     && ItemService.CanUseItem(item, character.Schema)
