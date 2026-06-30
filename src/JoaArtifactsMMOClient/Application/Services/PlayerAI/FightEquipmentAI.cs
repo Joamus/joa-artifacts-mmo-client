@@ -128,6 +128,15 @@ public class FightEquipmentAI
                         return aWinsValue;
                     }
 
+                    if (itemB.Type == "weapon" && itemA.Type != "weapon")
+                    {
+                        return bWinsValue;
+                    }
+                    else if (itemA.Type == "weapon" && itemB.Type != "weapon")
+                    {
+                        return aWinsValue;
+                    }
+
                     return itemB.Level - itemA.Level;
                 }
             );
