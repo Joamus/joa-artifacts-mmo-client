@@ -67,10 +67,10 @@ public class FightEquipmentAI
         }
 
         // We basically just want to take the first equipment type, and give one job, to get the best we can of that one
+        List<ItemSchema> items = [];
+
         foreach (var (equipmentType, isCraftable) in equipmentTypes)
         {
-            List<ItemSchema> items = [];
-
             int maxAllowedOfItem = equipmentType.ItemType == "ring" ? 1 : 0;
 
             var equippedItemInSlot = character.GetEquipmentSlot(equipmentType.Slot);
@@ -100,61 +100,61 @@ public class FightEquipmentAI
                     items.Add(item);
                 }
             }
+        }
 
-            var relevantItemsFromSim = FightSimulator
-                .GetItemsRelevantMonsters(
-                    character,
-                    gameState,
-                    [.. items.Select(item => new ItemInInventory { Item = item, Quantity = 100 })],
-                    false
-                )
-                .ToList();
+        var relevantItemsFromSim = FightSimulator
+            .GetItemsRelevantMonsters(
+                character,
+                gameState,
+                [.. items.Select(item => new ItemInInventory { Item = item, Quantity = 100 })],
+                false
+            )
+            .ToList();
 
-            relevantItemsFromSim.Sort(
-                (a, b) =>
-                {
-                    var itemA = gameState.ItemsDict[a];
-                    var itemB = gameState.ItemsDict[b];
-
-                    int aWinsValue = -1;
-                    int bWinsValue = 1;
-
-                    if (itemB.Craft is null && itemA.Craft is not null)
-                    {
-                        return bWinsValue;
-                    }
-                    else if (itemA.Craft is null && itemA.Craft is not null)
-                    {
-                        return aWinsValue;
-                    }
-
-                    if (itemB.Type == "weapon" && itemA.Type != "weapon")
-                    {
-                        return bWinsValue;
-                    }
-                    else if (itemA.Type == "weapon" && itemB.Type != "weapon")
-                    {
-                        return aWinsValue;
-                    }
-
-                    return itemB.Level - itemA.Level;
-                }
-            );
-
-            var highestPriorityItem = relevantItemsFromSim.FirstOrDefault();
-
-            if (highestPriorityItem is not null)
+        relevantItemsFromSim.Sort(
+            (a, b) =>
             {
-                var job = new ObtainOrFindItem(character, gameState, highestPriorityItem, 1)
-                {
-                    onAfterSuccessEndHook = async () =>
-                    {
-                        await character.SmartItemEquip(highestPriorityItem, 1);
-                    },
-                };
+                var itemA = gameState.ItemsDict[a];
+                var itemB = gameState.ItemsDict[b];
 
-                return job;
+                int aWinsValue = -1;
+                int bWinsValue = 1;
+
+                if (itemB.Craft is null && itemA.Craft is not null)
+                {
+                    return bWinsValue;
+                }
+                else if (itemA.Craft is null && itemB.Craft is not null)
+                {
+                    return aWinsValue;
+                }
+
+                if (itemB.Type == "weapon" && itemA.Type != "weapon")
+                {
+                    return bWinsValue;
+                }
+                else if (itemA.Type == "weapon" && itemB.Type != "weapon")
+                {
+                    return aWinsValue;
+                }
+
+                return itemB.Level - itemA.Level;
             }
+        );
+
+        var highestPriorityItem = relevantItemsFromSim.FirstOrDefault();
+
+        if (highestPriorityItem is not null)
+        {
+            var job = new ObtainOrFindItem(character, gameState, highestPriorityItem, 1)
+            {
+                onAfterSuccessEndHook = async () =>
+                {
+                    await character.SmartItemEquip(highestPriorityItem, 1);
+                },
+            };
+
+            return job;
         }
 
         return null;
@@ -182,7 +182,7 @@ public class FightEquipmentAI
 
                 var matchingItem = gameState.ItemsDict[equippedItemInSlot.Code];
 
-                return matchingItem.Level < minimumItemLevel;
+                return matchingItem.Level <= minimumItemLevel || matchingItem.Subtype == "tool";
             })
             .Select(equipmentType =>
             {
