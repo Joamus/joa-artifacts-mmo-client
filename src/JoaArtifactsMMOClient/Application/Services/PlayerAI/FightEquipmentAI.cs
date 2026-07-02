@@ -71,7 +71,8 @@ public class FightEquipmentAI
 
         foreach (var (equipmentType, isCraftable) in equipmentTypes)
         {
-            int maxAllowedOfItem = equipmentType.ItemType == "ring" ? 1 : 0;
+            // Should also cover artifacts, where each artifact slot is "unique", e.g. can't have 2x perfect_pearl
+            int maxAllowedOfItem = equipmentType.ItemType == "ring" ? 2 : 1;
 
             var equippedItemInSlot = character.GetEquipmentSlot(equipmentType.Slot);
             var equippedItemInSlotLevel = string.IsNullOrWhiteSpace(equippedItemInSlot.Code)
@@ -85,14 +86,17 @@ public class FightEquipmentAI
 
             foreach (var item in gameState.Items)
             {
+                int quantityOnCharacter = character
+                    .GetEquippedItemOrInInventory(item.Code)
+                    .Sum((item) => item.equipmentSlot.Quantity);
+
                 if (
                     item.Type == equipmentType.ItemType
                     && equippedItemInSlotLevel <= item.Level + itemLevelDiff
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
                     && (!isCraftable || item.Craft is not null)
                     && ItemService.CanUseItem(item, character.Schema)
-                    && (character.GetItemFromInventory(item.Code)?.Quantity ?? 0)
-                        <= maxAllowedOfItem
+                    && quantityOnCharacter < maxAllowedOfItem
                     && !character.ExistsInWishlist(item.Code)
                     && await character.PlayerActionService.CanObtainItem(item, 1)
                 )
