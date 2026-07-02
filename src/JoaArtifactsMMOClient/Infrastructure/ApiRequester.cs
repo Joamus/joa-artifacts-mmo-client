@@ -56,7 +56,7 @@ public class ApiRequester
             BaseAddress = new Uri(
                 beta ? "https://api.beta.artifactsmmo.com" : "https://api.artifactsmmo.com"
             ),
-            Timeout = TimeSpan.FromSeconds(30),
+            Timeout = TimeSpan.FromSeconds(60),
         };
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer",

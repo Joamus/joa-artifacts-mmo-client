@@ -787,11 +787,11 @@ public class FightMonster : CharacterJob
                 int opportunityCostForFoodSeconds =
                     OPPORTUNITY_COST_PER_FOOD_SECONDS * bestFoodCandidate.Quantity;
 
-                int percentageHpMissing =
-                    (int)Math.Ceiling((double)Character.Schema.Hp / Character.Schema.MaxHp) * 100;
+                double percentageHpMissing =
+                    (1 - (double)Character.Schema.Hp / Character.Schema.MaxHp) * 100;
 
                 int timeToRestSeconds = (int)
-                    Math.Ceiling((double)percentageHpMissing / REST_HP_PERCENTAGE_PER_SEC);
+                    Math.Ceiling(percentageHpMissing / REST_HP_PERCENTAGE_PER_SEC);
 
                 if (opportunityCostForFoodSeconds + COOLDOWN_CONSUMING_FOOD < timeToRestSeconds)
                 {
