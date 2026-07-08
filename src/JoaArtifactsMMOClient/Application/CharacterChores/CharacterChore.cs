@@ -20,5 +20,4 @@ public enum CharacterChoreKind
     RestockTasksCoins,
     RestockPotions,
     RestockResources,
-    RestockEventRelatedItems,
 }

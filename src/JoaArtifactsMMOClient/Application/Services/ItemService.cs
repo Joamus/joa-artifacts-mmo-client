@@ -82,7 +82,11 @@ public static class ItemService
         }.Contains(itemType);
     }
 
-    public static bool CanUseItem(ItemSchema item, CharacterSchema playerSchema)
+    public static bool CanUseItem(
+        ItemSchema item,
+        CharacterSchema playerSchema,
+        GameState gameState
+    )
     {
         if (item.Conditions is null)
         {
@@ -115,6 +119,16 @@ public static class ItemService
             if (
                 condition.Operator == ItemConditionOperator.Gt
                 && playerLevelOfSkill <= condition.Value
+            )
+            {
+                return false;
+            }
+
+            if (
+                condition.Operator == ItemConditionOperator.AchievementUnlocked
+                && !gameState.AccountAchievements.Exists(achievment =>
+                    achievment.Code == condition.Code
+                )
             )
             {
                 return false;
@@ -204,7 +218,7 @@ public static class ItemService
                     if (
                         character.Schema.CookingLevel >= food.Level
                         && food.Subtype == "food"
-                        && CanUseItem(food, character.Schema)
+                        && CanUseItem(food, character.Schema, gameState)
                         && (IsItemCookedMeat(food, gameState) || IsItemCookedFish(food, gameState))
                     )
                     {
@@ -493,7 +507,7 @@ public static class ItemService
                 }
             }
 
-            if (!CanUseItem(matchingItem, character.Schema))
+            if (!CanUseItem(matchingItem, character.Schema, gameState))
             {
                 continue;
             }
@@ -663,7 +677,7 @@ public static class ItemService
                 continue;
             }
 
-            if (!CanUseItem(matchingItem, character.Schema))
+            if (!CanUseItem(matchingItem, character.Schema, gameState))
             {
                 continue;
             }

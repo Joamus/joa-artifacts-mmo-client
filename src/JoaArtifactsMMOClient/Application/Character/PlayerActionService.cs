@@ -584,10 +584,7 @@ public class PlayerActionService
             return false;
         }
 
-        return await CanObtainItem(
-            itemFromTask,
-            character.Schema.TaskTotal - character.Schema.TaskProgress
-        );
+        return true;
     }
 
     public async Task CancelTask()

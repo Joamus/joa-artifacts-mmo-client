@@ -240,7 +240,7 @@ public class PlayerAI
             .. gameState.Items.Where(item =>
                 // Don't really care for the seasonal stuff at the moment, but maybe we should
                 item.Type == "artifact"
-                && ItemService.CanUseItem(item, Character.Schema)
+                && ItemService.CanUseItem(item, Character.Schema, gameState)
                 && !item.Name.Contains("Christmas")
             ),
         ];
@@ -381,7 +381,7 @@ public class PlayerAI
         // so we just want to return early if our characters cannot even use it
         var satchel = gameState.ItemsDict["satchel"]!;
 
-        if (!ItemService.CanUseItem(satchel, Character.Schema))
+        if (!ItemService.CanUseItem(satchel, Character.Schema, gameState))
         {
             return null;
         }
@@ -399,7 +399,7 @@ public class PlayerAI
 
         foreach (var item in bagItems)
         {
-            if (!ItemService.CanUseItem(item, Character.Schema))
+            if (!ItemService.CanUseItem(item, Character.Schema, gameState))
             {
                 continue;
             }
@@ -454,7 +454,7 @@ public class PlayerAI
 
             foreach (var inventoryBag in otherBagsInInventory)
             {
-                if (!ItemService.CanUseItem(inventoryBag.Item, Character.Schema))
+                if (!ItemService.CanUseItem(inventoryBag.Item, Character.Schema, gameState))
                 {
                     continue;
                 }
@@ -503,7 +503,8 @@ public class PlayerAI
         var weaponsInInventory = Character.GetItemsFromInventoryWithType("weapon");
 
         bool hasUsableWeapon = weaponsInInventory.Exists(weapon =>
-            weapon.Item.Subtype != "tool" && ItemService.CanUseItem(weapon.Item, Character.Schema)
+            weapon.Item.Subtype != "tool"
+            && ItemService.CanUseItem(weapon.Item, Character.Schema, gameState)
         );
 
         if (hasUsableWeapon)
@@ -524,7 +525,7 @@ public class PlayerAI
                 continue;
             }
 
-            if (!ItemService.CanUseItem(matchingItem, Character.Schema))
+            if (!ItemService.CanUseItem(matchingItem, Character.Schema, gameState))
             {
                 continue;
             }
@@ -612,7 +613,7 @@ public class PlayerAI
 
             foreach (var inventoryTool in otherToolsInInventory)
             {
-                if (!ItemService.CanUseItem(inventoryTool.Item, Character.Schema))
+                if (!ItemService.CanUseItem(inventoryTool.Item, Character.Schema, gameState))
                 {
                     continue;
                 }
@@ -1252,12 +1253,6 @@ public class PlayerAI
                             job = await ProcessChoreJob(
                                 new RestockResources(Character, gameState, priority),
                                 CharacterChoreKind.RestockResources
-                            );
-                            break;
-                        case CharacterChoreKind.RestockEventRelatedItems:
-                            job = await ProcessChoreJob(
-                                new RestockEventRelatedItems(Character, gameState),
-                                CharacterChoreKind.RestockEventRelatedItems
                             );
                             break;
                         default:

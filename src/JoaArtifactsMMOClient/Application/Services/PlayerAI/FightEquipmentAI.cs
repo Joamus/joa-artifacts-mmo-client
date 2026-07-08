@@ -95,7 +95,7 @@ public class FightEquipmentAI
                     && equippedItemInSlotLevel <= item.Level + itemLevelDiff
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
                     && (!isCraftable || item.Craft is not null)
-                    && ItemService.CanUseItem(item, character.Schema)
+                    && ItemService.CanUseItem(item, character.Schema, gameState)
                     && quantityOnCharacter < maxAllowedOfItem
                     && !character.ExistsInWishlist(item.Code)
                     && await character.PlayerActionService.CanObtainItem(item, 1)

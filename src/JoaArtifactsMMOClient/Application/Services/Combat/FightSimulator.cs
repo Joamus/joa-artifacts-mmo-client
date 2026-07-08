@@ -896,7 +896,7 @@ public class FightSimulator
         }
 
         allItems = allItems
-            .Where(item => ItemService.CanUseItem(item.Item, character.Schema))
+            .Where(item => ItemService.CanUseItem(item.Item, character.Schema, gameState))
             .ToList();
 
         allItems = GetItemsWorthSimming(allItems);
@@ -1250,7 +1250,7 @@ public class FightSimulator
                 continue;
             }
 
-            if (!ItemService.CanUseItem(itemSchema, character.Schema))
+            if (!ItemService.CanUseItem(itemSchema, character.Schema, gameState))
             {
                 continue;
             }

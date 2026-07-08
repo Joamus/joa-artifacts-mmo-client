@@ -90,7 +90,7 @@ public class ObtainSuitableFood : CharacterJob
             // If item is null, then it has been deleted from the game or something
             if (
                 matchingItem.Subtype == "food"
-                && ItemService.CanUseItem(matchingItem, Character.Schema)
+                && ItemService.CanUseItem(matchingItem, Character.Schema, gameState)
             )
             {
                 foodCandidates.Add(
@@ -213,7 +213,7 @@ public class ObtainSuitableFood : CharacterJob
     private ItemSchema GetMostSuitableFood()
     {
         var viableFood = gameState.Items.FindAll(item =>
-            item.Subtype == "food" && ItemService.CanUseItem(item, Character.Schema)
+            item.Subtype == "food" && ItemService.CanUseItem(item, Character.Schema, gameState)
         );
 
         CalculationService.SortItemsBasedOnEffect(viableFood, "heal");
@@ -278,7 +278,7 @@ public class ObtainSuitableFood : CharacterJob
                 {
                     var probablyCookedFishItem = cookedInto.FirstOrDefault(item =>
                         item.Craft is not null
-                        && ItemService.CanUseItem(matchingItem, Character.Schema)
+                        && ItemService.CanUseItem(matchingItem, Character.Schema, gameState)
                     );
 
                     if (probablyCookedFishItem is not null)

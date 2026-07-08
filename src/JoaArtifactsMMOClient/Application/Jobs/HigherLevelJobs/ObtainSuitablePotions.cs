@@ -86,7 +86,7 @@ public class ObtainSuitablePotions : CharacterJob
         {
             var item = element.Value;
 
-            if (!ItemService.CanUseItem(item, character.Schema))
+            if (!ItemService.CanUseItem(item, character.Schema, gameState))
             {
                 continue;
             }

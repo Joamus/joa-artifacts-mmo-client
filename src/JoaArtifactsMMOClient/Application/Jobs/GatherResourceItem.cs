@@ -306,7 +306,7 @@ public class GatherResourceItem : CharacterJob
                 var matchingItem = gameState.ItemsDict[item.Code];
 
                 return ItemService.IsToolForSkill(matchingItem, skill)
-                    && ItemService.CanUseItem(matchingItem, character.Schema);
+                    && ItemService.CanUseItem(matchingItem, character.Schema, gameState);
             })
             .Select(item => gameState.ItemsDict[item.Code])
             .ToList();
@@ -322,7 +322,7 @@ public class GatherResourceItem : CharacterJob
 
             if (
                 ItemService.IsToolForSkill(matchingItem, skill)
-                && ItemService.CanUseItem(matchingItem, character.Schema)
+                && ItemService.CanUseItem(matchingItem, character.Schema, gameState)
             )
             {
                 availableToolsOnCharacter.Add(matchingItem);

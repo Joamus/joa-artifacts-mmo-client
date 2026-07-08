@@ -127,7 +127,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
             .. gameState.Items.Where(item =>
             {
                 return ItemService.IsItemCookedFish(item, gameState)
-                    && ItemService.CanUseItem(item, character.Schema)
+                    && ItemService.CanUseItem(item, character.Schema, gameState)
                     && crafter.Schema.CookingLevel >= item.Craft?.Level
                     && item.Craft.Items.Count == 1;
             }),
@@ -225,7 +225,8 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
             if (
                 await Character.PlayerActionService.CanObtainItem(
                     gameState.ItemsDict[job.Code],
-                    job.Amount
+                    job.Amount,
+                    false
                 )
             )
             {
@@ -272,7 +273,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
                             matchingItem.Type == "consumable"
                             && matchingItem.Subtype == "food"
                             && matchingItem.Craft is not null
-                            && ItemService.CanUseItem(matchingItem, character.Schema)
+                            && ItemService.CanUseItem(matchingItem, character.Schema, gameState)
                         )
                         || (
                             IsItemUncookedMeatOrFish(matchingItem, gameState)

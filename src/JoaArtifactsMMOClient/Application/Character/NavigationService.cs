@@ -242,7 +242,8 @@ public class NavigationService
                 if (
                     !await character.PlayerActionService.CanObtainItem(
                         gameState.ItemsDict[itemCondition.Code],
-                        amountToObtain
+                        amountToObtain,
+                        false
                     )
                 )
                 {

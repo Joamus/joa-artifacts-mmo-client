@@ -146,7 +146,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         foreach (var character in gameState.Characters)
         {
             var usablePotions = potions
-                .Where(item => ItemService.CanUseItem(item, character.Schema))
+                .Where(item => ItemService.CanUseItem(item, character.Schema, gameState))
                 .ToList();
 
             List<ItemSchema> potionsForCharacter = [];
@@ -183,7 +183,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
                     continue;
                 }
 
-                if (!await character.PlayerActionService.CanObtainItem(potion, 100))
+                if (!await character.PlayerActionService.CanObtainItem(potion, 100, false))
                 {
                     continue;
                 }
@@ -260,13 +260,6 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
     {
         var bankItemsDict = bankItems.ToDictionary(item => item.Code);
 
-        int totalBudget = await gameState.BankItemCache.GetTotalBudgetInBank();
-
-        if (totalBudget == 0)
-        {
-            return null;
-        }
-
         var highestLevelCharacter = gameState.Characters.First(character =>
             character.Schema.Level == levelRange.Highest
         );
@@ -277,7 +270,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         {
             if (
                 ItemService.IsTeleportPotion(item)
-                && ItemService.CanUseItem(item, highestLevelCharacter.Schema)
+                && ItemService.CanUseItem(item, highestLevelCharacter.Schema, gameState)
             )
             {
                 int amountInBank = bankItemsDict.GetValueOrDefault(item.Code)?.Quantity ?? 0;
@@ -290,7 +283,8 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
                     var canObtain = await Character.PlayerActionService.CanObtainItem(
                         item,
-                        amountToObtain
+                        amountToObtain,
+                        false
                     );
 
                     if (canObtain)
@@ -305,12 +299,11 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
         acquireableTeleportPotions.Sort((a, b) => b.item.Level - a.item.Level);
 
+        var bestCandidate = acquireableTeleportPotions.FirstOrDefault();
+
         foreach ((ItemSchema item, DropSchema drop) in acquireableTeleportPotions)
         {
-            if (await Character.PlayerActionService.CanObtainItem(item))
-            {
-                return drop;
-            }
+            return drop;
         }
 
         return null;

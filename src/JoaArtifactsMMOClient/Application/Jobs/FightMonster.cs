@@ -472,7 +472,7 @@ public class FightMonster : CharacterJob
 
         foreach (var food in foodInInventory)
         {
-            if (ItemService.CanUseItem(food.Item, Character.Schema))
+            if (ItemService.CanUseItem(food.Item, Character.Schema, gameState))
             {
                 amountOfSuitableFood += food.Quantity;
             }
@@ -564,7 +564,7 @@ public class FightMonster : CharacterJob
 
         foreach (var potion in potionsInInventory)
         {
-            if (ItemService.CanUseItem(potion.Item, Character.Schema))
+            if (ItemService.CanUseItem(potion.Item, Character.Schema, gameState))
             {
                 if (string.IsNullOrEmpty(slot1Equip))
                 {
@@ -612,7 +612,7 @@ public class FightMonster : CharacterJob
 
             int amountOfPossiblePotionsToConsider = gameState.Items.Count(item =>
                 item.Type == "utility"
-                && ItemService.CanUseItem(item, Character.Schema)
+                && ItemService.CanUseItem(item, Character.Schema, gameState)
                 && !item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
             );
 
