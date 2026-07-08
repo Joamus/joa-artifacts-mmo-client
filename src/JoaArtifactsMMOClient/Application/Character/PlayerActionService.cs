@@ -200,7 +200,10 @@ public class PlayerActionService
             }),
         ];
 
-        await character.EquipItems(equipRequests);
+        if (equipRequests.Count > 0)
+        {
+            await character.EquipItems(equipRequests);
+        }
 
         return new None();
     }

@@ -64,6 +64,18 @@ public class ApiRequester
         );
     }
 
+    private static async Task<string> ReadErrorContentAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            return await response.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex)
+        {
+            return $"<failed to read response content: {ex.Message}>";
+        }
+    }
+
     private async Task ThrottleRequest()
     {
         await ThrottleLock.WaitAsync();
@@ -126,8 +138,9 @@ public class ApiRequester
 
         if (response is not null && (int)response.StatusCode >= 500)
         {
+            string responseContent = await ReadErrorContentAsync(response);
             string errorMessage =
-                $"GET Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - terminating application";
+                $"GET Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - message: {responseContent} - terminating application";
 
             logger.LogError(errorMessage);
 
@@ -148,8 +161,9 @@ public class ApiRequester
 
         if (response is not null && (int)response.StatusCode >= 400)
         {
+            string responseContent = await ReadErrorContentAsync(response);
             logger.LogWarning(
-                $"GET Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {response.Content}"
+                $"GET Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {responseContent}"
             );
         }
 
@@ -197,18 +211,20 @@ public class ApiRequester
 
         if (response is not null && (int)response.StatusCode >= 500)
         {
+            string responseContent = await ReadErrorContentAsync(response);
             logger.LogError(
-                $"POST Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - terminating application"
+                $"POST Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - message: {responseContent} - terminating application"
             );
             Environment.Exit(1);
         }
 
-        // if (response is not null && (int)response.StatusCode >= 400)
-        // {
-        //     throw new AppError(
-        //         $"POST Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {await response.Content.ReadAsStringAsync()}"
-        //     );
-        // }
+        if (response is not null && (int)response.StatusCode >= 400)
+        {
+            string responseContent = await ReadErrorContentAsync(response);
+            logger.LogWarning(
+                $"POST Request with uri \"{requestUri}\" failed - status code {response.StatusCode} - message: {responseContent}"
+            );
+        }
 
         return response!;
     }

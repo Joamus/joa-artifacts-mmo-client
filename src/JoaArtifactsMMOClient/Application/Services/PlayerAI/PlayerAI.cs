@@ -20,6 +20,8 @@ public class PlayerAI
 
     private const int CHORE_LEVEL_OFFSET = 12;
 
+    private const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
+
     private const bool PREFER_MONSTER_TASK = true;
     public PlayerCharacter Character { get; init; }
 
@@ -66,6 +68,7 @@ public class PlayerAI
         var job =
             await WithdrawAllowance()
             ?? DepositUnneededGold()
+            ?? await WithdrawTeleportPotions()
             ?? await EnsureAccessories()
             ?? await EnsureWeapon()
             ?? await EnsureTools()
@@ -85,6 +88,44 @@ public class PlayerAI
         );
 
         return job;
+    }
+
+    async Task<CharacterJob?> WithdrawTeleportPotions()
+    {
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+
+        foreach (var item in bankItems)
+        {
+            if (string.IsNullOrWhiteSpace(item.Code))
+            {
+                continue;
+            }
+
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            if (!ItemService.IsTeleportPotion(matchingItem))
+            {
+                continue;
+            }
+
+            int quantityInInventory = Character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
+
+            if (quantityInInventory >= QUANTIY_OF_EACH_TELEPORT_POTION)
+            {
+                continue;
+            }
+
+            int amountNeeded = QUANTIY_OF_EACH_TELEPORT_POTION - quantityInInventory;
+
+            int amountToWithdraw = Math.Min(amountNeeded, item.Quantity);
+
+            if (amountToWithdraw > 0)
+            {
+                return new WithdrawItem(Character, gameState, item.Code, amountToWithdraw, false);
+            }
+        }
+
+        return null;
     }
 
     async Task ClaimPendingItems()

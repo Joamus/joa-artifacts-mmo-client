@@ -271,51 +271,41 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
             character.Schema.Level == levelRange.Highest
         );
 
-        List<(ItemSchema item, DropSchema drop)> result =
-        [
-            .. gameState
-                .Items.Where(item =>
-                    ItemService.IsTeleportPotion(item)
-                    && ItemService.CanUseItem(item, highestLevelCharacter.Schema)
-                )
-                .Select(item =>
+        List<(ItemSchema item, DropSchema drop)> acquireableTeleportPotions = [];
+
+        foreach (var item in gameState.Items)
+        {
+            if (
+                ItemService.IsTeleportPotion(item)
+                && ItemService.CanUseItem(item, highestLevelCharacter.Schema)
+            )
+            {
+                int amountInBank = bankItemsDict.GetValueOrDefault(item.Code)?.Quantity ?? 0;
+
+                int totalAmountWanted = GetAmountOfTeleportPotionsToRestock(levelRange.Highest);
+
+                if (amountInBank < totalAmountWanted)
                 {
-                    int amountInBank = bankItemsDict.GetValueOrDefault(item.Code)?.Quantity ?? 0;
+                    int amountToObtain = totalAmountWanted - amountInBank;
 
-                    int totalAmountWanted = GetAmountOfTeleportPotionsToRestock(levelRange.Highest);
+                    var canObtain = await Character.PlayerActionService.CanObtainItem(
+                        item,
+                        amountToObtain
+                    );
 
-                    int quantity = 0;
-
-                    if (amountInBank < totalAmountWanted)
+                    if (canObtain)
                     {
-                        totalAmountWanted -= amountInBank;
-
-                        var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(item.Code);
-
-                        // These potions are obtained by buying them currently - could change
-                        if (matchingNpcItem?.BuyPrice is not null)
-                        {
-                            int pricePerPotion = (int)matchingNpcItem.BuyPrice;
-
-                            int amountWeCanBuy = totalBudget / pricePerPotion;
-
-                            quantity = Math.Min(totalAmountWanted, amountWeCanBuy);
-
-                            totalBudget -= pricePerPotion * quantity;
-                        }
+                        acquireableTeleportPotions.Add(
+                            (item, new DropSchema { Code = item.Code, Quantity = amountToObtain })
+                        );
                     }
+                }
+            }
+        }
 
-                    return (item, new DropSchema { Code = item.Code, Quantity = 0 });
-                })
-                .Where(item => item.Item2.Quantity > 0),
-        ];
+        acquireableTeleportPotions.Sort((a, b) => b.item.Level - a.item.Level);
 
-        result.Sort(
-            (a, b) =>
-                gameState.ItemsDict[b.drop.Code].Level - gameState.ItemsDict[a.drop.Code].Level
-        );
-
-        foreach ((ItemSchema item, DropSchema drop) in result)
+        foreach ((ItemSchema item, DropSchema drop) in acquireableTeleportPotions)
         {
             if (await Character.PlayerActionService.CanObtainItem(item))
             {

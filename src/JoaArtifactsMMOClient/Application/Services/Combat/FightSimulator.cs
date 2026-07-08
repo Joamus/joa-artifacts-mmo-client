@@ -1066,15 +1066,14 @@ public class FightSimulator
 
                 bestFightSimResult.Schema = result.Schema;
                 bestFightSimResult.Outcome = result.Outcome;
-                bestFightSimResult.ItemsToEquip = itemsToEquip.Union(result.ItemsToEquip).ToList();
 
-                // Bit of a hack, but we have to keep track of quantity
+                // Bit of a hack, but we have to keep track of quantity. Mostly for rings, but eh.
                 if (equipmentTypeMapping.ItemType == "ring")
                 {
                     allItems.ForEach(item =>
                     {
-                        var matchingItem = itemsToEquip.FirstOrDefault(itemToEquip =>
-                            itemToEquip.Code == item.Item.Code
+                        var matchingItem = result.ItemsToEquip.FirstOrDefault(itemToEquip =>
+                            itemToEquip.Code == item.Item.Code && item.Item.Type == "ring"
                         );
 
                         if (matchingItem is not null)
@@ -1083,6 +1082,8 @@ public class FightSimulator
                         }
                     });
                 }
+
+                bestFightSimResult.ItemsToEquip = [.. itemsToEquip.Union(result.ItemsToEquip)];
             }
             var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(
                 bestSchemaCandiateWithWeapon,

@@ -332,18 +332,19 @@ public class ObtainItem : CharacterJob
             );
         }
 
-        var taskCoinsResult = matchingNpcItem is not null
-            ? await ObtainTaskCoinsRelatedJob(
-                character,
-                gameState,
-                matchingItem,
-                matchingNpcItem,
-                itemsInInventory,
-                itemsInBankClone,
-                code,
-                requiredAmount
-            )
-            : null;
+        var taskCoinsResult =
+            matchingNpcItem is not null || matchingItem.Code == ItemService.TasksCoin
+                ? await ObtainTaskCoinsRelatedJob(
+                    character,
+                    gameState,
+                    matchingItem,
+                    matchingNpcItem,
+                    itemsInInventory,
+                    itemsInBankClone,
+                    code,
+                    requiredAmount
+                )
+                : null;
 
         if (taskCoinsResult is not null)
         {
@@ -801,7 +802,7 @@ public class ObtainItem : CharacterJob
         PlayerCharacter character,
         GameState gameState,
         ItemSchema matchingItem,
-        NpcItemSchema matchingNpcItem,
+        NpcItemSchema? matchingNpcItem,
         List<DropSchema> itemsInInventory,
         List<DropSchema> itemsInBank,
         string code,

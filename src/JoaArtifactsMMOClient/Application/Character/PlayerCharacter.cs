@@ -11,6 +11,7 @@ using Application.Jobs.Chores;
 using Application.Records;
 using Application.Services;
 using Infrastructure;
+using Newtonsoft.Json.Converters;
 using OneOf;
 using OneOf.Types;
 
@@ -46,6 +47,8 @@ public class PlayerCharacter
     public CharacterConfig CharacterConfig { get; private set; }
 
     public List<Skill> Roles { get; init; } = [];
+
+    [JsonConverter(typeof(StringEnumConverter))]
     public List<CharacterChoreKind> Chores { get; init; } = [];
 
     // Poor man's semaphor - make something sturdier
