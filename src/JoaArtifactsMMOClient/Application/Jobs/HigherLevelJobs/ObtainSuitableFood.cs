@@ -86,11 +86,15 @@ public class ObtainSuitableFood : CharacterJob
         {
             var matchingItem = gameState.ItemsDict[item.Code];
 
-            // int levelDifference = _playerCharacter._character.Level - matchingItem.Level;
             // If item is null, then it has been deleted from the game or something
             if (
                 matchingItem.Subtype == "food"
                 && ItemService.CanUseItem(matchingItem, Character.Schema, gameState)
+                /**
+                ** We don't want to take food, e.g. apples and just eat them.
+                ** We'd rather craft them into something better
+                */
+                && (gameState.CraftingLookupDict.GetValueOrNull(matchingItem.Code)?.Count ?? 0) == 0
             )
             {
                 foodCandidates.Add(
@@ -133,10 +137,7 @@ public class ObtainSuitableFood : CharacterJob
                     var matchingFood = gameState.ItemsDict[food.Code];
                     var ingredients =
                         matchingFood.Craft?.Items
-                        ?? new List<DropSchema>
-                        {
-                            new DropSchema { Code = matchingFood.Code, Quantity = 1 },
-                        };
+                        ?? [new DropSchema { Code = matchingFood.Code, Quantity = 1 }];
 
                     bool dropIsFromMonster = matchingMonster.Drops.Exists(drop =>
                         ingredients.Exists(ingredient => ingredient.Code == drop.Code)
