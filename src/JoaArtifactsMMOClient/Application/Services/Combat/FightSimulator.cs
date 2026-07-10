@@ -1,6 +1,7 @@
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
+using Application.Errors;
 using Application.Records;
 using Application.Services;
 using Application.Services.Combat;
@@ -14,6 +15,8 @@ public class FightSimulator
     private static readonly int MAX_LEVEL = 50;
     private static readonly double PERCENTAGE_OF_SIMS_TO_WIN = 0.85;
     private static readonly double RESTORE_EFFECT_MAX_HP_THRESHOLD = 0.50;
+
+    private const float SHOULD_FIGHT_MAX_HP_PLAYER_THRESHOLD = 0.35f;
 
     private static readonly int MAX_AMOUNT_OF_USED_POTIONS = 10;
     private static readonly int SHELL_EFFECT_DURATION = 3;
@@ -70,8 +73,12 @@ public class FightSimulator
 
             var monsterClone = monster with { };
 
-            var initMonsterHp = monsterClone.Hp;
             CharacterSchema characterSchema = originalSchema with { };
+
+            if (playerFullHp)
+            {
+                characterSchema.Hp = characterSchema.MaxHp;
+            }
 
             // Add runes to this
             List<SimpleEffectSchema> runeEffects = [];
@@ -119,197 +126,32 @@ public class FightSimulator
                 new FightSimParticipant
                 {
                     Entity = monsterClone,
+                    OriginalHp = monsterClone.Hp,
+                    OriginalMaxHp = monsterClone.MaxHp,
                     CritCalculator = new DeterministicCritCalculator(
                         monsterClone.CriticalStrike,
                         addedCritChance
                     ),
                     Effects = monsterClone.Effects,
                     IsPlayer = false,
+                    PotionEffects = [],
                 },
                 new FightSimParticipant
                 {
                     Entity = characterSchema,
+                    OriginalHp = originalSchema.Hp,
+                    OriginalMaxHp = originalSchema.MaxHp,
                     CritCalculator = new DeterministicCritCalculator(
                         characterSchema.CriticalStrike,
                         addedCritChance
                     ),
                     Effects = runeEffects,
                     IsPlayer = true,
+                    PotionEffects = [],
                 },
             ];
 
-            participants.Sort((a, b) => b.Entity.Initiative.CompareTo(a.Entity.Initiative));
-            var remainingPlayerHp = playerFullHp ? characterSchema.MaxHp : characterSchema.Hp;
-            var remainingMonsterHp = initMonsterHp;
-
-            FightResult? outcome = null;
-
-            int turnNumber = 0;
-
-            int individualTurn = 0;
-
-            CombatLog combatLog = new CombatLog(
-                participants.ElementAt(0).Entity,
-                participants.ElementAt(1).Entity
-            );
-
-            while (outcome is null)
-            {
-                turnNumber++;
-
-                foreach (var attacker in participants)
-                {
-                    individualTurn++;
-                    // Elaborate for boss fights, e.g. boss will attack different players
-                    var defender = participants.FirstOrDefault(participant =>
-                        participant.IsPlayer != attacker.IsPlayer
-                    )!;
-
-                    List<FightSimUtility> potionEffectsForTurn = attacker.IsPlayer ? potions : [];
-
-                    int poisonDamage = 0;
-                    var poison = attacker.Effects.FirstOrDefault(effect =>
-                        effect.Code == Effect.Poison
-                    );
-
-                    if (poison is not null)
-                    {
-                        poisonDamage = poison.Value;
-                    }
-
-                    /**
-                      The poison effect causes x damage per turn, unless the defender has an antidote. If the defender has an antidote,
-                      it subtracts the antidote value from the poison, using only 1 antidote.
-                    **/
-                    if (poison is not null && turnNumber == 1)
-                    {
-                        poisonDamage = poison.Value;
-
-                        combatLog.Log(
-                            individualTurn,
-                            attacker.Entity,
-                            defender.Entity,
-                            $"[{attacker.Entity.Name}] has poison effect for {poisonDamage} damage"
-                        );
-
-                        foreach (var potion in potions)
-                        {
-                            var antidote = potion.Item.Effects.FirstOrDefault(effect =>
-                                effect.Code == Effect.Antipoison
-                            );
-
-                            if (antidote is not null)
-                            {
-                                poisonDamage -= antidote.Value;
-                                potion.Quantity--;
-
-                                if (poisonDamage < 0)
-                                {
-                                    poisonDamage = 0;
-                                }
-
-                                combatLog.Log(
-                                    individualTurn,
-                                    attacker.Entity,
-                                    defender.Entity,
-                                    $"[{attacker.Entity.Name}] has their poison effect mitigated with {antidote.Value} points of antidote - damage is {poisonDamage}"
-                                );
-                            }
-                        }
-                    }
-
-                    defender.Entity.Hp -= poisonDamage;
-
-                    if (poisonDamage > 0)
-                    {
-                        combatLog.Log(
-                            individualTurn,
-                            attacker.Entity,
-                            defender.Entity,
-                            $"[{attacker.Entity.Name}] deals {poisonDamage} poison damage"
-                        );
-                    }
-
-                    ProcessParticipantTurn(
-                        new ProcessParticipantTurnParams
-                        {
-                            Attacker = attacker,
-                            OtherAttackers = [],
-                            Defender = defender,
-                            OtherDefenders = [],
-                            IsBossFight = false,
-                            AttackerPotionEffects = potionEffectsForTurn,
-                            CombatLog = combatLog,
-                            TurnNumber = turnNumber,
-                            IndividualTurn = individualTurn,
-                        }
-                    );
-                    // ProcessParticipantTurn(
-                    //     attacker,
-                    //     defender,
-                    //     potionEffectsForTurn,
-                    //     combatLog,
-                    //     turnNumber,
-                    //     individualTurn
-                    // );
-
-                    bool attackerWon = defender.Entity.Hp <= 0;
-
-                    if (attackerWon)
-                    {
-                        combatLog.Log(
-                            individualTurn,
-                            attacker.Entity,
-                            defender.Entity,
-                            $"[{attacker.Entity.Name}] won."
-                        );
-
-                        if (attacker.IsPlayer)
-                        {
-                            outcome = FightResult.Win;
-                            remainingPlayerHp = attacker.Entity.Hp;
-                            remainingMonsterHp = defender.Entity.Hp;
-                        }
-                        else
-                        {
-                            outcome = FightResult.Loss;
-                            remainingMonsterHp = attacker.Entity.Hp;
-                            remainingPlayerHp = defender.Entity.Hp;
-                        }
-
-                        break;
-                    }
-                }
-
-                if (i == 0)
-                {
-                    firstCombatLog = combatLog;
-                }
-            }
-
-            int potionsUsedInSim = 0;
-
-            foreach (var potion in potions)
-            {
-                potionsUsedInSim += potion.OriginalQuantity - potion.Quantity;
-            }
-
-            outcomes.Add(
-                new FightOutcome
-                {
-                    Result = outcome ?? FightResult.Loss, // Should not be necessary
-                    PlayerHp = Math.Min(remainingPlayerHp, originalSchema.MaxHp), // in case of HP boost pots
-                    MonsterHp = remainingMonsterHp,
-                    TotalTurns = turnNumber,
-                    IndvidualTurns = individualTurn,
-                    ShouldFight =
-                        outcome == FightResult.Win
-                        && remainingPlayerHp >= (characterSchema.MaxHp * 0.35)
-                        && potionsUsedInSim <= MAX_AMOUNT_OF_USED_POTIONS,
-                    PotionsUsed = potionsUsedInSim,
-                    FirstSimCombatLog = firstCombatLog!,
-                }
-            );
+            outcomes.Add(InnerRunFightSim(participants, characterSchema.Name));
         }
 
         int amountWon = 0;
@@ -358,6 +200,146 @@ public class FightSimulator
             PotionsUsed = potionsUsed,
             FirstSimCombatLog = firstCombatLog!,
         };
+    }
+
+    public static FightOutcome InnerRunFightSim(
+        List<FightSimParticipant> participants,
+        string attackingPlayerName
+    )
+    {
+        participants.Sort((a, b) => b.Entity.Initiative.CompareTo(a.Entity.Initiative));
+
+        FightResult? outcome = null;
+
+        int turnNumber = 0;
+
+        int individualTurn = 0;
+
+        CombatLog combatLog = new(
+            participants.ElementAt(0).Entity,
+            participants.ElementAt(1).Entity
+        );
+
+        while (outcome is null)
+        {
+            turnNumber++;
+
+            foreach (var attacker in participants)
+            {
+                individualTurn++;
+                // Elaborate for boss fights, e.g. boss will attack different players
+                var defender = GetDefenderInFightSimulator(attacker, participants);
+
+                ProcessParticipantTurn(
+                    new ProcessParticipantTurnParams
+                    {
+                        Attacker = attacker,
+                        OtherAttackers = [],
+                        Defender = defender,
+                        OtherDefenders = [],
+                        IsBossFight = false,
+                        CombatLog = combatLog,
+                        TurnNumber = turnNumber,
+                        IndividualTurn = individualTurn,
+                    }
+                );
+
+                bool attackerWon = defender.Entity.Hp <= 0;
+
+                if (attackerWon)
+                {
+                    combatLog.Log(
+                        individualTurn,
+                        attacker.Entity,
+                        defender.Entity,
+                        $"[{attacker.Entity.Name}] won."
+                    );
+
+                    if (attacker.IsPlayer)
+                    {
+                        outcome = FightResult.Win;
+                    }
+                    else
+                    {
+                        outcome = FightResult.Loss;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        FightSimParticipant? attackingPlayer = null;
+        FightSimParticipant? defendingMonster = null;
+
+        List<FightSimParticipant> otherPlayerParticipants = [];
+
+        foreach (var participant in participants)
+        {
+            if (participant.Entity.Name == attackingPlayerName)
+            {
+                attackingPlayer = participant;
+            }
+            else if (participant.IsPlayer)
+            {
+                otherPlayerParticipants.Add(participant);
+            }
+            else
+            {
+                defendingMonster = participant;
+            }
+        }
+
+        if (attackingPlayer is null || defendingMonster is null)
+        {
+            throw new AppError(
+                $"Could not find attacking player = ${attackingPlayer is null} or defending monster = ${defendingMonster is null}"
+            );
+        }
+
+        int attackingPlayerPotionsUsed = attackingPlayer.PotionEffects.Sum(potion =>
+            potion.OriginalQuantity - potion.Quantity
+        );
+
+        FightResult fightResult = outcome ?? FightResult.Loss;
+
+        return new FightOutcome
+        {
+            Result = fightResult, // Should not be necessary
+            PlayerHp = Math.Min(attackingPlayer.Entity.Hp, attackingPlayer.OriginalMaxHp), // in case of HP boost pots
+            MonsterHp = defendingMonster.Entity.Hp,
+            TotalTurns = turnNumber,
+            IndvidualTurns = individualTurn,
+            ShouldFight = GetShouldFight(
+                fightResult,
+                attackingPlayer,
+                attackingPlayerPotionsUsed,
+                otherPlayerParticipants
+            ),
+            PotionsUsed = attackingPlayerPotionsUsed,
+            FirstSimCombatLog = combatLog,
+        };
+    }
+
+    private static bool GetShouldFight(
+        FightResult fightResult,
+        FightSimParticipant attackingPlayer,
+        int attackingPlayerPotionsUsed,
+        List<FightSimParticipant> otherPlayerParticipants
+    )
+    {
+        if (fightResult != FightResult.Win)
+        {
+            return false;
+        }
+
+        bool attackerHasEnoughHp =
+            attackingPlayer.Entity.Hp
+            >= (attackingPlayer.OriginalMaxHp * SHOULD_FIGHT_MAX_HP_PLAYER_THRESHOLD);
+
+        return attackerHasEnoughHp
+            && !otherPlayerParticipants.Exists(participant => participant.Entity.Hp <= 0)
+            && attackingPlayerPotionsUsed <= MAX_AMOUNT_OF_USED_POTIONS;
     }
 
     private static TurnDamageResult CalculateTurnDamage(
@@ -476,7 +458,7 @@ public class FightSimulator
         var otherDefenders = participantTurnParams.OtherDefenders;
         var isBossFight = participantTurnParams.IsBossFight;
 
-        var attackerPotionEffects = participantTurnParams.AttackerPotionEffects;
+        var attackerPotionEffects = participantTurnParams.Attacker.PotionEffects;
         var combatLog = participantTurnParams.CombatLog;
         var turnNumber = participantTurnParams.TurnNumber;
         var individualTurn = participantTurnParams.IndividualTurn;
@@ -498,6 +480,14 @@ public class FightSimulator
             attacker.VampiricStrikeCooldown -= 1;
         }
 
+        int poisonDamage = HandleAttackerPoisonDamage(
+            attacker,
+            defender,
+            combatLog,
+            turnNumber,
+            individualTurn
+        );
+
         var attack = CalculateTurnDamage(attacker, defender);
 
         int currentFrenzyValue = attacker.Frenzy;
@@ -513,6 +503,11 @@ public class FightSimulator
             turnNumber,
             individualTurn
         );
+
+        if (poisonDamage > 0)
+        {
+            damageToDeal += poisonDamage;
+        }
 
         foreach (var potionUtility in attackerPotionEffects)
         {
@@ -1647,6 +1642,76 @@ public class FightSimulator
         return amountToHeal;
     }
 
+    static int HandleAttackerPoisonDamage(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        CombatLog combatLog,
+        int turnNumber,
+        int individualTurn
+    )
+    {
+        // No reason to loop through effects, if we have already applied poison damage before
+        if (defender.ActivePoisonDamage == 0)
+        {
+            var poison = attacker.Effects.FirstOrDefault(effect => effect.Code == Effect.Poison);
+
+            if (poison is null)
+            {
+                return 0;
+            }
+
+            /**
+              The poison effect causes x damage per turn, unless the defender has an antidote. If the defender has an antidote,
+              it subtracts the antidote value from the poison, using only 1 antidote.
+            **/
+            if (poison is not null && turnNumber == 1)
+            {
+                int poisonDamage = poison.Value;
+
+                foreach (var potion in defender.PotionEffects)
+                {
+                    var antidote = potion.Item.Effects.FirstOrDefault(effect =>
+                        effect.Code == Effect.Antipoison
+                    );
+
+                    if (antidote is not null)
+                    {
+                        poisonDamage -= antidote.Value;
+                        potion.Quantity--;
+
+                        if (poisonDamage < 0)
+                        {
+                            poisonDamage = 0;
+                        }
+
+                        combatLog.Log(
+                            individualTurn,
+                            attacker.Entity,
+                            defender.Entity,
+                            $"[{attacker.Entity.Name}] has their poison effect mitigated with {antidote.Value} points of antidote - damage is {poisonDamage}"
+                        );
+                    }
+                }
+
+                defender.ActivePoisonDamage = poisonDamage;
+            }
+        }
+
+        if (defender.ActivePoisonDamage > 0)
+        {
+            combatLog.Log(
+                individualTurn,
+                attacker.Entity,
+                defender.Entity,
+                $"[{attacker.Entity.Name}] has poison effect for {defender.ActivePoisonDamage} damage"
+            );
+
+            return defender.ActivePoisonDamage;
+        }
+
+        return 0;
+    }
+
     static int HandleAttackerBurnDamage(
         FightSimParticipant attacker,
         FightSimParticipant defender,
@@ -1780,6 +1845,33 @@ public class FightSimulator
             );
         }
     }
+
+    static FightSimParticipant GetDefenderInFightSimulator(
+        FightSimParticipant attacker,
+        List<FightSimParticipant> participants
+    )
+    {
+        /**
+        ** TODO: We should incorporate some kind of RNG calculation here, because there is x% chance
+        ** that bosses will pick a random target
+        */
+        FightSimParticipant? bestCandidate = null;
+
+        foreach (var participant in participants)
+        {
+            if (participant.IsPlayer == attacker.IsPlayer || participant.Entity.Hp <= 0)
+            {
+                continue;
+            }
+
+            if (bestCandidate is null || bestCandidate.Entity.Threat < participant.Entity.Threat)
+            {
+                bestCandidate = participant;
+            }
+        }
+
+        return bestCandidate!;
+    }
 }
 
 public record FightOutcome
@@ -1832,6 +1924,10 @@ public record TurnDamageResult
 public record FightSimParticipant
 {
     public required FightEntity Entity { get; set; }
+    public required List<FightSimUtility> PotionEffects = [];
+
+    public required int OriginalHp { get; set; }
+    public required int OriginalMaxHp { get; set; }
 
     public int Barrier { get; set; } = 0;
     public int Frenzy { get; set; } = 0;
@@ -1840,6 +1936,8 @@ public record FightSimParticipant
     public ResistanceBoost? ShellResistanceBoost { get; set; }
 
     public int VampiricStrikeCooldown { get; set; } = 0;
+
+    public int ActivePoisonDamage { get; set; } = 0;
 
     public int BurnDamageForNextTurn { get; set; } = 0;
     public required ICritCalculator CritCalculator { get; set; }
@@ -1854,7 +1952,6 @@ public record ProcessParticipantTurnParams
     public required FightSimParticipant Defender { get; set; }
     public required List<FightSimParticipant> OtherDefenders { get; set; }
     public required bool IsBossFight { get; set; }
-    public required List<FightSimUtility> AttackerPotionEffects { get; set; }
     public required CombatLog CombatLog { get; set; }
     public required int TurnNumber { get; set; }
     public required int IndividualTurn { get; set; }

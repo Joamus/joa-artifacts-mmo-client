@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Application.Jobs.Chores;
 using Application.Services;
 using Applicaton.Jobs.Chores;
 using OneOf;

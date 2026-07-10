@@ -42,6 +42,10 @@ public class FightEquipmentAI
     )
     {
         /*
+         * Update: Changing the logic so we don't necessarily need to equip this now, but we want to ensure that we
+         * have some upgrades available. This update is to remove redundancy, so all characters won't spend time
+         * getting a lot of upgrades for their level, and possibly never use them anyway.
+         *
          * We need some logic to make sure that the characters' equipment is somewhat up to date.
          * It's difficult to really make this perfect, because higher level equipment isn't necessarily always better,
          * so the ambition should just be to make sure that their items aren't horrible.
@@ -66,8 +70,12 @@ public class FightEquipmentAI
             return null;
         }
 
+        var bankItemsDict = (await gameState.BankItemCache.GetBankItems(character)).ToDictionary(
+            item => item.Code
+        );
+
         // We basically just want to take the first equipment type, and give one job, to get the best we can of that one
-        List<ItemSchema> items = [];
+        List<(ItemSchema Item, int DesiredQuantity)> items = [];
 
         foreach (var (equipmentType, isCraftable) in equipmentTypes)
         {
@@ -90,18 +98,29 @@ public class FightEquipmentAI
                     .GetEquippedItemOrInInventory(item.Code)
                     .Sum((item) => item.equipmentSlot.Quantity);
 
+                int quantityInBank = bankItemsDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
+
+                int availableQuantity = quantityOnCharacter + quantityInBank;
+
+                if (maxAllowedOfItem <= availableQuantity)
+                {
+                    continue;
+                }
+
+                int desiredQuantity = maxAllowedOfItem - availableQuantity;
+
                 if (
                     item.Type == equipmentType.ItemType
+                    && item.Subtype != "tool"
                     && equippedItemInSlotLevel <= item.Level + itemLevelDiff
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
                     && (!isCraftable || item.Craft is not null)
                     && ItemService.CanUseItem(item, character.Schema, gameState)
-                    && quantityOnCharacter < maxAllowedOfItem
                     && !character.ExistsInWishlist(item.Code)
                     && await character.PlayerActionService.CanObtainItem(item, 1)
                 )
                 {
-                    items.Add(item);
+                    items.Add((item, desiredQuantity));
                 }
             }
         }
@@ -110,9 +129,30 @@ public class FightEquipmentAI
             .GetItemsRelevantMonsters(
                 character,
                 gameState,
-                [.. items.Select(item => new ItemInInventory { Item = item, Quantity = 100 })],
+                [
+                    .. items.Select(item => new ItemInInventory
+                    {
+                        Item = item.Item,
+                        Quantity = item.DesiredQuantity,
+                    }),
+                ],
                 false
             )
+            // .Where(item =>
+            // {
+            //     var quantityInBank = bankItemsDict.GetValueOrNull(item)?.Quantity ?? 0;
+
+            //     /**
+            //     ** It should be improved so we actually know how many of the items we will want,
+            //     ** since this implementation might create 2 rings, even if we only need one extra.
+            //     It's fine for now.
+            //     */
+            //     var isRing = gameState.ItemsDict[item]?.Type == "ring";
+
+            //     int probableDesiredAmount = isRing ? 2 : 1;
+
+            //     return quantityInBank < probableDesiredAmount;
+            // })
             .ToList();
 
         relevantItemsFromSim.Sort(

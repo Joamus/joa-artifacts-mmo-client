@@ -36,4 +36,5 @@ public record FightEntity
 
     public int CriticalStrike { get; set; }
     public int Initiative { get; set; }
+    public int Threat { get; set; }
 }

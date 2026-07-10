@@ -9,7 +9,7 @@ public class CharacterChoreService
 
     public const int MINUTES_BETWEEN_CHORES = 60;
 
-    private Dictionary<CharacterChoreKind, CharacterChore> lastChores = [];
+    private Dictionary<CharacterChoreKind, CharacterChoreEntry> lastChores = [];
 
     public bool ShouldChoreBeStarted(CharacterChoreKind choreKind)
     {
@@ -31,7 +31,7 @@ public class CharacterChoreService
 
         lastChores.Add(
             choreKind,
-            new CharacterChore
+            new CharacterChoreEntry
             {
                 Actor = character,
                 StartedAt = DateTime.UtcNow,
@@ -52,4 +52,14 @@ public class CharacterChoreService
 
         existingChore.CompletedAt = DateTime.UtcNow;
     }
+}
+
+public record CharacterChoreEntry
+{
+    public required PlayerCharacter Actor { get; set; }
+
+    public required CharacterChoreKind Kind { get; set; }
+
+    public required DateTime StartedAt { get; set; }
+    public required DateTime? CompletedAt { get; set; }
 }

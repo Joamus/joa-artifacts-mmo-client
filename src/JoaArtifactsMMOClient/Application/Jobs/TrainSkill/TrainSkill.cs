@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Reflection.Metadata.Ecma335;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
@@ -12,6 +14,14 @@ namespace Application.Jobs;
 
 public class TrainSkill : CharacterJob
 {
+    const int MONSTER_COST = 5;
+    const int CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST = 15;
+    const int TASKS_COINS_COST = 120;
+    const int EVENT_COST = 200;
+    const int EVENT_COST_IF_HAS_ENOUGH_QUANTITY = 50;
+    const int ENOUGH_EVENT_ITEMS = 1500;
+
+    static readonly ReadOnlyCollection<string> MostExpensiveItemSubtypes = ["task", "event"];
     public static int AMOUNT_TO_GATHER_PER_JOB = 20;
 
     public static int LEVEL_DIFF_FOR_NO_XP = 10;
@@ -199,50 +209,53 @@ public class TrainSkill : CharacterJob
                 }
 
                 // The difference in skill level is essentially a cost, because we get less XP.
-                itemToCraftCandidates.Sort(
-                    (a, b) =>
-                    {
-                        var resultA = (
-                            GetInconvenienceCostCraftItem(
-                                a,
-                                gameState,
-                                bankItemsResponse,
-                                Character
-                            )
-                        // + skillLevel
-                        // - a.Craft!.Level
-                        );
 
-                        if (!resultA.CanObtain)
-                        {
-                            return 1;
-                        }
-
-                        int resultACost = resultA.Item2 + skillLevel - a.Craft!.Level;
-
-                        var resultB = GetInconvenienceCostCraftItem(
-                            b,
-                            gameState,
-                            bankItemsResponse,
-                            Character
-                        );
-
-                        int resultBCost = resultB.Item2 + skillLevel - b.Craft!.Level;
-
-                        if (!resultB.CanObtain)
-                        {
-                            return -1;
-                        }
-
-                        return resultACost.CompareTo(resultBCost);
-                    }
+                int maxXpForLevel = CraftingService.RawGetXpForCraftingItem(
+                    skillLevel,
+                    19,
+                    skill,
+                    Character.Schema.Wisdom
                 );
 
-                bestItemToCraft =
-                    // itemToCraftCandidates.FirstOrDefault(candidate =>
-                    //     skillLevel - candidate.Craft!.Level < 5 // there are basically always new items to craft every 5 levels
-                    // ) ?? itemToCraftCandidates.ElementAtOrDefault(0);
-                    itemToCraftCandidates.ElementAtOrDefault(0);
+                List<(ItemSchema Item, int Cost)> itemsWithCost =
+                [
+                    .. itemToCraftCandidates
+                        .Select(
+                            (item) =>
+                            {
+                                (bool CanObtain, int Cost) = (
+                                    GetInconvenienceCostCraftItem(
+                                        item,
+                                        gameState,
+                                        bankItemsResponse,
+                                        Character
+                                    )
+                                );
+
+                                // We want to bias toward the XP we would get.
+                                int xpForCrafting = CraftingService.GetXpForCraftingItem(
+                                    skillLevel,
+                                    item,
+                                    Character.Schema.Wisdom
+                                );
+
+                                float maxXpPotential = Math.Min(
+                                    1.0f,
+                                    (float)xpForCrafting / maxXpForLevel
+                                );
+
+                                int resultCost = (int)Math.Round(Cost / maxXpPotential);
+
+                                return (item, CanObtain, Cost: resultCost);
+                            }
+                        )
+                        .Where((result) => result.CanObtain)
+                        .Select((result) => (result.item, result.Cost)),
+                ];
+
+                itemsWithCost.Sort((a, b) => a.Cost - b.Cost);
+
+                bestItemToCraft = itemsWithCost.FirstOrDefault().Item;
 
                 if (bestItemToCraft is null)
                 {
@@ -365,7 +378,14 @@ public class TrainSkill : CharacterJob
             return (false, 0);
         }
 
-        var result = InnerGetInconvenienceCostCraftItem(item, 1, gameState, bankItems, character);
+        var result = InnerGetInconvenienceCostCraftItem(
+            item,
+            1,
+            gameState,
+            bankItems,
+            character,
+            true
+        );
 
         return result;
     }
@@ -375,10 +395,11 @@ public class TrainSkill : CharacterJob
         int quantity,
         GameState gameState,
         List<DropSchema> bankItems,
-        PlayerCharacter character
+        PlayerCharacter character,
+        bool initialItem
     )
     {
-        int score = 0;
+        int cost = 0;
         bool canObtain = true;
 
         int amountInBank =
@@ -386,30 +407,42 @@ public class TrainSkill : CharacterJob
                 .Find(bankItem => bankItem.Code == item.Code && bankItem.Quantity >= quantity)
                 ?.Quantity ?? 0;
 
-        if (amountInBank >= quantity)
+        var matchingItem = gameState.ItemsDict[item.Code];
+
+        int eventCost =
+            amountInBank > ENOUGH_EVENT_ITEMS ? EVENT_COST_IF_HAS_ENOUGH_QUANTITY : EVENT_COST;
+
+        /**
+        ** Basically we still want to consider task items and event items expensive, even if we have them in the bank
+        */
+        if (
+            !initialItem
+            && amountInBank >= quantity
+            && !MostExpensiveItemSubtypes.Contains(matchingItem.Subtype)
+        )
         {
             return (true, 0);
         }
 
-        var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
-
-        if (matchingItem?.Subtype == "task")
+        if (matchingItem.Subtype == "task")
         {
-            score += 10 * quantity;
+            int tasksCoinsPrice = gameState.NpcItemsDict[matchingItem.Code].BuyPrice ?? 1;
+            cost += tasksCoinsPrice * TASKS_COINS_COST * quantity;
         }
-        else if (matchingItem?.Subtype == "mob")
+        else if (matchingItem.Subtype == "mob")
         {
             var monstersThatDropTheItem = gameState.AvailableMonsters.FindAll(monster =>
                 monster.Drops.Find(drop => drop.Code == item.Code) is not null
             );
 
-            MonsterSchema? monsterWeCanFight = null;
-            FightOutcome? monsterWeCanFightOutcome = null;
+            List<(MonsterSchema Monster, FightOutcome Outcome, int Cost)> qualifiedMonsters = [];
 
             foreach (var monster in monstersThatDropTheItem)
             {
+                bool isEventMonster = gameState.EventService.IsEntityFromEvent(monster.Code);
+
                 if (
-                    gameState.EventService.IsEntityFromEvent(monster.Code)
+                    isEventMonster
                     && gameState.EventService.WhereIsEntityActive(monster.Code) is null
                 )
                 {
@@ -419,30 +452,32 @@ public class TrainSkill : CharacterJob
                     .FindBestFightEquipmentWithUsablePotions(character, gameState, monster)
                     .Outcome;
 
-                if (
-                    fightOutcome.ShouldFight
-                    && (
-                        monsterWeCanFightOutcome?.TotalTurns is null
-                        || monsterWeCanFightOutcome.TotalTurns > fightOutcome.TotalTurns
-                    )
-                )
+                if (fightOutcome.ShouldFight)
                 {
-                    monsterWeCanFight = monster;
-                    monsterWeCanFightOutcome = fightOutcome;
-                    break;
+                    int monsterCost = CalculateMonsterCost(
+                        character,
+                        monster,
+                        isEventMonster,
+                        item,
+                        quantity,
+                        fightOutcome,
+                        eventCost
+                    );
+
+                    qualifiedMonsters.Add((monster, fightOutcome, monsterCost));
                 }
             }
 
+            qualifiedMonsters.Sort((a, b) => a.Cost - b.Cost);
+
+            (MonsterSchema Monster, FightOutcome Outcome, int Cost)? monsterWeCanFight =
+                qualifiedMonsters.FirstOrDefault();
+
             if (monsterWeCanFight is not null)
             {
-                int dropRateFactor =
-                    monsterWeCanFight.Drops.FirstOrDefault(drop => drop.Code == item.Code)!.Rate
-                    * quantity;
+                var monster = monsterWeCanFight.Value.Monster;
 
-                score +=
-                    2
-                    + (int)Math.Round((float)monsterWeCanFightOutcome!.TotalTurns / 10)
-                        * dropRateFactor;
+                cost += monsterWeCanFight.Value.Cost;
             }
             else
             {
@@ -458,15 +493,16 @@ public class TrainSkill : CharacterJob
                     subComponent.Quantity,
                     gameState,
                     bankItems,
-                    character
+                    character,
+                    false
                 );
 
                 if (!subComponentResult.CanObtain)
                 {
-                    return (false, score);
+                    return (false, cost);
                 }
 
-                score += subComponentResult.Score;
+                cost += subComponentResult.Score;
             }
         }
         else
@@ -477,12 +513,43 @@ public class TrainSkill : CharacterJob
 
             if (resource is not null)
             {
+                bool isFromEvent = gameState.EventService.IsEntityFromEvent(item.Code);
+
                 var drop = resource.Drops.First(drop => drop.Code == item.Code)!;
 
-                score += (int)Math.Floor(drop.Rate * (double)quantity);
+                cost +=
+                    (isFromEvent ? eventCost : 1) * (int)Math.Floor(drop.Rate * (double)quantity);
             }
         }
 
-        return (canObtain, score);
+        return (canObtain, cost);
+    }
+
+    static int CalculateMonsterCost(
+        PlayerCharacter character,
+        MonsterSchema monster,
+        bool isEventMonster,
+        ItemSchema itemDrop,
+        int itemAmount,
+        FightOutcome fightOutcome,
+        int eventCost
+    )
+    {
+        int dropRateFactor =
+            monster.Drops.FirstOrDefault(drop => drop.Code == itemDrop.Code)!.Rate * itemAmount;
+
+        int monsterCost =
+            monster.Level < character.Schema.Level + CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST
+                ? 0
+                : MONSTER_COST;
+
+        if (isEventMonster)
+        {
+            monsterCost += eventCost;
+        }
+
+        int score =
+            monsterCost + (int)Math.Round((float)fightOutcome!.TotalTurns / 10) * dropRateFactor;
+        return score;
     }
 }

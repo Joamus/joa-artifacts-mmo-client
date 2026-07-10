@@ -106,6 +106,8 @@ public class DepositUnneededItems : CharacterJob
             await Character.EquipItems(equipRequests);
         }
 
+        bool hasFightMonsterJob = Character.Jobs.Exists(job => job.JobName.Contains("Fight"));
+
         foreach (var item in Character.Schema.Inventory)
         {
             if (string.IsNullOrEmpty(item.Code))
@@ -209,10 +211,10 @@ public class DepositUnneededItems : CharacterJob
                     <= PlayerCharacter.PREFERED_FOOD_LEVEL_DIFFERENCE
             )
             {
-                int amountToKeep = Math.Min(
-                    PlayerCharacter.MIN_AMOUNT_OF_FOOD_TO_KEEP,
-                    item.Quantity
-                );
+                // Deposit food when we aren't fighting
+                int amountToKeep = hasFightMonsterJob
+                    ? Math.Min(PlayerCharacter.MIN_AMOUNT_OF_FOOD_TO_KEEP, item.Quantity)
+                    : 0;
 
                 int amountToDeposit = item.Quantity - amountToKeep;
 
@@ -223,7 +225,7 @@ public class DepositUnneededItems : CharacterJob
                         {
                             Code = item.Code,
                             Quantity = amountToDeposit,
-                            Importance = ItemImportance.Medium,
+                            Importance = ItemImportance.None,
                         }
                     );
                 }

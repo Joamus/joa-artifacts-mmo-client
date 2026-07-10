@@ -4,6 +4,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
+using Application.Errors;
 using Application.Services;
 using Application.Services.ApiServices;
 using Infrastructure;
@@ -138,6 +139,10 @@ public class GameState
             var matchingConfig = characterConfigs.FirstOrDefault(config =>
                 config.Name == characterSchema.Name
             );
+            if (matchingConfig is null)
+            {
+                throw new AppError($"Could not find character config for ${characterSchema.Name}");
+            }
             var character = new PlayerCharacter(
                 characterSchema,
                 this,

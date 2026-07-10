@@ -185,7 +185,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
-        int lowestCharacterLevel = RecycleUnusedItems.GetLowestCharacterLevel(gameState);
+        int lowestCharacterLevel = RecycleUnusedItems.GetLowestCharacterLevel(gameState, true);
 
         int amountOfCharacters = gameState.Characters.Count;
 

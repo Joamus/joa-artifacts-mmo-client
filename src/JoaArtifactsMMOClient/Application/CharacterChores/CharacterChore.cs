@@ -1,15 +1,24 @@
-using Application.Character;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace Application.Jobs.Chores;
 
 public record CharacterChore
 {
-    public required PlayerCharacter Actor { get; set; }
-
+    // [JsonConverter(typeof(StringEnumConverter))]
     public required CharacterChoreKind Kind { get; set; }
+
+    // [JsonConverter(typeof(StringEnumConverter))]
+    public required ChorePriority Priority { get; set; } = ChorePriority.High;
 
     public required DateTime StartedAt { get; set; }
     public required DateTime? CompletedAt { get; set; }
+}
+
+public enum ChorePriority
+{
+    Low,
+    High,
 }
 
 public enum CharacterChoreKind

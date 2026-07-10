@@ -832,6 +832,11 @@ public static class ItemService
         return item.Subtype == "tool"
             && item.Effects.Exists(effect => effect.Code == SkillService.GetSkillName(skill));
     }
+
+    // public static GetXpForCraftingItem(int skillLevel, int itemLevel)
+    // {
+    //     // XP = Round((XP_base + (item_level / player_level) × coefficient) × skill_multiplier × level_penalty × wisdom_bonus)
+    // }
 }
 
 public record BestFightItemsResult

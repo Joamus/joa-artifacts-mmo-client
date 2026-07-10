@@ -506,16 +506,16 @@ public class ObtainItem : CharacterJob
         foreach (var monster in monsters)
         {
             // For now, we assume that we cannot fight monsters a few levels above us.
-            if (monster.Level > Character.Schema.Level + 2)
+            if (monster.Level > Character.Schema.Level + 5)
             {
                 continue;
             }
 
-            // TODO: For now, assume that we cannot kill bosses
-            if (monster.Type == MonsterType.Boss)
-            {
-                continue;
-            }
+            // // TODO: For now, assume that we cannot kill bosses
+            // if (monster.Type == MonsterType.Boss)
+            // {
+            //     continue;
+            // }
 
             var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
 

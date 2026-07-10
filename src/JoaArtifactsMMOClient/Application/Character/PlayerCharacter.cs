@@ -48,8 +48,7 @@ public class PlayerCharacter
 
     public List<Skill> Roles { get; init; } = [];
 
-    [JsonConverter(typeof(StringEnumConverter))]
-    public List<CharacterChoreKind> Chores { get; init; } = [];
+    public List<CharacterChore> Chores { get; init; } = [];
 
     // Poor man's semaphor - make something sturdier
     public bool Busy { get; set; } = false;
@@ -415,7 +414,7 @@ public class PlayerCharacter
         CharacterSchema characterSchema,
         GameState gameState,
         ApiRequester apiRequester,
-        CharacterConfig? characterConfig
+        CharacterConfig characterConfig
     )
     {
         Schema = characterSchema;
@@ -433,7 +432,7 @@ public class PlayerCharacter
             Skill.Fishing,
         ];
 
-        List<CharacterChoreKind> chores = [];
+        List<CharacterChore> chores = [];
 
         if (characterConfig is not null)
         {
@@ -452,7 +451,7 @@ public class PlayerCharacter
             }
         }
 
-        CharacterConfig = characterConfig;
+        CharacterConfig = characterConfig!;
         Roles = roles;
         Chores = chores;
 

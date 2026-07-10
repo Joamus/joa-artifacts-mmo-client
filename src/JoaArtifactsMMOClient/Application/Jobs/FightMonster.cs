@@ -26,8 +26,10 @@ public class FightMonster : CharacterJob
     ** evening it out. The value could even be higher, since gathering takes approx. 30 seconds, cooking takes 5 seconds per fish, and moving around
     ** also ends up making it less efficient. But supporting characters will be fishing anyway, since that's also how you obtain pearls, algae,
     ** other materials - and we want the fishing related achievements, so it's not all wated.
+    
+    ** We should revise this constant occassionally, to find a good balance between eating/resting
     **/
-    const int OPPORTUNITY_COST_PER_FOOD_SECONDS = 35;
+    const int OPPORTUNITY_COST_PER_FOOD_SECONDS = 30;
 
     // Doesn't matter the amount you consume, cooldown is the same
     private static readonly int COOLDOWN_CONSUMING_FOOD = 3;
@@ -784,16 +786,39 @@ public class FightMonster : CharacterJob
                 ** in the moment (since eating any quantity of food is 3 seconds). By constantly eating food when it's not efficient,
                 ** we also need to constantly obtain new food.
                 */
-                int opportunityCostForFoodSeconds =
-                    OPPORTUNITY_COST_PER_FOOD_SECONDS * bestFoodCandidate.Quantity;
 
-                double percentageHpMissing =
-                    (1 - (double)Character.Schema.Hp / Character.Schema.MaxHp) * 100;
+                bool shouldEatFood = false;
 
-                int timeToRestSeconds = (int)
-                    Math.Ceiling(percentageHpMissing / REST_HP_PERCENTAGE_PER_SEC);
+                /**
+                ** Since cooked meat is something that we acquire "cost free", e.g. we obtain it while killing mobs,
+                ** then we might as well use it
+                */
+                if (
+                    ItemService.IsItemCookedMeat(
+                        gameState.ItemsDict[bestFoodCandidate.Code],
+                        gameState
+                    )
+                )
+                {
+                    shouldEatFood = true;
+                }
 
-                if (opportunityCostForFoodSeconds + COOLDOWN_CONSUMING_FOOD < timeToRestSeconds)
+                if (!shouldEatFood)
+                {
+                    int opportunityCostForFoodSeconds =
+                        OPPORTUNITY_COST_PER_FOOD_SECONDS * bestFoodCandidate.Quantity;
+
+                    double percentageHpMissing =
+                        (1 - (double)Character.Schema.Hp / Character.Schema.MaxHp) * 100;
+
+                    int timeToRestSeconds = (int)
+                        Math.Ceiling(percentageHpMissing / REST_HP_PERCENTAGE_PER_SEC);
+
+                    shouldEatFood =
+                        opportunityCostForFoodSeconds + COOLDOWN_CONSUMING_FOOD < timeToRestSeconds;
+                }
+
+                if (shouldEatFood)
                 {
                     await Character.UseItem(bestFoodCandidate.Code, bestFoodCandidate.Quantity);
                 }

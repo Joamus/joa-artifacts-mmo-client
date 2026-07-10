@@ -49,7 +49,8 @@ public class CompleteTask : CharacterJob
         var taskCoinsAmount =
             Character
                 .Schema.Inventory.FirstOrDefault(item => item.Code == ItemService.TasksCoin)
-                ?.Quantity ?? 0;
+                ?.Quantity
+            ?? 0;
 
         if (matchingItem is not null)
         {

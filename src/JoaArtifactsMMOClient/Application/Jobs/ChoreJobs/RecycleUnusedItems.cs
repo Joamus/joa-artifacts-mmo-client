@@ -120,7 +120,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
         List<DropSchema> itemsToRecycle = [];
 
-        int lowestCharacterLevel = GetLowestCharacterLevel(gameState);
+        int lowestNonSupportCharacterLevel = GetLowestCharacterLevel(gameState, true);
 
         int amountOfCharacters = gameState.Characters.Count;
 
@@ -162,7 +162,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
             }
 
             if (
-                lowestCharacterLevel
+                lowestNonSupportCharacterLevel
                 <= Math.Min(matchingItem.Level + RECYCLE_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL)
             )
             {
@@ -256,7 +256,10 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                     {
                         var matchingItemThatShouldNotBeRecycled = gameState.ItemsDict[item.Code];
 
-                        if (matchingItemThatShouldNotBeRecycled.Level < lowestCharacterLevel)
+                        if (
+                            matchingItemThatShouldNotBeRecycled.Level
+                            < lowestNonSupportCharacterLevel
+                        )
                         {
                             amountToRecycle = item.Quantity;
                             amountOfCharactersWithWorseItem = 0;
@@ -296,12 +299,17 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
         return item.Craft is not null && ItemService.RecycableItemTypes.Contains(item.Type);
     }
 
-    public static int GetLowestCharacterLevel(GameState gameState)
+    public static int GetLowestCharacterLevel(GameState gameState, bool excludeSupportCharacters)
     {
         int? lowestLevel = null;
 
         foreach (var character in gameState.Characters)
         {
+            if (excludeSupportCharacters && character.CharacterConfig.SupportRole)
+            {
+                continue;
+            }
+
             if (lowestLevel is null || character.Schema.Level < lowestLevel)
             {
                 lowestLevel = character.Schema.Level;

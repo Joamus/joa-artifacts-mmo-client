@@ -3,6 +3,7 @@ using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
+using Application.Jobs.Chores;
 using Applicaton.Jobs.Chores;
 using OneOf;
 using OneOf.Types;

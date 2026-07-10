@@ -1,3 +1,4 @@
+using System.Reflection.Metadata.Ecma335;
 using System.Text.Json.Serialization;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
@@ -6,6 +7,7 @@ using Application.Character;
 using Application.Dtos;
 using Application.Jobs;
 using Application.Jobs.Chores;
+using Applicaton.Jobs;
 using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
 using Microsoft.OpenApi.Extensions;
@@ -66,11 +68,12 @@ public class PlayerAI
         // Deposit all gold above threshold - shared economy
 
         var job =
-            await WithdrawAllowance()
+            await GetDepositItemsJobIfNeeded()
+            ?? await WithdrawAllowance()
             ?? DepositUnneededGold()
             ?? await WithdrawTeleportPotions()
             ?? await EnsureAccessories()
-            ?? await EnsureWeapon()
+            // ?? await EnsureWeapon()
             ?? await EnsureTools()
             ?? await GetEventJob()
             // Support characters should have the chores higher up in their prio list
@@ -88,6 +91,16 @@ public class PlayerAI
         );
 
         return job;
+    }
+
+    async Task<CharacterJob?> GetDepositItemsJobIfNeeded()
+    {
+        if (DepositUnneededItems.ShouldInitDepositItems(Character, true))
+        {
+            return new DepositUnneededItems(Character, gameState, null, true);
+        }
+
+        return null;
     }
 
     async Task<CharacterJob?> WithdrawTeleportPotions()
@@ -351,9 +364,9 @@ public class PlayerAI
     async Task<CharacterJob?> EnsureFightEquipment()
     {
         /**
-        * We just want to ensure some minimum level of fight equipment.
-        * Characters that mostly do chores are often affected by having the minimum viable fight equipment,
-        * which slows down things like fighting slimes for potions, etc.
+        ** We just want to ensure some minimum level of fight equipment.
+        ** Characters that mostly do chores are often affected by having the minimum viable fight equipment,
+        ** which slows down things like fighting slimes for potions, etc.
         */
 
         Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Ensure fight equipment");
@@ -1053,7 +1066,7 @@ public class PlayerAI
         ** This is a bit of a hack - if an NPC is now available, e.g. fish_merchant, we might have items to sell to them.
         ** We can expand upon this, to also restock items that we can buy from them, e.g. algae, if we make a job for that (or change RestockResources)
         */
-        if (Character.Chores.Exists(chore => chore == CharacterChoreKind.SellUnusedItems))
+        if (Character.Chores.Exists(chore => chore.Kind == CharacterChoreKind.SellUnusedItems))
         {
             var job = new SellUnusedItems(Character, gameState);
 
@@ -1186,18 +1199,18 @@ public class PlayerAI
             Character.Schema.Name
         );
 
-        var levelRange = GameState.GetCharacterLevelRange(gameState);
+        // var levelRange = GameState.GetCharacterLevelRange(gameState);
 
-        if (levelRange.Highest >= Character.Schema.Level + CHORE_LEVEL_OFFSET)
-        {
-            Logger.LogInformation(
-                "{Name}: [{Character.Schema.Name}]: Evaluating chore jobs - skipping chore jobs, because character is underlevelled",
-                Name,
-                Character.Schema.Name
-            );
+        // if (levelRange.Highest >= Character.Schema.Level + CHORE_LEVEL_OFFSET)
+        // {
+        //     Logger.LogInformation(
+        //         "{Name}: [{Character.Schema.Name}]: Evaluating chore jobs - skipping chore jobs, because character is underlevelled",
+        //         Name,
+        //         Character.Schema.Name
+        //     );
 
-            return null;
-        }
+        //     return null;
+        // }
 
         List<ChorePriority> chorePriorities = [ChorePriority.High, ChorePriority.Low];
 
@@ -1210,12 +1223,19 @@ public class PlayerAI
 
             foreach (var chore in Character.Chores)
             {
-                if (gameState.ChoreService.ShouldChoreBeStarted(chore))
+                if (chore.Priority < priority)
+                {
+                    continue;
+                }
+
+                var choreKind = chore.Kind;
+
+                if (gameState.ChoreService.ShouldChoreBeStarted(choreKind))
                 {
                     CharacterJob? job = null;
                     bool isScheduledChore = false;
 
-                    switch (chore)
+                    switch (choreKind)
                     {
                         case CharacterChoreKind.RecycleUnusedItems:
                             isScheduledChore = true;
@@ -1265,7 +1285,7 @@ public class PlayerAI
                     }
 
                     Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{chore.GetDisplayName()}\""
+                        $"{Name}: [{Character.Schema.Name}]: Assigning chore job \"{choreKind.GetDisplayName()}\""
                     );
 
                     // If it's not a scheduled chore, we don't keep track. We want to do this chore whenever it's needed.
@@ -1274,12 +1294,12 @@ public class PlayerAI
                         job.onAfterSuccessEndHook = async () =>
                         {
                             Logger.LogInformation(
-                                $"{Name}: [{Character.Name}]: Done running chore \"{chore.GetDisplayName()}\""
+                                $"{Name}: [{Character.Name}]: Done running chore \"{choreKind.GetDisplayName()}\""
                             );
-                            gameState.ChoreService.FinishChore(chore);
+                            gameState.ChoreService.FinishChore(choreKind);
                         };
 
-                        gameState.ChoreService.StartChore(Character, chore);
+                        gameState.ChoreService.StartChore(Character, choreKind);
                     }
 
                     return job;
