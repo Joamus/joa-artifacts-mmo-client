@@ -367,7 +367,7 @@ public class GameState
             .. npcs.Where(npc =>
                 Maps.Exists(map =>
                     map.Interactions.Content?.Code == npc.Code
-                    && !NavigationService.UnavailableIslands.Contains(map.Name)
+                // && !NavigationService.UnavailableIslands.Contains(map.Name)
                 )
             ),
         ];
@@ -380,7 +380,7 @@ public class GameState
             .. monsters.Where(monster =>
                 Maps.Exists(map =>
                     map.Interactions.Content?.Code == monster.Code
-                    && !NavigationService.UnavailableIslands.Contains(map.Name)
+                // && !NavigationService.UnavailableIslands.Contains(map.Name)
                 )
             ),
         ];

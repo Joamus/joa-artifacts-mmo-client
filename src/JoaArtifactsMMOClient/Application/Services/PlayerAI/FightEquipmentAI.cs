@@ -94,6 +94,11 @@ public class FightEquipmentAI
 
             foreach (var item in gameState.Items)
             {
+                if (item.Subtype == "tool")
+                {
+                    continue;
+                }
+
                 int quantityOnCharacter = character
                     .GetEquippedItemOrInInventory(item.Code)
                     .Sum((item) => item.equipmentSlot.Quantity);
@@ -107,12 +112,15 @@ public class FightEquipmentAI
                     continue;
                 }
 
+                bool withinLevelRange = equippedItemInSlotLevel <= item.Level + itemLevelDiff;
+
+                bool correctItemType = item.Type == equipmentType.ItemType;
+
                 int desiredQuantity = maxAllowedOfItem - availableQuantity;
 
                 if (
-                    item.Type == equipmentType.ItemType
-                    && item.Subtype != "tool"
-                    && equippedItemInSlotLevel <= item.Level + itemLevelDiff
+                    correctItemType
+                    && withinLevelRange
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
                     && (!isCraftable || item.Craft is not null)
                     && ItemService.CanUseItem(item, character.Schema, gameState)

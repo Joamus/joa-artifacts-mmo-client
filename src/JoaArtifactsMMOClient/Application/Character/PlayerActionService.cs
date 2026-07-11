@@ -20,6 +20,7 @@ public class PlayerActionService
 {
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
     public static readonly int LEVEL_DIFF_NO_XP = 10;
+    public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
     private readonly GameState gameState;
 
     private const string Name = "PlayerActionService";
@@ -651,6 +652,69 @@ public class PlayerActionService
                 })
                 .ToList()
         );
+    }
+
+    public async Task WithdrawTeleportPotions()
+    {
+        var bankItems = await gameState.BankItemCache.GetBankItems(character);
+
+        foreach (var item in bankItems)
+        {
+            if (string.IsNullOrWhiteSpace(item.Code))
+            {
+                continue;
+            }
+
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            if (!ItemService.IsTeleportPotion(matchingItem))
+            {
+                continue;
+            }
+
+            int quantityInInventory = character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
+
+            if (quantityInInventory >= QUANTIY_OF_EACH_TELEPORT_POTION)
+            {
+                continue;
+            }
+
+            int amountNeeded = QUANTIY_OF_EACH_TELEPORT_POTION - quantityInInventory;
+
+            int amountToWithdraw = Math.Min(amountNeeded, item.Quantity);
+
+            if (amountToWithdraw > 0)
+            {
+                await character.NavigateTo("bank");
+                await character.WithdrawBankItem(
+                    [
+                        new WithdrawOrDepositItemRequest
+                        {
+                            Code = item.Code,
+                            Quantity = amountToWithdraw,
+                        },
+                    ]
+                );
+            }
+        }
+    }
+
+    public async Task UseConsumableBags()
+    {
+        foreach (var item in character.Schema.Inventory)
+        {
+            if (string.IsNullOrWhiteSpace(item.Code))
+            {
+                continue;
+            }
+
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            if (matchingItem.Subtype == "bag" && matchingItem.Type == "consumable")
+            {
+                await character.UseItem(item.Code, item.Quantity);
+            }
+        }
     }
 }
 

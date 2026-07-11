@@ -1078,11 +1078,14 @@ public class ObtainItem : CharacterJob
             return null;
         }
 
-        if (!EventService.IsNpcActive(gameState, matchingNpcItem.Code))
+        if (
+            gameState.EventService.IsEntityFromEvent(matchingNpcItem.Code)
+            && !EventService.IsNpcActive(gameState, matchingNpcItem.Code)
+        )
         {
             // return null;
             return new AppError(
-                $"The item with code {code} is an NPC item, but the buyPrice is null - currency is {matchingNpcItem.Currency}",
+                $"The item with code {code} is an NPC item, but the NPC from an event that is not active - currency is {matchingNpcItem.Currency}",
                 ErrorStatus.NotFound
             );
         }

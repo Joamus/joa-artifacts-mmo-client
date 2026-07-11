@@ -22,7 +22,7 @@ public class PlayerAI
 
     private const int CHORE_LEVEL_OFFSET = 12;
 
-    private const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
+    public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
 
     private const bool PREFER_MONSTER_TASK = true;
     public PlayerCharacter Character { get; init; }
@@ -65,21 +65,22 @@ public class PlayerAI
             await ClaimPendingItems();
         }
 
-        // Deposit all gold above threshold - shared economy
+        await Character.PlayerActionService.WithdrawTeleportPotions();
+        await Character.PlayerActionService.UseConsumableBags();
 
         var job =
-            await GetDepositItemsJobIfNeeded()
-            ?? await WithdrawAllowance()
-            ?? DepositUnneededGold()
-            ?? await WithdrawTeleportPotions()
-            ?? await EnsureAccessories()
-            // ?? await EnsureWeapon()
-            ?? await EnsureTools()
-            ?? await GetEventJob()
-            // Support characters should have the chores higher up in their prio list
-            ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
-            ?? await GetIndividualHighPrioJob()
-            ?? await EnsureFightEquipment()
+            // await GetDepositItemsJobIfNeeded()
+            // ?? await WithdrawAllowance()
+            // // Deposit all gold above threshold - shared economy
+            // ?? DepositUnneededGold()
+            // ?? await EnsureAccessories()
+            // // ?? await EnsureWeapon()
+            // ?? await EnsureTools()
+            // ?? await GetEventJob()
+            // // Support characters should have the chores higher up in their prio list
+            // ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
+            // ?? await GetIndividualHighPrioJob()
+            await EnsureFightEquipment()
             ?? await EnsureBag()
             ?? GetSkillJob()
             ?? await GetRoleJob()
@@ -98,44 +99,6 @@ public class PlayerAI
         if (DepositUnneededItems.ShouldInitDepositItems(Character, true))
         {
             return new DepositUnneededItems(Character, gameState, null, true);
-        }
-
-        return null;
-    }
-
-    async Task<CharacterJob?> WithdrawTeleportPotions()
-    {
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
-
-        foreach (var item in bankItems)
-        {
-            if (string.IsNullOrWhiteSpace(item.Code))
-            {
-                continue;
-            }
-
-            var matchingItem = gameState.ItemsDict[item.Code];
-
-            if (!ItemService.IsTeleportPotion(matchingItem))
-            {
-                continue;
-            }
-
-            int quantityInInventory = Character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
-
-            if (quantityInInventory >= QUANTIY_OF_EACH_TELEPORT_POTION)
-            {
-                continue;
-            }
-
-            int amountNeeded = QUANTIY_OF_EACH_TELEPORT_POTION - quantityInInventory;
-
-            int amountToWithdraw = Math.Min(amountNeeded, item.Quantity);
-
-            if (amountToWithdraw > 0)
-            {
-                return new WithdrawItem(Character, gameState, item.Code, amountToWithdraw, false);
-            }
         }
 
         return null;
@@ -1216,18 +1179,12 @@ public class PlayerAI
 
         foreach (var priority in chorePriorities)
         {
-            if (!(Character.CharacterConfig?.SupportRole ?? false) && priority < ChorePriority.High)
-            {
-                continue;
-            }
+            var characterChores = Character.Chores.Where(characterChore =>
+                characterChore.Priority <= priority
+            );
 
-            foreach (var chore in Character.Chores)
+            foreach (var chore in characterChores)
             {
-                if (chore.Priority < priority)
-                {
-                    continue;
-                }
-
                 var choreKind = chore.Kind;
 
                 if (gameState.ChoreService.ShouldChoreBeStarted(choreKind))

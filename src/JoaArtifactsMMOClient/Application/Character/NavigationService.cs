@@ -16,12 +16,6 @@ public class NavigationService
     const int COOLDOWN_PER_MAP_SECONDS = 5;
     const int SECONDS_SAVED_TO_USE_TELEPORT_POTION = 45;
 
-    public static List<string> Islands = new List<string> { SandwhisperIsle, ChristmasIsland };
-    public static List<string> UnavailableIslands = new List<string> { ChristmasIsland };
-
-    private Dictionary<string, MapSchema> transitionsToIslandFromMainland = [];
-    private Dictionary<string, MapSchema> transitionsFromIslandToMainland = [];
-
     private readonly GameState gameState;
     private const string Name = "NavigationService";
     private readonly ILogger<NavigationService> Logger;
@@ -37,45 +31,6 @@ public class NavigationService
 
         Logger = AppLogger.loggerFactory.CreateLogger<NavigationService>();
         PathfindingService = PathfindingService.GetInstance(this.gameState.Maps);
-
-        SetIslandTransitions();
-    }
-
-    private void SetIslandTransitions()
-    {
-        // We assume that all transitions go through the main land, so islands don't have transportation directly to each other.
-        foreach (var map in gameState.Maps)
-        {
-            // All the boats are in the overworld at the moment.
-            if (
-                map.Interactions.Transition is null
-                || map.Interactions.Transition.Layer != MapLayer.Overworld
-            )
-            {
-                continue;
-            }
-
-            var comesFromIslandName = Islands.FirstOrDefault(island => island == map.Name);
-
-            MapSchema leadsTo = gameState.MapsDict[map.Interactions.Transition.MapId];
-
-            // Transitions around the same island, e.g. from underground to overworld etc. are irrelevant.
-            if (map.Name == leadsTo.Name || map.Layer != leadsTo.Layer)
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(comesFromIslandName))
-            {
-                // It's leading away from the island, e.g. to the main land.
-                transitionsFromIslandToMainland.Add(comesFromIslandName, map);
-            }
-            else if (Islands.Contains(leadsTo.Name))
-            {
-                // It's a transition to an island - we assume that each island only has one transition there, e.g. one boat goes to Sandwhisper Isle.
-                transitionsToIslandFromMainland.Add(leadsTo.Name, map);
-            }
-        }
     }
 
     public async Task<OneOf<AppError, None>> NavigateTo(string contentCode)
@@ -85,6 +40,21 @@ public class NavigationService
         if (result.Value is AppError)
         {
             return result.AsT0;
+        }
+
+        /**
+        ** If we are at the bank, withdraw some potions before leaving.
+        ** It's a bit dirty, but what the hell
+        */
+        var currentMap = gameState.MapsDict[character.Schema.MapId];
+
+        if (
+            gameState.MapsDict[currentMap.MapId].Interactions.Content?.Code == "bank"
+            && character.GetAvailableInventorySpace() > 50
+            && character.GetAvailableInventorySlots() > 10
+        )
+        {
+            await character.PlayerActionService.WithdrawTeleportPotions();
         }
 
         await ExecuteNavigations(character, result.AsT1.Steps);
@@ -195,7 +165,7 @@ public class NavigationService
 
         var currentMap = gameState.MapsDict[character.Schema.MapId];
 
-        NavigationStepsAndRequirements result = CalculateStepsToDestination_V2(
+        NavigationStepsAndRequirements result = CalculateStepsToDestination(
             currentMap,
             destinationMap
         );
@@ -274,84 +244,6 @@ public class NavigationService
     }
 
     public NavigationStepsAndRequirements CalculateStepsToDestination(
-        MapSchema currentMap,
-        MapSchema destinationMap
-    )
-    {
-        List<NavigationStep> steps = [];
-
-        int safetyCounter = 0;
-
-        // Implement later
-        List<DropSchema> itemRequirements = [];
-        int goldRequirement = 0;
-
-        while (currentMap.MapId != destinationMap.MapId)
-        {
-            var nextSteps = GetNextStepsToDestination(currentMap, destinationMap);
-
-            if (nextSteps.Count == 0)
-            {
-                throw new AppError(
-                    $"Returned an empty list of navigation steps, when trying to find next step from map ID {currentMap.MapId} to {destinationMap.MapId}"
-                );
-            }
-
-            currentMap = nextSteps.Last().NewMap;
-
-            foreach (var step in nextSteps)
-            {
-                steps.Add(step);
-            }
-
-            safetyCounter++;
-
-            if (safetyCounter > 1000)
-            {
-                throw new AppError(
-                    $"Infinite loop detected while navigating from {currentMap.MapId} to {destinationMap.MapId}"
-                );
-            }
-        }
-
-        foreach (var step in steps)
-        {
-            List<MapSchema> maps = [step.CurrentMap, step.NewMap];
-
-            foreach (var map in maps)
-            {
-                List<ItemOrMapCondition> conditions =
-                [
-                    .. (map.Access?.Conditions ?? []).Union(
-                        map.Interactions?.Transition?.Conditions ?? []
-                    ),
-                ];
-
-                foreach (var condition in conditions)
-                {
-                    if (condition.Operator == ItemConditionOperator.HasItem)
-                    {
-                        itemRequirements.Add(
-                            new DropSchema { Code = condition.Code, Quantity = condition.Value }
-                        );
-                    }
-                    else if (condition.Operator == ItemConditionOperator.Cost)
-                    {
-                        goldRequirement += condition.Value;
-                    }
-                }
-            }
-        }
-
-        return new NavigationStepsAndRequirements
-        {
-            Steps = steps,
-            ItemRequirements = itemRequirements,
-            GoldRequirement = goldRequirement,
-        };
-    }
-
-    public NavigationStepsAndRequirements CalculateStepsToDestination_V2(
         MapSchema currentMap,
         MapSchema destinationMap
     )
@@ -470,196 +362,6 @@ public class NavigationService
         {
             await ExecuteMove(character, step.Move);
         }
-    }
-
-    public List<NavigationStep> GetNextStepsToDestination(
-        MapSchema currentMap,
-        MapSchema destinationMap
-    )
-    {
-        bool goingFromIslandToMainland =
-            !Islands.Contains(destinationMap.Name) && Islands.Contains(currentMap.Name);
-
-        bool goingToIslandFromMainland =
-            Islands.Contains(destinationMap.Name) && !Islands.Contains(currentMap.Name);
-
-        bool goingFromIslandToIsland =
-            Islands.Contains(destinationMap.Name)
-            && Islands.Contains(currentMap.Name)
-            && destinationMap.Name != currentMap.Name;
-
-        if (goingFromIslandToMainland || goingToIslandFromMainland || goingFromIslandToIsland)
-        {
-            return GetNextNavigationStepInvolvingIslands(
-                goingFromIslandToMainland,
-                goingToIslandFromMainland,
-                goingFromIslandToIsland,
-                currentMap,
-                destinationMap
-            );
-        }
-
-        // We aren't moving between islands, and no transition should be necessary
-        if (currentMap.Layer == MapLayer.Overworld && destinationMap.Layer == MapLayer.Overworld)
-        {
-            return [CreateMoveStep(currentMap, destinationMap)];
-        }
-
-        if (currentMap.Layer != MapLayer.Overworld)
-        {
-            return GetNextNavigationStepIfNotInOverworld(currentMap, destinationMap);
-        }
-
-        if (currentMap.Layer == MapLayer.Overworld && destinationMap.Layer != currentMap.Layer)
-        {
-            return GetNextNavigationStepFromOverworldToOtherLayer(currentMap, destinationMap);
-        }
-
-        throw new AppError($"Should never get here");
-    }
-
-    // public List<NavigationStep> GetNextStepsToDestination_V2(
-    //     MapSchema currentMap,
-    //     Zone currentZone,
-    //     MapSchema destinationMap,
-    //     Zone destinationZone
-    // )
-    // {
-    //     var transitionPointTo
-    // }
-
-    List<NavigationStep> GetNextNavigationStepInvolvingIslands(
-        bool goingFromIslandToMainland,
-        bool goingToIslandFromMainland,
-        bool goingFromIslandToIsland,
-        MapSchema currentMap,
-        MapSchema destinationMap
-    )
-    {
-        // Logger.LogInformation(
-        //     $"{Name}: [{character.Name}]: Transitioning involving islands - moving from {currentMap.Name} -> {destinationMap.Name}"
-        // );
-
-        if (currentMap.Layer != MapLayer.Overworld)
-        {
-            MapSchema? closestTransition =
-                FindClosestTransition(currentMap, null, false)
-                ?? throw new Exception($"Cannot find transition, should not happen");
-
-            // Logger.LogInformation(
-            //     $"{Name}: [{character.Name}]: Transitioning involving islands - not in the overworld, going up"
-            // );
-
-            var moveStep = CreateMoveStep(currentMap, closestTransition);
-            var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
-
-            return [moveStep, transitionStep];
-        }
-
-        if (goingFromIslandToIsland)
-        {
-            // Logger.LogInformation(
-            //     $"{Name}: [{character.Name}]: Transitioning involving islands - island hopping! We need to go from {currentMap.Name} -> main land first"
-            // );
-            // We want to go to the mainland, to go to the other island
-            goingFromIslandToMainland = true;
-        }
-
-        // Going to Sandwhisper
-        if (goingToIslandFromMainland)
-        {
-            // TODO: Should check if we have enough money etc
-
-            var matchingTransition = transitionsToIslandFromMainland[destinationMap.Name];
-
-            var moveStep = CreateMoveStep(currentMap, matchingTransition);
-            var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
-            return [moveStep, transitionStep];
-        }
-
-        if (goingFromIslandToMainland)
-        {
-            var matchingTransition = transitionsFromIslandToMainland[currentMap.Name];
-            // We are going back from an island
-            // Boat to Sandwhisper Isle
-
-            if (
-                matchingTransition.Interactions.Transition!.Conditions.Exists(condition =>
-                    condition.Code == "gold"
-                )
-            )
-            {
-                // Ghetto recall - find closest mob and intentionally die, so we get ported to spawn
-
-                var closestMonsterResult = FindClosestMonster(matchingTransition);
-
-                if (closestMonsterResult is not null)
-                {
-                    (MonsterSchema closestMonster, MapSchema closestMonsterMap) =
-                        closestMonsterResult.Value;
-
-                    var result = CalculateStepsToDestination(currentMap, closestMonsterMap);
-
-                    async Task afterMoveAction()
-                    {
-                        while (character.Schema.X != 0 && character.Schema.Y != 0)
-                        {
-                            await character.Fight();
-                        }
-                    }
-
-                    var steps = result.Steps;
-
-                    var lastStep = steps.LastOrDefault();
-
-                    // We are already standing here - we make a fake step, so we can attach the afterMoveAction
-                    if (lastStep is null)
-                    {
-                        lastStep = CreateMoveStep(currentMap, destinationMap);
-                        lastStep = lastStep with
-                        {
-                            Move = new Move
-                            {
-                                X = currentMap.X,
-                                Y = currentMap.Y,
-                                Layer = currentMap.Layer,
-                                ShouldTransition = false,
-                                AfterMoveAction = lastStep.Move.AfterMoveAction,
-                            },
-                        };
-                    }
-
-                    lastStep = lastStep with
-                    {
-                        Move = lastStep.Move with { AfterMoveAction = afterMoveAction },
-                        NewMap =
-                            gameState.Maps.FirstOrDefault(map =>
-                                map.Name.Equals("spawn", StringComparison.CurrentCultureIgnoreCase)
-                            )
-                            ?? throw new AppError(
-                                "Could not find \"spawn\" in maps list - should not happen"
-                            ),
-                    };
-
-                    // We want to add the new lastStep to the list, instead of the original one
-                    if (steps.Count > 0)
-                    {
-                        steps.RemoveAt(steps.Count - 1);
-                    }
-
-                    steps.Add(lastStep);
-
-                    return steps;
-                }
-            }
-
-            // TODO: Consider using a recall potion if you have one
-            var moveStep = CreateMoveStep(currentMap, matchingTransition);
-            var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
-            return [moveStep, transitionStep];
-        }
-
-        throw new AppError("One of the bool params should be set");
     }
 
     List<NavigationStep> GetNextNavigationStepIfNotInOverworld(
@@ -1050,8 +752,9 @@ public class NavigationService
             var bestCandidate = potionsWithDistances.LastOrDefault();
 
             if (
-                bestCandidate.teleportToDestinationDistance
-                < currentToDestinationDistance + SECONDS_SAVED_TO_USE_TELEPORT_POTION
+                GetSecondsToMoveToMap(bestCandidate.teleportToDestinationDistance)
+                < GetSecondsToMoveToMap(currentToDestinationDistance)
+                    - SECONDS_SAVED_TO_USE_TELEPORT_POTION
             )
             {
                 var teleportToMap = gameState.MapsDict[bestCandidate.item.TeleportEffect!.Value];
@@ -1081,7 +784,7 @@ public class NavigationService
                     .. resultWithTeleportPotion.Steps.Prepend(usePotionStep),
                 ];
 
-                result = resultWithTeleportPotion;
+                return resultWithTeleportPotion;
             }
         }
 

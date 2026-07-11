@@ -67,8 +67,6 @@ public class DepositUnneededItems : CharacterJob
 
         Dictionary<string, List<DepositItemRecord>> equipmentToKeep = [];
 
-        await BuyBankSpaceIfNeeded();
-
         var bestFightItems = MonsterSchema is not null
             ? (
                 FightSimulator.FindBestFightEquipment(
@@ -204,17 +202,33 @@ public class DepositUnneededItems : CharacterJob
                 }
             }
 
-            if (
+            // Deposit food when we aren't fighting
+            if (!hasFightMonsterJob && matchingItem.Subtype == "food")
+            {
+                if (item.Quantity > 0)
+                {
+                    itemsToDeposit.Add(
+                        new DepositItemRecord
+                        {
+                            Code = item.Code,
+                            Quantity = item.Quantity,
+                            Importance = ItemImportance.None,
+                        }
+                    );
+                }
+                continue;
+            }
+            else if (
                 matchingItem.Subtype == "food"
                 && Character.Schema.Level >= matchingItem.Level
                 && (Character.Schema.Level - matchingItem.Level)
                     <= PlayerCharacter.PREFERED_FOOD_LEVEL_DIFFERENCE
             )
             {
-                // Deposit food when we aren't fighting
-                int amountToKeep = hasFightMonsterJob
-                    ? Math.Min(PlayerCharacter.MIN_AMOUNT_OF_FOOD_TO_KEEP, item.Quantity)
-                    : 0;
+                int amountToKeep = Math.Min(
+                    PlayerCharacter.MIN_AMOUNT_OF_FOOD_TO_KEEP,
+                    item.Quantity
+                );
 
                 int amountToDeposit = item.Quantity - amountToKeep;
 
@@ -232,11 +246,43 @@ public class DepositUnneededItems : CharacterJob
                 continue;
             }
 
-            var quantityInBank = bankItems.ContainsKey(item.Code) ? bankItems[item.Code] : 0;
             // We can store like 9+ billion items in the bank, so no reason to check if we are gonna cap by storing more items.
             // We want to prioritize storing items in the bank that we already have in the bank.
 
-            var importance = quantityInBank > 0 ? ItemImportance.None : ItemImportance.Low;
+            var importance = ItemImportance.None;
+
+            if (ItemService.IsTeleportPotion(matchingItem))
+            {
+                importance = ItemImportance.Medium;
+
+                int amountToDeposit = amountInInventory - PlayerAI.QUANTIY_OF_EACH_TELEPORT_POTION;
+
+                if (amountToDeposit > 0)
+                {
+                    itemsToDeposit.Add(
+                        new DepositItemRecord
+                        {
+                            Code = item.Code,
+                            Quantity = amountToDeposit,
+                            Importance = ItemImportance.Low,
+                        }
+                    );
+                }
+
+                int amountToKeep = amountToDeposit > 0 ? amountInInventory - amountToDeposit : 0;
+
+                if (amountToKeep > 0)
+                {
+                    itemsToDeposit.Add(
+                        new DepositItemRecord
+                        {
+                            Code = item.Code,
+                            Quantity = amountToKeep,
+                            Importance = ItemImportance.High,
+                        }
+                    );
+                }
+            }
 
             itemsToDeposit.Add(
                 new DepositItemRecord
@@ -401,11 +447,15 @@ public class DepositUnneededItems : CharacterJob
             );
         }
 
-        // if (Character.GetInventorySpaceLeft() >= MIN_FREE_INVENTORY_SPACES)
-        // {
-        //     // TODO: Handle that we cannot tidy up enough - maybe spawn a HouseKeeping job? It would cook and craft items in the bank,
-        //     // which often ends up taking up less space
-        // }
+        if (ShouldKeepDepositingIfAtBank(Character, preJob))
+        {
+            // Nuclear option - we are still lacking inventory space
+            await Character.PlayerActionService.DepositAllItems();
+        }
+
+        // Do stuff while we are at the bank anyway
+        await BuyBankSpaceIfNeeded();
+        await Character.PlayerActionService.WithdrawTeleportPotions();
 
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] completed");
 
