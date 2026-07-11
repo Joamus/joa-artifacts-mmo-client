@@ -69,18 +69,18 @@ public class PlayerAI
         await Character.PlayerActionService.UseConsumableBags();
 
         var job =
-            // await GetDepositItemsJobIfNeeded()
-            // ?? await WithdrawAllowance()
-            // // Deposit all gold above threshold - shared economy
-            // ?? DepositUnneededGold()
-            // ?? await EnsureAccessories()
-            // // ?? await EnsureWeapon()
-            // ?? await EnsureTools()
-            // ?? await GetEventJob()
-            // // Support characters should have the chores higher up in their prio list
-            // ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
-            // ?? await GetIndividualHighPrioJob()
-            await EnsureFightEquipment()
+            await GetDepositItemsJobIfNeeded()
+            ?? await WithdrawAllowance()
+            // Deposit all gold above threshold - shared economy
+            ?? DepositUnneededGold()
+            ?? await EnsureAccessories()
+            // ?? await EnsureWeapon()
+            ?? await EnsureTools()
+            ?? await GetEventJob()
+            // Support characters should have the chores higher up in their prio list
+            ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
+            ?? await GetIndividualHighPrioJob()
+            ?? await EnsureFightEquipment()
             ?? await EnsureBag()
             ?? GetSkillJob()
             ?? await GetRoleJob()

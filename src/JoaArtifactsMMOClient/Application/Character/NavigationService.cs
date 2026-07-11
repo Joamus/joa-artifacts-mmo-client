@@ -49,7 +49,8 @@ public class NavigationService
         var currentMap = gameState.MapsDict[character.Schema.MapId];
 
         if (
-            gameState.MapsDict[currentMap.MapId].Interactions.Content?.Code == "bank"
+            contentCode != "bank"
+            && gameState.MapsDict[currentMap.MapId].Interactions.Content?.Code == "bank"
             && character.GetAvailableInventorySpace() > 50
             && character.GetAvailableInventorySlots() > 10
         )
