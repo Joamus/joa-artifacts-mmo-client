@@ -43,19 +43,25 @@ public class NavigationService
         }
 
         /**
-        ** If we are at the bank, withdraw some potions before leaving.
-        ** It's a bit dirty, but what the hell
+        ** If we are at the bank, do some stuff before leaving it.
+        ** It's a bit dirty, but what the hell.
         */
         var currentMap = gameState.MapsDict[character.Schema.MapId];
 
         if (
             contentCode != "bank"
             && gameState.MapsDict[currentMap.MapId].Interactions.Content?.Code == "bank"
-            && character.GetAvailableInventorySpace() > 50
-            && character.GetAvailableInventorySlots() > 10
         )
         {
-            await character.PlayerActionService.WithdrawTeleportPotions();
+            await character.PlayerActionService.BuyBankSpaceIfNeeded();
+
+            if (
+                character.GetAvailableInventorySpace() > 50
+                && character.GetAvailableInventorySlots() > 10
+            )
+            {
+                await character.PlayerActionService.WithdrawTeleportPotions();
+            }
         }
 
         await ExecuteNavigations(character, result.AsT1.Steps);
@@ -750,12 +756,12 @@ public class NavigationService
                 (a, b) => a.teleportToDestinationDistance - b.teleportToDestinationDistance
             );
 
-            var bestCandidate = potionsWithDistances.LastOrDefault();
+            var bestCandidate = potionsWithDistances.FirstOrDefault();
 
             if (
                 GetSecondsToMoveToMap(bestCandidate.teleportToDestinationDistance)
+                    + SECONDS_SAVED_TO_USE_TELEPORT_POTION
                 < GetSecondsToMoveToMap(currentToDestinationDistance)
-                    - SECONDS_SAVED_TO_USE_TELEPORT_POTION
             )
             {
                 var teleportToMap = gameState.MapsDict[bestCandidate.item.TeleportEffect!.Value];

@@ -453,10 +453,6 @@ public class DepositUnneededItems : CharacterJob
             await Character.PlayerActionService.DepositAllItems();
         }
 
-        // Do stuff while we are at the bank anyway
-        await BuyBankSpaceIfNeeded();
-        await Character.PlayerActionService.WithdrawTeleportPotions();
-
         logger.LogInformation($"{JobName}: [{Character.Schema.Name}] completed");
 
         return new None();

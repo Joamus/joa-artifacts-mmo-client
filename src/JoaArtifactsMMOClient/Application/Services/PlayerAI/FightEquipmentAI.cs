@@ -103,9 +103,10 @@ public class FightEquipmentAI
                     .GetEquippedItemOrInInventory(item.Code)
                     .Sum((item) => item.equipmentSlot.Quantity);
 
-                int quantityInBank = bankItemsDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
+                // int quantityInBank = bankItemsDict.GetValueOrNull(item.Code)?.Quantity ?? 0;
 
-                int availableQuantity = quantityOnCharacter + quantityInBank;
+                // int availableQuantity = quantityOnCharacter + quantityInBank;
+                int availableQuantity = quantityOnCharacter;
 
                 if (maxAllowedOfItem <= availableQuantity)
                 {
@@ -146,21 +147,25 @@ public class FightEquipmentAI
                 ],
                 false
             )
-            // .Where(item =>
-            // {
-            //     var quantityInBank = bankItemsDict.GetValueOrNull(item)?.Quantity ?? 0;
+            .Where(item =>
+            {
+                var quantityInBank = bankItemsDict.GetValueOrNull(item)?.Quantity ?? 0;
 
-            //     /**
-            //     ** It should be improved so we actually know how many of the items we will want,
-            //     ** since this implementation might create 2 rings, even if we only need one extra.
-            //     It's fine for now.
-            //     */
-            //     var isRing = gameState.ItemsDict[item]?.Type == "ring";
+                /**
+                 * The code is needed here, because we need to SIM all available items, and then filter
+                 * out the ones that we already have, since we don't need to obtain them if we already have them,
+                 * since we can just withdraw when needed (in fight job)
+                 *
+                 * It should be improved so we actually know how many of the items we will want,
+                 * since this implementation might create 2 rings, even if we only need one extra.
+                 *It's fine for now.
+                */
+                var isRing = gameState.ItemsDict[item]?.Type == "ring";
 
-            //     int probableDesiredAmount = isRing ? 2 : 1;
+                int probableDesiredAmount = isRing ? 2 : 1;
 
-            //     return quantityInBank < probableDesiredAmount;
-            // })
+                return quantityInBank < probableDesiredAmount;
+            })
             .ToList();
 
         relevantItemsFromSim.Sort(

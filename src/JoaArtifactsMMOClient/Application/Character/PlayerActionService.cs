@@ -21,6 +21,7 @@ public class PlayerActionService
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
     public static readonly int LEVEL_DIFF_NO_XP = 10;
     public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
+    private const int MIN_FREE_BANK_SLOTS = 10;
     private readonly GameState gameState;
 
     private const string Name = "PlayerActionService";
@@ -713,6 +714,41 @@ public class PlayerActionService
             if (matchingItem.Subtype == "bag" && matchingItem.Type == "consumable")
             {
                 await character.UseItem(item.Code, item.Quantity);
+            }
+        }
+    }
+
+    public async Task BuyBankSpaceIfNeeded()
+    {
+        var result = await gameState.BankItemCache.GetBankDetails();
+
+        if (result.NextExpansionCost < character.Schema.Gold + result.Gold)
+        {
+            var itemsInBank = await gameState.BankItemCache.GetBankItems(null);
+
+            int amountFree = result.Slots - itemsInBank.Count;
+
+            if (amountFree <= MIN_FREE_BANK_SLOTS)
+            {
+                int amountNeededToWithdraw =
+                    result.NextExpansionCost > character.Schema.Gold
+                        ? result.NextExpansionCost - character.Schema.Gold
+                        : 0;
+
+                if (amountNeededToWithdraw > 0)
+                {
+                    Logger.LogInformation(
+                        $"[{character.Schema.Name}] withdrawing {amountNeededToWithdraw} to buy bank expansions"
+                    );
+                    await character.WithdrawBankGold(amountNeededToWithdraw);
+                }
+
+                Logger.LogInformation(
+                    $"[{character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got {character.Schema.Gold} gold, next expansion costs {result.NextExpansionCost}"
+                );
+                // Buy bank expansion
+                await character.NavigateTo("bank");
+                await character.BuyBankExpansion(character.Schema.Name);
             }
         }
     }
