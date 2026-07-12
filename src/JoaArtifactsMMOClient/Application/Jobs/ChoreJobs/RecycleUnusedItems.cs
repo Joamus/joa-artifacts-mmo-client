@@ -120,7 +120,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
         List<DropSchema> itemsToRecycle = [];
 
-        int lowestNonSupportCharacterLevel = GetLowestCharacterLevel(gameState, true);
+        int lowestCharacterLevel = GetLowestCharacterLevel(gameState, false);
 
         int amountOfCharacters = gameState.Characters.Count;
 
@@ -162,7 +162,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
             }
 
             if (
-                lowestNonSupportCharacterLevel
+                lowestCharacterLevel
                 <= Math.Min(matchingItem.Level + RECYCLE_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL)
             )
             {
@@ -256,10 +256,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                     {
                         var matchingItemThatShouldNotBeRecycled = gameState.ItemsDict[item.Code];
 
-                        if (
-                            matchingItemThatShouldNotBeRecycled.Level
-                            < lowestNonSupportCharacterLevel
-                        )
+                        if (matchingItemThatShouldNotBeRecycled.Level < lowestCharacterLevel)
                         {
                             amountToRecycle = item.Quantity;
                             amountOfCharactersWithWorseItem = 0;

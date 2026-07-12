@@ -348,7 +348,9 @@ public class FightMonster : CharacterJob
     private FoodCandidate? GetFoodToEat()
     {
         var relevantFoodItems = gameState.Items.FindAll(item =>
-            item.Type == "consumable" && item.Level <= Character.Schema.Level
+            item.Type == "consumable"
+            && item.Level <= Character.Schema.Level
+            && item.Subtype == "food"
         );
         Dictionary<string, ItemSchema> relevantFoodItemsDict = new();
 
@@ -466,9 +468,12 @@ public class FightMonster : CharacterJob
 
     public int GetSuitableFoodFromInventory()
     {
-        List<ItemInInventory> foodInInventory = Character.GetItemsFromInventoryWithType(
-            "consumable"
-        );
+        List<ItemInInventory> foodInInventory =
+        [
+            .. Character
+                .GetItemsFromInventoryWithType("consumable")
+                .Where(item => item.Item.Subtype == "food"),
+        ];
 
         int amountOfSuitableFood = 0;
 

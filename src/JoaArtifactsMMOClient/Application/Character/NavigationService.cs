@@ -10,7 +10,6 @@ namespace Application.Services;
 
 public class NavigationService
 {
-    public static string SandwhisperIsle = "Sandwhisper Isle";
     public static string ChristmasIsland = "Christmas Island";
 
     const int COOLDOWN_PER_MAP_SECONDS = 5;
@@ -704,12 +703,10 @@ public class NavigationService
         int currentToDestinationDistance = GetDistanceFromNavigationSteps(
             currentToDestinationSteps
         );
+        int secondsUsedWithCurrentPath = GetSecondsToMoveToMap(currentToDestinationDistance);
 
         // Don't even bother considering teleport potions then
-        if (
-            GetSecondsToMoveToMap(currentToDestinationDistance)
-            < SECONDS_SAVED_TO_USE_TELEPORT_POTION
-        )
+        if (secondsUsedWithCurrentPath < SECONDS_SAVED_TO_USE_TELEPORT_POTION)
         {
             return null;
         }
@@ -724,7 +721,7 @@ public class NavigationService
 
                 (ItemSchema Item, SimpleEffectSchema? TeleportEffect) result = (
                     gameState.ItemsDict[item.Code],
-                    matchingItem.Effects.FirstOrDefault(effect => effect.Code == "teleport")
+                    matchingItem.Effects.FirstOrDefault(effect => effect.Code == Effect.Teleport)
                 );
 
                 return result;
@@ -758,10 +755,13 @@ public class NavigationService
 
             var bestCandidate = potionsWithDistances.FirstOrDefault();
 
+            var secondsWithPotion = GetSecondsToMoveToMap(
+                bestCandidate.teleportToDestinationDistance
+            );
+
             if (
-                GetSecondsToMoveToMap(bestCandidate.teleportToDestinationDistance)
-                    + SECONDS_SAVED_TO_USE_TELEPORT_POTION
-                < GetSecondsToMoveToMap(currentToDestinationDistance)
+                secondsWithPotion + SECONDS_SAVED_TO_USE_TELEPORT_POTION
+                < secondsUsedWithCurrentPath
             )
             {
                 var teleportToMap = gameState.MapsDict[bestCandidate.item.TeleportEffect!.Value];
@@ -769,17 +769,32 @@ public class NavigationService
                 var resultWithTeleportPotion = bestCandidate.resultWithTeleportPotion;
 
                 // We are already standing here - we make a fake step, so we can attach the afterMoveAction
-                var usePotionStep = CreateMoveStep(currentMap, destinationMap);
+                var usePotionStep = CreateMoveStep(teleportToMap, destinationMap);
+
                 usePotionStep = usePotionStep with
                 {
                     Move = new Move
                     {
-                        X = currentMap.X,
-                        Y = currentMap.Y,
-                        Layer = currentMap.Layer,
+                        X = teleportToMap.X,
+                        Y = teleportToMap.Y,
+                        Layer = teleportToMap.Layer,
                         ShouldTransition = false,
                         AfterMoveAction = async () =>
                         {
+                            int secondsSaved =
+                                GetSecondsToMoveToMap(bestCandidate.teleportToDestinationDistance)
+                                - GetSecondsToMoveToMap(currentToDestinationDistance);
+
+                            Logger.LogInformation(
+                                "[{name}]: Using {code} to spend {potionSeconds} instead of {currentSeconds} moving from {currentMap} to {destinationMap} (teleport location is {teleportLocation})",
+                                character.Name,
+                                bestCandidate.item.Item.Code,
+                                secondsWithPotion,
+                                secondsUsedWithCurrentPath,
+                                $"(X = {currentMap.X}, Y = {currentMap.Y})",
+                                $"(X = {destinationMap.X}, Y = {destinationMap.Y})",
+                                $"(X = {teleportToMap.X}, Y = {teleportToMap.Y})"
+                            );
                             await character.UseItem(bestCandidate.item.Item.Code, 1);
                         },
                     },

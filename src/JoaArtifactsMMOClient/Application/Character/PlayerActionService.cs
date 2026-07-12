@@ -700,8 +700,39 @@ public class PlayerActionService
         }
     }
 
-    public async Task UseConsumableBags()
+    public async Task WithdrawAndUseConsumableBags()
     {
+        var bankItems = await gameState.BankItemCache.GetBankItems(character);
+
+        foreach (var item in bankItems)
+        {
+            if (string.IsNullOrWhiteSpace(item.Code))
+            {
+                continue;
+            }
+
+            var matchingItem = gameState.ItemsDict[item.Code];
+
+            if (
+                matchingItem.Subtype == "bag"
+                && matchingItem.Type == "consumable"
+                && character.GetAvailableInventorySpace() >= item.Quantity
+                && character.GetAvailableInventorySlots() > 0
+            )
+            {
+                await character.NavigateTo("bank");
+                await character.WithdrawBankItem(
+                    [
+                        new WithdrawOrDepositItemRequest
+                        {
+                            Code = item.Code,
+                            Quantity = item.Quantity,
+                        },
+                    ]
+                );
+            }
+        }
+
         foreach (var item in character.Schema.Inventory)
         {
             if (string.IsNullOrWhiteSpace(item.Code))

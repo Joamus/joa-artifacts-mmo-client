@@ -66,7 +66,7 @@ public class PlayerAI
         }
 
         await Character.PlayerActionService.WithdrawTeleportPotions();
-        await Character.PlayerActionService.UseConsumableBags();
+        await Character.PlayerActionService.WithdrawAndUseConsumableBags();
 
         var job =
             await GetDepositItemsJobIfNeeded()
