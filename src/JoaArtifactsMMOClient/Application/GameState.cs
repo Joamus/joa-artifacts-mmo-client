@@ -120,6 +120,7 @@ public class GameState
         AvailableMonsters = GetAvailableMonsters(Monsters);
         AvailableMonstersDict = Monsters.ToDictionary(monster => monster.Code);
         AvailableNpcs = GetAvailableNpcs(Npcs);
+        ShouldUpdatePendingItems = true;
 
         await EventService.LoadActiveEvents();
         // Loading these for when events update
