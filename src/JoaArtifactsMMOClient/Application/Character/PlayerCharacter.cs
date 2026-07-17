@@ -5,12 +5,14 @@ using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
+using Application.Dtos;
 using Application.Errors;
 using Application.Jobs;
 using Application.Jobs.Chores;
 using Application.Records;
 using Application.Services;
 using Infrastructure;
+using Microsoft.OpenApi.Extensions;
 using Newtonsoft.Json.Converters;
 using OneOf;
 using OneOf.Types;
@@ -1201,6 +1203,24 @@ public class PlayerCharacter
         return itemSlots;
     }
 
+    public int GetSkillLevel(Skill skill)
+    {
+        return skill switch
+        {
+            Skill.Alchemy => Schema.AlchemyLevel,
+            Skill.Cooking => Schema.CookingLevel,
+            Skill.Weaponcrafting => Schema.WeaponcraftingLevel,
+            Skill.Gearcrafting => Schema.GearcraftingLevel,
+            Skill.Jewelrycrafting => Schema.JewelrycraftingLevel,
+            Skill.Fishing => Schema.FishingLevel,
+            Skill.Mining => Schema.MiningLevel,
+            Skill.Woodcutting => Schema.WoodcuttingLevel,
+            _ => throw new AppError(
+                $"Could not find skill level for skill {skill.GetDisplayName()}"
+            ),
+        };
+    }
+
     public List<EquipmentSlot> GetEquippedItem(string itemCode)
     {
         List<EquipmentSlot> itemSlots = [];
@@ -1317,17 +1337,6 @@ public class PlayerCharacter
     public int GetSkillLevel(string skill)
     {
         var prop = Schema.GetType().GetProperty((skill + "_level").FromSnakeToPascalCase());
-
-        var value = (int)prop!.GetValue(Schema)!;
-
-        return value;
-    }
-
-    public int GetSkillLevel(Skill skill)
-    {
-        var prop = Schema
-            .GetType()
-            .GetProperty((SkillService.GetSkillName(skill) + "_level").FromSnakeToPascalCase());
 
         var value = (int)prop!.GetValue(Schema)!;
 

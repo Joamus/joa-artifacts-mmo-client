@@ -783,6 +783,11 @@ public class PlayerActionService
             }
         }
     }
+
+    public static string GetBestNonCombatEffectWithLevelDiff(int levelDifference)
+    {
+        return levelDifference > LEVEL_DIFF_NO_XP ? Effect.Prospecting : Effect.Wisdom;
+    }
 }
 
 public record CharacterJobAndEquipmentSlot
