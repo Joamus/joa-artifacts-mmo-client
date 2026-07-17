@@ -434,7 +434,8 @@ public class ObtainItem : CharacterJob
     public static List<int> CalculateObtainItemIterations(
         ItemSchema item,
         int freeInventorySpace,
-        int totalItemsWantedAmount
+        int totalItemsWantedAmount,
+        int freeInventorySpaceLeeway = 5
     )
     {
         int totalInventorySpaceNeeded;
@@ -465,7 +466,7 @@ public class ObtainItem : CharacterJob
         List<int> iterations = [];
 
         // Adding leeway with - 10. We use max items, because we assume that the character will deposit stuff
-        int availableInventorySpace = freeInventorySpace - 5;
+        int availableInventorySpace = freeInventorySpace - freeInventorySpaceLeeway;
 
         if (availableInventorySpace <= 0)
         {

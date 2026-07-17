@@ -348,8 +348,7 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value
-                            ?? 0;
+                                ?.Value ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -782,6 +781,11 @@ public class PlayerActionService
                 await character.BuyBankExpansion(character.Schema.Name);
             }
         }
+    }
+
+    public static string GetBestNonCombatEffectWithLevelDiff(int levelDifference)
+    {
+        return levelDifference > LEVEL_DIFF_NO_XP ? Effect.Prospecting : Effect.Wisdom;
     }
 }
 

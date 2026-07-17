@@ -233,9 +233,13 @@ public class GatherResourceItem : CharacterJob
             return new None();
         }
 
-        await Character.NavigateTo(resource.Code);
+        var bestEffect = EquipmentService.GetBestNonCombatEffectForResource(Character, resource);
+
+        await EquipmentService.GetAndEquipAvailableNonCombatItems(Character, gameState, bestEffect);
 
         await Character.PlayerActionService.EquipBestGatheringEquipment(skill);
+        await Character.NavigateTo(resource.Code);
+
         var result = await Character.Gather();
 
         switch (result.Value)

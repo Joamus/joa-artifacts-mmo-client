@@ -67,10 +67,10 @@ public static class CraftingService
             return 0;
         }
 
-        return RawGetXpForCraftingItem(skillLevel, item.Level, item.Craft.Skill, wisdom);
+        return InnerGetXpForCraftingItem(skillLevel, item.Level, item.Craft.Skill, wisdom);
     }
 
-    public static int RawGetXpForCraftingItem(
+    public static int InnerGetXpForCraftingItem(
         int skillLevel,
         int itemLevel,
         Skill skill,
