@@ -85,7 +85,7 @@ public class ApiRequester
             DateTime now = DateTime.UtcNow;
             double secondsDiff = (now - _lastRequest).TotalSeconds;
 
-            if (secondsDiff < _secondsBetweenRequests)
+            if (secondsDiff <= _secondsBetweenRequests)
             {
                 await Task.Delay((int)(_secondsBetweenRequests * 1000));
             }
