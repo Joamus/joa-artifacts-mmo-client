@@ -1,6 +1,7 @@
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Application.Services;
 using OneOf;
 using OneOf.Types;
 
@@ -164,6 +165,20 @@ public class CraftItem : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] appError: {missingMaterials.Count} materials were missing from inventory, could not craft item"
                 );
             }
+        }
+
+        var bestEffect = EquipmentService.GetBestNonCombatEffectForCrafting(
+            Character,
+            matchingItem
+        );
+
+        if (bestEffect is not null)
+        {
+            await EquipmentService.GetAndEquipAvailableNonCombatItems(
+                Character,
+                gameState,
+                bestEffect
+            );
         }
 
         await Character.NavigateTo(craftingLocationCode);

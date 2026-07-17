@@ -427,7 +427,7 @@ public class DepositUnneededItems : CharacterJob
                     amountNeededToDeposit = item.Quantity;
                 }
 
-                amountToDeposit = amountNeededToDeposit;
+                amountToDeposit = Math.Min(amountToDeposit, item.Quantity);
 
                 // amountToDeposit = Math.Min(
                 //     item.Quantity,
@@ -442,9 +442,18 @@ public class DepositUnneededItems : CharacterJob
                 }
             }
 
-            await Character.DepositBankItem(
-                [new WithdrawOrDepositItemRequest { Code = item.Code, Quantity = amountToDeposit }]
-            );
+            if (amountToDeposit > 0)
+            {
+                await Character.DepositBankItem(
+                    [
+                        new WithdrawOrDepositItemRequest
+                        {
+                            Code = item.Code,
+                            Quantity = amountToDeposit,
+                        },
+                    ]
+                );
+            }
         }
 
         if (ShouldKeepDepositingIfAtBank(Character, preJob))
