@@ -22,25 +22,6 @@ public class FightSimulator
     private static readonly int SHELL_EFFECT_DURATION = 3;
     private static readonly int VAMPIRIC_STRIKE_COOLDOWN_TURNS = 3;
     private static readonly int SHELL_ACTIVATION_THRESHOLD_HP_PERCENTAGE = 40;
-    private static List<EquipmentTypeMapping> allEquipmentTypes { get; } =
-        new List<EquipmentTypeMapping>
-        {
-            new EquipmentTypeMapping { ItemType = "weapon", Slot = "WeaponSlot" },
-            new EquipmentTypeMapping { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-            new EquipmentTypeMapping { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-            new EquipmentTypeMapping { ItemType = "helmet", Slot = "HelmetSlot" },
-            new EquipmentTypeMapping { ItemType = "boots", Slot = "BootsSlot" },
-            new EquipmentTypeMapping { ItemType = "ring", Slot = "Ring1Slot" },
-            new EquipmentTypeMapping { ItemType = "ring", Slot = "Ring2Slot" },
-            new EquipmentTypeMapping { ItemType = "amulet", Slot = "AmuletSlot" },
-            new EquipmentTypeMapping { ItemType = "shield", Slot = "ShieldSlot" },
-            new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility1Slot" },
-            new EquipmentTypeMapping { ItemType = "utility", Slot = "Utility2Slot" },
-            new EquipmentTypeMapping { ItemType = "rune", Slot = "RuneSlot" },
-            new EquipmentTypeMapping { ItemType = "artifact", Slot = "Artifact1Slot" },
-            new EquipmentTypeMapping { ItemType = "artifact", Slot = "Artifact2Slot" },
-            new EquipmentTypeMapping { ItemType = "artifact", Slot = "Artifact3Slot" },
-        };
 
     // We assume that monsters will crit more often than us, just to ensure that we don't take on fights too often, that we will probably not win.
     // private static readonly double MONSTER_CRIT_BIAS = 1.25;
@@ -902,12 +883,12 @@ public class FightSimulator
 
         if (itemTypesToSim is null)
         {
-            tempEquipmentTypes = allEquipmentTypes;
+            tempEquipmentTypes = EquipmentService.AllEquipmentTypes;
         }
         else
         {
-            tempEquipmentTypes = allEquipmentTypes
-                .Where(type => itemTypesToSim.Contains(type.ItemType))
+            tempEquipmentTypes = EquipmentService
+                .AllEquipmentTypes.Where(type => itemTypesToSim.Contains(type.ItemType))
                 .ToList();
         }
 
@@ -1542,7 +1523,7 @@ public class FightSimulator
         foreach (var item in items)
         {
             if (
-                !allEquipmentTypes.Exists(type => type.ItemType == item.Item.Type)
+                !EquipmentService.AllEquipmentTypes.Exists(type => type.ItemType == item.Item.Type)
                 || item.Item.Subtype == "tool"
             )
             {

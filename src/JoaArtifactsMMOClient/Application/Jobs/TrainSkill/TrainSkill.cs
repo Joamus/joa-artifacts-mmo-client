@@ -210,7 +210,7 @@ public class TrainSkill : CharacterJob
 
                 // The difference in skill level is essentially a cost, because we get less XP.
 
-                int maxXpForLevel = CraftingService.RawGetXpForCraftingItem(
+                int maxXpForLevel = CraftingService.InnerGetXpForCraftingItem(
                     skillLevel,
                     19,
                     skill,
