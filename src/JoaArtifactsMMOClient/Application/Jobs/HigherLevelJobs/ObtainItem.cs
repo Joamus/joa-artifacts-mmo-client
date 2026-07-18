@@ -1080,8 +1080,8 @@ public class ObtainItem : CharacterJob
         }
 
         if (
-            gameState.EventService.IsEntityFromEvent(matchingNpcItem.Code)
-            && !EventService.IsNpcActive(gameState, matchingNpcItem.Code)
+            gameState.EventService.IsEntityFromEvent(matchingNpcItem.Npc)
+            && !EventService.IsNpcActive(gameState, matchingNpcItem.Npc)
         )
         {
             // return null;
@@ -1104,7 +1104,7 @@ public class ObtainItem : CharacterJob
 
             if (neededCurrency <= amountOfCurrency + allowedAmountToWithdraw)
             {
-                jobs.Add(new WithdrawGold(character, gameState, neededCurrency));
+                jobs.Add(new WithdrawGold(character, gameState, allowedAmountToWithdraw));
                 neededCurrency = 0;
             }
             else

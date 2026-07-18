@@ -528,6 +528,8 @@ public class PlayerCharacter
 
     public async Task ReloadCharacterSchema()
     {
+        await PreTaskHandler();
+
         var result = await GameState.AccountRequester.GetCharacter(Schema.Name);
 
         if (result?.Data is not null)

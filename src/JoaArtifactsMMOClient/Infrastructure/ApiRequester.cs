@@ -109,7 +109,9 @@ public class ApiRequester
             {
                 response = await _httpClient.GetAsync(requestUri);
 
-                if ((int)response.StatusCode == 499)
+                int responseCode = (int)response.StatusCode;
+
+                if (responseCode == 499 || responseCode == 429)
                 {
                     await Task.Delay(1 * 1000);
                 }
@@ -157,6 +159,13 @@ public class ApiRequester
             {
                 throw new Exception(errorMessage);
             }
+        }
+
+        if (response is not null && (int)response.StatusCode == 429)
+        {
+            var errorMessage = $"GET Request with uri \"{requestUri}\" failed due to rate limit";
+            logger.LogError(errorMessage);
+            throw new Exception(errorMessage);
         }
 
         if (response is not null && (int)response.StatusCode >= 400)
@@ -216,6 +225,13 @@ public class ApiRequester
                 $"POST Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - message: {responseContent} - terminating application"
             );
             Environment.Exit(1);
+        }
+
+        if (response is not null && (int)response.StatusCode == 429)
+        {
+            var errorMessage = $"GET Request with uri \"{requestUri}\" failed due to rate limit";
+            logger.LogError(errorMessage);
+            throw new Exception(errorMessage);
         }
 
         if (response is not null && (int)response.StatusCode >= 400)
