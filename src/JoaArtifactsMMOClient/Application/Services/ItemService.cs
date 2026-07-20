@@ -417,12 +417,9 @@ public static class ItemService
 
         Dictionary<string, EquipmentSlot> relevantItemsDict = [];
 
-        var result = FightSimulator.FindBestFightEquipmentWithUsablePotions(
-            character,
-            gameState,
-            monster,
-            itemsForSimming
-        );
+        var result = FightSimulator
+            .FindBestFightEquipmentWithUsablePotions(character, gameState, monster, itemsForSimming)
+            .SimResult;
 
         foreach (var item in result.ItemsToEquip)
         {
@@ -439,10 +436,12 @@ public static class ItemService
         // We don't care if we win or not, we just want to get the best outcome
         return new BestFightItemsResult
         {
-            Items = relevantItemsDict
-                .Where(item => gameState.ItemsDict[item.Value.Code].Type != "utility")
-                .Select(item => item.Value)
-                .ToList(),
+            Items =
+            [
+                .. relevantItemsDict
+                    .Where(item => gameState.ItemsDict[item.Value.Code].Type != "utility")
+                    .Select(item => item.Value),
+            ],
             FightSimResult = result,
         };
     }
@@ -813,8 +812,7 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
-                    ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
 
                 return isOnlyUsedForFood;
             });

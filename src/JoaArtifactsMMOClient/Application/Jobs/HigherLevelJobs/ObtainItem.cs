@@ -435,7 +435,7 @@ public class ObtainItem : CharacterJob
         ItemSchema item,
         int freeInventorySpace,
         int totalItemsWantedAmount,
-        int freeInventorySpaceLeeway = 5
+        int freeInventorySpaceLeeway = 2
     )
     {
         int totalInventorySpaceNeeded;
@@ -528,11 +528,9 @@ public class ObtainItem : CharacterJob
                 continue;
             }
 
-            var fightSim = FightSimulator.FindBestFightEquipmentWithUsablePotions(
-                Character,
-                gameState,
-                monster
-            );
+            var fightSim = FightSimulator
+                .FindBestFightEquipmentWithUsablePotions(Character, gameState, monster)
+                .SimResult;
 
             var jobsNeededForNavigationResult =
                 await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(
@@ -550,8 +548,8 @@ public class ObtainItem : CharacterJob
                 continue;
             }
 
-            var fightSimIfUsingWithdrawnItems =
-                FightSimulator.FindBestFightEquipmentWithUsablePotions(
+            var fightSimIfUsingWithdrawnItems = FightSimulator
+                .FindBestFightEquipmentWithUsablePotions(
                     Character,
                     gameState,
                     monster,
@@ -562,7 +560,8 @@ public class ObtainItem : CharacterJob
                             Quantity = item.Quantity,
                         })
                         .ToList()
-                );
+                )
+                .SimResult;
 
             if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
             {
@@ -897,7 +896,7 @@ public class ObtainItem : CharacterJob
 
             if (
                 FightSimulator
-                    .CalculateFightOutcome(character.Schema, monster, gameState)
+                    .CalculateFightOutcome(character.Schema, [], monster, gameState)
                     .ShouldFight
             )
             {
@@ -994,14 +993,8 @@ public class ObtainItem : CharacterJob
 
         if (lowestLevelMonster is not null)
         {
-            List<WithdrawItem> withdrawItemJobs =
-                await FightMonster.GetWithdrawItemJobsIfBetterItemsInBank(
-                    character,
-                    gameState,
-                    lowestLevelMonster
-                );
-            var fightSimIfUsingWithdrawnItems =
-                FightSimulator.FindBestFightEquipmentWithUsablePotions(
+            var fightSimIfUsingWithdrawnItems = FightSimulator
+                .FindBestFightEquipmentWithUsablePotions(
                     character,
                     gameState,
                     lowestLevelMonster,
@@ -1012,7 +1005,8 @@ public class ObtainItem : CharacterJob
                             Quantity = item.Quantity,
                         }),
                     ]
-                );
+                )
+                .SimResult;
 
             if (
                 fightSimIfUsingWithdrawnItems is null

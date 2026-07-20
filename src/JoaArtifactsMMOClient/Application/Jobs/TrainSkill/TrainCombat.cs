@@ -1,5 +1,7 @@
+using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;
 using OneOf.Types;
@@ -74,70 +76,68 @@ public class TrainCombat : CharacterJob
         bool canCurrentlyDefeat = false
     )
     {
-        OutcomeCandidate? bestMonsterCandidate = null;
+        List<(FightOutcome Outcome, MonsterSchema Monster)> monsterCandidates = [];
 
         foreach (var monster in gameState.AvailableMonsters)
         {
             // Our character might be able to punch above their weight
-            // if (monster.Level > playerLevel || playerLevel > monster.Level + 10)
-            if (playerLevel > monster.Level + 10 || playerLevel + 5 < monster.Level)
+            if (
+                playerLevel > monster.Level + PlayerActionService.LEVEL_DIFF_NO_XP
+                || playerLevel + 5 < monster.Level
+            )
             {
                 continue;
             }
 
-            int levelDifference = playerLevel - monster.Level;
-
             var outcome = canCurrentlyDefeat
-                ? FightSimulator.CalculateFightOutcome(character.Schema, monster, gameState)
+                ? FightSimulator.CalculateFightOutcome(character.Schema, [], monster, gameState)
                 : FightSimulator
                     .FindBestFightEquipmentWithUsablePotions(character, gameState, monster)
-                    .Outcome;
-
-            var candidate = new OutcomeCandidate
-            {
-                FightOutcome = outcome,
-                MonsterCode = monster.Code,
-                LevelDifference = levelDifference,
-                MonsterLevel = monster.Level,
-            };
+                    .SimResult.Outcome;
 
             if (outcome.ShouldFight)
             {
-                if (bestMonsterCandidate is null)
-                {
-                    bestMonsterCandidate = candidate;
-                    continue;
-                }
-
-                // We always want to prioritize fighting monsters as close to the character's level as possible, to avoid an XP penalty.
-
-                if (candidate.MonsterLevel > bestMonsterCandidate.MonsterLevel)
-                {
-                    // if (
-                    //     candidate.FightOutcome.TotalTurns
-                    //     <= bestMonsterCandidate.FightOutcome.TotalTurns
-                    // )
-                    // {
-                    bestMonsterCandidate = candidate;
-                    // }
-                }
+                monsterCandidates.Add((outcome, monster));
             }
         }
 
+        monsterCandidates.Sort(
+            (a, b) =>
+                GetKillMonsterScore(character, b.Monster, b.Outcome)
+                - GetKillMonsterScore(character, a.Monster, a.Outcome)
+        );
+
+        var bestMonsterCandidate = monsterCandidates
+            .Select(candidate => candidate.Monster)
+            .FirstOrDefault();
+
         if (bestMonsterCandidate is null)
         {
-            // return new AppError(
-            //     $"TrainCombat.GetJobRequired: [{character.Schema.Name}]: error - no monster candidates to fight that give XP."
-            // );
             return null;
         }
 
-        return new FightMonster(
-            character,
-            gameState,
-            bestMonsterCandidate.MonsterCode,
-            AMOUNT_TO_KILL
+        return new FightMonster(character, gameState, bestMonsterCandidate.Code, AMOUNT_TO_KILL);
+    }
+
+    static int GetKillMonsterScore(
+        PlayerCharacter character,
+        MonsterSchema monster,
+        FightOutcome outcome
+    )
+    {
+        int xpForFight = CalculationService.GetXpForFight(
+            character.Schema,
+            [character.Schema.Level],
+            monster
         );
+
+        float costForUsingPotions = outcome.PotionsUsed * 0.05f;
+
+        float costForTurns = outcome.TotalTurns * 0.002f;
+
+        float totalCostFactor = 1 + (costForUsingPotions + costForTurns);
+
+        return (int)Math.Floor(xpForFight / totalCostFactor);
     }
 }
 

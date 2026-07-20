@@ -5,7 +5,6 @@ using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
-using Application.Dtos;
 using Application.Errors;
 using Application.Jobs;
 using Application.Jobs.Chores;
@@ -13,7 +12,6 @@ using Application.Records;
 using Application.Services;
 using Infrastructure;
 using Microsoft.OpenApi.Extensions;
-using Newtonsoft.Json.Converters;
 using OneOf;
 using OneOf.Types;
 
@@ -63,6 +61,9 @@ public class PlayerCharacter
 
     public CharacterJob? CurrentJob { get; private set; }
 
+    private readonly SemaphoreSlim CurrentFightBossLock = new(1, 1);
+    public FightBoss? CurrentFightBossJob { get; private set; }
+
     [JsonIgnore]
     private readonly GameState GameState;
 
@@ -95,6 +96,28 @@ public class PlayerCharacter
     public void Unsuspend()
     {
         Suspended = false;
+    }
+
+    public async Task<bool> RecruitForBossFight(FightBoss fightBossJob)
+    {
+        bool wasRecruited = false;
+
+        try
+        {
+            await CurrentFightBossLock.WaitAsync();
+
+            if (CurrentFightBossJob is null || CurrentFightBossJob.Id == fightBossJob.Id)
+            {
+                CurrentFightBossJob = fightBossJob;
+                wasRecruited = true;
+            }
+        }
+        finally
+        {
+            CurrentFightBossLock.Release();
+        }
+
+        return wasRecruited;
     }
 
     public void AddToWishlist(string code, int amount)
@@ -345,6 +368,9 @@ public class PlayerCharacter
 
         if (CurrentJob is not null)
         {
+            Logger.LogInformation(
+                $"{GetType().Name}: [{Schema.Name}] running job {CurrentJob.JobName}"
+            );
             OneOf<AppError, None>? result = null;
             bool failed = false;
 
@@ -592,6 +618,15 @@ public class PlayerCharacter
             content,
             ApiRequester.getJsonOptions()
         );
+
+        if ((int)response.StatusCode == (int)ResponseCode.InventoryFull)
+        {
+            // We still want to throw below, so we reset the job queue
+            // This isn't pretty, but might help catch some issues
+            await PlayerActionService.DepositAllItems();
+            return await Gather();
+        }
+
         if (result?.Data is not null)
         {
             PostTaskHandler(result.Data.Cooldown, result.Data.Character);
@@ -736,6 +771,7 @@ public class PlayerCharacter
             // We still want to throw below, so we reset the job queue
             // This isn't pretty, but might help catch some issues
             await PlayerActionService.DepositAllItems();
+            return await WithdrawBankItem(withdrawItems);
         }
 
         if (result is null)
@@ -963,16 +999,26 @@ public class PlayerCharacter
 
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/npc/buy", body);
 
-        var content = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
-            content,
-            ApiRequester.getJsonOptions()
-        )!;
-        PostTaskHandler(result.Data.Cooldown, result.Data.Character);
-
-        if (spillOverQuantity > 0)
+        if ((int)response.StatusCode == (int)ResponseCode.InventoryFull)
         {
-            await NpcBuyItem(itemCode, spillOverQuantity);
+            // We still want to throw below, so we reset the job queue
+            // This isn't pretty, but might help catch some issues
+            await PlayerActionService.DepositAllItems();
+            await NpcBuyItem(itemCode, quantity);
+        }
+        else
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
+                content,
+                ApiRequester.getJsonOptions()
+            )!;
+            PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+
+            if (spillOverQuantity > 0)
+            {
+                await NpcBuyItem(itemCode, spillOverQuantity);
+            }
         }
     }
 

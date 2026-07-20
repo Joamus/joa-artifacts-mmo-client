@@ -28,7 +28,7 @@ public class PlayerActionService
 
     private readonly ILogger<PlayerActionService> Logger;
 
-    private readonly PlayerCharacter character;
+    private readonly PlayerCharacter Character;
     public readonly NavigationService NavigationService;
 
     public PlayerActionService(
@@ -39,13 +39,13 @@ public class PlayerActionService
     {
         Logger = logger;
         this.gameState = gameState;
-        this.character = character;
+        Character = character;
         NavigationService = new NavigationService(character, gameState);
     }
 
     public async Task<OneOf<AppError, None>> SmartItemEquip(string code, int quantity = 1)
     {
-        var item = character.GetItemFromInventory(code);
+        var item = Character.GetItemFromInventory(code);
 
         if (item is null)
         {
@@ -89,7 +89,7 @@ public class PlayerActionService
         {
             if (quantity == 2)
             {
-                await character.EquipItem(
+                await Character.EquipItem(
                     new EquipRequest
                     {
                         Code = code,
@@ -97,7 +97,7 @@ public class PlayerActionService
                         Quantity = 1,
                     }
                 );
-                await character.EquipItem(
+                await Character.EquipItem(
                     new EquipRequest
                     {
                         Code = code,
@@ -128,7 +128,7 @@ public class PlayerActionService
         }
         else
         {
-            itemSlot = character.GetEquipmentSlot(
+            itemSlot = Character.GetEquipmentSlot(
                 (matchingItem.Type + "_slot").FromSnakeToPascalCase()
             );
         }
@@ -151,7 +151,7 @@ public class PlayerActionService
 
                         int amountToEquip = Math.Min(amountThatCanBeAdded, quantity);
 
-                        await character.EquipItem(
+                        await Character.EquipItem(
                             new EquipRequest
                             {
                                 Code = code,
@@ -165,7 +165,7 @@ public class PlayerActionService
                 }
 
                 // TODO FIX
-                await character.EquipItem(
+                await Character.EquipItem(
                     new EquipRequest
                     {
                         Code = code,
@@ -184,12 +184,12 @@ public class PlayerActionService
 
     public async Task<None> EquipBestFightEquipment(MonsterSchema monster)
     {
-        var result = FightSimulator.FindBestFightEquipment(character, gameState, monster);
+        var result = FightSimulator.FindBestFightEquipment(Character, gameState, monster).SimResult;
 
         AppLogger
             .GetLogger()
             .LogInformation(
-                $"EquipBestFightEquipment: [{character.Schema.Name}]: Found {result.ItemsToEquip.Count} items to equip before fighting {monster.Code}"
+                $"EquipBestFightEquipment: [{Character.Schema.Name}]: Found {result.ItemsToEquip.Count} items to equip before fighting {monster.Code}"
             );
 
         List<EquipRequest> equipRequests =
@@ -204,10 +204,207 @@ public class PlayerActionService
 
         if (equipRequests.Count > 0)
         {
-            await character.EquipItems(equipRequests);
+            await Character.EquipItems(equipRequests);
         }
 
         return new None();
+    }
+
+    public async Task<CharacterJob?> GetTaskJobIfPossible(bool preferMonsterTask)
+    {
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
+            Name,
+            Character.Schema.Name
+        );
+
+        if (Character.Schema.TaskType == TaskType.monsters.ToString())
+        {
+            var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
+            var nextJobResult = await GetNextJobToFightMonster(monster);
+
+            if (nextJobResult is not null)
+            {
+                if (nextJobResult.Job is not null)
+                {
+                    Logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Job found - do monster task ({monster.Code})"
+                    );
+
+                    var nextJob = nextJobResult.Job;
+
+                    Logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                    );
+                    // Do the first job in the list, we only do one thing at a time
+                    return nextJob;
+                }
+                else
+                {
+                    Logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
+                    );
+                    return new MonsterTask(Character, gameState);
+                }
+            }
+        }
+        else if (Character.Schema.TaskType == TaskType.items.ToString())
+        {
+            if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+            {
+                Logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+                );
+                return new ItemTask(Character, gameState);
+            }
+            else if (await CancelTaskJob.CanCancelTask(Character, gameState))
+            {
+                await CancelTaskJob.DoCancelTask(Character, gameState);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        if (preferMonsterTask && CanHandlePotentialMonsterTasks())
+        {
+            Logger.LogInformation(
+                "{Name}: [{character.Schema.Name}]: GetTaskJob: Found new monster task",
+                Name,
+                Character.Schema.Name
+            );
+
+            return new MonsterTask(Character, gameState);
+        }
+        if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+        {
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+            );
+            return new ItemTask(Character, gameState);
+        }
+
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: GetTaskJob: No job found");
+
+        return null;
+    }
+
+    public async Task<NextJobToFightResult?> GetNextJobToFightMonster(MonsterSchema monster)
+    {
+        var jobsToGetItems = await Character.PlayerActionService.GetJobsToGetItemsToFightMonster(
+            Character,
+            gameState,
+            monster
+        );
+
+        // Return null if they shouldn't fight, return list of jobs if they should, return empty NextJobToFightResult
+        if (jobsToGetItems is null)
+        {
+            return null;
+        }
+
+        if (jobsToGetItems.Count == 0)
+        {
+            return new NextJobToFightResult { Job = null };
+        }
+
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+
+        // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
+        // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
+        jobsToGetItems.Sort(
+            (a, b) =>
+            {
+                bool aIsInBank = bankItems.Exists(item =>
+                    item.Code == a.Job.Code && item.Quantity >= a.Job.Amount
+                );
+
+                bool bIsInBank = bankItems.Exists(item =>
+                    item.Code == b.Job.Code && item.Quantity >= b.Job.Amount
+                );
+
+                if (aIsInBank && !bIsInBank)
+                {
+                    return -1;
+                }
+                else if (bIsInBank && !aIsInBank)
+                {
+                    return 1;
+                }
+
+                // If we can buy an item straight away, then let us do that first
+                var aMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(a.Job.Code);
+
+                var bMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(b.Job.Code);
+
+                if (aMatchingNpcItem && !bMatchingNpcItem)
+                {
+                    return -1;
+                }
+                else if (!aMatchingNpcItem && bMatchingNpcItem)
+                {
+                    return 1;
+                }
+
+                var aLevel = gameState.ItemsDict.GetValueOrNull(a.Job.Code)!.Level;
+                var bLevel = gameState.ItemsDict.GetValueOrNull(b.Job.Code)!.Level;
+
+                return aLevel.CompareTo(bLevel);
+            }
+        );
+
+        var nextJob = jobsToGetItems.ElementAtOrDefault(0);
+
+        if (nextJob is not null)
+        {
+            nextJob.Job.onAfterSuccessEndHook = async () =>
+            {
+                Logger.LogInformation(
+                    $"{Name}: [{Character.Name}]: onAfterSuccessEndHook: Equipping {nextJob.Job.Amount} x {nextJob.Job.Code}"
+                );
+                // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?
+                await Character.EquipItem(
+                    new EquipRequest
+                    {
+                        Code = nextJob.Job.Code,
+                        Slot = nextJob.Slot.Slot.FromPascalToSnakeCase(),
+                        Quantity = nextJob.Job.Amount,
+                    }
+                );
+            };
+        }
+
+        return new NextJobToFightResult { Job = nextJob?.Job };
+    }
+
+    public bool CanHandlePotentialMonsterTasks()
+    {
+        foreach (var task in gameState.Tasks)
+        {
+            if (task.Type != TaskType.monsters)
+            {
+                continue;
+            }
+
+            var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(task.Code)!;
+
+            if (matchingMonster.Level > Character.Schema.Level)
+            {
+                continue;
+            }
+
+            if (
+                !FightSimulator
+                    .FindBestFightEquipmentWithUsablePotions(Character, gameState, matchingMonster)
+                    .SimResult.Outcome.ShouldFight
+            )
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static CharacterSchema SimulateItemEquip(
@@ -289,7 +486,7 @@ public class PlayerActionService
 
         var skillName = SkillService.GetSkillName(skill)!;
 
-        foreach (var item in character.Schema.Inventory)
+        foreach (var item in Character.Schema.Inventory)
         {
             if (string.IsNullOrEmpty(item.Code))
             {
@@ -326,11 +523,11 @@ public class PlayerActionService
                 // lowest bonus, if the ring we are evaluating has higher than any of the other.
                 if (itemSlotsTheItemFits.Count() > 0)
                 {
-                    var equipmentSlot = character.GetEquipmentSlot(itemSlotsTheItemFits[0]);
+                    var equipmentSlot = Character.GetEquipmentSlot(itemSlotsTheItemFits[0]);
 
                     if (equipmentSlot.Code == "")
                     {
-                        await character.SmartItemEquip(matchingItemInInventory.Code);
+                        await Character.SmartItemEquip(matchingItemInInventory.Code);
                     }
                     else
                     {
@@ -354,10 +551,10 @@ public class PlayerActionService
                         if (equippedItemValue > itemInInventoryEffect.Value)
                         {
                             Logger.LogInformation(
-                                $"EquipBestGatheringEquipment: Equipping \"{item.Code}\" instead of \"{equipmentSlot.Code}\" for {character.Schema.Name} for \"{skill}\""
+                                $"EquipBestGatheringEquipment: Equipping \"{item.Code}\" instead of \"{equipmentSlot.Code}\" for {Character.Schema.Name} for \"{skill}\""
                             );
 
-                            await character.SmartItemEquip(matchingItemInInventory.Code);
+                            await Character.SmartItemEquip(matchingItemInInventory.Code);
                         }
                     }
                 }
@@ -377,7 +574,7 @@ public class PlayerActionService
 
         foreach (var slot in itemSlotCodes)
         {
-            var inventorySlot = character.GetEquipmentSlot(slot)!;
+            var inventorySlot = Character.GetEquipmentSlot(slot)!;
 
             if (isUtility && inventorySlot.Code == itemCode || inventorySlot.Code == "")
             {
@@ -397,7 +594,7 @@ public class PlayerActionService
     )
     {
         var canObtainIt = await ObtainItem.GetJobsRequired(
-            character,
+            Character,
             gameState,
             true,
             item.Code,
@@ -422,7 +619,7 @@ public class PlayerActionService
         MonsterSchema monster
     )
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(this.character, false);
+        var bankItems = await gameState.BankItemCache.GetBankItems(this.Character, false);
 
         var bankItemDict = new Dictionary<string, DropSchema>();
 
@@ -522,25 +719,25 @@ public class PlayerActionService
 
     public async Task DepositPotions(int utilitySlot, string itemCode, int amount)
     {
-        int amountToUnequip = Math.Min(character.GetAvailableInventorySpace() - 5, amount);
+        int amountToUnequip = Math.Min(Character.GetAvailableInventorySpace() - 5, amount);
 
         while (amountToUnequip > 0)
         {
-            int amountToDeposit = Math.Min(character.GetAvailableInventorySpace(), amountToUnequip);
+            int amountToDeposit = Math.Min(Character.GetAvailableInventorySpace(), amountToUnequip);
 
             if (amountToDeposit == 0)
             {
                 break;
             }
-            await character.NavigateTo("bank");
-            await character.UnequipItem(
+            await Character.NavigateTo("bank");
+            await Character.UnequipItem(
                 new UnequipRequest
                 {
                     Slot = $"Utility{utilitySlot}".FromPascalToSnakeCase(),
                     Quantity = amountToDeposit,
                 }
             );
-            await character.DepositBankItem(
+            await Character.DepositBankItem(
                 new List<WithdrawOrDepositItemRequest>
                 {
                     new WithdrawOrDepositItemRequest
@@ -551,7 +748,7 @@ public class PlayerActionService
                 }
             );
 
-            amountToUnequip = character.GetEquipmentSlot($"Utility{utilitySlot}Slot").Quantity;
+            amountToUnequip = Character.GetEquipmentSlot($"Utility{utilitySlot}Slot").Quantity;
         }
     }
 
@@ -560,24 +757,24 @@ public class PlayerActionService
     */
     public async Task<bool> CanItemFromItemTaskBeObtained()
     {
-        if (string.IsNullOrWhiteSpace(character.Schema.TaskType))
+        if (string.IsNullOrWhiteSpace(Character.Schema.TaskType))
         {
             return true;
         }
 
-        if (character.Schema.TaskType != "items")
+        if (Character.Schema.TaskType != "items")
         {
             return false;
         }
 
-        ItemSchema itemFromTask = gameState.ItemsDict[character.Schema.Task];
+        ItemSchema itemFromTask = gameState.ItemsDict[Character.Schema.Task];
 
         if (
             await CancelTaskJob.ShouldCancelTask(gameState, itemFromTask)
             // This is mostly to prevent having to gather fish that we are too low level to catch, but high enough cooking level to cook
             || !await CanObtainItem(
                 itemFromTask,
-                character.Schema.TaskTotal - character.Schema.TaskProgress,
+                Character.Schema.TaskTotal - Character.Schema.TaskProgress,
                 false
             )
         )
@@ -590,26 +787,26 @@ public class PlayerActionService
 
     public async Task CancelTask()
     {
-        if (string.IsNullOrWhiteSpace(character.Schema.Task))
+        if (string.IsNullOrWhiteSpace(Character.Schema.Task))
         {
             return;
         }
 
         int tasksCoinsInInventory =
-            character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
+            Character.GetItemFromInventory(ItemService.TasksCoin)?.Quantity ?? 0;
 
         if (tasksCoinsInInventory < ItemService.CancelTaskPrice)
         {
             int tasksCoinsInBank =
-                (await gameState.BankItemCache.GetBankItems(character))
+                (await gameState.BankItemCache.GetBankItems(Character))
                     .FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                     ?.Quantity ?? 0;
 
             if (tasksCoinsInBank >= ItemService.CancelTaskPrice)
             {
-                await character.NavigateTo("bank");
+                await Character.NavigateTo("bank");
 
-                await character.WithdrawBankItem(
+                await Character.WithdrawBankItem(
                     new List<WithdrawOrDepositItemRequest>
                     {
                         new WithdrawOrDepositItemRequest
@@ -623,15 +820,15 @@ public class PlayerActionService
         }
 
         string tasksMasterCode = (
-            character.Schema.Task == TaskType.items.ToString() ? TaskType.items : TaskType.monsters
+            Character.Schema.Task == TaskType.items.ToString() ? TaskType.items : TaskType.monsters
         ).ToString();
 
-        await character.NavigateTo(tasksMasterCode);
+        await Character.NavigateTo(tasksMasterCode);
     }
 
     public async Task DepositAllItems()
     {
-        var items = character
+        var items = Character
             .Schema.Inventory.Where(item => !string.IsNullOrWhiteSpace(item.Code))
             .ToList();
 
@@ -640,9 +837,9 @@ public class PlayerActionService
             return;
         }
 
-        await character.NavigateTo("bank");
+        await Character.NavigateTo("bank");
 
-        await character.DepositBankItem(
+        await Character.DepositBankItem(
             items
                 .Where(item => !string.IsNullOrWhiteSpace(item.Code))
                 .Select(item => new WithdrawOrDepositItemRequest
@@ -656,7 +853,7 @@ public class PlayerActionService
 
     public async Task WithdrawTeleportPotions()
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(character);
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
         foreach (var item in bankItems)
         {
@@ -672,7 +869,7 @@ public class PlayerActionService
                 continue;
             }
 
-            int quantityInInventory = character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
+            int quantityInInventory = Character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
 
             if (quantityInInventory >= QUANTIY_OF_EACH_TELEPORT_POTION)
             {
@@ -685,8 +882,8 @@ public class PlayerActionService
 
             if (amountToWithdraw > 0)
             {
-                await character.NavigateTo("bank");
-                await character.WithdrawBankItem(
+                await Character.NavigateTo("bank");
+                await Character.WithdrawBankItem(
                     [
                         new WithdrawOrDepositItemRequest
                         {
@@ -701,7 +898,7 @@ public class PlayerActionService
 
     public async Task WithdrawAndUseConsumableBags()
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(character);
+        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 
         foreach (var item in bankItems)
         {
@@ -715,12 +912,12 @@ public class PlayerActionService
             if (
                 matchingItem.Subtype == "bag"
                 && matchingItem.Type == "consumable"
-                && character.GetAvailableInventorySpace() >= item.Quantity
-                && character.GetAvailableInventorySlots() > 0
+                && Character.GetAvailableInventorySpace() >= item.Quantity
+                && Character.GetAvailableInventorySlots() > 0
             )
             {
-                await character.NavigateTo("bank");
-                await character.WithdrawBankItem(
+                await Character.NavigateTo("bank");
+                await Character.WithdrawBankItem(
                     [
                         new WithdrawOrDepositItemRequest
                         {
@@ -732,7 +929,7 @@ public class PlayerActionService
             }
         }
 
-        foreach (var item in character.Schema.Inventory)
+        foreach (var item in Character.Schema.Inventory)
         {
             if (string.IsNullOrWhiteSpace(item.Code))
             {
@@ -743,7 +940,7 @@ public class PlayerActionService
 
             if (matchingItem.Subtype == "bag" && matchingItem.Type == "consumable")
             {
-                await character.UseItem(item.Code, item.Quantity);
+                await Character.UseItem(item.Code, item.Quantity);
             }
         }
     }
@@ -752,7 +949,7 @@ public class PlayerActionService
     {
         var result = await gameState.BankItemCache.GetBankDetails();
 
-        if (result.NextExpansionCost < character.Schema.Gold + result.Gold)
+        if (result.NextExpansionCost < Character.Schema.Gold + result.Gold)
         {
             var itemsInBank = await gameState.BankItemCache.GetBankItems(null);
 
@@ -761,24 +958,24 @@ public class PlayerActionService
             if (amountFree <= MIN_FREE_BANK_SLOTS)
             {
                 int amountNeededToWithdraw =
-                    result.NextExpansionCost > character.Schema.Gold
-                        ? result.NextExpansionCost - character.Schema.Gold
+                    result.NextExpansionCost > Character.Schema.Gold
+                        ? result.NextExpansionCost - Character.Schema.Gold
                         : 0;
 
                 if (amountNeededToWithdraw > 0)
                 {
                     Logger.LogInformation(
-                        $"[{character.Schema.Name}] withdrawing {amountNeededToWithdraw} to buy bank expansions"
+                        $"[{Character.Schema.Name}] withdrawing {amountNeededToWithdraw} to buy bank expansions"
                     );
-                    await character.WithdrawBankGold(amountNeededToWithdraw);
+                    await Character.WithdrawBankGold(amountNeededToWithdraw);
                 }
 
                 Logger.LogInformation(
-                    $"[{character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got {character.Schema.Gold} gold, next expansion costs {result.NextExpansionCost}"
+                    $"[{Character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got {Character.Schema.Gold} gold, next expansion costs {result.NextExpansionCost}"
                 );
                 // Buy bank expansion
-                await character.NavigateTo("bank");
-                await character.BuyBankExpansion(character.Schema.Name);
+                await Character.NavigateTo("bank");
+                await Character.BuyBankExpansion(Character.Schema.Name);
             }
         }
     }
@@ -793,4 +990,9 @@ public record CharacterJobAndEquipmentSlot
 {
     public required CharacterJob Job;
     public required EquipmentSlot Slot;
+}
+
+public record NextJobToFightResult
+{
+    public required CharacterJob? Job;
 }

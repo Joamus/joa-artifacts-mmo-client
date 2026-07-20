@@ -217,6 +217,11 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
         {
             ChorePriority.Low => new RestockResourcesParams
             {
+                MinimumAmountInBank = 1000,
+                AmountToGather = 100,
+            },
+            ChorePriority.Medium => new RestockResourcesParams
+            {
                 MinimumAmountInBank = 800,
                 AmountToGather = 100,
             },

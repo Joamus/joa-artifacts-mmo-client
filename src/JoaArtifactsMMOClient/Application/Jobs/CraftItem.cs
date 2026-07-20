@@ -9,7 +9,7 @@ namespace Application.Jobs;
 
 public class CraftItem : CharacterJob
 {
-    protected int progressAmount { get; set; } = 0;
+    protected int ProgressAmount { get; set; } = 0;
 
     public bool CanTriggerTraining { get; set; } = true;
     public bool CanTriggerObtain { get; set; } = true;
@@ -37,7 +37,7 @@ public class CraftItem : CharacterJob
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({progressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
         var matchingItem = gameState.Items.Find(item => item.Code == Code);

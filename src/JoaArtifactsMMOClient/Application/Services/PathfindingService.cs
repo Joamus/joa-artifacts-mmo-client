@@ -116,6 +116,7 @@ public class PathfindingService
         {
             return;
         }
+
         zone.Maps.Add(currentMap);
 
         if (currentMap.Interactions.Transition is not null)
@@ -130,16 +131,6 @@ public class PathfindingService
 
         foreach (var neighbour in neighbours)
         {
-            // zone.Maps.Add(neighbour);
-
-            // if (neighbour.Interactions.Transition is not null)
-            // {
-            //     zone.TransitionMaps.Add(neighbour);
-            // }
-
-            // visitedMapIds.Add(neighbour.MapId);
-
-            // mapIdToZoneMap.Add(neighbour.MapId, zone);
             PopulateZone(zone, coordList, neighbour, visitedMapIds, mapIdToZoneMap);
         }
     }
@@ -156,8 +147,21 @@ public class PathfindingService
 
         PopulateZone(initialZone, coordList, initialMap, visitedMapIds, mapIdToZoneMap);
 
+        PopulateAllTransitions(zones, initialZone, coordList, visitedMapIds, mapIdToZoneMap);
+
         zones.Add(initialZone);
 
+        return zones;
+    }
+
+    static void PopulateAllTransitions(
+        List<Zone> zones,
+        Zone initialZone,
+        CoordList coordList,
+        HashSet<int> visitedMapIds,
+        Dictionary<int, Zone> mapIdToZoneMap
+    )
+    {
         foreach (var transitionMap in initialZone.TransitionMaps)
         {
             var transition = transitionMap.Interactions.Transition!;
@@ -177,10 +181,15 @@ public class PathfindingService
             };
 
             PopulateZone(zoneForTransition, coordList, destination, visitedMapIds, mapIdToZoneMap);
+            PopulateAllTransitions(
+                zones,
+                zoneForTransition,
+                coordList,
+                visitedMapIds,
+                mapIdToZoneMap
+            );
             zones.Add(zoneForTransition);
         }
-
-        return zones;
     }
 
     public OneOf<AppError, List<Zone>> GetZonesToDestination(Zone currentZone, Zone destinationZone)

@@ -82,7 +82,7 @@ public class DepositUnneededItems : CharacterJob
                         })
                         .ToList()
                 )
-            ).ItemsToEquip.ToDictionary(item => item.Code)
+            ).SimResult.ItemsToEquip.ToDictionary(item => item.Code)
             : [];
 
         if (bestFightItems.Count > 0)

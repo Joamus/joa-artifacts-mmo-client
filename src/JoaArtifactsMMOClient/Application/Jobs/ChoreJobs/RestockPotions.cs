@@ -227,7 +227,13 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         {
             ChorePriority.Low => new RestockPotionsParams
             {
-                MinimumAmountRestorePotionsInBank = 500,
+                MinimumAmountRestorePotionsInBank = 400,
+                MinimumAmountOtherPotionsInBank = 80,
+                AmountToGather = 30,
+            },
+            ChorePriority.Medium => new RestockPotionsParams
+            {
+                MinimumAmountRestorePotionsInBank = 300,
                 MinimumAmountOtherPotionsInBank = 50,
                 AmountToGather = 30,
             },

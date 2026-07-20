@@ -295,4 +295,5 @@ public static class Effect
     public const string Haste = "haste";
     public const string Initiative = "initiative";
     public const string Threat = "threat";
+    public const string ProtectiveBubble = "protective_bubble";
 }

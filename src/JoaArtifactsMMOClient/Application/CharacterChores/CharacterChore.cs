@@ -18,6 +18,7 @@ public record CharacterChore
 public enum ChorePriority
 {
     Low,
+    Medium,
     High,
 }
 
@@ -27,6 +28,7 @@ public enum CharacterChoreKind
     SellUnusedItems,
     RestockFood,
     RestockTasksCoins,
+    RestockTasksCoinsOnlyFight,
     RestockPotions,
     RestockResources,
 }

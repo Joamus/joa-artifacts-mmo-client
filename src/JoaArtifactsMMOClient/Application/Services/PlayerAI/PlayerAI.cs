@@ -1,4 +1,3 @@
-using System.Reflection.Metadata.Ecma335;
 using System.Text.Json.Serialization;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
@@ -24,7 +23,7 @@ public class PlayerAI
 
     public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
 
-    private const bool PREFER_MONSTER_TASK = true;
+    public const bool PREFER_MONSTER_TASK = true;
     public PlayerCharacter Character { get; init; }
 
     public bool Enabled { get; set; } = true;
@@ -68,6 +67,8 @@ public class PlayerAI
         await Character.PlayerActionService.WithdrawTeleportPotions();
         await Character.PlayerActionService.WithdrawAndUseConsumableBags();
 
+        await CompleteTaskIfThereIsNothingLeft();
+
         var job =
             await GetDepositItemsJobIfNeeded()
             ?? await WithdrawAllowance()
@@ -92,6 +93,24 @@ public class PlayerAI
         );
 
         return job;
+    }
+
+    async Task CompleteTaskIfThereIsNothingLeft()
+    {
+        if (
+            !string.IsNullOrWhiteSpace(Character.Schema.Task)
+            && Character.Schema.TaskTotal == Character.Schema.TaskProgress
+            // Just to avoid future edge cases, where we cannot complete the task due to missing inventory space
+            && Character.GetAvailableInventorySpace() >= 20
+            && Character.GetAvailableInventorySlots() > 0
+        )
+        {
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: CompleteTaskIfThereIsNothingLeft: Nothing left to do - go complete task"
+            );
+            await Character.NavigateTo(Character.Schema.TaskType);
+            await Character.TaskComplete();
+        }
     }
 
     async Task<CharacterJob?> GetDepositItemsJobIfNeeded()
@@ -640,7 +659,7 @@ public class PlayerAI
         // Highest prio is completing this achievement, else all task items are locked.
         if (!hasDoneItemTask)
         {
-            return await GetTaskJobIfPossible(PREFER_MONSTER_TASK);
+            return await Character.PlayerActionService.GetTaskJobIfPossible(PREFER_MONSTER_TASK);
         }
 
         return null;
@@ -732,7 +751,7 @@ public class PlayerAI
                 Logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting {fightMonster.Amount} x {fightMonster.Code}"
                 );
-                var nextJobResult = await GetNextJobToFightMonster(
+                var nextJobResult = await Character.PlayerActionService.GetNextJobToFightMonster(
                     gameState.AvailableMonstersDict.GetValueOrNull(fightMonster.Code)!
                 );
 
@@ -802,7 +821,7 @@ public class PlayerAI
             if (
                 !FightSimulator
                     .FindBestFightEquipmentWithUsablePotions(Character, gameState, matchingMonster)
-                    .Outcome.ShouldFight
+                    .SimResult.Outcome.ShouldFight
             )
             {
                 return false;
@@ -810,86 +829,6 @@ public class PlayerAI
         }
 
         return true;
-    }
-
-    async Task<CharacterJob?> GetTaskJobIfPossible(bool preferMonsterTask)
-    {
-        Logger.LogInformation(
-            "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
-            Name,
-            Character.Schema.Name
-        );
-
-        if (Character.Schema.TaskType == TaskType.monsters.ToString())
-        {
-            var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
-            var nextJobResult = await GetNextJobToFightMonster(monster);
-
-            if (nextJobResult is not null)
-            {
-                if (nextJobResult.Job is not null)
-                {
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Job found - do monster task ({monster.Code})"
-                    );
-
-                    var nextJob = nextJobResult.Job;
-
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                    );
-                    // Do the first job in the list, we only do one thing at a time
-                    return nextJob;
-                }
-                else
-                {
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
-                    );
-                    return new MonsterTask(Character, gameState);
-                }
-            }
-        }
-        else if (Character.Schema.TaskType == TaskType.monsters.ToString())
-        {
-            if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
-                );
-                return new ItemTask(Character, gameState);
-            }
-            else if (await CancelTaskJob.CanCancelTask(Character, gameState))
-            {
-                await CancelTaskJob.DoCancelTask(Character, gameState);
-            }
-            else
-            {
-                return null;
-            }
-        }
-
-        if (preferMonsterTask && CanHandlePotentialMonsterTasks())
-        {
-            Logger.LogInformation(
-                "{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new monster task",
-                Name,
-                Character.Schema.Name
-            );
-
-            return new MonsterTask(Character, gameState);
-        }
-        if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
-        {
-            Logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
-            );
-            return new ItemTask(Character, gameState);
-        }
-
-        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: GetTaskJob: No job found");
-
-        return null;
     }
 
     async Task<CharacterJob?> GetEventJob()
@@ -985,7 +924,9 @@ public class PlayerAI
             && matchingMonster.Type != MonsterType.Boss
         )
         {
-            var jobsToFightMonster = await GetNextJobToFightMonster(matchingMonster);
+            var jobsToFightMonster = await Character.PlayerActionService.GetNextJobToFightMonster(
+                matchingMonster
+            );
 
             if (jobsToFightMonster?.Job is not null)
             {
@@ -1066,94 +1007,6 @@ public class PlayerAI
         return null;
     }
 
-    async Task<NextJobToFightResult?> GetNextJobToFightMonster(MonsterSchema monster)
-    {
-        var jobsToGetItems = await Character.PlayerActionService.GetJobsToGetItemsToFightMonster(
-            Character,
-            gameState,
-            monster
-        );
-
-        // Return null if they shouldn't fight, return list of jobs if they should, return empty NextJobToFightResult
-        if (jobsToGetItems is null)
-        {
-            return null;
-        }
-
-        if (jobsToGetItems.Count == 0)
-        {
-            return new NextJobToFightResult { Job = null };
-        }
-
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
-
-        // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
-        // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
-        jobsToGetItems.Sort(
-            (a, b) =>
-            {
-                bool aIsInBank = bankItems.Exists(item =>
-                    item.Code == a.Job.Code && item.Quantity >= a.Job.Amount
-                );
-
-                bool bIsInBank = bankItems.Exists(item =>
-                    item.Code == b.Job.Code && item.Quantity >= b.Job.Amount
-                );
-
-                if (aIsInBank && !bIsInBank)
-                {
-                    return -1;
-                }
-                else if (bIsInBank && !aIsInBank)
-                {
-                    return 1;
-                }
-
-                // If we can buy an item straight away, then let us do that first
-                var aMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(a.Job.Code);
-
-                var bMatchingNpcItem = gameState.NpcItemsDict.ContainsKey(b.Job.Code);
-
-                if (aMatchingNpcItem && !bMatchingNpcItem)
-                {
-                    return -1;
-                }
-                else if (!aMatchingNpcItem && bMatchingNpcItem)
-                {
-                    return 1;
-                }
-
-                var aLevel = gameState.ItemsDict.GetValueOrNull(a.Job.Code)!.Level;
-                var bLevel = gameState.ItemsDict.GetValueOrNull(b.Job.Code)!.Level;
-
-                return aLevel.CompareTo(bLevel);
-            }
-        );
-
-        var nextJob = jobsToGetItems.ElementAtOrDefault(0);
-
-        if (nextJob is not null)
-        {
-            nextJob.Job.onAfterSuccessEndHook = async () =>
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Name}]: onAfterSuccessEndHook: Equipping {nextJob.Job.Amount} x {nextJob.Job.Code}"
-                );
-                // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?
-                await Character.EquipItem(
-                    new EquipRequest
-                    {
-                        Code = nextJob.Job.Code,
-                        Slot = nextJob.Slot.Slot.FromPascalToSnakeCase(),
-                        Quantity = nextJob.Job.Amount,
-                    }
-                );
-            };
-        }
-
-        return new NextJobToFightResult { Job = nextJob?.Job };
-    }
-
     public async Task<CharacterJob?> GetChoreJob()
     {
         Logger.LogInformation(
@@ -1175,7 +1028,12 @@ public class PlayerAI
         //     return null;
         // }
 
-        List<ChorePriority> chorePriorities = [ChorePriority.High, ChorePriority.Low];
+        List<ChorePriority> chorePriorities =
+        [
+            ChorePriority.High,
+            ChorePriority.Medium,
+            ChorePriority.Low,
+        ];
 
         foreach (var priority in chorePriorities)
         {
@@ -1219,6 +1077,21 @@ public class PlayerAI
                                 new RestockTasksCoins(Character, gameState, priority),
                                 CharacterChoreKind.RestockTasksCoins
                             );
+                            break;
+                        // Cheeky - reusing the same job
+                        case CharacterChoreKind.RestockTasksCoinsOnlyFight:
+                            if (
+                                (
+                                    Character.Schema.TaskType == TaskType.monsters.GetDisplayName()
+                                    || string.IsNullOrWhiteSpace(Character.Schema.Task)
+                                ) && Character.PlayerActionService.CanHandlePotentialMonsterTasks()
+                            )
+                            {
+                                job = await ProcessChoreJob(
+                                    new RestockTasksCoins(Character, gameState, priority),
+                                    CharacterChoreKind.RestockTasksCoins
+                                );
+                            }
                             break;
                         case CharacterChoreKind.RestockPotions:
                             job = await ProcessChoreJob(
@@ -1337,9 +1210,4 @@ public class PlayerAI
 
         return null;
     }
-}
-
-record NextJobToFightResult
-{
-    public required CharacterJob? Job;
 }

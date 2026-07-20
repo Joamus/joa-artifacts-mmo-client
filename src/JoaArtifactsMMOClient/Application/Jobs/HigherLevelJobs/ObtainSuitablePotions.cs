@@ -166,12 +166,9 @@ public class ObtainSuitablePotions : CharacterJob
         characterClone.Schema.Utility2Slot = "";
         characterClone.Schema.Utility2SlotQuantity = 0;
 
-        var fightSimWithoutPotions = FightSimulator.FindBestFightEquipment(
-            characterClone,
-            gameState,
-            monster,
-            []
-        );
+        var fightSimWithoutPotions = FightSimulator
+            .FindBestFightEquipment(characterClone, gameState, monster, [])
+            .SimResult;
 
         // If we can fight without the potions, then don't get new ones
         if (fightSimWithoutPotions.Outcome.ShouldFight)
@@ -442,6 +439,7 @@ public class ObtainSuitablePotions : CharacterJob
 
                     var fightSimResult = FightSimulator.CalculateFightOutcome(
                         iterationClone,
+                        [],
                         monster,
                         gameState
                     );

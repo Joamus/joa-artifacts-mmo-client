@@ -107,12 +107,9 @@ public class FightSimulatorTest
             new ItemInInventory { Item = testEarthDagger, Quantity = 1 },
         };
 
-        var result = FightSimulator.FindBestFightEquipment(
-            character,
-            gameState,
-            yellowSlime,
-            itemsInInventory
-        );
+        var result = FightSimulator
+            .FindBestFightEquipment(character, gameState, yellowSlime, itemsInInventory)
+            .SimResult;
 
         Assert.True(result.ItemsToEquip.Exists(item => item.Code == testAirDagger.Code));
         Assert.True(result.Schema.WeaponSlot == testAirDagger.Code);
@@ -294,19 +291,12 @@ public class FightSimulatorTest
             1
         );
 
-        var result = FightSimulator.FindBestFightEquipment(
-            character,
-            gameState,
-            yellowSlime,
-            itemsInInventory
-        );
+        var result = FightSimulator
+            .FindBestFightEquipment(character, gameState, yellowSlime, itemsInInventory)
+            .SimResult;
 
         Assert.True(result.ItemsToEquip.Count() == 1);
         Assert.True(result.ItemsToEquip.Exists(item => item.Code == testAirDagger.Code));
         Assert.True(result.Schema.BodyArmorSlot == dmgJacket.Code);
     }
 }
-// Make explicit test - why are they putting on a copper helmet instead of wolf ears. The sim is in favor of the copper helmet for some reason
-// both take 10 less dmg and do 10 less damage, which makes no sense
-
-// }

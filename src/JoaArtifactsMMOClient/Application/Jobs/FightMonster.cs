@@ -29,7 +29,7 @@ public class FightMonster : CharacterJob
     
     ** We should revise this constant occassionally, to find a good balance between eating/resting
     **/
-    const int OPPORTUNITY_COST_PER_FOOD_SECONDS = 30;
+    const int OPPORTUNITY_COST_PER_FOOD_SECONDS = 20;
 
     // Doesn't matter the amount you consume, cooldown is the same
     private static readonly int COOLDOWN_CONSUMING_FOOD = 3;
@@ -41,6 +41,8 @@ public class FightMonster : CharacterJob
 
     protected int ProgressAmount { get; set; } = 0;
 
+    bool IsHighPrioMonster { get; set; } = false;
+
     public FightMonster(
         PlayerCharacter playerCharacter,
         GameState gameState,
@@ -51,6 +53,7 @@ public class FightMonster : CharacterJob
     {
         Code = code;
         Amount = amount;
+        IsHighPrioMonster = GetIsHighPrioMonster(code, gameState);
     }
 
     public FightMonster(
@@ -66,6 +69,18 @@ public class FightMonster : CharacterJob
         Amount = amount; // Amount here is item amount
         ItemCode = itemCode;
         Mode = JobMode.Gather;
+
+        IsHighPrioMonster = GetIsHighPrioMonster(monsterCode, gameState);
+    }
+
+    static bool GetIsHighPrioMonster(string monsterCode, GameState gameState)
+    {
+        var matchingMonster = gameState.MonstersDict[monsterCode];
+
+        // Not sure if we will keep this boss/raid boss logic here, or the fighting will be a different job
+        return matchingMonster.Type == MonsterType.Boss
+            || matchingMonster.Type == MonsterType.RaidBoss
+            || gameState.EventService.EventEntitiesDict.GetValueOrNull(monsterCode) is not null;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -89,44 +104,65 @@ public class FightMonster : CharacterJob
             return new AppError($"Monster with code {Code} could not be found");
         }
 
-        int initialAmount =
-            Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
-
-        List<WithdrawItem> withdrawItemJobs = await GetWithdrawItemJobsIfBetterItemsInBank(
-            Character,
-            gameState,
-            monster
-        );
-
-        if (withdrawItemJobs.Count > 0)
+        if (GetSuitableFoodFromInventory() == 0)
         {
-            logger.LogInformation(
-                $"{JobName}: [{Character.Schema.Name}] found {withdrawItemJobs.Count} x jobs to withdraw better items to fight - {string.Join(",", withdrawItemJobs.Select(item => item.Code).ToList())}"
+            await Character.QueueJobsBefore(
+                Id,
+                [
+                    new ObtainSuitableFood(
+                        Character,
+                        gameState,
+                        GetFoodAmountToObtain(
+                            Character,
+                            Mode == JobMode.Kill ? Amount - ProgressAmount : null
+                        ),
+                        Code
+                    ),
+                ]
             );
-
-            foreach (var job in withdrawItemJobs)
-            {
-                job.onAfterSuccessEndHook = async () =>
-                {
-                    logger.LogInformation(
-                        $"{JobName}: [{Character.Schema.Name}] equipping {job.Code} x {job.Amount} after withdrawing, before fighting"
-                    );
-                    await Character.PlayerActionService.SmartItemEquip(job.Code, job.Amount);
-                };
-            }
-
-            await Character.QueueJobsBefore(Id, withdrawItemJobs);
             Status = JobStatus.Suspend;
             return new None();
         }
 
+        int initialAmount =
+            Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
+
+        var itemsToEquip = await WithdrawItemsIfBetterItemsInBank(Character, gameState, monster);
+
+        if (itemsToEquip.Count > 0)
+        {
+            logger.LogInformation(
+                $"{JobName}: [{Character.Schema.Name}] found {itemsToEquip.Count} x jobs to withdraw better items to fight - {string.Join(",", itemsToEquip.Select(item => item.Code).ToList())}"
+            );
+
+            foreach (var item in itemsToEquip)
+            {
+                logger.LogInformation(
+                    "{JobName}: [{Character.Schema.Name}] equipping {item.Code} x {item.Quantity} after withdrawing, before fighting",
+                    JobName,
+                    Character.Schema.Name,
+                    item.Code,
+                    item.Quantity
+                );
+
+                string snakeCaseSlot = item.Slot.Replace("Slot", "").FromPascalToSnakeCase();
+
+                await Character.EquipItem(
+                    new EquipRequest
+                    {
+                        Code = item.Code,
+                        Quantity = item.Quantity,
+                        Slot = snakeCaseSlot,
+                    }
+                );
+            }
+        }
+
         await HealIfNotAtFullHp();
 
-        var fightSimResult = FightSimulator.FindBestFightEquipmentWithUsablePotions(
-            Character,
-            gameState,
-            monster
-        );
+        var fightSimResult = FightSimulator
+            .FindBestFightEquipmentWithUsablePotions(Character, gameState, monster)
+            .SimResult;
 
         if (!fightSimResult.Outcome.ShouldFight)
         {
@@ -799,7 +835,8 @@ public class FightMonster : CharacterJob
                 ** then we might as well use it
                 */
                 if (
-                    ItemService.IsItemCookedMeat(
+                    IsHighPrioMonster
+                    || ItemService.IsItemCookedMeat(
                         gameState.ItemsDict[bestFoodCandidate.Code],
                         gameState
                     )
@@ -836,13 +873,13 @@ public class FightMonster : CharacterJob
         }
     }
 
-    public static async Task<List<WithdrawItem>> GetWithdrawItemJobsIfBetterItemsInBank(
+    public static async Task<List<EquipmentSlot>> WithdrawItemsIfBetterItemsInBank(
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster
     )
     {
-        List<WithdrawItem> jobs = [];
+        List<EquipmentSlot> itemsToWithdraw = [];
 
         var bankResponse = await gameState.BankItemCache.GetBankItems(character);
 
@@ -869,12 +906,9 @@ public class FightMonster : CharacterJob
             );
         }
 
-        var result = FightSimulator.FindBestFightEquipmentWithUsablePotions(
-            character,
-            gameState,
-            monster,
-            items
-        );
+        var result = FightSimulator
+            .FindBestFightEquipmentWithUsablePotions(character, gameState, monster, items)
+            .SimResult;
 
         foreach (var item in result.ItemsToEquip)
         {
@@ -903,14 +937,12 @@ public class FightMonster : CharacterJob
 
                 if (quantityMissing > 0)
                 {
-                    jobs.Add(
-                        new WithdrawItem(character, gameState, item.Code, quantityMissing, false)
-                    );
+                    itemsToWithdraw.Add(item with { Quantity = quantityMissing });
                 }
             }
         }
 
-        return jobs;
+        return itemsToWithdraw;
     }
 
     public static bool ShouldHealBeforeFight(
@@ -929,6 +961,7 @@ public class FightMonster : CharacterJob
 
             var fightSimAtCurrentHpWithoutPots = FightSimulator.CalculateFightOutcome(
                 schemaWithoutPots,
+                [],
                 monster,
                 gameState,
                 false

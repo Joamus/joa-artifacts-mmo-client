@@ -153,13 +153,18 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
         {
             ChorePriority.Low => new RestockFoodParams
             {
+                MinimumAmountInBank = 1000,
+                AmountToGather = 100,
+            },
+            ChorePriority.Medium => new RestockFoodParams
+            {
                 MinimumAmountInBank = 400,
-                AmountToGather = 50,
+                AmountToGather = 100,
             },
             ChorePriority.High => new RestockFoodParams
             {
                 MinimumAmountInBank = 150,
-                AmountToGather = 50,
+                AmountToGather = 100,
             },
             _ => throw new NotImplementedException(),
         };
@@ -216,8 +221,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
                     return jobs;
                 })
-                .FirstOrDefault()
-            ?? [];
+                .FirstOrDefault() ?? [];
 
         List<CharacterJob> possibleJobs = [];
 

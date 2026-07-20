@@ -450,7 +450,7 @@ public class TrainSkill : CharacterJob
                 }
                 var fightOutcome = FightSimulator
                     .FindBestFightEquipmentWithUsablePotions(character, gameState, monster)
-                    .Outcome;
+                    .SimResult.Outcome;
 
                 if (fightOutcome.ShouldFight)
                 {

@@ -80,11 +80,12 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
             await CancelTaskJob.DoCancelTask(character, gameState);
         }
 
-        if (await character.PlayerActionService.CanItemFromItemTaskBeObtained())
-        {
-            var job = new ItemTask(character, gameState);
-            job.ForBank();
+        var job = await character.PlayerActionService.GetTaskJobIfPossible(
+            PlayerAI.PREFER_MONSTER_TASK
+        );
 
+        if (job is not null)
+        {
             return job;
         }
 
@@ -121,6 +122,11 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
         return priority switch
         {
             ChorePriority.Low => new RestockTasksCoinsParams
+            {
+                AmountOfJobsToDo = 5,
+                LowerCoinsThreshold = 300,
+            },
+            ChorePriority.Medium => new RestockTasksCoinsParams
             {
                 AmountOfJobsToDo = 5,
                 LowerCoinsThreshold = 200,
