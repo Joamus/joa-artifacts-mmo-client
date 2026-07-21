@@ -1016,7 +1016,7 @@ public class PlayerAI
                     Character,
                     gameState,
                     matchingResource.Drops.ElementAt(0).Code,
-                    TrainSkill.AMOUNT_TO_GATHER_PER_JOB,
+                    Character.GetAvailableInventorySpace(),
                     false
                 );
             }

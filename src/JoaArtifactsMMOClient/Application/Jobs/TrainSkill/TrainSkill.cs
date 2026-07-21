@@ -22,7 +22,6 @@ public class TrainSkill : CharacterJob
     const int ENOUGH_EVENT_ITEMS = 1500;
 
     static readonly ReadOnlyCollection<string> MostExpensiveItemSubtypes = ["task", "event"];
-    public static int AMOUNT_TO_GATHER_PER_JOB = 20;
 
     public static int LEVEL_DIFF_FOR_NO_XP = 10;
 
@@ -164,7 +163,7 @@ public class TrainSkill : CharacterJob
                     Character,
                     gameState,
                     itemToGather!.Code,
-                    AMOUNT_TO_GATHER_PER_JOB,
+                    Character.GetAvailableInventorySpace(),
                     false
                 );
 
@@ -267,7 +266,7 @@ public class TrainSkill : CharacterJob
                             Character,
                             gameState,
                             "sunflower",
-                            AMOUNT_TO_GATHER_PER_JOB,
+                            Character.GetAvailableInventorySpace(),
                             false
                         );
                         job.ForBank();
