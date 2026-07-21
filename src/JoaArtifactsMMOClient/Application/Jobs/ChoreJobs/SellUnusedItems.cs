@@ -280,7 +280,8 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
         }
 
         var isUsedAsCurrency =
-            gameState
+            item.Type == "currency"
+            || gameState
                 .NpcItemsDict.FirstOrDefault(npcItem => npcItem.Value.Currency == item.Code)
                 .Value
                 is not null;
