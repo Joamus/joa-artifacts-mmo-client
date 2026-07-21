@@ -146,7 +146,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
             var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
-            if (!IsSellableTrashItem(matchingItem, gameState, true))
+            if (!IsSellableTrashItem(matchingItem, gameState))
             {
                 continue;
             }
@@ -228,10 +228,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                 continue;
             }
 
-            if (
-                lowestCharacterLevel
-                <= Math.Min(matchingItem.Level + SELL_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL)
-            )
+            if (!IsItemLowEnoughLevelToSell(lowestCharacterLevel, matchingItem))
             {
                 continue;
             }
@@ -239,7 +236,6 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             bool isEquipmentThatShouldBeSold =
                 matchingItem.Craft is not null
                 && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
-                && matchingItem.Level <= lowestCharacterLevel
                 && !relevantEquipmentFromBank.Contains(item.Code);
 
             if (isEquipmentThatShouldBeSold || IsSellableTrashItem(matchingItem, gameState))
@@ -251,11 +247,14 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
         return items;
     }
 
-    public static bool IsSellableTrashItem(
-        ItemSchema item,
-        GameState gameState,
-        bool allowCurrency = false
-    )
+    public static bool IsItemLowEnoughLevelToSell(int lowestCharacterLevel, ItemSchema item)
+    {
+        return lowestCharacterLevel
+            > Math.Min(item.Level + SELL_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL);
+        ;
+    }
+
+    public static bool IsSellableTrashItem(ItemSchema item, GameState gameState)
     {
         if (item.Craft is not null || item.Type != "resource")
         {
@@ -274,13 +273,9 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             return false;
         }
 
-        if (allowCurrency)
-        {
-            return true;
-        }
-
         var isUsedAsCurrency =
-            gameState
+            item.Type == "currency"
+            || gameState
                 .NpcItemsDict.FirstOrDefault(npcItem => npcItem.Value.Currency == item.Code)
                 .Value
                 is not null;
