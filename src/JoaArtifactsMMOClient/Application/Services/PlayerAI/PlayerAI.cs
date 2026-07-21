@@ -118,7 +118,7 @@ public class PlayerAI
     {
         if (
             !string.IsNullOrWhiteSpace(Character.Schema.Task)
-            && Character.Schema.TaskType == TaskType.monsters.GetDisplayName()
+            && Character.Schema.TaskType == TaskType.items.GetDisplayName()
             && !await Character.PlayerActionService.CanItemFromItemTaskBeObtained()
             && await CancelTaskJob.CanCancelTask(Character, gameState)
         )
