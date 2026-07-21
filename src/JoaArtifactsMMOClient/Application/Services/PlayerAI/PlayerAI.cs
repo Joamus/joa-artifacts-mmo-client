@@ -68,6 +68,7 @@ public class PlayerAI
         await Character.PlayerActionService.WithdrawAndUseConsumableBags();
 
         await CompleteTaskIfThereIsNothingLeft();
+        await CancelTaskIfItShouldNotBeDone();
 
         var job =
             await GetDepositItemsJobIfNeeded()
@@ -110,6 +111,22 @@ public class PlayerAI
             );
             await Character.NavigateTo(Character.Schema.TaskType);
             await Character.TaskComplete();
+        }
+    }
+
+    async Task CancelTaskIfItShouldNotBeDone()
+    {
+        if (
+            !string.IsNullOrWhiteSpace(Character.Schema.Task)
+            && Character.Schema.TaskType == TaskType.monsters.GetDisplayName()
+            && !await Character.PlayerActionService.CanItemFromItemTaskBeObtained()
+            && await CancelTaskJob.CanCancelTask(Character, gameState)
+        )
+        {
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: CancelTaskIfItShouldNotBeDone: Cancelling task - should/can not be done, and we have the tasks coins to cancel it"
+            );
+            await CancelTaskJob.DoCancelTask(Character, gameState);
         }
     }
 

@@ -92,6 +92,24 @@ public class ItemTask : CharacterJob
             );
         }
 
+        if (!await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+        {
+            if (await CancelTaskJob.CanCancelTask(Character, gameState))
+            {
+                logger.LogInformation(
+                    $"{JobName}: [{Character.Schema.Name}] cancelling task - item can/should not be obtained, and we can cancel it"
+                );
+                await CancelTaskJob.DoCancelTask(Character, gameState);
+                return new None();
+            }
+            else
+            {
+                return new AppError(
+                    $"Cannot cancel task, but the item \"{Character.Schema.Task}\" cannot be obtained"
+                );
+            }
+        }
+
         int progressAmount = Character.Schema.TaskProgress;
         int amount = Character.Schema.TaskTotal;
 
