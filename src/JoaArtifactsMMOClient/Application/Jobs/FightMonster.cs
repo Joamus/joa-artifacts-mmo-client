@@ -127,7 +127,7 @@ public class FightMonster : CharacterJob
         int initialAmount =
             Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
 
-        var itemsToEquip = await WithdrawItemsIfBetterItemsInBank(Character, gameState, monster);
+        var itemsToEquip = await GetBetterItemsToWithdraw(Character, gameState, monster);
 
         if (itemsToEquip.Count > 0)
         {
@@ -143,6 +143,18 @@ public class FightMonster : CharacterJob
                     Character.Schema.Name,
                     item.Code,
                     item.Quantity
+                );
+
+                await Character.NavigateTo("bank");
+
+                await Character.WithdrawBankItem(
+                    [
+                        new WithdrawOrDepositItemRequest
+                        {
+                            Code = item.Code,
+                            Quantity = item.Quantity,
+                        },
+                    ]
                 );
 
                 string snakeCaseSlot = item.Slot.Replace("Slot", "").FromPascalToSnakeCase();
@@ -873,7 +885,7 @@ public class FightMonster : CharacterJob
         }
     }
 
-    public static async Task<List<EquipmentSlot>> WithdrawItemsIfBetterItemsInBank(
+    public static async Task<List<EquipmentSlot>> GetBetterItemsToWithdraw(
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster
