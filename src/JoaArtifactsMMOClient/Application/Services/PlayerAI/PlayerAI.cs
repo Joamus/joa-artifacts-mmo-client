@@ -1122,6 +1122,12 @@ public class PlayerAI
                                 CharacterChoreKind.RestockResources
                             );
                             break;
+                        case CharacterChoreKind.GambleTasksCoins:
+                            job = await ProcessChoreJob(
+                                new GambleTasksCoins(Character, gameState, priority),
+                                CharacterChoreKind.RestockResources
+                            );
+                            break;
                         default:
                             return null;
                     }

@@ -1,6 +1,7 @@
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
+using Application.ArtifactsApi.Schemas.Responses;
 using Application.Dtos;
 using Application.Errors;
 using Application.Jobs;
@@ -405,6 +406,52 @@ public class PlayerActionService
         }
 
         return true;
+    }
+
+    public async Task<RecycleResponse> SmartRecycle(ItemSchema item, int quantity)
+    {
+        int highestCharacterLevel = gameState.GetCharacterLevelRange().Highest;
+
+        bool isValuable =
+            item.Craft is not null
+            && item.Level >= highestCharacterLevel - RecycleUnusedItems.RECYCLE_LEVEL_DIFF;
+
+        bool shouldEnhanceRecycle = false;
+
+        if (isValuable && item.Craft is not null)
+        {
+            int costToEnhanceRecycle = item.Craft.Items.Sum(material =>
+                material.Quantity + GetRecycleCostPerMaterialForItem(item)
+            );
+
+            shouldEnhanceRecycle = Character.Schema.Gold >= costToEnhanceRecycle;
+        }
+
+        return await Character.Recycle(item.Code, quantity, shouldEnhanceRecycle);
+    }
+
+    public int GetRecycleCostPerMaterialForItem(ItemSchema item)
+    {
+        if (item.Level <= 20)
+        {
+            return 5;
+        }
+        else if (item.Level <= 30)
+        {
+            return 10;
+        }
+        else if (item.Level <= 40)
+        {
+            return 15;
+        }
+        else if (item.Level <= 45)
+        {
+            return 20;
+        }
+        else
+        {
+            return 25;
+        }
     }
 
     public static CharacterSchema SimulateItemEquip(

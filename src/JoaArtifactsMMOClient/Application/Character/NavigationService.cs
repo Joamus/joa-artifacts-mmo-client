@@ -769,15 +769,15 @@ public class NavigationService
                 var resultWithTeleportPotion = bestCandidate.resultWithTeleportPotion;
 
                 // We are already standing here - we make a fake step, so we can attach the afterMoveAction
-                var usePotionStep = CreateMoveStep(teleportToMap, destinationMap);
+                var usePotionStep = CreateMoveStep(currentMap, destinationMap);
 
                 usePotionStep = usePotionStep with
                 {
                     Move = new Move
                     {
-                        X = teleportToMap.X,
-                        Y = teleportToMap.Y,
-                        Layer = teleportToMap.Layer,
+                        X = currentMap.X,
+                        Y = currentMap.Y,
+                        Layer = currentMap.Layer,
                         ShouldTransition = false,
                         AfterMoveAction = async () =>
                         {
