@@ -41,10 +41,7 @@ public static class FightSimulator
             })
             .ToList();
 
-        var itemsInInventoryForSimming = FightSimulator.GetItemsFromInventoryForSim(
-            character.Schema,
-            gameState
-        );
+        var itemsInInventoryForSimming = GetItemsFromInventoryForSim(character.Schema, gameState);
 
         var itemCandidates = allPotions.Union(itemsInInventoryForSimming).ToList();
 
@@ -53,7 +50,7 @@ public static class FightSimulator
             itemCandidates = itemCandidates.Union(allItems).ToList();
         }
 
-        return FightSimulator.FindBestFightEquipment(character, gameState, monster, itemCandidates);
+        return FindBestFightEquipment(character, gameState, monster, itemCandidates);
     }
 
     public static List<MonsterSchema> GetRelevantMonstersForCharacter(
@@ -129,9 +126,12 @@ public static class FightSimulator
 
         foreach (var monster in relevantMonsters)
         {
-            var bestFightItems = FightSimulator
-                .FindBestFightEquipment(character, gameState, monster, itemsToUse)
-                .SimResult.ItemsToEquip;
+            var bestFightItems = FindBestFightEquipment(
+                character,
+                gameState,
+                monster,
+                itemsToUse
+            ).SimResult.ItemsToEquip;
 
             foreach (var item in bestFightItems)
             {
@@ -932,10 +932,7 @@ public static class FightSimulator
             return;
         }
 
-        defender.ProtectiveBubble = FightSimulator.GetProtectiveBubble(
-            defender,
-            protectiveBubble.Value
-        );
+        defender.ProtectiveBubble = GetProtectiveBubble(defender, protectiveBubble.Value);
 
         defender.ProtectiveBubbleChangedOnTurn = turnNumber;
 
@@ -1097,7 +1094,7 @@ public static class FightSimulator
         List<FightSimParticipant> defenderCandidates =
         [
             .. participants.Where(participant =>
-                participant.IsPlayer == attacker.IsPlayer || participant.Entity.Hp <= 0
+                participant.IsPlayer != attacker.IsPlayer && participant.Entity.Hp > 0
             ),
         ];
 
@@ -1209,9 +1206,21 @@ public static class FightSimulator
                         new ProcessParticipantTurnParams
                         {
                             Attacker = attacker,
-                            OtherAttackers = [],
+                            OtherAttackers =
+                            [
+                                .. participants.Where(participant =>
+                                    participant.IsPlayer == attacker.IsPlayer
+                                    && participant.Entity.Name != attacker.Entity.Name
+                                ),
+                            ],
                             Defender = defender,
-                            OtherDefenders = [],
+                            OtherDefenders =
+                            [
+                                .. participants.Where(participant =>
+                                    participant.IsPlayer == defender.IsPlayer
+                                    && participant.Entity.Name != defender.Entity.Name
+                                ),
+                            ],
                             IsBossFight = false,
                             CombatLog = combatLog,
                             TurnNumber = turnNumber,
@@ -2060,7 +2069,7 @@ public static class FightSimulator
                 .. otherPlayers
                     .Union([originalSchema])
                     .Select(player =>
-                        FightSimulator.BuildPlayerFightSimParticipant(
+                        BuildPlayerFightSimParticipant(
                             player,
                             gameState,
                             playerFullHp,
@@ -2087,13 +2096,7 @@ public static class FightSimulator
                 .. allPlayerParticipants,
             ];
 
-            outcomes.Add(
-                FightSimulator.InnerRunFightSim(
-                    monsterClone.Type,
-                    participants,
-                    originalSchema.Name
-                )
-            );
+            outcomes.Add(InnerRunFightSim(monsterClone.Type, participants, originalSchema.Name));
         }
 
         int amountWon = 0;
@@ -2275,7 +2278,7 @@ public static class FightSimulator
                 gameState
             );
 
-            int simOutcome = FightSimulator.CompareSimOutcome(bestFightOutcome, fightOutcome);
+            int simOutcome = CompareSimOutcome(bestFightOutcome, fightOutcome);
 
             bool fightOutcomeIsBetter = simOutcome == 1;
 

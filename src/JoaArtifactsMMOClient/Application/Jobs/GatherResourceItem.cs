@@ -73,7 +73,7 @@ public class GatherResourceItem : CharacterJob
             );
         }
         var resource = ItemService
-            .FindBestResourceToGatherItem(Character, gameState, Code)
+            .FindBestResourceToGatherItem(Character, gameState, Code, CanTriggerTraining)
             ?.Resource;
 
         if (resource is null)

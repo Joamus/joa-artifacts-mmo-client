@@ -312,14 +312,35 @@ public static class ItemService
     public static (ResourceSchema Resource, int DropRate)? FindBestResourceToGatherItem(
         PlayerCharacter character,
         GameState gameState,
-        string code
+        string code,
+        bool allowTraining
     )
     {
         var resources = gameState.Resources.FindAll(resource =>
         {
             bool hasDrop = resource.Drops.Find(drop => drop.Code == code && drop.Rate > 0) != null;
 
-            return hasDrop;
+            if (!hasDrop)
+            {
+                return false;
+            }
+
+            var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
+
+            if (
+                resourceIsFromEvent
+                && gameState.EventService.WhereIsEntityActive(resource.Code) is null
+            )
+            {
+                return false;
+            }
+
+            if (!GatherResourceItem.CanGatherResource(resource, character.Schema) && !allowTraining)
+            {
+                return false;
+            }
+
+            return true;
         });
 
         (ResourceSchema resource, int dropRate)? resourceWithDropRate = null;
@@ -767,7 +788,8 @@ public static class ItemService
             var matchingResource = FindBestResourceToGatherItem(
                 character,
                 gameState,
-                entityCode
+                entityCode,
+                false
             )?.Resource;
 
             if (matchingResource is null)

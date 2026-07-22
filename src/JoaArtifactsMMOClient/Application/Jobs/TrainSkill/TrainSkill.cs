@@ -193,10 +193,7 @@ public class TrainSkill : CharacterJob
                             continue;
                         }
 
-                        if (bestItemToCraft is null || bestItemToCraft.Level < item.Level)
-                        {
-                            itemToCraftCandidates.Add(item);
-                        }
+                        itemToCraftCandidates.Add(item);
                     }
                 }
 
@@ -507,7 +504,7 @@ public class TrainSkill : CharacterJob
         else
         {
             var resource = ItemService
-                .FindBestResourceToGatherItem(character, gameState, item.Code)
+                .FindBestResourceToGatherItem(character, gameState, item.Code, true)
                 ?.Resource;
 
             if (resource is not null)

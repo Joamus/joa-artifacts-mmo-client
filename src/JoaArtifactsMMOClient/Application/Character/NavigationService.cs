@@ -116,7 +116,7 @@ public class NavigationService
 
             if (map is null)
             {
-                throw new Exception($"Could not find map with code {contentCode}");
+                return new AppError($"Could not find map with code {contentCode}");
             }
 
             destinationMap = map;

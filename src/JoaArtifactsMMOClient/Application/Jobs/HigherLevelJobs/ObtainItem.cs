@@ -662,33 +662,14 @@ public class ObtainItem : CharacterJob
             }
         }
 
-        List<ResourceSchema>? viableResources =
-        [
-            .. resources.Where(resource =>
-            {
-                var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
+        var viableResource = ItemService.FindBestResourceToGatherItem(
+            character,
+            gameState,
+            code,
+            canTriggerTraining
+        );
 
-                if (
-                    resourceIsFromEvent
-                    && gameState.EventService.WhereIsEntityActive(resource.Code) is null
-                )
-                {
-                    return false;
-                }
-
-                if (
-                    !GatherResourceItem.CanGatherResource(resource, character.Schema)
-                    && !canTriggerTraining
-                )
-                {
-                    return false;
-                }
-
-                return true;
-            }),
-        ];
-
-        if (viableResources.Count == 0)
+        if (viableResource is null)
         {
             return new AppError(
                 $"Cannot gather item \"{code}\" - no available resources for it",
