@@ -786,7 +786,7 @@ public class NavigationService
                                 - GetSecondsToMoveToMap(currentToDestinationDistance);
 
                             Logger.LogInformation(
-                                "[{name}]: Using {code} to spend {potionSeconds} instead of {currentSeconds} moving from {currentMap} to {destinationMap} (teleport location is {teleportLocation})",
+                                "[{name}]: Using {code} to spend {potionSeconds} seconds instead of {currentSeconds} seconds moving from {currentMap} to {destinationMap} (teleport location is {teleportLocation})",
                                 character.Name,
                                 bestCandidate.item.Item.Code,
                                 secondsWithPotion,

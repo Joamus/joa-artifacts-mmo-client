@@ -1831,12 +1831,12 @@ public static class FightSimulator
 
         var bestCandidate = allCandidates.ElementAt(0);
 
-        var itemsToEquipDict = bestCandidate.ItemsToEquip.ToDictionary(item => item.Code);
-
         var leftOverItems = originalAllItems
             .Select(item =>
             {
-                var matchInItemsToEquip = itemsToEquipDict.GetValueOrNull(item.Item.Code);
+                var matchInItemsToEquip = bestCandidate.ItemsToEquip.FirstOrDefault(itemToEquip =>
+                    item.Item.Code == itemToEquip.Code
+                );
 
                 if (matchInItemsToEquip is null)
                 {
