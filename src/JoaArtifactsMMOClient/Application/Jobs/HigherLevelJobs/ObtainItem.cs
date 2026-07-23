@@ -529,26 +529,6 @@ public class ObtainItem : CharacterJob
             }
 
             var fightSim = FightSimulator
-                .FindBestFightEquipmentWithUsablePotions(Character, gameState, monster)
-                .SimResult;
-
-            var jobsNeededForNavigationResult =
-                await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(
-                    monster.Code
-                );
-
-            if (jobsNeededForNavigationResult.Value is AppError)
-            {
-                continue;
-            }
-
-            if (fightSim.Outcome.ShouldFight)
-            {
-                monstersThatCanBeDefeated.Add(monster);
-                continue;
-            }
-
-            var fightSimIfUsingWithdrawnItems = FightSimulator
                 .FindBestFightEquipmentWithUsablePotions(
                     Character,
                     gameState,
@@ -563,7 +543,17 @@ public class ObtainItem : CharacterJob
                 )
                 .SimResult;
 
-            if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
+            var jobsNeededForNavigationResult =
+                await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(
+                    monster.Code
+                );
+
+            if (jobsNeededForNavigationResult.Value is AppError)
+            {
+                continue;
+            }
+
+            if (fightSim.Outcome.ShouldFight)
             {
                 monstersThatCanBeDefeated.Add(monster);
                 continue;

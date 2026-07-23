@@ -1,6 +1,7 @@
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -53,7 +54,7 @@ public class TrainCombat : CharacterJob
 
         if (PlayerLevel < untilLevel)
         {
-            var result = GetJobRequired(Character, gameState, PlayerLevel);
+            var result = await GetJobRequired(Character, gameState, PlayerLevel);
 
             if (result is null)
             {
@@ -69,14 +70,15 @@ public class TrainCombat : CharacterJob
         return new None();
     }
 
-    public static FightMonster? GetJobRequired(
+    public static async Task<FightMonster?> GetJobRequired(
         PlayerCharacter character,
         GameState gameState,
-        int playerLevel,
-        bool canCurrentlyDefeat = false
+        int playerLevel
     )
     {
         List<(FightOutcome Outcome, MonsterSchema Monster)> monsterCandidates = [];
+
+        var bankItems = await FightSimulator.GetBankItemsForFightSim(character, gameState);
 
         foreach (var monster in gameState.AvailableMonsters)
         {
@@ -89,11 +91,9 @@ public class TrainCombat : CharacterJob
                 continue;
             }
 
-            var outcome = canCurrentlyDefeat
-                ? FightSimulator.CalculateFightOutcome(character.Schema, [], monster, gameState)
-                : FightSimulator
-                    .FindBestFightEquipmentWithUsablePotions(character, gameState, monster)
-                    .SimResult.Outcome;
+            var outcome = FightSimulator
+                .FindBestFightEquipmentWithUsablePotions(character, gameState, monster, bankItems)
+                .SimResult.Outcome;
 
             if (outcome.ShouldFight)
             {

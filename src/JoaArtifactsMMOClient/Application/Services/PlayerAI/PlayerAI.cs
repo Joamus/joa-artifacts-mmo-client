@@ -6,6 +6,7 @@ using Application.Character;
 using Application.Dtos;
 using Application.Jobs;
 using Application.Jobs.Chores;
+using Application.Records;
 using Applicaton.Jobs;
 using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
@@ -79,6 +80,7 @@ public class PlayerAI
             // ?? await EnsureWeapon()
             ?? await EnsureTools()
             ?? await GetEventJob()
+            ?? await GetMonsterJobIfCanCertainlyBeDone()
             // Support characters should have the chores higher up in their prio list
             ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
             ?? await GetIndividualHighPrioJob()
@@ -754,43 +756,39 @@ public class PlayerAI
 
         // A bit dirty - we first want to try to find something to fight, allowing the character get better equipment.
         // After that, we will try without allowing it, in case items are on the wish list.
-        foreach (var flag in new List<bool> { false, true })
+        var fightMonster = await TrainCombat.GetJobRequired(
+            Character,
+            gameState,
+            Character.Schema.Level
+        );
+
+        if (fightMonster is not null)
         {
-            var fightMonster = TrainCombat.GetJobRequired(
-                Character,
-                gameState,
-                Character.Schema.Level,
-                flag
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting {fightMonster.Amount} x {fightMonster.Code}"
+            );
+            var nextJobResult = await Character.PlayerActionService.GetNextJobToFightMonster(
+                gameState.AvailableMonstersDict.GetValueOrNull(fightMonster.Code)!
             );
 
-            if (fightMonster is not null)
+            if (nextJobResult is not null)
             {
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting {fightMonster.Amount} x {fightMonster.Code}"
-                );
-                var nextJobResult = await Character.PlayerActionService.GetNextJobToFightMonster(
-                    gameState.AvailableMonstersDict.GetValueOrNull(fightMonster.Code)!
-                );
-
-                if (nextJobResult is not null)
+                if (nextJobResult.Job is not null)
                 {
-                    if (nextJobResult.Job is not null)
-                    {
-                        var nextJob = nextJobResult.Job;
+                    var nextJob = nextJobResult.Job;
 
-                        Logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                        );
-                        // Do the first job in the list, we only do one thing at a time
-                        return nextJob;
-                    }
-                    else
-                    {
-                        Logger.LogInformation(
-                            $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fighting {fightMonster.Amount} x {fightMonster.Code}"
-                        );
-                        return fightMonster;
-                    }
+                    Logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+                    );
+                    // Do the first job in the list, we only do one thing at a time
+                    return nextJob;
+                }
+                else
+                {
+                    Logger.LogInformation(
+                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fighting {fightMonster.Amount} x {fightMonster.Code}"
+                    );
+                    return fightMonster;
                 }
             }
         }
@@ -801,11 +799,18 @@ public class PlayerAI
 
         if (hasNoTask)
         {
-            Logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Got no task - take item task"
+            var taskJob = await Character.PlayerActionService.GetTaskJobIfPossible(
+                PREFER_MONSTER_TASK
             );
 
-            return new AcceptNewTask(Character, gameState, TaskType.items);
+            if (taskJob is not null)
+            {
+                Logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Got no task - found new job with code {taskJob.Code}"
+                );
+
+                return taskJob;
+            }
         }
 
         Logger.LogInformation(
@@ -817,35 +822,6 @@ public class PlayerAI
     public async Task GetCrafterJob()
     {
         await Task.Run(() => { });
-    }
-
-    public bool CanHandlePotentialMonsterTasks()
-    {
-        foreach (var task in gameState.Tasks)
-        {
-            if (task.Type != TaskType.monsters)
-            {
-                continue;
-            }
-
-            var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(task.Code)!;
-
-            if (matchingMonster.Level > Character.Schema.Level)
-            {
-                continue;
-            }
-
-            if (
-                !FightSimulator
-                    .FindBestFightEquipmentWithUsablePotions(Character, gameState, matchingMonster)
-                    .SimResult.Outcome.ShouldFight
-            )
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     async Task<CharacterJob?> GetEventJob()
@@ -1000,6 +976,26 @@ public class PlayerAI
         return null;
     }
 
+    async Task<CharacterJob?> GetMonsterJobIfCanCertainlyBeDone()
+    {
+        if (
+            PREFER_MONSTER_TASK
+            && string.IsNullOrEmpty(Character.Schema.Task)
+            && await Character.PlayerActionService.CanHandlePotentialMonsterTasks()
+        )
+        {
+            Logger.LogInformation(
+                "{Name}: [{character.Schema.Name}]: GetTaskJob: Found new monster task",
+                Name,
+                Character.Schema.Name
+            );
+
+            return new MonsterTask(Character, gameState);
+        }
+
+        return null;
+    }
+
     async Task<CharacterJob?> GetResourceEventJob(MapContentSchema eventContent)
     {
         var matchingResource = gameState.Resources.FirstOrDefault(resource =>
@@ -1101,7 +1097,8 @@ public class PlayerAI
                                 (
                                     Character.Schema.TaskType == TaskType.monsters.GetDisplayName()
                                     || string.IsNullOrWhiteSpace(Character.Schema.Task)
-                                ) && Character.PlayerActionService.CanHandlePotentialMonsterTasks()
+                                )
+                                && await Character.PlayerActionService.CanHandlePotentialMonsterTasks()
                             )
                             {
                                 job = await ProcessChoreJob(

@@ -15,28 +15,30 @@ public class EquipmentService
     const int ITEM_LEVEL_BUFFER = 5;
 
     public static List<EquipmentTypeMapping> CraftableEquipmentTypes { get; } =
-        [
-            new() { ItemType = "weapon", Slot = "WeaponSlot" },
-            new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-            new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-            new() { ItemType = "helmet", Slot = "HelmetSlot" },
-            new() { ItemType = "boots", Slot = "BootsSlot" },
-            new() { ItemType = "ring", Slot = "Ring1Slot" },
-            new() { ItemType = "ring", Slot = "Ring2Slot" },
-            new() { ItemType = "amulet", Slot = "AmuletSlot" },
-            new() { ItemType = "shield", Slot = "ShieldSlot" },
-        ];
+    [
+        new() { ItemType = "weapon", Slot = "WeaponSlot" },
+        new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+        new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+        new() { ItemType = "helmet", Slot = "HelmetSlot" },
+        new() { ItemType = "boots", Slot = "BootsSlot" },
+        new() { ItemType = "ring", Slot = "Ring1Slot" },
+        new() { ItemType = "ring", Slot = "Ring2Slot" },
+        new() { ItemType = "amulet", Slot = "AmuletSlot" },
+        new() { ItemType = "shield", Slot = "ShieldSlot" },
+        new() { ItemType = "utility", Slot = "Utility1Slot" },
+        new() { ItemType = "utility", Slot = "Utility2Slot" },
+    ];
 
     public static List<EquipmentTypeMapping> AllEquipmentTypes { get; } =
-        [
-            .. new List<EquipmentTypeMapping>
-            {
-                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
-                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
-                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
-                new() { ItemType = "rune", Slot = "RuneSlot" },
-            }.Union(CraftableEquipmentTypes),
-        ];
+    [
+        .. new List<EquipmentTypeMapping>
+        {
+            new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+            new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+            new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+            new() { ItemType = "rune", Slot = "RuneSlot" },
+        }.Union(CraftableEquipmentTypes),
+    ];
 
     public static async Task<CharacterJob?> EnsureFightEquipment(
         PlayerCharacter character,
@@ -229,6 +231,10 @@ public class EquipmentService
         var equipmentTypesToUpgrade = AllEquipmentTypes
             .Where(equipmentType =>
             {
+                if (equipmentType.ItemType == "utility")
+                {
+                    return false;
+                }
                 var equippedItemInSlot = character.GetEquipmentSlot(equipmentType.Slot);
 
                 if (

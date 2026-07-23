@@ -53,6 +53,23 @@ public static class FightSimulator
         return FindBestFightEquipment(character, gameState, monster, itemCandidates);
     }
 
+    public static async Task<List<ItemInInventory>> GetBankItemsForFightSim(
+        PlayerCharacter character,
+        GameState gameState
+    )
+    {
+        var bankItems = (await gameState.BankItemCache.GetBankItems(character))
+            .Where(bankItem => !string.IsNullOrWhiteSpace(bankItem.Code))
+            .Select(bankItem => new ItemInInventory
+            {
+                Item = gameState.ItemsDict[bankItem.Code],
+                Quantity = bankItem.Quantity,
+            })
+            .ToList();
+
+        return bankItems;
+    }
+
     public static List<MonsterSchema> GetRelevantMonstersForCharacter(
         PlayerCharacter character,
         GameState gameState
@@ -269,7 +286,7 @@ public static class FightSimulator
             ),
             Effects = runeEffects,
             IsPlayer = true,
-            PotionEffects = [],
+            PotionEffects = potions,
         };
     }
 
@@ -848,7 +865,7 @@ public static class FightSimulator
     )
     {
         // No reason to loop through effects, if we have already applied poison damage before
-        if (defender.ActivePoisonDamage == 0)
+        if (defender.ActivePoisonDamage is null)
         {
             var poison = attacker.Effects.FirstOrDefault(effect => effect.Code == Effect.Poison);
 
@@ -890,11 +907,11 @@ public static class FightSimulator
                     }
                 }
 
-                defender.ActivePoisonDamage = poisonDamage;
+                defender.ActivePoisonDamage = Math.Max(poisonDamage, 0);
             }
         }
 
-        if (defender.ActivePoisonDamage > 0)
+        if (defender is not null && defender.ActivePoisonDamage > 0)
         {
             combatLog.Log(
                 individualTurn,
@@ -903,7 +920,7 @@ public static class FightSimulator
                 $"[{attacker.Entity.Name}] has poison effect for {defender.ActivePoisonDamage} damage"
             );
 
-            return defender.ActivePoisonDamage;
+            return (int)defender.ActivePoisonDamage;
         }
 
         return 0;
@@ -1754,7 +1771,10 @@ public static class FightSimulator
                 bestFightSimResult.Schema = simResult.Schema;
                 bestFightSimResult.Outcome = simResult.Outcome;
 
-                bestFightSimResult.ItemsToEquip = [.. itemsToEquip.Union(simResult.ItemsToEquip)];
+                bestFightSimResult.ItemsToEquip =
+                [
+                    .. bestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
+                ];
             }
 
             var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(
@@ -1784,7 +1804,10 @@ public static class FightSimulator
 
                 bestFightSimResult.Schema = simResult.Schema;
                 bestFightSimResult.Outcome = simResult.Outcome;
-                bestFightSimResult.ItemsToEquip = [.. itemsToEquip.Union(simResult.ItemsToEquip)];
+                bestFightSimResult.ItemsToEquip =
+                [
+                    .. bestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
+                ];
             }
 
             allCandidates.Add(bestFightSimResult);
@@ -2121,6 +2144,8 @@ public static class FightSimulator
             potionsUsed += outcome.PotionsUsed;
         }
 
+        firstCombatLog = outcomes[0].FirstSimCombatLog;
+
         playerHp = (int)Math.Floor((double)playerHp / fightSimulations);
         monsterHp = (int)Math.Floor((double)monsterHp / fightSimulations);
         totalTurns = (int)Math.Floor((double)totalTurns / fightSimulations);
@@ -2193,13 +2218,15 @@ public static class FightSimulator
                 {
                     Schema = bestSchemaCandidate,
                     Outcome = bestFightOutcome,
-                    ItemsToEquip = itemsToEquip,
+                    ItemsToEquip = [],
                 },
                 LeftOverItems = allItems,
             };
         }
 
         var character = originalCharacter.Clone();
+
+        character.Schema = bestSchemaCandidate with { };
 
         EquipmentSlot? equippedItem = character.GetEquipmentSlot(equipmentSlot);
 
@@ -2429,7 +2456,7 @@ public record FightSimParticipant
 
     public int VampiricStrikeCooldown { get; set; } = 0;
 
-    public int ActivePoisonDamage { get; set; } = 0;
+    public int? ActivePoisonDamage { get; set; } = null;
 
     public int BurnDamageForNextTurn { get; set; } = 0;
     public required ICritCalculator CritCalculator { get; set; }

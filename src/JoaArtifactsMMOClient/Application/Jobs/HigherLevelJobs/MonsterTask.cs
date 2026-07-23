@@ -102,7 +102,12 @@ public class MonsterTask : CharacterJob
                 return new AppError($"Cannot find monster {code} to fight in task");
             }
             var outcome = FightSimulator
-                .FindBestFightEquipmentWithUsablePotions(Character, gameState, monster)
+                .FindBestFightEquipmentWithUsablePotions(
+                    Character,
+                    gameState,
+                    monster,
+                    await FightSimulator.GetBankItemsForFightSim(Character, gameState)
+                )
                 .SimResult.Outcome;
 
             if (!outcome.ShouldFight)

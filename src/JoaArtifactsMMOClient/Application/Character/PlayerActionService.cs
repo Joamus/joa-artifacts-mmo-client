@@ -267,7 +267,7 @@ public class PlayerActionService
             }
         }
 
-        if (preferMonsterTask && CanHandlePotentialMonsterTasks())
+        if (preferMonsterTask && await CanHandlePotentialMonsterTasks())
         {
             Logger.LogInformation(
                 "{Name}: [{character.Schema.Name}]: GetTaskJob: Found new monster task",
@@ -378,7 +378,7 @@ public class PlayerActionService
         return new NextJobToFightResult { Job = nextJob?.Job };
     }
 
-    public bool CanHandlePotentialMonsterTasks()
+    public async Task<bool> CanHandlePotentialMonsterTasks()
     {
         foreach (var task in gameState.Tasks)
         {
@@ -396,7 +396,12 @@ public class PlayerActionService
 
             if (
                 !FightSimulator
-                    .FindBestFightEquipmentWithUsablePotions(Character, gameState, matchingMonster)
+                    .FindBestFightEquipmentWithUsablePotions(
+                        Character,
+                        gameState,
+                        matchingMonster,
+                        await FightSimulator.GetBankItemsForFightSim(Character, gameState)
+                    )
                     .SimResult.Outcome.ShouldFight
             )
             {
@@ -545,7 +550,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
