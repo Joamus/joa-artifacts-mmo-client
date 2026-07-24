@@ -130,6 +130,9 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
                 return ItemService.IsItemCookedFish(item, gameState)
                     && ItemService.CanUseItem(item, character.Schema, gameState)
                     && crafter.Schema.CookingLevel >= item.Craft?.Level
+                    && item.Craft.Items.All(material =>
+                        gameState.ItemsDict[material.Code].Level <= crafter.Schema.FishingLevel
+                    )
                     && item.Craft.Items.Count == 1;
             }),
         ];

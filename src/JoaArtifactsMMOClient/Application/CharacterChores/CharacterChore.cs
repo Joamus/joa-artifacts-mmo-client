@@ -31,4 +31,5 @@ public enum CharacterChoreKind
     RestockTasksCoinsOnlyFight,
     RestockPotions,
     RestockResources,
+    GambleTasksCoins,
 }

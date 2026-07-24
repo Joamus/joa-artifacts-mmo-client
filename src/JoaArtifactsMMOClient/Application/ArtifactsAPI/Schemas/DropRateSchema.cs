@@ -2,17 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace Application.ArtifactsApi.Schemas;
 
-public record DropRateSchema {
-    [JsonPropertyName("code")]
+public record DropRateSchema
+{
     public string Code { get; set; } = "";
-    [JsonPropertyName("rate")]
-    public int Rate { get; set; }
 
-    [JsonPropertyName("min_quantity")]
+    public int Rate { get; set; }
 
     public int MinQuantity { get; set; }
 
-    [JsonPropertyName("max_quantity")]
     public int MaxQuantity { get; set; }
-		
 }

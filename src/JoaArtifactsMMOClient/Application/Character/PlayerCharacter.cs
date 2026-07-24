@@ -886,11 +886,18 @@ public class PlayerCharacter
         PostTaskHandler(result.Data.Cooldown, result.Data.Character);
     }
 
-    public async Task<RecycleResponse> Recycle(string itemCode, int quantity)
+    public async Task<RecycleResponse> Recycle(string itemCode, int quantity, bool enhanced)
     {
         await PreTaskHandler();
 
-        string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
+        string _body = JsonSerializer.Serialize(
+            new
+            {
+                code = itemCode,
+                quantity,
+                enhanced,
+            }
+        );
         StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
         var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/recycling", body);
 
