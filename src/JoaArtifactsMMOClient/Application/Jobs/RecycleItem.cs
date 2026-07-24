@@ -100,7 +100,7 @@ public class RecycleItem : CharacterJob
         }
         await Character.NavigateTo(craftingLocationCode);
 
-        var result = await Character.Recycle(Code, Amount);
+        var result = await Character.PlayerActionService.SmartRecycle(matchingItem, Amount);
 
         recycledDrops = result.Data.Details.Items;
 

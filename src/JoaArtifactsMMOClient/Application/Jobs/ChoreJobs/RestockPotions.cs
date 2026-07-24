@@ -43,7 +43,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
     public async Task<List<ObtainItem>> GetJobs()
     {
         // Next season will make these both craftable and purchasable, depending on potion
-        var levelRange = GameState.GetCharacterLevelRange(gameState);
+        var levelRange = gameState.GetCharacterLevelRange();
 
         var bankItems = await gameState.BankItemCache.GetBankItems(Character);
 

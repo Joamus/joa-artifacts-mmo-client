@@ -33,6 +33,7 @@ public static class ItemService
     public const string TasksCoin = "tasks_coin";
 
     public const int CancelTaskPrice = 1;
+    public const int GambleTasksCoinsPrice = 6;
 
     /**
       * The complexity of creating a wooden_staff, with edge cases of accidentally putting it on etc.,

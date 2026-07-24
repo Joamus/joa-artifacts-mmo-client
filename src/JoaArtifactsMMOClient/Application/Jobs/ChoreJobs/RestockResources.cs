@@ -43,7 +43,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
 
     public async Task<CharacterJob?> GetNextJob()
     {
-        var levelRange = GameState.GetCharacterLevelRange(gameState);
+        var levelRange = gameState.GetCharacterLevelRange();
 
         var relevantResources = GetResourcesToConsider(gameState, levelRange);
 

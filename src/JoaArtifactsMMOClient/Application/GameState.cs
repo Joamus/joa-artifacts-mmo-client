@@ -31,11 +31,13 @@ public class GameState
     public bool ShouldUpdatePendingItems { get; set; } = false;
 
     public List<TasksFullSchema> Tasks { get; set; } = [];
+    public List<DropRateSchema> TasksRewards { get; set; } = [];
 
     public CharacterChoreService ChoreService { get; set; }
     public Dictionary<string, ItemSchema> ItemsDict { get; set; } = [];
 
     public Dictionary<string, ItemSchema> UtilityItemsDict { get; set; } = [];
+    public Dictionary<string, ItemSchema> TaskItemsDict { get; set; } = [];
 
     public Dictionary<string, List<ItemSchema>> CraftingLookupDict { get; set; } = [];
     public Dictionary<
@@ -89,6 +91,7 @@ public class GameState
         await LoadPendingItems();
         await LoadAccountAchievements();
         await LoadTasksList();
+        await LoadTasksRewards();
         await BankItemCache.GetBankItems(null);
         await EventService.LoadEvents();
         await EventService.LoadActiveEvents();
@@ -166,6 +169,7 @@ public class GameState
         List<ItemSchema> items = [];
         Dictionary<string, ItemSchema> itemsDict = new();
         Dictionary<string, ItemSchema> utilityItemsDict = new();
+        Dictionary<string, ItemSchema> taskItemsDict = new();
         Dictionary<string, List<ItemSchema>> craftingLookupDict = new();
 
         int pageNumber = 1;
@@ -182,6 +186,10 @@ public class GameState
                 if (item.Type == "utility")
                 {
                     utilityItemsDict.Add(item.Code, item);
+                }
+                else if (item.Subtype == "task")
+                {
+                    taskItemsDict.Add(item.Code, item);
                 }
 
                 if (item.Craft is not null)
@@ -207,6 +215,7 @@ public class GameState
         Items = items;
         ItemsDict = itemsDict;
         UtilityItemsDict = utilityItemsDict;
+        TaskItemsDict = taskItemsDict;
         CraftingLookupDict = craftingLookupDict;
 
         logger.LogInformation("Loading items - DONE;");
@@ -259,6 +268,23 @@ public class GameState
         Tasks = tasks;
 
         logger.LogInformation("Loading tasks list - DONE;");
+    }
+
+    public async Task LoadTasksRewards()
+    {
+        logger.LogInformation("Loading tasks rewards...");
+        List<DropRateSchema> rewards = [];
+
+        var result = await AccountRequester.GetTasksRewards();
+
+        foreach (var reward in result)
+        {
+            rewards.Add(reward);
+        }
+
+        TasksRewards = rewards;
+
+        logger.LogInformation("Loading tasks rewards - DONE;");
     }
 
     public async Task LoadMaps()
@@ -516,9 +542,9 @@ public class GameState
         return amountOnCharacters + amountInBank;
     }
 
-    public static LevelRange GetCharacterLevelRange(GameState gameState)
+    public LevelRange GetCharacterLevelRange()
     {
-        List<int> characterLevels = [.. gameState.Characters.Select((x) => x.Schema.Level)];
+        List<int> characterLevels = [.. Characters.Select((x) => x.Schema.Level)];
         characterLevels.Sort((a, b) => a - b);
 
         return new LevelRange

@@ -10,6 +10,8 @@ public class AccountRequester
     readonly ApiRequester _apiService;
     readonly string _accountName;
 
+    const int MAX_SIZE_LIMIT = 10000;
+
     ILogger Logger;
 
     public AccountRequester(ApiRequester apiRequester, string accountName, ILogger logger)
@@ -45,7 +47,9 @@ public class AccountRequester
 
     public async Task<ItemsResponse> GetItems(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/items?page={pageNumber}&size=10000");
+        var response = await _apiService.GetAsync(
+            $"/items?page={pageNumber}&size={MAX_SIZE_LIMIT}"
+        );
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -54,7 +58,9 @@ public class AccountRequester
 
     public async Task<ResourceResponse> GetResources(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/resources?page={pageNumber}&size=10000");
+        var response = await _apiService.GetAsync(
+            $"/resources?page={pageNumber}&size={MAX_SIZE_LIMIT}"
+        );
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -63,7 +69,9 @@ public class AccountRequester
 
     public async Task<NpcResponse> GetNpcs(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/npcs/details?page={pageNumber}&size=10000");
+        var response = await _apiService.GetAsync(
+            $"/npcs/details?page={pageNumber}&size={MAX_SIZE_LIMIT}"
+        );
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -72,7 +80,9 @@ public class AccountRequester
 
     public async Task<MonstersResponse> GetMonsters(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/monsters?page={pageNumber}&size=10000");
+        var response = await _apiService.GetAsync(
+            $"/monsters?page={pageNumber}&size={MAX_SIZE_LIMIT}"
+        );
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -134,6 +144,42 @@ public class AccountRequester
         }
 
         return new BankItemsResponse { Data = items };
+    }
+
+    public async Task<List<DropRateSchema>> GetTasksRewards()
+    {
+        int pageNumber = 1;
+        bool doneFetching = false;
+
+        List<DropRateSchema> rewards = [];
+
+        while (!doneFetching)
+        {
+            var response = await _apiService.GetAsync(
+                $"/tasks/rewards?page={pageNumber}&size=10000"
+            );
+
+            var result = await response.Content.ReadAsStringAsync();
+
+            var content = JsonSerializer.Deserialize<TasksRewardsResponse>(
+                result,
+                ApiRequester.getJsonOptions()
+            )!;
+
+            if (content.Data.Count == 0)
+            {
+                doneFetching = true;
+            }
+
+            foreach (var reward in content.Data)
+            {
+                rewards.Add(reward);
+            }
+
+            pageNumber++;
+        }
+
+        return rewards;
     }
 
     public async Task<List<TasksFullSchema>> GetTasks()
