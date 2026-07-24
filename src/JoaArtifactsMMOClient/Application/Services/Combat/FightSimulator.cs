@@ -1651,6 +1651,9 @@ public static class FightSimulator
         initialSchema.Hp = initialSchema.MaxHp;
 
         // We essentially remove the potions from the sim, until they naturally will be simulated.
+        // TODO: I can't remember why we do this, of it's even still relevant
+
+        List<EquipmentSlot> initialUtilitySlots = [];
 
         if (!string.IsNullOrWhiteSpace(initialSchema.Utility1Slot))
         {
@@ -1658,9 +1661,19 @@ public static class FightSimulator
                 new ItemInInventory
                 {
                     Item = gameState.ItemsDict[initialSchema.Utility1Slot],
-                    Quantity = 100,
+                    Quantity = initialSchema.Utility1SlotQuantity,
                 }
             );
+
+            initialUtilitySlots.Add(
+                new EquipmentSlot
+                {
+                    Code = initialSchema.Utility1Slot,
+                    Slot = "utility1",
+                    Quantity = initialSchema.Utility1SlotQuantity,
+                }
+            );
+
             initialSchema.Utility1Slot = "";
             initialSchema.Utility1SlotQuantity = 0;
         }
@@ -1671,7 +1684,16 @@ public static class FightSimulator
                 new ItemInInventory
                 {
                     Item = gameState.ItemsDict[initialSchema.Utility2Slot],
-                    Quantity = 100,
+                    Quantity = initialSchema.Utility2SlotQuantity,
+                }
+            );
+
+            initialUtilitySlots.Add(
+                new EquipmentSlot
+                {
+                    Code = initialSchema.Utility2Slot,
+                    Slot = "utility2",
+                    Quantity = initialSchema.Utility2SlotQuantity,
                 }
             );
             initialSchema.Utility2Slot = "";
@@ -1831,6 +1853,28 @@ public static class FightSimulator
 
         var bestCandidate = allCandidates.ElementAt(0);
 
+        bestCandidate.ItemsToEquip =
+        [
+            .. bestCandidate.ItemsToEquip.Where(
+                (item) =>
+                {
+                    if (item.Slot == "utility1" || item.Slot == "utility2")
+                    {
+                        var matchingInitialUtilSlot = initialUtilitySlots.FirstOrDefault(utilSlot =>
+                            utilSlot.Slot == item.Slot
+                        );
+
+                        if (item.Code == matchingInitialUtilSlot?.Code)
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+            ),
+        ];
+
         var leftOverItems = originalAllItems
             .Select(item =>
             {
@@ -1863,14 +1907,16 @@ public static class FightSimulator
         GameState gameState
     )
     {
-        return characterSchema
-            .Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
-            .Select(item => new ItemInInventory
-            {
-                Item = gameState.ItemsDict[item.Code],
-                Quantity = item.Quantity,
-            })
-            .ToList();
+        return
+        [
+            .. characterSchema
+                .Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+                .Select(item => new ItemInInventory
+                {
+                    Item = gameState.ItemsDict[item.Code],
+                    Quantity = item.Quantity,
+                }),
+        ];
     }
 
     public static int CompareSimOutcome(FightOutcome a, FightOutcome b)
