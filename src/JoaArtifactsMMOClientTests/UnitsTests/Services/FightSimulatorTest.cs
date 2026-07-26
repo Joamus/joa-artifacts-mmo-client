@@ -1,7 +1,4 @@
 using Application;
-using Application.Artifacts.Schemas;
-using Application.ArtifactsApi.Schemas;
-using Application.Character;
 using Application.Records;
 using Applicaton.Services.FightSimulator;
 using JoaArtifactsMMOClientTests.Helpers;
@@ -11,292 +8,194 @@ namespace JoaArtifactsMMOClientTests;
 public class FightSimulatorTest
 {
     [Fact(
-        DisplayName = "A level 1 character should use 'test_air_dagger' against 'yellow_slime', and not 'test_earth_dagger', because 'yellow_slime' has earth resistance"
+        DisplayName = "Should use 'copper_dagger' against 'yellow_slime', instead of 'wooden_staff', due to its earth resistance"
     )]
-    public void FindBestFightEquipment_ShouldUseWeaponWithMoreDamage_AgainstYellowSlime_AtLevel1()
+    public void FindBestFightEquipment_ShouldUseBestWeapon()
     {
-        GameState gameState = ServiceHelper.GetEmptyGameState();
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
 
-        var yellowSlime = new MonsterSchema
-        {
-            Name = "Yellow Slime",
-            Code = "yellow_slime",
-            Level = 2,
-            Type = MonsterType.Normal,
-            Hp = 70,
-            AttackFire = 0,
-            AttackEarth = 8,
-            AttackWater = 0,
-            AttackAir = 0,
-            ResFire = 0,
-            ResEarth = 25,
-            ResWater = 0,
-            ResAir = 0,
-            CriticalStrike = 0,
-            Initiative = 50,
-            Effects = [],
-            MinGold = 0,
-            MaxGold = 5,
-        };
+        var yellowSlime = gameState.MonstersDict["yellow_slime"];
 
-        var character = PlayerCharacterHelper.GetFighterCharacter();
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 1);
 
-        var testAirDagger = new ItemSchema
-        {
-            Name = "Test air dagger",
-            Code = "test_air_dagger",
-            Level = 1,
-            Type = "weapon",
-            Subtype = "",
-            Description = "",
-            Conditions = [],
-            Effects = new List<SimpleEffectSchema>
-            {
-                new SimpleEffectSchema { Code = "attack_air", Value = 7 },
-                new SimpleEffectSchema { Code = "critical_strike", Value = 0 },
-            },
-            Craft = new CraftDto
-            {
-                Skill = Skill.Weaponcrafting,
-                Level = 1,
-                Items = new List<DropSchema>
-                {
-                    new DropSchema { Code = "copper_bar", Quantity = 6 },
-                },
-                Quantity = 1,
-            },
-            Tradeable = true,
-        };
+        var copperDagger = gameState.ItemsDict["copper_dagger"];
+        var woodenStaff = gameState.ItemsDict["wooden_staff"];
 
-        var testEarthDagger = new ItemSchema
-        {
-            Name = "Test earth dagger",
-            Code = "test_earth_dagger",
-            Level = 1,
-            Type = "weapon",
-            Subtype = "",
-            Description = "",
-            Conditions = [],
-            Effects = new List<SimpleEffectSchema>
-            {
-                new SimpleEffectSchema { Code = "attack_earth", Value = 8 },
-                new SimpleEffectSchema { Code = "critical_strike", Value = 0 },
-            },
-            Craft = new CraftDto
-            {
-                Skill = Skill.Weaponcrafting,
-                Level = 1,
-                Items = new List<DropSchema>
-                {
-                    new DropSchema { Code = "wooden_stick", Quantity = 1 },
-                    new DropSchema { Code = "ash_plank", Quantity = 4 },
-                },
-                Quantity = 1,
-            },
-            Tradeable = true,
-        };
-
-        gameState.Items.Add(testAirDagger);
-        gameState.ItemsDict[testAirDagger.Code] = testAirDagger;
-        gameState.Items.Add(testEarthDagger);
-        gameState.ItemsDict[testEarthDagger.Code] = testEarthDagger;
-
-        List<ItemInInventory> itemsInInventory = new List<ItemInInventory>
-        {
-            new ItemInInventory { Item = testAirDagger, Quantity = 1 },
-            new ItemInInventory { Item = testEarthDagger, Quantity = 1 },
-        };
+        List<ItemInInventory> itemsInInventory =
+        [
+            new() { Item = copperDagger, Quantity = 1 },
+            new() { Item = woodenStaff, Quantity = 1 },
+        ];
 
         var result = FightSimulator
             .FindBestFightEquipment(character, gameState, yellowSlime, itemsInInventory)
             .SimResult;
 
-        Assert.True(result.ItemsToEquip.Exists(item => item.Code == testAirDagger.Code));
-        Assert.True(result.Schema.WeaponSlot == testAirDagger.Code);
+        Assert.Single(result.ItemsToEquip);
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == copperDagger.Code));
     }
 
     [Fact(
-        DisplayName = "Should use 'test_air_dagger' against 'yellow_slime', with the already equipped 'dmg_jacket', because the alternative body armor is worse. Current weapon is 'test_earth_dagger'"
+        DisplayName = "Should use 'iron_armor' over 'copper_armor', because it gives more health"
     )]
-    public void FindBestFightEquipment_ShouldKeepEquipment_BecauseItIsBest()
+    public void FindBestFightEquipment_ShouldUseHighestHpArmor()
     {
-        GameState gameState = ServiceHelper.GetEmptyGameState();
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
 
-        var yellowSlime = new MonsterSchema
-        {
-            Name = "Yellow Slime",
-            Code = "yellow_slime",
-            Level = 2,
-            Type = MonsterType.Normal,
-            Hp = 70,
-            AttackFire = 0,
-            AttackEarth = 8,
-            AttackWater = 0,
-            AttackAir = 0,
-            ResFire = 0,
-            ResEarth = 25,
-            ResWater = 0,
-            ResAir = 0,
-            CriticalStrike = 0,
-            Initiative = 50,
-            Effects = [],
-            MinGold = 0,
-            MaxGold = 5,
-        };
+        var yellowSlime = gameState.MonstersDict["yellow_slime"];
 
-        var character = PlayerCharacterHelper.GetFighterCharacter();
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 10);
 
-        var testAirDagger = new ItemSchema
-        {
-            Name = "Test air dagger",
-            Code = "test_air_dagger",
-            Level = 1,
-            Type = "weapon",
-            Subtype = "",
-            Description = "",
-            Conditions = [],
-            Effects = new List<SimpleEffectSchema>
-            {
-                new SimpleEffectSchema { Code = "attack_air", Value = 7 },
-                new SimpleEffectSchema { Code = "critical_strike", Value = 0 },
-            },
-            Craft = new CraftDto
-            {
-                Skill = Skill.Weaponcrafting,
-                Level = 1,
-                Items = new List<DropSchema>
-                {
-                    new DropSchema { Code = "copper_bar", Quantity = 6 },
-                },
-                Quantity = 1,
-            },
-            Tradeable = true,
-        };
+        var copperDagger = gameState.ItemsDict["copper_dagger"];
+        var woodenStaff = gameState.ItemsDict["wooden_staff"];
+        var copperArmor = gameState.ItemsDict["copper_armor"];
+        var ironArmor = gameState.ItemsDict["iron_armor"];
 
-        var testEarthDagger = new ItemSchema
-        {
-            Name = "Test earth dagger",
-            Code = "test_earth_dagger",
-            Level = 1,
-            Type = "weapon",
-            Subtype = "",
-            Description = "",
-            Conditions = [],
-            Effects = new List<SimpleEffectSchema>
-            {
-                new SimpleEffectSchema { Code = "attack_earth", Value = 8 },
-                new SimpleEffectSchema { Code = "critical_strike", Value = 0 },
-            },
-            Craft = new CraftDto
-            {
-                Skill = Skill.Weaponcrafting,
-                Level = 1,
-                Items = new List<DropSchema>
-                {
-                    new DropSchema { Code = "wooden_stick", Quantity = 1 },
-                    new DropSchema { Code = "ash_plank", Quantity = 4 },
-                },
-                Quantity = 1,
-            },
-            Tradeable = true,
-        };
-
-        var dmgJacket = new ItemSchema
-        {
-            Name = "Dmg jacket",
-            Code = "dmg_jacket",
-            Level = 1,
-            Type = "body_armor",
-            Subtype = "",
-            Description = "",
-            Conditions = [],
-            Effects = new List<SimpleEffectSchema>
-            {
-                new SimpleEffectSchema { Code = Effect.Damage, Value = 10 },
-            },
-            Craft = new CraftDto
-            {
-                Skill = Skill.Gearcrafting,
-                Level = 1,
-                Items = new List<DropSchema>
-                {
-                    new DropSchema { Code = "wooden_stick", Quantity = 1 },
-                    new DropSchema { Code = "ash_plank", Quantity = 4 },
-                },
-                Quantity = 1,
-            },
-            Tradeable = true,
-        };
-
-        var worseDmgJacket = new ItemSchema
-        {
-            Name = "Worse dmg jacket",
-            Code = "worse_dmg_jacket",
-            Level = 1,
-            Type = "body_armor",
-            Subtype = "",
-            Description = "",
-            Conditions = [],
-            Effects = new List<SimpleEffectSchema>
-            {
-                new SimpleEffectSchema { Code = Effect.Damage, Value = 5 },
-            },
-            Craft = new CraftDto
-            {
-                Skill = Skill.Gearcrafting,
-                Level = 1,
-                Items = new List<DropSchema>
-                {
-                    new DropSchema { Code = "wooden_stick", Quantity = 1 },
-                    new DropSchema { Code = "ash_plank", Quantity = 4 },
-                },
-                Quantity = 1,
-            },
-            Tradeable = true,
-        };
-
-        gameState.Items.Add(testAirDagger);
-        gameState.ItemsDict[testAirDagger.Code] = testAirDagger;
-
-        gameState.Items.Add(testEarthDagger);
-        gameState.ItemsDict[testEarthDagger.Code] = testEarthDagger;
-
-        gameState.Items.Add(dmgJacket);
-        gameState.ItemsDict[dmgJacket.Code] = dmgJacket;
-
-        gameState.Items.Add(worseDmgJacket);
-        gameState.ItemsDict[worseDmgJacket.Code] = worseDmgJacket;
-
-        List<ItemInInventory> itemsInInventory = new List<ItemInInventory>
-        {
-            new ItemInInventory { Item = testAirDagger, Quantity = 1 },
-            new ItemInInventory { Item = worseDmgJacket, Quantity = 1 },
-        };
-
-        character.Schema.WeaponSlot = testEarthDagger.Code;
-        character.Schema.BodyArmorSlot = dmgJacket.Code;
-
-        PlayerActionService.SimulateItemEquip(
-            character.Schema,
-            null,
-            dmgJacket,
-            "BodyArmorSlot",
-            1
-        );
-        PlayerActionService.SimulateItemEquip(
-            character.Schema,
-            null,
-            testEarthDagger,
-            "WeaponSlot",
-            1
-        );
+        List<ItemInInventory> itemsInInventory =
+        [
+            new() { Item = copperDagger, Quantity = 1 },
+            new() { Item = woodenStaff, Quantity = 1 },
+            new() { Item = copperArmor, Quantity = 1 },
+            new() { Item = ironArmor, Quantity = 1 },
+        ];
 
         var result = FightSimulator
             .FindBestFightEquipment(character, gameState, yellowSlime, itemsInInventory)
             .SimResult;
 
-        Assert.True(result.ItemsToEquip.Count() == 1);
-        Assert.True(result.ItemsToEquip.Exists(item => item.Code == testAirDagger.Code));
-        Assert.True(result.Schema.BodyArmorSlot == dmgJacket.Code);
+        Assert.Equal(2, result.ItemsToEquip.Count);
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == copperDagger.Code));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == ironArmor.Code));
+    }
+
+    [Fact(DisplayName = "Should not use 'small_health_potion', because the fight is too easy")]
+    public void FindBestFightEquipment_ShouldNotUsePotion()
+    {
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        var yellowSlime = gameState.MonstersDict["yellow_slime"];
+
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 10);
+
+        var copperDagger = gameState.ItemsDict["copper_dagger"];
+        var ironArmor = gameState.ItemsDict["iron_armor"];
+        var smallHealthPotion = gameState.ItemsDict["small_health_potion"];
+
+        List<ItemInInventory> itemsInInventory =
+        [
+            new() { Item = copperDagger, Quantity = 1 },
+            new() { Item = ironArmor, Quantity = 1 },
+            new() { Item = smallHealthPotion, Quantity = 100 },
+        ];
+
+        var result = FightSimulator
+            .FindBestFightEquipment(character, gameState, yellowSlime, itemsInInventory)
+            .SimResult;
+
+        Assert.Equal(2, result.ItemsToEquip.Count);
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == copperDagger.Code));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == ironArmor.Code));
+    }
+
+    [Fact(DisplayName = "Should use 'small_health_potion', because the fight requires it")]
+    public void FindBestFightEquipment_ShouldUsePotion()
+    {
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        var monster = gameState.MonstersDict["flying_snake"];
+
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 10);
+
+        var copperDagger = gameState.ItemsDict["copper_dagger"];
+        var ironArmor = gameState.ItemsDict["iron_armor"];
+        var smallHealthPotion = gameState.ItemsDict["small_health_potion"];
+
+        List<ItemInInventory> itemsInInventory =
+        [
+            new() { Item = copperDagger, Quantity = 1 },
+            new() { Item = ironArmor, Quantity = 1 },
+            new() { Item = smallHealthPotion, Quantity = 100 },
+        ];
+
+        var result = FightSimulator
+            .FindBestFightEquipment(character, gameState, monster, itemsInInventory)
+            .SimResult;
+
+        Assert.Equal(3, result.ItemsToEquip.Count);
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == copperDagger.Code));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == ironArmor.Code));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == smallHealthPotion.Code));
+    }
+
+    [Fact(
+        DisplayName = "Should use 'small_health_potion' and 'air_boost_potion', because the outcome ends up using less potions"
+    )]
+    public void FindBestFightEquipment_ShouldUseHpPotionAndBoost()
+    {
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        var monster = gameState.MonstersDict["flying_snake"];
+
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 10);
+
+        var weapon = gameState.ItemsDict["sticky_dagger"];
+        var armor = gameState.ItemsDict["feather_coat"];
+        var smallHealthPotion = gameState.ItemsDict["small_health_potion"];
+        var airBoostPotion = gameState.ItemsDict["air_boost_potion"];
+
+        int SimWithBoost()
+        {
+            List<ItemInInventory> itemsInInventory =
+            [
+                new() { Item = weapon, Quantity = 1 },
+                new() { Item = armor, Quantity = 1 },
+                new() { Item = gameState.ItemsDict["leather_boots"], Quantity = 1 },
+                new() { Item = gameState.ItemsDict["leather_hat"], Quantity = 1 },
+                new() { Item = gameState.ItemsDict["leather_legs_armor"], Quantity = 1 },
+                new() { Item = gameState.ItemsDict["forest_ring"], Quantity = 2 },
+                new() { Item = smallHealthPotion, Quantity = 100 },
+                new() { Item = airBoostPotion, Quantity = 100 },
+            ];
+
+            var result = FightSimulator
+                .FindBestFightEquipment(character, gameState, monster, itemsInInventory)
+                .SimResult;
+
+            Assert.Equal(itemsInInventory.Count, result.ItemsToEquip.Count - 1); // we are equipping rings, which is in two seperate entries here
+            Assert.True(result.ItemsToEquip.Exists(item => item.Code == weapon.Code));
+            Assert.True(result.ItemsToEquip.Exists(item => item.Code == armor.Code));
+            Assert.True(result.ItemsToEquip.Exists(item => item.Code == smallHealthPotion.Code));
+            Assert.True(result.ItemsToEquip.Exists(item => item.Code == airBoostPotion.Code));
+
+            return result.Outcome.PotionsUsed;
+        }
+
+        int SimWithoutBoost()
+        {
+            List<ItemInInventory> itemsInInventory =
+            [
+                new() { Item = weapon, Quantity = 1 },
+                new() { Item = armor, Quantity = 1 },
+                new() { Item = gameState.ItemsDict["leather_boots"], Quantity = 1 },
+                new() { Item = gameState.ItemsDict["leather_hat"], Quantity = 1 },
+                new() { Item = gameState.ItemsDict["leather_legs_armor"], Quantity = 1 },
+                new() { Item = gameState.ItemsDict["forest_ring"], Quantity = 2 },
+                new() { Item = smallHealthPotion, Quantity = 100 },
+            ];
+
+            var result = FightSimulator
+                .FindBestFightEquipment(character, gameState, monster, itemsInInventory)
+                .SimResult;
+
+            Assert.False(result.Outcome.ShouldFight);
+            Assert.True(result.ItemsToEquip.Exists(item => item.Code == weapon.Code));
+            Assert.True(result.ItemsToEquip.Exists(item => item.Code == armor.Code));
+            Assert.True(result.ItemsToEquip.Exists(item => item.Code == smallHealthPotion.Code));
+
+            return result.Outcome.PotionsUsed;
+        }
+
+        int potionsUsedWithBoost = SimWithBoost();
+        int potionsUsedWithoutBoost = SimWithoutBoost();
     }
 }

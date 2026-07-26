@@ -2080,12 +2080,12 @@ public static class FightSimulator
                     {
                         if (result.Code == item.Item.Code)
                         {
-                            itemsToKeep.Add(item);
+                            // itemsToKeep.Add(item);
                             skipList.Add(itemToCompareTo.Item.Code);
                         }
                         else
                         {
-                            itemsToKeep.Add(itemToCompareTo);
+                            // itemsToKeep.Add(itemToCompareTo);
                             skipList.Add(result.Code);
                             break; // the other item is better, so disqualify the current one
                         }

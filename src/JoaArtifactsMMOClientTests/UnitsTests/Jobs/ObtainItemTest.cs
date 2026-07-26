@@ -1,3 +1,4 @@
+using Application;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Jobs;
@@ -12,7 +13,8 @@ public class ObtainItemTest
     )]
     public void CalculateObtainItemIterationsTest_10_IronBars_150_InventorySpace()
     {
-        var character = PlayerCharacterHelper.GetFighterCharacter();
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 1);
         character.Schema.InventoryMaxItems = 150;
 
         List<int> iterations = ObtainItem.CalculateObtainItemIterations(
@@ -32,7 +34,8 @@ public class ObtainItemTest
     )]
     public void CalculateObtainItemIterationsTest_10_IronBars_100_InventorySpace()
     {
-        var character = PlayerCharacterHelper.GetFighterCharacter();
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 1);
         character.Schema.InventoryMaxItems = 100;
 
         List<int> iterations = ObtainItem.CalculateObtainItemIterations(
@@ -52,7 +55,8 @@ public class ObtainItemTest
     )]
     public void CalculateObtainItemIterationsTest_13_IronBars_100_InventorySpace()
     {
-        var character = PlayerCharacterHelper.GetFighterCharacter();
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 1);
         character.Schema.InventoryMaxItems = 100;
 
         List<int> iterations = ObtainItem.CalculateObtainItemIterations(

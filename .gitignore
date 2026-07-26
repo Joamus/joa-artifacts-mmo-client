@@ -2,6 +2,7 @@
 appSettings.Local.json
 appSettings.Production.json
 .vscode
+/TestData/
 
 ## A streamlined .gitignore for modern .NET projects
 ## including temporary files, build results, and

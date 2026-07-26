@@ -6,18 +6,16 @@ namespace JoaArtifactsMMOClientTests.Helpers;
 
 public static class PlayerCharacterHelper
 {
-    public static PlayerCharacter GetFighterCharacter(GameState? _gameState = null)
+    public static PlayerCharacter GetFighterCharacter(GameState gameState, int level)
     {
         var apiRequester = ServiceHelper.GetTestApiRequester();
-
-        GameState gameState = _gameState ?? ServiceHelper.GetEmptyGameState();
 
         CharacterSchema schema = new CharacterSchema
         {
             Name = "TestChar",
-            Level = 1,
-            Hp = 100,
-            MaxHp = 100,
+            Level = level,
+            Hp = GetHpBasedOnLevel(level),
+            MaxHp = GetHpBasedOnLevel(level),
             X = 1,
             Y = 1,
             Layer = MapLayer.Overworld,
@@ -44,7 +42,17 @@ public static class PlayerCharacterHelper
             Inventory = [],
         };
 
-        var character = new PlayerCharacter(schema, gameState, apiRequester, null);
+        var character = new PlayerCharacter(
+            schema,
+            gameState,
+            apiRequester,
+            new CharacterConfig { }
+        );
         return character;
+    }
+
+    public static int GetHpBasedOnLevel(int level)
+    {
+        return 100 + ((level - 1) * 5);
     }
 }

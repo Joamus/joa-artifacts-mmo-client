@@ -45,7 +45,7 @@ public class AccountRequester
         )!;
     }
 
-    public async Task<ItemsResponse> GetItems(int pageNumber = 1)
+    public virtual async Task<ItemsResponse> GetItems(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync(
             $"/items?page={pageNumber}&size={MAX_SIZE_LIMIT}"
@@ -56,7 +56,7 @@ public class AccountRequester
         return JsonSerializer.Deserialize<ItemsResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
-    public async Task<ResourceResponse> GetResources(int pageNumber = 1)
+    public virtual async Task<ResourceResponse> GetResources(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync(
             $"/resources?page={pageNumber}&size={MAX_SIZE_LIMIT}"
@@ -67,7 +67,7 @@ public class AccountRequester
         return JsonSerializer.Deserialize<ResourceResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
-    public async Task<NpcResponse> GetNpcs(int pageNumber = 1)
+    public virtual async Task<NpcResponse> GetNpcs(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync(
             $"/npcs/details?page={pageNumber}&size={MAX_SIZE_LIMIT}"
@@ -78,7 +78,7 @@ public class AccountRequester
         return JsonSerializer.Deserialize<NpcResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
-    public async Task<MonstersResponse> GetMonsters(int pageNumber = 1)
+    public virtual async Task<MonstersResponse> GetMonsters(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync(
             $"/monsters?page={pageNumber}&size={MAX_SIZE_LIMIT}"
@@ -101,7 +101,7 @@ public class AccountRequester
         )!;
     }
 
-    public async Task<MapsResponse> GetMaps(int pageNumber = 1)
+    public virtual async Task<MapsResponse> GetMaps(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync(
             $"/maps?page={pageNumber}&size=10000&hide_blocked_maps=true"
@@ -146,7 +146,7 @@ public class AccountRequester
         return new BankItemsResponse { Data = items };
     }
 
-    public async Task<List<DropRateSchema>> GetTasksRewards()
+    public virtual async Task<List<DropRateSchema>> GetTasksRewards()
     {
         int pageNumber = 1;
         bool doneFetching = false;
@@ -182,7 +182,7 @@ public class AccountRequester
         return rewards;
     }
 
-    public async Task<List<TasksFullSchema>> GetTasks()
+    public virtual async Task<List<TasksFullSchema>> GetTasks()
     {
         int pageNumber = 1;
         bool doneFetching = false;
@@ -228,7 +228,7 @@ public class AccountRequester
         )!;
     }
 
-    public async Task<NpcItemsResponse> GetNpcItems(int pageNumber = 1)
+    public virtual async Task<NpcItemsResponse> GetNpcItems(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync($"/npcs/items?page={pageNumber}");
 
@@ -263,7 +263,7 @@ public class AccountRequester
         )!;
     }
 
-    public async Task<GetAllEventsResponse> GetEvents(int pageNumber = 1)
+    public virtual async Task<GetAllEventsResponse> GetEvents(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync($"/events?page={pageNumber}");
 
@@ -275,7 +275,7 @@ public class AccountRequester
         )!;
     }
 
-    public async Task<GetActiveEventsResponse> GetActiveEvents(int pageNumber = 1)
+    public virtual async Task<GetActiveEventsResponse> GetActiveEvents(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync($"/events/active?page={pageNumber}");
 

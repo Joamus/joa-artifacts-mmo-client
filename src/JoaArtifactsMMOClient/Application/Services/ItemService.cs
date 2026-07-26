@@ -628,16 +628,27 @@ public static class ItemService
 
         var highestLevelItem = lowestLevelItem.Code == a.Code ? b : a;
 
-        bool noOverlappingEffects = true;
+        bool doBothItemsHaveAllOfTheSameEffects = a.Effects.All(aEffect =>
+            b.Effects.Exists(bEffect => aEffect.Code == bEffect.Code)
+        );
+
+        if (!doBothItemsHaveAllOfTheSameEffects)
+        {
+            return null;
+        }
 
         foreach (var highLevelEffect in highestLevelItem.Effects)
         {
-            // Some effects have "minus" effects, e.g. cooldown reduction for gathering tools,
-            // but Obsidian Battleaxe also has minus inventory space, so we don't care for that here.
+            /**
+             * Some effects have "minus" effects, e.g. cooldown reduction for gathering tools,
+             * but Obsidian Battleaxe also has minus inventory space, so we don't care for that here.
+             * If we can find a single effect that's better on the lower level item,
+             * then it's not a straight up upgrade anymore.
+            */
 
             bool hasMinusEffect = a.Subtype == "tool" && b.Subtype == "tool";
 
-            var hasSameEffectButBetterOrEqual = lowestLevelItem.Effects.Exists(lowLevelEffect =>
+            var isHighLevelEffectBetterOrEqual = lowestLevelItem.Effects.Exists(lowLevelEffect =>
                 lowLevelEffect.Code == highLevelEffect.Code
                 && (
                     hasMinusEffect
@@ -646,15 +657,10 @@ public static class ItemService
                 )
             );
 
-            if (hasSameEffectButBetterOrEqual)
+            if (!isHighLevelEffectBetterOrEqual)
             {
-                noOverlappingEffects = false;
+                return null;
             }
-        }
-
-        if (noOverlappingEffects)
-        {
-            return null;
         }
 
         return highestLevelItem;
