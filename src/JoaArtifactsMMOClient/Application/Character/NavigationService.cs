@@ -112,7 +112,7 @@ public class NavigationService
 
         if (maps.Count == 0)
         {
-            var map = gameState.EventService.WhereIsEntityActive(contentCode);
+            var map = gameState.Services.EventService.WhereIsEntityActive(contentCode);
 
             if (map is null)
             {
@@ -703,10 +703,17 @@ public class NavigationService
         int currentToDestinationDistance = GetDistanceFromNavigationSteps(
             currentToDestinationSteps
         );
+
         int secondsUsedWithCurrentPath = GetSecondsToMoveToMap(currentToDestinationDistance);
 
         // Don't even bother considering teleport potions then
-        if (secondsUsedWithCurrentPath < SECONDS_SAVED_TO_USE_TELEPORT_POTION)
+        if (
+            secondsUsedWithCurrentPath < SECONDS_SAVED_TO_USE_TELEPORT_POTION
+            && (
+                currentToDestinationSteps.GoldRequirement < 0
+                || currentToDestinationSteps.ItemRequirements.Count == 0
+            )
+        )
         {
             return null;
         }
@@ -761,7 +768,9 @@ public class NavigationService
 
             if (
                 secondsWithPotion + SECONDS_SAVED_TO_USE_TELEPORT_POTION
-                < secondsUsedWithCurrentPath
+                    < secondsUsedWithCurrentPath
+                || currentToDestinationSteps.GoldRequirement
+                    < bestCandidate.resultWithTeleportPotion.GoldRequirement
             )
             {
                 var teleportToMap = gameState.MapsDict[bestCandidate.item.TeleportEffect!.Value];

@@ -29,15 +29,13 @@ public class DepositUnneededItems : CharacterJob
     bool preJob { get; init; }
     public MonsterSchema? MonsterSchema { get; set; }
 
-    private static float NEXT_BANK_EXPANION_COST_PERCENTAGE_OF_TOTAL = 0.80f;
-
-    private static int MIN_FREE_BANK_SLOTS = 10;
+    private static readonly int MIN_FREE_BANK_SLOTS = 10;
 
     // Deposit until hitting this threshold
-    private static int MIN_FREE_INVENTORY_SLOTS = 3;
-    private static int MAX_FREE_INVENTORY_SLOTS = 6;
-    private static int MIN_FREE_INVENTORY_SPACES = 5;
-    private static int MAX_FREE_INVENTORY_SPACES = 30;
+    private static readonly int MIN_FREE_INVENTORY_SLOTS = 3;
+    private static readonly int MAX_FREE_INVENTORY_SLOTS = 6;
+    private static readonly int MIN_FREE_INVENTORY_SPACES = 5;
+    private static readonly int MAX_FREE_INVENTORY_SPACES = 30;
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
@@ -48,9 +46,9 @@ public class DepositUnneededItems : CharacterJob
 
         // Deposit least important items
 
-        var accountRequester = gameState.AccountRequester;
+        var accountRequester = gameState.Services.AccountRequester;
 
-        var result = await gameState.BankItemCache.GetBankItems(Character);
+        var result = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         Dictionary<string, int> bankItems = [];
 
@@ -469,11 +467,11 @@ public class DepositUnneededItems : CharacterJob
 
     public async Task BuyBankSpaceIfNeeded()
     {
-        var result = await gameState.BankItemCache.GetBankDetails();
+        var result = await gameState.Services.BankItemCache.GetBankDetails();
 
         if (result.NextExpansionCost < Character.Schema.Gold + result.Gold)
         {
-            var itemsInBank = await gameState.BankItemCache.GetBankItems(null);
+            var itemsInBank = await gameState.Services.BankItemCache.GetBankItems(null);
 
             int amountFree = result.Slots - itemsInBank.Count;
 

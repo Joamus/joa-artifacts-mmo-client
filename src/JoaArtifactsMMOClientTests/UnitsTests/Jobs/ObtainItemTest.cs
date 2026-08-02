@@ -25,8 +25,8 @@ public class ObtainItemTest
 
         int allItemsToObtain = iterations.Sum((iteration) => iteration);
 
-        Assert.True(allItemsToObtain == 10);
-        Assert.True(iterations.Count() == 1);
+        Assert.Equal(10, allItemsToObtain);
+        Assert.Single(iterations);
     }
 
     [Fact(
@@ -46,8 +46,8 @@ public class ObtainItemTest
 
         int allItemsToObtain = iterations.Sum((iteration) => iteration);
 
-        Assert.True(allItemsToObtain == 10);
-        Assert.True(iterations.Count() == 2);
+        Assert.Equal(10, allItemsToObtain);
+        Assert.Equal(2, iterations.Count());
     }
 
     [Fact(
@@ -67,8 +67,8 @@ public class ObtainItemTest
 
         int allItemsToObtain = iterations.Sum((iteration) => iteration);
 
-        Assert.True(allItemsToObtain == 13);
-        Assert.True(iterations.Count() == 2);
+        Assert.Equal(13, allItemsToObtain);
+        Assert.Equal(2, iterations.Count);
     }
 
     public static ItemSchema GetIronBar()

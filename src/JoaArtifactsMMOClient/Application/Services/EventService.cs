@@ -231,9 +231,9 @@ public class EventService
 
     public static bool IsNpcActive(GameState gameState, string code)
     {
-        var npcIsFromEvent = gameState.EventService.IsEntityFromEvent(code);
+        var npcIsFromEvent = gameState.Services.EventService.IsEntityFromEvent(code);
 
-        if (npcIsFromEvent && gameState.EventService.WhereIsEntityActive(code) is null)
+        if (npcIsFromEvent && gameState.Services.EventService.WhereIsEntityActive(code) is null)
         {
             return false;
         }

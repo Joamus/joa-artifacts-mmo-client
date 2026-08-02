@@ -86,7 +86,7 @@ public class BuyItemNpc : CharacterJob
                         $"Could not find matching currency item \"{itemToBuy.Currency}\" in items dict"
                     );
                 }
-                var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+                var bankResponse = await gameState.Services.BankItemCache.GetBankItems(Character);
 
                 var itemInBank = bankResponse.Find(item => item.Code == matchingCurrency.Code);
 

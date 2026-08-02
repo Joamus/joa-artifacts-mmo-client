@@ -36,7 +36,7 @@ public class ObtainOrFindItem : CharacterJob
 
         int amountLeft = Amount;
 
-        var itemsInBank = await gameState.BankItemCache.GetBankItems(Character);
+        var itemsInBank = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var matchInBank = itemsInBank.FirstOrDefault(item => item.Code == Code);
 
@@ -81,7 +81,7 @@ public class ObtainOrFindItem : CharacterJob
                 job.SetParent<CharacterJob>(this);
             }
 
-            Character.QueueJobsAfter(Id, jobs);
+            await Character.QueueJobsAfter(Id, jobs);
         }
 
         // Reset it

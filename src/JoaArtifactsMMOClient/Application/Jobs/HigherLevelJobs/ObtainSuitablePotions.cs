@@ -78,7 +78,7 @@ public class ObtainSuitablePotions : CharacterJob
     {
         List<(ItemSchema item, bool canCraft, int amountInBank)> potionCandidates = [];
 
-        var bankItemsResponse = await gameState.BankItemCache.GetBankItems(character);
+        var bankItemsResponse = await gameState.Services.BankItemCache.GetBankItems(character);
 
         var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(character.Schema, monster);
 

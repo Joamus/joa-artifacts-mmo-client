@@ -46,7 +46,7 @@ public class ObtainSuitableFood : CharacterJob
                 logger.LogInformation(
                     $"{JobName} found {jobs.Count} jobs for {Character.Schema.Name} - need to find {Amount} food"
                 );
-                Character.QueueJobsAfter(Id, jobs);
+                await Character.QueueJobsAfter(Id, jobs);
                 break;
         }
 
@@ -55,7 +55,7 @@ public class ObtainSuitableFood : CharacterJob
 
     private async Task<OneOf<AppError, List<CharacterJob>>> GetJobsToObtainFood()
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         int amountFound = 0;
 

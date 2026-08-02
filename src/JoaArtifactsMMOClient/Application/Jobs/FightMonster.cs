@@ -80,7 +80,8 @@ public class FightMonster : CharacterJob
         // Not sure if we will keep this boss/raid boss logic here, or the fighting will be a different job
         return matchingMonster.Type == MonsterType.Boss
             || matchingMonster.Type == MonsterType.RaidBoss
-            || gameState.EventService.EventEntitiesDict.GetValueOrNull(monsterCode) is not null;
+            || gameState.Services.EventService.EventEntitiesDict.GetValueOrNull(monsterCode)
+                is not null;
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -893,9 +894,10 @@ public class FightMonster : CharacterJob
     {
         List<EquipmentSlot> itemsToWithdraw = [];
 
-        var bankResponse = await gameState.BankItemCache.GetBankItems(character);
+        var bankResponse = await gameState.Services.BankItemCache.GetBankItems(character);
 
         var items = bankResponse
+            .Where(item => !string.IsNullOrWhiteSpace(item.Code))
             .Select(item => new ItemInInventory
             {
                 Item = gameState.ItemsDict[item.Code],
@@ -909,6 +911,7 @@ public class FightMonster : CharacterJob
             {
                 continue;
             }
+
             items.Add(
                 new ItemInInventory
                 {

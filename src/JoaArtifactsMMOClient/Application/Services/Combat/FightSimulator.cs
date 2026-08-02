@@ -58,7 +58,7 @@ public static class FightSimulator
         GameState gameState
     )
     {
-        var bankItems = (await gameState.BankItemCache.GetBankItems(character))
+        var bankItems = (await gameState.Services.BankItemCache.GetBankItems(character))
             .Where(bankItem => !string.IsNullOrWhiteSpace(bankItem.Code))
             .Select(bankItem => new ItemInInventory
             {
@@ -122,9 +122,26 @@ public static class FightSimulator
         bool includeItemsFromInventory
     )
     {
-        HashSet<string> relevantItems = [];
-
         var relevantMonsters = GetRelevantMonstersForCharacter(character, gameState);
+
+        return GetItemsRelevantMonstersWithMonsters(
+            character,
+            gameState,
+            items,
+            includeItemsFromInventory,
+            relevantMonsters
+        );
+    }
+
+    public static HashSet<string> GetItemsRelevantMonstersWithMonsters(
+        PlayerCharacter character,
+        GameState gameState,
+        List<ItemInInventory> items,
+        bool includeItemsFromInventory,
+        List<MonsterSchema> relevantMonsters
+    )
+    {
+        HashSet<string> relevantItems = [];
 
         List<ItemInInventory> itemsToUse = [.. items];
 
@@ -2045,13 +2062,13 @@ public static class FightSimulator
             }
         }
 
-        foreach (var keyValuePair in slotItemDict)
+        foreach (var slotsValuePair in slotItemDict)
         {
             List<ItemInInventory> itemsToKeep = [];
 
             List<string> skipList = [];
 
-            foreach (var item in keyValuePair.Value)
+            foreach (var item in slotsValuePair.Value)
             {
                 if (skipList.Contains(item.Item.Code))
                 {
@@ -2060,35 +2077,28 @@ public static class FightSimulator
 
                 itemsToKeep.Add(item);
 
-                foreach (var itemToCompareTo in keyValuePair.Value)
+                // This all depends on quantities etc., e.g. if you only have 1 iron_ring, you might still want
+                // to sim copper_ring. It's easier just to always sim all of them
+                if (slotsValuePair.Key == "ring")
+                {
+                    break;
+                }
+
+                foreach (var itemToCompareTo in slotsValuePair.Value)
                 {
                     if (item.Item.Code == itemToCompareTo.Item.Code)
                     {
                         continue;
                     }
 
-                    var result = ItemService.GetBestItemIfUpgrade(item.Item, itemToCompareTo.Item);
+                    var bestItem = ItemService.GetBestItemIfUpgrade(
+                        item.Item,
+                        itemToCompareTo.Item
+                    );
 
-                    if (result is null)
+                    if (bestItem is not null && bestItem.Code == itemToCompareTo.Item.Code)
                     {
-                        // They don't overlap
-                        itemsToKeep.Add(itemToCompareTo);
-                        continue;
-                    }
-
-                    if (result is not null)
-                    {
-                        if (result.Code == item.Item.Code)
-                        {
-                            // itemsToKeep.Add(item);
-                            skipList.Add(itemToCompareTo.Item.Code);
-                        }
-                        else
-                        {
-                            // itemsToKeep.Add(itemToCompareTo);
-                            skipList.Add(result.Code);
-                            break; // the other item is better, so disqualify the current one
-                        }
+                        skipList.Add(item.Item.Code);
                     }
                 }
             }

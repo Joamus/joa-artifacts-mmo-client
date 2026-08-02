@@ -131,7 +131,7 @@ public class BankItemCache
         reservations = newReservations;
     }
 
-    public async Task<List<DropSchema>> GetBankItems(
+    public virtual async Task<List<DropSchema>> GetBankItems(
         PlayerCharacter? playerCharacter,
         bool hideOwnReservations = false
     )

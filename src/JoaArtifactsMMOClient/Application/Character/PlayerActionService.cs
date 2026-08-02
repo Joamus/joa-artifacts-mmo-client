@@ -310,7 +310,7 @@ public class PlayerActionService
             return new NextJobToFightResult { Job = null };
         }
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         // We assume that items that are lower level, are also easier to get (mobs less difficult to fight).
         // The issue can be that our character might only barely be able to fight the monster, so rather get the easier items first
@@ -597,8 +597,7 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value
-                            ?? 0;
+                                ?.Value ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -672,7 +671,7 @@ public class PlayerActionService
         MonsterSchema monster
     )
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(this.Character, false);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(this.Character, false);
 
         var bankItemDict = new Dictionary<string, DropSchema>();
 
@@ -851,7 +850,7 @@ public class PlayerActionService
         if (tasksCoinsInInventory < ItemService.CancelTaskPrice)
         {
             int tasksCoinsInBank =
-                (await gameState.BankItemCache.GetBankItems(Character))
+                (await gameState.Services.BankItemCache.GetBankItems(Character))
                     .FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                     ?.Quantity ?? 0;
 
@@ -906,7 +905,7 @@ public class PlayerActionService
 
     public async Task WithdrawTeleportPotions()
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         foreach (var item in bankItems)
         {
@@ -951,7 +950,7 @@ public class PlayerActionService
 
     public async Task WithdrawAndUseConsumableBags()
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         foreach (var item in bankItems)
         {
@@ -1000,11 +999,11 @@ public class PlayerActionService
 
     public async Task BuyBankSpaceIfNeeded()
     {
-        var result = await gameState.BankItemCache.GetBankDetails();
+        var result = await gameState.Services.BankItemCache.GetBankDetails();
 
         if (result.NextExpansionCost < Character.Schema.Gold + result.Gold)
         {
-            var itemsInBank = await gameState.BankItemCache.GetBankItems(null);
+            var itemsInBank = await gameState.Services.BankItemCache.GetBankItems(null);
 
             int amountFree = result.Slots - itemsInBank.Count;
 

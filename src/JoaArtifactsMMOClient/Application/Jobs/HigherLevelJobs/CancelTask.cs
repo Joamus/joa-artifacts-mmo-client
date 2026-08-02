@@ -42,7 +42,7 @@ public class CancelTaskJob : CharacterJob
         else if (tasksCoinsInInventory < ItemService.CancelTaskPrice)
         {
             int tasksCoinsInBank =
-                (await gameState.BankItemCache.GetBankItems(character))
+                (await gameState.Services.BankItemCache.GetBankItems(character))
                     .FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                     ?.Quantity ?? 0;
 
@@ -96,7 +96,7 @@ public class CancelTaskJob : CharacterJob
         }
 
         int tasksCoinsInBank =
-            (await gameState.BankItemCache.GetBankItems(character))
+            (await gameState.Services.BankItemCache.GetBankItems(character))
                 .FirstOrDefault(item => item.Code == ItemService.TasksCoin)
                 ?.Quantity ?? 0;
 
@@ -109,13 +109,15 @@ public class CancelTaskJob : CharacterJob
         ** If the item is an event item, e.g. strange_ore, we want to cancel it if we have the tasks coins for it.
         ** In the worst case scenario, we might not have the coins, but let's fake not being able to do it.
         */
-        return gameState.EventService.IsEntityFromEvent(item.Code)
+        return gameState.Services.EventService.IsEntityFromEvent(item.Code)
             || item.Craft is not null
                 && item.Craft.Items.Exists(itemComponent =>
                 {
                     var matchingItemComponent = gameState.ItemsDict[itemComponent.Code];
 
-                    return gameState.EventService.IsEntityFromEvent(matchingItemComponent.Code);
+                    return gameState.Services.EventService.IsEntityFromEvent(
+                        matchingItemComponent.Code
+                    );
                 });
     }
 }

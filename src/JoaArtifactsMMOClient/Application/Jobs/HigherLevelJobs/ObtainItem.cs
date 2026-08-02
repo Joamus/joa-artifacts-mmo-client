@@ -101,7 +101,7 @@ public class ObtainItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
         );
 
-        itemsInBank = await gameState.BankItemCache.GetBankItems(Character);
+        itemsInBank = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         // useItemIfInInventory is set to the job's value at first, so we can allow obtaining an item we already have.
         // But if we have the ingredients in our inventory, then we should always use them (for now).
@@ -170,7 +170,7 @@ public class ObtainItem : CharacterJob
         bool ignoreInventoryFull = false
     )
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character, false);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character, false);
 
         List<CharacterJob> jobs = [];
 
@@ -518,11 +518,13 @@ public class ObtainItem : CharacterJob
             //     continue;
             // }
 
-            var monsterIsFromEvent = gameState.EventService.IsEntityFromEvent(monster.Code);
+            var monsterIsFromEvent = gameState.Services.EventService.IsEntityFromEvent(
+                monster.Code
+            );
 
             if (
                 monsterIsFromEvent
-                && gameState.EventService.WhereIsEntityActive(monster.Code) is null
+                && gameState.Services.EventService.WhereIsEntityActive(monster.Code) is null
             )
             {
                 continue;
@@ -1045,7 +1047,7 @@ public class ObtainItem : CharacterJob
         }
 
         if (
-            gameState.EventService.IsEntityFromEvent(matchingNpcItem.Npc)
+            gameState.Services.EventService.IsEntityFromEvent(matchingNpcItem.Npc)
             && !EventService.IsNpcActive(gameState, matchingNpcItem.Npc)
         )
         {

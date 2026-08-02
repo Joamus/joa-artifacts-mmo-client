@@ -1,7 +1,10 @@
 using Application;
+using Application.ArtifactsApi.Schemas;
+using Application.Character;
 using Application.Records;
 using Applicaton.Services.FightSimulator;
 using JoaArtifactsMMOClientTests.Helpers;
+using NSubstitute;
 
 namespace JoaArtifactsMMOClientTests;
 
@@ -197,5 +200,176 @@ public class FightSimulatorTest
 
         int potionsUsedWithBoost = SimWithBoost();
         int potionsUsedWithoutBoost = SimWithoutBoost();
+    }
+
+    [Fact(
+        DisplayName = "Should use better equipment from item list, than what is currently equipped"
+    )]
+    public void GetBetterItemsToWithdraw_ShouldWithdrawItemsFromBank()
+    {
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        var monster = gameState.MonstersDict["flying_snake"];
+
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 30);
+
+        var weapon = gameState.ItemsDict["hunting_bow"];
+        var armor = gameState.ItemsDict["feather_coat"];
+
+        List<DropSchema> bankItems =
+        [
+            new DropSchema { Code = "skull_wand", Quantity = 1 },
+            new DropSchema { Code = "bandit_armor", Quantity = 1 },
+            new DropSchema { Code = "snakeskin_legs_armor", Quantity = 1 },
+        ];
+
+        character.Schema = PlayerActionService.SimulateItemEquip(
+            character.Schema,
+            null,
+            weapon,
+            "WeaponSlot",
+            1
+        );
+        character.Schema = PlayerActionService.SimulateItemEquip(
+            character.Schema,
+            null,
+            armor,
+            "BodyArmorSlot",
+            1
+        );
+
+        // gameState
+        //     .BankItemCache.GetBankItems(Arg.Any<PlayerCharacter>(), Arg.Any<bool>())
+        //     .Returns(call => bankItems);
+
+        var result = FightSimulator
+            .FindBestFightEquipment(
+                character,
+                gameState,
+                monster,
+                [
+                    .. bankItems.Select(item => new ItemInInventory
+                    {
+                        Item = gameState.ItemsDict[item.Code],
+                        Quantity = item.Quantity,
+                    }),
+                ]
+            )
+            .SimResult;
+
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == "skull_wand"));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == "bandit_armor"));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == "snakeskin_legs_armor"));
+    }
+
+    [Fact(
+        DisplayName = "Should use better equipment from item list, than what is currently equipped"
+    )]
+    public void FindBestFightEquipment_UseBetterEquipmentIfWorseIsEquipped()
+    {
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        var monster = gameState.MonstersDict["flying_snake"];
+
+        var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 30);
+
+        var weapon = gameState.ItemsDict["hunting_bow"];
+        var armor = gameState.ItemsDict["feather_coat"];
+
+        List<DropSchema> bankItems =
+        [
+            new DropSchema { Code = "skull_wand", Quantity = 1 },
+            new DropSchema { Code = "bandit_armor", Quantity = 1 },
+            new DropSchema { Code = "snakeskin_legs_armor", Quantity = 1 },
+        ];
+
+        character.Schema = PlayerActionService.SimulateItemEquip(
+            character.Schema,
+            null,
+            weapon,
+            "WeaponSlot",
+            1
+        );
+        character.Schema = PlayerActionService.SimulateItemEquip(
+            character.Schema,
+            null,
+            armor,
+            "BodyArmorSlot",
+            1
+        );
+
+        // gameState
+        //     .BankItemCache.GetBankItems(Arg.Any<PlayerCharacter>(), Arg.Any<bool>())
+        //     .Returns(call => bankItems);
+
+        var result = FightSimulator
+            .FindBestFightEquipment(
+                character,
+                gameState,
+                monster,
+                [
+                    .. bankItems.Select(item => new ItemInInventory
+                    {
+                        Item = gameState.ItemsDict[item.Code],
+                        Quantity = item.Quantity,
+                    }),
+                ]
+            )
+            .SimResult;
+
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == "skull_wand"));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == "bandit_armor"));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == "snakeskin_legs_armor"));
+    }
+
+    [Fact(DisplayName = "Should find best equipment in GetItemsWorthSimming")]
+    public void GetItemsWorthSimming_ShouldFindBestUpgrade()
+    {
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        List<ItemInInventory> items =
+        [
+            // Items that are downgrades
+            new ItemInInventory { Item = gameState.ItemsDict["life_amulet"], Quantity = 1 }, // downgrade from dreadful_amulet
+            // These items should not overlap
+            new ItemInInventory { Item = gameState.ItemsDict["dreadful_amulet"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["skull_wand"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["bandit_armor"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["iron_armor"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["copper_legs_armor"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["iron_ring"], Quantity = 1 },
+            new ItemInInventory
+            {
+                Item = gameState.ItemsDict["snakeskin_legs_armor"],
+                Quantity = 1,
+            },
+        ];
+
+        var result = FightSimulator.GetItemsWorthSimming(items);
+
+        // These items are downgrades, the exact same or worse stats
+        Assert.False(result.Exists(item => item.Item.Code == "life_amulet"));
+        // Similar, but different crit value so keep
+        Assert.True(result.Exists(item => item.Item.Code == "dreadful_amulet"));
+        Assert.True(result.Exists(item => item.Item.Code == "skull_wand"));
+        Assert.True(result.Exists(item => item.Item.Code == "bandit_armor"));
+        Assert.True(result.Exists(item => item.Item.Code == "iron_armor"));
+        Assert.True(result.Exists(item => item.Item.Code == "copper_legs_armor"));
+        Assert.True(result.Exists(item => item.Item.Code == "iron_ring"));
+        Assert.True(result.Exists(item => item.Item.Code == "snakeskin_legs_armor"));
+    }
+
+    [Fact(DisplayName = "Should win the boss fight")]
+    public void SimulateBossFightOutcome_ShouldWin()
+    {
+        // FightSimulator.SimulateBossFightOutcome(
+        //     PlayerCharacter character,
+        //     List<PlayerCharacter> otherCharacters,
+        //     GameState gameState,
+        //     List<DropSchema> bankItems,
+        //     MonsterSchema monster
+        // )
+        // {
+        // }
     }
 }

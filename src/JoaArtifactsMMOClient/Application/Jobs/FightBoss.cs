@@ -45,7 +45,7 @@ public class FightBoss
                 character,
                 otherCharacters,
                 gameState,
-                await gameState.BankItemCache.GetBankItems(character),
+                await gameState.Services.BankItemCache.GetBankItems(character),
                 monster
             ),
         };

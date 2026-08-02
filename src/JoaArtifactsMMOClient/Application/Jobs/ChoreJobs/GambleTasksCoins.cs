@@ -125,7 +125,7 @@ public class GambleTasksCoins : CharacterJob, ICharacterChoreJob
     {
         var highestCharacterLevel = gameState.GetCharacterLevelRange().Highest;
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var bankItemsDict = bankItems
             .Where(item => !string.IsNullOrWhiteSpace(item.Code))
@@ -140,8 +140,7 @@ public class GambleTasksCoins : CharacterJob, ICharacterChoreJob
                     float dropRate = RestockResources.CalculateDropRate(
                         gameState
                             .TasksRewards.FirstOrDefault(reward => reward.Code == matchingItem.Code)
-                            ?.Rate
-                        ?? 0
+                            ?.Rate ?? 0
                     );
 
                     int amountNeeded = (int)
@@ -183,7 +182,7 @@ public class GambleTasksCoins : CharacterJob, ICharacterChoreJob
 
     public async Task<int> GetAmountOfTaskCoinsToWithdraw()
     {
-        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+        var bankResponse = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         int amountInBank =
             bankResponse.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity ?? 0;

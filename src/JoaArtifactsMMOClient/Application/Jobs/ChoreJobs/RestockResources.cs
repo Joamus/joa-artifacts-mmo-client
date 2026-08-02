@@ -47,7 +47,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
 
         var relevantResources = GetResourcesToConsider(gameState, levelRange);
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var itemsToRestock = GetNextItemToRestock(gameState, bankItems, levelRange);
 
@@ -115,7 +115,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
                     var drops = gameState
                         .DropItemsDict[code]
                         .Where(drop =>
-                            !gameState.EventService.IsEntityFromEvent(drop.Resource.Code)
+                            !gameState.Services.EventService.IsEntityFromEvent(drop.Resource.Code)
                         )
                         .ToList();
 
@@ -133,7 +133,7 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
                     if (
                         !ShouldRestock(matchingItem, bestDrop.Drop, amountInBank, levelRange)
                         || IsTooRareToRestock(bestDrop.Drop)
-                        || gameState.EventService.IsEntityFromEvent(bestDrop.Resource.Code)
+                        || gameState.Services.EventService.IsEntityFromEvent(bestDrop.Resource.Code)
                     )
                     {
                         return new DropSchema { Code = code, Quantity = 0 };

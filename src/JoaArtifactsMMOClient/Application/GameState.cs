@@ -13,15 +13,10 @@ namespace Application;
 
 public class GameState
 {
-    public AccountRequester AccountRequester { get; init; }
-    readonly ApiRequester apiRequester;
-
     DateTime cacheReload = DateTime.UtcNow;
     public DateTime PendingItemClaimEvaluation { get; set; } = DateTime.UtcNow;
 
     ILogger logger { get; init; }
-
-    public required BankItemCache BankItemCache { get; set; }
 
     public List<PlayerCharacter> Characters { get; private set; } = [];
     public List<PlayerAI> CharacterAIs { get; private set; } = [];
@@ -33,7 +28,6 @@ public class GameState
     public List<TasksFullSchema> Tasks { get; set; } = [];
     public List<DropRateSchema> TasksRewards { get; set; } = [];
 
-    public CharacterChoreService ChoreService { get; set; }
     public Dictionary<string, ItemSchema> ItemsDict { get; set; } = [];
 
     public Dictionary<string, ItemSchema> UtilityItemsDict { get; set; } = [];
@@ -60,22 +54,25 @@ public class GameState
     public List<MonsterSchema> AvailableMonsters { get; set; } = [];
     public Dictionary<string, MonsterSchema> AvailableMonstersDict { get; set; } = [];
 
-    public EventService EventService { get; set; }
+    public GameStateServices Services { get; set; }
 
     [SetsRequiredMembers]
     public GameState(AccountRequester accountRequester, ApiRequester apiRequester)
     {
-        AccountRequester = accountRequester;
-        this.apiRequester = apiRequester;
-        logger = AppLogger.loggerFactory.CreateLogger<GameState>();
-        BankItemCache = new BankItemCache(accountRequester);
-        EventService = new EventService(
-            AppLogger.loggerFactory.CreateLogger<EventService>(),
-            accountRequester,
-            this
-        );
+        Services = new()
+        {
+            AccountRequester = accountRequester,
+            ApiRequester = apiRequester,
+            BankItemCache = new BankItemCache(accountRequester),
 
-        ChoreService = new CharacterChoreService();
+            EventService = new EventService(
+                AppLogger.loggerFactory.CreateLogger<EventService>(),
+                accountRequester,
+                this
+            ),
+            ChoreService = new CharacterChoreService(),
+        };
+        logger = AppLogger.loggerFactory.CreateLogger<GameState>();
     }
 
     public async Task LoadAll(List<CharacterConfig> characterConfigs)
@@ -92,9 +89,9 @@ public class GameState
         await LoadAccountAchievements();
         await LoadTasksList();
         await LoadTasksRewards();
-        await BankItemCache.GetBankItems(null);
-        await EventService.LoadEvents();
-        await EventService.LoadActiveEvents();
+        await Services.BankItemCache.GetBankItems(null);
+        await Services.EventService.LoadEvents();
+        await Services.EventService.LoadActiveEvents();
         await LoadCharacters(characterConfigs);
     }
 
@@ -125,7 +122,7 @@ public class GameState
         AvailableNpcs = GetAvailableNpcs(Npcs);
         ShouldUpdatePendingItems = true;
 
-        await EventService.LoadActiveEvents();
+        await Services.EventService.LoadActiveEvents();
         // Loading these for when events update
     }
 
@@ -133,7 +130,7 @@ public class GameState
     {
         // Bind the "Characters" section to a list of CharacterConfig
         logger.LogInformation("Loading characters...");
-        var result = await AccountRequester.GetCharacters();
+        var result = await Services.AccountRequester.GetCharacters();
 
         List<PlayerCharacter> characters = [];
         List<PlayerAI> characterAIs = [];
@@ -150,7 +147,7 @@ public class GameState
             var character = new PlayerCharacter(
                 characterSchema,
                 this,
-                apiRequester,
+                Services.ApiRequester,
                 matchingConfig
             );
             characters.Add(character);
@@ -176,7 +173,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await AccountRequester.GetItems(pageNumber);
+            var result = await Services.AccountRequester.GetItems(pageNumber);
 
             foreach (var item in result.Data)
             {
@@ -232,7 +229,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await AccountRequester.GetNpcItems(pageNumber);
+            var result = await Services.AccountRequester.GetNpcItems(pageNumber);
 
             foreach (var item in result.Data)
             {
@@ -258,7 +255,7 @@ public class GameState
         logger.LogInformation("Loading tasks list...");
         List<TasksFullSchema> tasks = [];
 
-        var result = await AccountRequester.GetTasks();
+        var result = await Services.AccountRequester.GetTasks();
 
         foreach (var task in result)
         {
@@ -275,7 +272,7 @@ public class GameState
         logger.LogInformation("Loading tasks rewards...");
         List<DropRateSchema> rewards = [];
 
-        var result = await AccountRequester.GetTasksRewards();
+        var result = await Services.AccountRequester.GetTasksRewards();
 
         foreach (var reward in result)
         {
@@ -297,7 +294,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await AccountRequester.GetMaps(pageNumber);
+            var result = await Services.AccountRequester.GetMaps(pageNumber);
 
             foreach (var map in result.Data)
             {
@@ -328,7 +325,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await AccountRequester.GetResources(pageNumber);
+            var result = await Services.AccountRequester.GetResources(pageNumber);
 
             foreach (var resource in result.Data)
             {
@@ -367,7 +364,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await AccountRequester.GetNpcs(pageNumber);
+            var result = await Services.AccountRequester.GetNpcs(pageNumber);
 
             foreach (var npc in result.Data)
             {
@@ -424,7 +421,7 @@ public class GameState
         {
             while (!doneLoading)
             {
-                var result = await AccountRequester.GetAccountAchievements(pageNumber);
+                var result = await Services.AccountRequester.GetAccountAchievements(pageNumber);
 
                 foreach (var achievement in result.Data)
                 {
@@ -460,7 +457,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await AccountRequester.GetMonsters(pageNumber);
+            var result = await Services.AccountRequester.GetMonsters(pageNumber);
 
             foreach (var monster in result.Data)
             {
@@ -493,7 +490,7 @@ public class GameState
 
         while (!doneLoading)
         {
-            var result = await AccountRequester.GetPendingItems(pageNumber);
+            var result = await Services.AccountRequester.GetPendingItems(pageNumber);
 
             foreach (var pendingItem in result.Data)
             {
@@ -533,7 +530,7 @@ public class GameState
             );
         });
 
-        var bankResponse = await BankItemCache.GetBankItems(Characters.First(), false);
+        var bankResponse = await Services.BankItemCache.GetBankItems(Characters.First(), false);
 
         int amountInBank = bankResponse.Sum(bankItem =>
             bankItem.Code == itemCode ? bankItem.Quantity : 0
@@ -553,4 +550,14 @@ public class GameState
             Highest = characterLevels.Last(),
         };
     }
+}
+
+public record GameStateServices
+{
+    public required AccountRequester AccountRequester { get; init; }
+    public required ApiRequester ApiRequester { get; init; }
+
+    public required BankItemCache BankItemCache { get; set; }
+    public required EventService EventService { get; set; }
+    public CharacterChoreService ChoreService { get; set; }
 }

@@ -34,7 +34,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
 
         int amountInInventory = Character.GetItemFromInventory(Code)?.Quantity ?? 0;
 
-        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+        var bankResponse = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         int amountInBank = bankResponse.FirstOrDefault(item => item.Code == Code)?.Quantity ?? 0;
 
@@ -68,7 +68,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
                     await Character.NavigateTo("bank");
 
                     // Just to be careful
-                    gameState.BankItemCache.ReserveItem(
+                    gameState.Services.BankItemCache.ReserveItem(
                         Character,
                         ItemService.TasksCoin,
                         amountNeededFromBank
@@ -84,7 +84,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
                         ]
                     );
 
-                    gameState.BankItemCache.RemoveReservation(
+                    gameState.Services.BankItemCache.RemoveReservation(
                         Character,
                         ItemService.TasksCoin,
                         amountNeededFromBank

@@ -106,7 +106,7 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 
     public async Task<int> GetAmountOfTaskCoins()
     {
-        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+        var bankResponse = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         return bankResponse.FirstOrDefault(item => item.Code == ItemService.TasksCoin)?.Quantity
             ?? 0;

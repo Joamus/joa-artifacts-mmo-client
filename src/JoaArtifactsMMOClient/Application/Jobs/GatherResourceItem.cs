@@ -297,7 +297,7 @@ public class GatherResourceItem : CharacterJob
             availableToolsOnCharacter.Add(equippedItem);
         }
 
-        var bankResponse = await gameState.BankItemCache.GetBankItems(character);
+        var bankResponse = await gameState.Services.BankItemCache.GetBankItems(character);
 
         var toolsFromBank = bankResponse
             .Where(item =>

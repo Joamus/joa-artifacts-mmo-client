@@ -271,7 +271,7 @@ public class PlayerAI
             (Character.Schema.Artifact3Slot, "artifact3"),
         ];
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var bankItemsDict = bankItems.ToDictionary((item) => item.Code);
 
@@ -407,7 +407,7 @@ public class PlayerAI
 
         var equippedBag = gameState.ItemsDict.GetValueOrNull(Character.Schema.BagSlot);
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var bankItemsDict = bankItems.ToDictionary((item) => item.Code);
 
@@ -526,7 +526,7 @@ public class PlayerAI
             return null;
         }
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         ItemSchema? bestCandidate = null;
 
@@ -826,7 +826,7 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetEventJob()
     {
-        var activeEvents = gameState.EventService.ActiveEvents;
+        var activeEvents = gameState.Services.EventService.ActiveEvents;
 
         Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetEventJob: Evaluating active events - there are {activeEvents.Count} active events"
@@ -842,7 +842,9 @@ public class PlayerAI
 
         foreach (var activeEvent in activeEvents)
         {
-            var gameEvent = gameState.EventService.EventsDict.GetValueOrNull(activeEvent.Code)!;
+            var gameEvent = gameState.Services.EventService.EventsDict.GetValueOrNull(
+                activeEvent.Code
+            )!;
 
             var eventContent = gameEvent.Content;
 
@@ -1058,7 +1060,7 @@ public class PlayerAI
             {
                 var choreKind = chore.Kind;
 
-                if (gameState.ChoreService.ShouldChoreBeStarted(choreKind))
+                if (gameState.Services.ChoreService.ShouldChoreBeStarted(choreKind))
                 {
                     CharacterJob? job = null;
                     bool isScheduledChore = false;
@@ -1146,10 +1148,10 @@ public class PlayerAI
                             Logger.LogInformation(
                                 $"{Name}: [{Character.Name}]: Done running chore \"{choreKind.GetDisplayName()}\""
                             );
-                            gameState.ChoreService.FinishChore(choreKind);
+                            gameState.Services.ChoreService.FinishChore(choreKind);
                         };
 
-                        gameState.ChoreService.StartChore(Character, choreKind);
+                        gameState.Services.ChoreService.StartChore(Character, choreKind);
                     }
 
                     return job;

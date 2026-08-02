@@ -326,11 +326,13 @@ public static class ItemService
                 return false;
             }
 
-            var resourceIsFromEvent = gameState.EventService.IsEntityFromEvent(resource.Code);
+            var resourceIsFromEvent = gameState.Services.EventService.IsEntityFromEvent(
+                resource.Code
+            );
 
             if (
                 resourceIsFromEvent
-                && gameState.EventService.WhereIsEntityActive(resource.Code) is null
+                && gameState.Services.EventService.WhereIsEntityActive(resource.Code) is null
             )
             {
                 return false;
@@ -496,7 +498,7 @@ public static class ItemService
                 .Where(skill => skill is not null),
         ];
 
-        var bankData = await gameState.BankItemCache.GetBankItems(character);
+        var bankData = await gameState.Services.BankItemCache.GetBankItems(character);
 
         foreach (var item in allItemCandidates)
         {
@@ -624,43 +626,23 @@ public static class ItemService
 
     public static ItemSchema? GetBestItemIfUpgrade(ItemSchema a, ItemSchema b)
     {
-        var lowestLevelItem = a.Level > b.Level ? b : a;
+        List<ItemSchema> items = [a, b];
 
-        var highestLevelItem = lowestLevelItem.Code == a.Code ? b : a;
+        items.Sort((a, b) => a.Level - b.Level);
 
-        bool doBothItemsHaveAllOfTheSameEffects = a.Effects.All(aEffect =>
-            b.Effects.Exists(bEffect => aEffect.Code == bEffect.Code)
+        var lowestLevelItem = items[0];
+        var highestLevelItem = items[1];
+
+        bool highLevelItemHasAllEffectsOfLowLevelItem = lowestLevelItem.Effects.All(lowEffect =>
+            highestLevelItem.Effects.Exists(highEffect =>
+                highEffect.Code == lowEffect.Code
+                && Math.Abs(highEffect.Value) >= Math.Abs(lowEffect.Value)
+            )
         );
 
-        if (!doBothItemsHaveAllOfTheSameEffects)
+        if (!highLevelItemHasAllEffectsOfLowLevelItem)
         {
             return null;
-        }
-
-        foreach (var highLevelEffect in highestLevelItem.Effects)
-        {
-            /**
-             * Some effects have "minus" effects, e.g. cooldown reduction for gathering tools,
-             * but Obsidian Battleaxe also has minus inventory space, so we don't care for that here.
-             * If we can find a single effect that's better on the lower level item,
-             * then it's not a straight up upgrade anymore.
-            */
-
-            bool hasMinusEffect = a.Subtype == "tool" && b.Subtype == "tool";
-
-            var isHighLevelEffectBetterOrEqual = lowestLevelItem.Effects.Exists(lowLevelEffect =>
-                lowLevelEffect.Code == highLevelEffect.Code
-                && (
-                    hasMinusEffect
-                        ? highLevelEffect.Value < lowLevelEffect.Value
-                        : highLevelEffect.Value >= lowLevelEffect.Value
-                )
-            );
-
-            if (!isHighLevelEffectBetterOrEqual)
-            {
-                return null;
-            }
         }
 
         return highestLevelItem;
@@ -675,7 +657,7 @@ public static class ItemService
     {
         List<ItemInInventory> items = [];
 
-        // var bankItems = await gameState.BankItemCache.GetBankItems(character, true);
+        // var bankItems = await gameState.Services.BankItemCache.GetBankItems(character, true);
 
         // var bankItemDict = new Dictionary<string, DropSchema>();
 
@@ -743,8 +725,9 @@ public static class ItemService
                     }
 
                     if (
-                        gameState.EventService.IsEntityFromEvent(matchingNpcItem.Npc)
-                        && gameState.EventService.WhereIsEntityActive(matchingNpcItem.Npc) is null
+                        gameState.Services.EventService.IsEntityFromEvent(matchingNpcItem.Npc)
+                        && gameState.Services.EventService.WhereIsEntityActive(matchingNpcItem.Npc)
+                            is null
                     )
                     {
                         continue;
@@ -762,7 +745,9 @@ public static class ItemService
                 {
                     continue;
                 }
-                else if (gameState.EventService.IsItemFromEventMonster(matchingItem.Code, true))
+                else if (
+                    gameState.Services.EventService.IsItemFromEventMonster(matchingItem.Code, true)
+                )
                 {
                     continue;
                 }

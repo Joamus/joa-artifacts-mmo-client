@@ -30,13 +30,13 @@ public class WithdrawItem : CharacterJob
 
         onJobQueuedHook = async () =>
         {
-            gameState.BankItemCache.ReserveItem(character, code, amount);
+            gameState.Services.BankItemCache.ReserveItem(character, code, amount);
         };
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var matchingItemInBank = bankItems.FirstOrDefault(item => item.Code == Code);
 
@@ -79,7 +79,7 @@ public class WithdrawItem : CharacterJob
             // There can be a clash
             if (withdrawResult.Value is None)
             {
-                gameState.BankItemCache.RemoveReservation(Character, Code, foundQuantity);
+                gameState.Services.BankItemCache.RemoveReservation(Character, Code, foundQuantity);
                 return new None();
             }
         }

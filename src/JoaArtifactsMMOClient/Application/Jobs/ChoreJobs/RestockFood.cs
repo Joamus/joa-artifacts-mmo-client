@@ -39,7 +39,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
     async Task<List<CharacterJob>> GetJobs()
     {
-        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+        var bankResponse = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         // var jobsToCookUncookedResources = await GetListToCookAllUncookedMeatOrFish(
         //     bankResponse.Data

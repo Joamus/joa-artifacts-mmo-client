@@ -45,7 +45,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         // Next season will make these both craftable and purchasable, depending on potion
         var levelRange = gameState.GetCharacterLevelRange();
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var nextTeleportPotionToRestock = await GetNextTeleportPotionToRestock(
             gameState,
@@ -66,7 +66,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
             ];
         }
 
-        var bankResponse = await gameState.BankItemCache.GetBankItems(Character);
+        var bankResponse = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var bestPotions = await GetAllPotionCandidates();
 

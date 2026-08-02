@@ -15,7 +15,9 @@ public static class ServiceHelper
         return Substitute.For<ApiRequester>("dummy_token", false);
     }
 
-    private static GameState? gameState;
+    private static GameState? GameState;
+    private static AccountRequester? AccountRequester;
+    private static ApiRequester? ApiRequester;
 
     public static GameState GetEmptyGameState()
     {
@@ -44,9 +46,17 @@ public static class ServiceHelper
     // character state into each other, while the expensive JSON parsing only happens once.
     public static GameState GetPopulatedGameState()
     {
-        if (ServiceHelper.gameState is not null)
+        // if (ApiRequester is not null && AccountRequester is not null)
+        if (GameState is not null)
         {
-            return ServiceHelper.gameState;
+            var newGameState = GameState;
+
+            newGameState.Services = GameState.Services with
+            {
+                BankItemCache = GameState.Services.BankItemCache,
+            };
+
+            return newGameState;
         }
 
         ReferenceGameData reference = _referenceData.Value;
@@ -110,7 +120,12 @@ public static class ServiceHelper
         accountRequester.GetTasks().Returns(reference.Tasks);
         accountRequester.GetTasksRewards().Returns(reference.TasksRewards);
 
+        AccountRequester = accountRequester;
+        ApiRequester = apiRequester;
+
         GameState gameState = new(accountRequester, apiRequester);
+
+        gameState.Services.BankItemCache = Substitute.For<BankItemCache>(accountRequester);
 
         Task.Run(async () =>
             {
@@ -122,14 +137,14 @@ public static class ServiceHelper
                 await gameState.LoadMonsters();
                 await gameState.LoadTasksList();
                 await gameState.LoadTasksRewards();
-                await gameState.EventService.LoadEvents();
-                await gameState.EventService.LoadActiveEvents();
+                await gameState.Services.EventService.LoadEvents();
+                await gameState.Services.EventService.LoadActiveEvents();
             })
             .Wait();
 
-        ServiceHelper.gameState = gameState;
+        GameState = gameState;
 
-        return ServiceHelper.gameState;
+        return GameState;
     }
 
     private static List<T> FirstPageOnly<T>(int pageNumber, List<T> data) =>

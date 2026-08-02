@@ -556,7 +556,7 @@ public class PlayerCharacter
     {
         await PreTaskHandler();
 
-        var result = await GameState.AccountRequester.GetCharacter(Schema.Name);
+        var result = await GameState.Services.AccountRequester.GetCharacter(Schema.Name);
 
         if (result?.Data is not null)
         {
@@ -666,8 +666,8 @@ public class PlayerCharacter
             body
         );
 
-        GameState.BankItemCache.shouldRequestAgain = true;
-        GameState.BankItemCache.shouldRequestDetailsAgain = true;
+        GameState.Services.BankItemCache.shouldRequestAgain = true;
+        GameState.Services.BankItemCache.shouldRequestDetailsAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -690,8 +690,8 @@ public class PlayerCharacter
 
         var content = await response.Content.ReadAsStringAsync();
 
-        GameState.BankItemCache.shouldRequestAgain = true;
-        GameState.BankItemCache.shouldRequestDetailsAgain = true;
+        GameState.Services.BankItemCache.shouldRequestAgain = true;
+        GameState.Services.BankItemCache.shouldRequestDetailsAgain = true;
 
         var result = JsonSerializer.Deserialize<BankGoldTransactionResponse>(
             content,
@@ -711,7 +711,7 @@ public class PlayerCharacter
 
         var content = await response.Content.ReadAsStringAsync();
 
-        GameState.BankItemCache.shouldRequestAgain = true;
+        GameState.Services.BankItemCache.shouldRequestAgain = true;
         GameState.ShouldUpdatePendingItems = true;
 
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -734,7 +734,7 @@ public class PlayerCharacter
             body
         );
 
-        GameState.BankItemCache.shouldRequestAgain = true;
+        GameState.Services.BankItemCache.shouldRequestAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -758,7 +758,7 @@ public class PlayerCharacter
             body
         );
 
-        GameState.BankItemCache.shouldRequestAgain = true;
+        GameState.Services.BankItemCache.shouldRequestAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
@@ -1071,7 +1071,7 @@ public class PlayerCharacter
             null
         );
 
-        GameState.BankItemCache.shouldRequestDetailsAgain = true;
+        GameState.Services.BankItemCache.shouldRequestDetailsAgain = true;
 
         var content = await response.Content.ReadAsStringAsync();
 
@@ -1405,7 +1405,7 @@ public class PlayerCharacter
 
     public async Task<int> GetAllowedWithdrawAmount()
     {
-        var totalBudget = await GameState.BankItemCache.GetTotalBudgetInBank();
+        var totalBudget = await GameState.Services.BankItemCache.GetTotalBudgetInBank();
 
         if (totalBudget == 0)
         {

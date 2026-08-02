@@ -133,8 +133,9 @@ public class TrainSkill : CharacterJob
                 foreach (var resource in gameState.Resources)
                 {
                     if (
-                        gameState.EventService.IsEntityFromEvent(resource.Code)
-                        && gameState.EventService.WhereIsEntityActive(resource.Code) == null
+                        gameState.Services.EventService.IsEntityFromEvent(resource.Code)
+                        && gameState.Services.EventService.WhereIsEntityActive(resource.Code)
+                            == null
                     )
                     {
                         continue;
@@ -197,7 +198,9 @@ public class TrainSkill : CharacterJob
                     }
                 }
 
-                var bankItemsResponse = await gameState.BankItemCache.GetBankItems(Character);
+                var bankItemsResponse = await gameState.Services.BankItemCache.GetBankItems(
+                    Character
+                );
 
                 if (bankItemsResponse is null)
                 {
@@ -435,11 +438,13 @@ public class TrainSkill : CharacterJob
 
             foreach (var monster in monstersThatDropTheItem)
             {
-                bool isEventMonster = gameState.EventService.IsEntityFromEvent(monster.Code);
+                bool isEventMonster = gameState.Services.EventService.IsEntityFromEvent(
+                    monster.Code
+                );
 
                 if (
                     isEventMonster
-                    && gameState.EventService.WhereIsEntityActive(monster.Code) is null
+                    && gameState.Services.EventService.WhereIsEntityActive(monster.Code) is null
                 )
                 {
                     continue;
@@ -509,7 +514,7 @@ public class TrainSkill : CharacterJob
 
             if (resource is not null)
             {
-                bool isFromEvent = gameState.EventService.IsEntityFromEvent(item.Code);
+                bool isFromEvent = gameState.Services.EventService.IsEntityFromEvent(item.Code);
 
                 var drop = resource.Drops.First(drop => drop.Code == item.Code)!;
 

@@ -57,7 +57,10 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
                 foreach (var item in npc.Value)
                 {
-                    var bankResponse = await gameState.BankItemCache.GetBankItems(Character, true);
+                    var bankResponse = await gameState.Services.BankItemCache.GetBankItems(
+                        Character,
+                        true
+                    );
 
                     int amountInBank =
                         bankResponse
@@ -161,11 +164,13 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
         foreach (var npc in gameState.Npcs)
         {
-            var npcEvent = gameState.EventService.EventEntitiesDict.GetValueOrNull(npc.Code);
+            var npcEvent = gameState.Services.EventService.EventEntitiesDict.GetValueOrNull(
+                npc.Code
+            );
 
             if (npcEvent is not null)
             {
-                if (gameState.EventService.WhereIsEntityActive(npcEvent.Code) is null)
+                if (gameState.Services.EventService.WhereIsEntityActive(npcEvent.Code) is null)
                 {
                     continue;
                 }
@@ -183,7 +188,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
         var activeNpcs = GetActiveNpcs();
 
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         int lowestCharacterLevel = RecycleUnusedItems.GetLowestCharacterLevel(gameState, true);
 

@@ -62,9 +62,24 @@ public class PathfindingService
         return zones;
     }
 
-    static bool IsMapAccessible(MapSchema map)
+    static bool IsMapAccessible(MapSchema currentMap, MapSchema map)
     {
-        return map.Access.Type != AccessType.Blocked;
+        if (map.Access.Type == AccessType.Blocked)
+        {
+            return false;
+        }
+
+        if (
+            currentMap.Access.Type != AccessType.Restricted
+                && map.Access.Type == AccessType.Restricted
+            || currentMap.Access.Type == AccessType.Restricted
+                && map.Access.Type != AccessType.Restricted
+        )
+        {
+            return false;
+        }
+
+        return true;
     }
 
     static List<MapSchema> GetNeighbours(
@@ -95,7 +110,7 @@ public class PathfindingService
                 })
                 .OfType<MapSchema>()
                 .Where(map =>
-                    IsMapAccessible(map)
+                    IsMapAccessible(currentMap, map)
                     && !visitedMapIds.Contains(map.MapId)
                     && !mapIdToZoneMap.ContainsKey(map.MapId)
                 ),

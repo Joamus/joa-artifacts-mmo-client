@@ -116,7 +116,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
     public async Task<List<DropSchema>> GetItemsToRecycleFromBank()
     {
-        var bankItems = await gameState.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         List<DropSchema> itemsToRecycle = [];
 

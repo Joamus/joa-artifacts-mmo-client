@@ -15,30 +15,30 @@ public class EquipmentService
     const int ITEM_LEVEL_BUFFER = 5;
 
     public static List<EquipmentTypeMapping> CraftableEquipmentTypes { get; } =
-    [
-        new() { ItemType = "weapon", Slot = "WeaponSlot" },
-        new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-        new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-        new() { ItemType = "helmet", Slot = "HelmetSlot" },
-        new() { ItemType = "boots", Slot = "BootsSlot" },
-        new() { ItemType = "ring", Slot = "Ring1Slot" },
-        new() { ItemType = "ring", Slot = "Ring2Slot" },
-        new() { ItemType = "amulet", Slot = "AmuletSlot" },
-        new() { ItemType = "shield", Slot = "ShieldSlot" },
-        new() { ItemType = "utility", Slot = "Utility1Slot" },
-        new() { ItemType = "utility", Slot = "Utility2Slot" },
-    ];
+        [
+            new() { ItemType = "weapon", Slot = "WeaponSlot" },
+            new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+            new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+            new() { ItemType = "helmet", Slot = "HelmetSlot" },
+            new() { ItemType = "boots", Slot = "BootsSlot" },
+            new() { ItemType = "ring", Slot = "Ring1Slot" },
+            new() { ItemType = "ring", Slot = "Ring2Slot" },
+            new() { ItemType = "amulet", Slot = "AmuletSlot" },
+            new() { ItemType = "shield", Slot = "ShieldSlot" },
+            new() { ItemType = "utility", Slot = "Utility1Slot" },
+            new() { ItemType = "utility", Slot = "Utility2Slot" },
+        ];
 
     public static List<EquipmentTypeMapping> AllEquipmentTypes { get; } =
-    [
-        .. new List<EquipmentTypeMapping>
-        {
-            new() { ItemType = "artifact", Slot = "Artifact1Slot" },
-            new() { ItemType = "artifact", Slot = "Artifact2Slot" },
-            new() { ItemType = "artifact", Slot = "Artifact3Slot" },
-            new() { ItemType = "rune", Slot = "RuneSlot" },
-        }.Union(CraftableEquipmentTypes),
-    ];
+        [
+            .. new List<EquipmentTypeMapping>
+            {
+                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+                new() { ItemType = "rune", Slot = "RuneSlot" },
+            }.Union(CraftableEquipmentTypes),
+        ];
 
     public static async Task<CharacterJob?> EnsureFightEquipment(
         PlayerCharacter character,
@@ -74,9 +74,9 @@ public class EquipmentService
             return null;
         }
 
-        var bankItemsDict = (await gameState.BankItemCache.GetBankItems(character)).ToDictionary(
-            item => item.Code
-        );
+        var bankItemsDict = (
+            await gameState.Services.BankItemCache.GetBankItems(character)
+        ).ToDictionary(item => item.Code);
 
         // We basically just want to take the first equipment type, and give one job, to get the best we can of that one
         List<(ItemSchema Item, int DesiredQuantity)> items = [];
@@ -137,9 +137,10 @@ public class EquipmentService
                 }
             }
         }
+        var relevantMonsters = FightSimulator.GetRelevantMonstersForCharacter(character, gameState);
 
         var relevantItemsFromSim = FightSimulator
-            .GetItemsRelevantMonsters(
+            .GetItemsRelevantMonstersWithMonsters(
                 character,
                 gameState,
                 [
@@ -149,7 +150,8 @@ public class EquipmentService
                         Quantity = item.DesiredQuantity,
                     }),
                 ],
-                false
+                false,
+                relevantMonsters
             )
             .Where(item =>
             {
@@ -202,6 +204,39 @@ public class EquipmentService
                 return itemB.Level - itemA.Level;
             }
         );
+
+        /**
+        * Important stuff to do:
+        * We currently overgear our character, which is way too expensive, e.g. when they level 25, we get them all of the best gear we can,
+        * and we keep doing that. This means that we are using a large amount of resources, including precious task items/coins.
+        *
+        * It would probably be better to treat fight equipment as a serious cost, and instead try to get by with the minimum we can.
+        * A balance must be reached, since we don't want to be scraping the bottom, but we don't want to overgear.
+        **
+        * It's especially important to consider that some item slots are less impactful than others.
+        * A scenario that can happen, is that we have a lvl 10 amulet, but want to get a slightly better lvl 20 amulet, even though it
+        * gives 10 HP and some wisdom. The issue is that this amulet might require jasper crystals, which is very expensive.
+        *
+        ** Instead we should try to avoid upgrading gear that's not impactful, until we are forced to. In some cases we might be able to entirely
+        * skip certain tiers for some slots, e.g. jump from lvl 10 rings to lvl 25, or might even skip rings for the first 20-25 levels.
+        *
+        * My current idea is to calculate the difference each item makes in the total fight sim.
+        * First we take our sim as our character currently is, allowing them to use items in their inventory.
+        * We sim them fighting all of the relevant monsters. Maybe we should save whether there are x% monsters they cannot win against (should fight is false)
+        * Then we simulate the character equips the given item, and sim all of the same monsters.
+        * We then take the average outcome of each fight, with and without the items, and we compare them.
+        *
+        * We then calculate % of how much better (or worse it is). This "Improvement" is basically made by comparing the total amount of seconds
+        * it would take for the original sim to fight the mob (amount of turns) plus the amount of seconds it would take to rest to full HP.
+        * This is basically a sort of seconds-per-full-kill metric, and shows good an overall character does against a monster.
+        *
+        * We then calculate a score for each result, which is basically the percentage improvement divided by the "inconvenienceCost".
+        * This score will tell us the % improvement we get per cost.
+        *
+        * We do this with all of the items, and sort them by score. If our original result can fight all the mobs, and we are just looking
+        * for some improvements to our already good loadout, we should only keep items that have more than a % improvement.
+        * This threshold might need to be tested, but a good starting number might be 10%.
+        */
 
         var highestPriorityItem = relevantItemsFromSim.FirstOrDefault();
 
@@ -353,7 +388,7 @@ public class EquipmentService
 
         List<ItemToEquip> bankItems =
         [
-            .. (await gameState.BankItemCache.GetBankItems(character))
+            .. (await gameState.Services.BankItemCache.GetBankItems(character))
                 .Where(IsItemWithEffect)
                 .Select(item =>
                 {

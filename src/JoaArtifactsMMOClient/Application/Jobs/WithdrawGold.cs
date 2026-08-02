@@ -10,8 +10,6 @@ namespace Application.Jobs;
 */
 public class WithdrawGold : CharacterJob
 {
-    private readonly bool _canTriggerObtain = false;
-
     public WithdrawGold(PlayerCharacter character, GameState gameState, int amount)
         : base(character, gameState)
     {
@@ -20,7 +18,7 @@ public class WithdrawGold : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        // var result = await gameState.BankItemCache.GetBankDetails();
+        // var result = await gameState.Services.BankItemCache.GetBankDetails();
 
         // int goldInBank = result.Gold;
 
