@@ -709,10 +709,8 @@ public class NavigationService
         // Don't even bother considering teleport potions then
         if (
             secondsUsedWithCurrentPath < SECONDS_SAVED_TO_USE_TELEPORT_POTION
-            && (
-                currentToDestinationSteps.GoldRequirement < 0
-                || currentToDestinationSteps.ItemRequirements.Count == 0
-            )
+            && currentToDestinationSteps.GoldRequirement == 0
+            && currentToDestinationSteps.ItemRequirements.Count == 0
         )
         {
             return null;
@@ -770,7 +768,7 @@ public class NavigationService
                 secondsWithPotion + SECONDS_SAVED_TO_USE_TELEPORT_POTION
                     < secondsUsedWithCurrentPath
                 || currentToDestinationSteps.GoldRequirement
-                    < bestCandidate.resultWithTeleportPotion.GoldRequirement
+                    > bestCandidate.resultWithTeleportPotion.GoldRequirement
             )
             {
                 var teleportToMap = gameState.MapsDict[bestCandidate.item.TeleportEffect!.Value];
