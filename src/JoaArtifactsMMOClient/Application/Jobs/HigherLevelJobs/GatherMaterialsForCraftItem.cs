@@ -175,13 +175,16 @@ public class GatherMaterialsForItem : CharacterJob
         );
 
         var result = await ObtainItem.GetJobsRequired(
-            Character,
-            gameState,
-            AllowUsingMaterialsFromBank,
-            Code,
-            Amount,
-            AllowUsingMaterialsFromInventory,
-            CanTriggerTraining
+            new ObtainItemGetJobsParams
+            {
+                Character = Character,
+                GameState = gameState,
+                AllowUsingItemFromBank = AllowUsingMaterialsFromBank,
+                Code = Code,
+                Amount = Amount,
+                AllowUsingItemFromInventory = AllowUsingMaterialsFromInventory,
+                CanTriggerTraining = CanTriggerTraining,
+            }
         );
 
         switch (result.Value)

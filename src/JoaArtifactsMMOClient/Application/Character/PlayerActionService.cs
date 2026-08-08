@@ -419,7 +419,12 @@ public class PlayerActionService
 
         bool isValuable =
             item.Craft is not null
-            && item.Level >= highestCharacterLevel - RecycleUnusedItems.RECYCLE_LEVEL_DIFF;
+            && (
+                item.Level >= highestCharacterLevel - RecycleUnusedItems.RECYCLE_LEVEL_DIFF
+                || item.Craft.Items.Exists(material =>
+                    gameState.ItemsDict[material.Code].Subtype == "task"
+                )
+            );
 
         bool shouldEnhanceRecycle = false;
 
@@ -462,18 +467,17 @@ public class PlayerActionService
     public static CharacterSchema SimulateItemEquip(
         CharacterSchema characterSchema,
         ItemSchema? currentItem,
-        ItemSchema newItem,
+        ItemSchema? newItem,
         string itemSlot,
         int? amount
     )
     {
-        var type = characterSchema.GetType();
+        var schemaWithNewItem = characterSchema with { };
+        var type = schemaWithNewItem.GetType();
 
         ItemSchema? equippedItem = currentItem;
 
-        var schemaWithNewItem = characterSchema with { };
-
-        int initialHp = characterSchema.Hp;
+        int initialHp = schemaWithNewItem.Hp;
 
         if (equippedItem is not null)
         {
@@ -489,14 +493,17 @@ public class PlayerActionService
             }
         }
 
-        foreach (var effect in newItem.Effects)
+        if (newItem is not null)
         {
-            var matchingProperty = type.GetProperty(effect.Code.FromSnakeToPascalCase());
-
-            if (matchingProperty is not null)
+            foreach (var effect in newItem.Effects)
             {
-                int currentValue = (int)matchingProperty.GetValue(schemaWithNewItem)!;
-                matchingProperty.SetValue(schemaWithNewItem, currentValue + effect.Value);
+                var matchingProperty = type.GetProperty(effect.Code.FromSnakeToPascalCase());
+
+                if (matchingProperty is not null)
+                {
+                    int currentValue = (int)matchingProperty.GetValue(schemaWithNewItem)!;
+                    matchingProperty.SetValue(schemaWithNewItem, currentValue + effect.Value);
+                }
             }
         }
 
@@ -505,10 +512,11 @@ public class PlayerActionService
         * but also so items like potions and runes will be simulated correctly, because the effects are not stat boosts, but need to be "calculated".
         * TODO: Should probably find a better way to do this, than to use reflection, for performance reasons
         */
-        type.GetProperty(itemSlot)!.SetValue(schemaWithNewItem, newItem.Code);
+        type.GetProperty(itemSlot)!
+            .SetValue(schemaWithNewItem, newItem is not null ? newItem.Code : "");
 
         // For utility items
-        if (amount is not null && newItem.Type == "utility")
+        if (amount is not null && newItem?.Type == "utility")
         {
             type.GetProperty(itemSlot + "Quantity")!.SetValue(schemaWithNewItem, amount);
         }
@@ -597,7 +605,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -646,14 +655,17 @@ public class PlayerActionService
     )
     {
         var canObtainIt = await ObtainItem.GetJobsRequired(
-            Character,
-            gameState,
-            true,
-            item.Code,
-            Quantity,
-            true,
-            allowTriggerTraining,
-            true
+            new ObtainItemGetJobsParams
+            {
+                Character = Character,
+                GameState = gameState,
+                AllowUsingItemFromBank = true,
+                Code = item.Code,
+                Amount = Quantity,
+                AllowUsingItemFromInventory = true,
+                CanTriggerTraining = allowTriggerTraining,
+                IgnoreInventoryFull = true,
+            }
         );
 
         switch (canObtainIt.Value)
@@ -892,14 +904,15 @@ public class PlayerActionService
         await Character.NavigateTo("bank");
 
         await Character.DepositBankItem(
-            items
-                .Where(item => !string.IsNullOrWhiteSpace(item.Code))
-                .Select(item => new WithdrawOrDepositItemRequest
-                {
-                    Code = item.Code,
-                    Quantity = item.Quantity,
-                })
-                .ToList()
+            [
+                .. items
+                    .Where(item => !string.IsNullOrWhiteSpace(item.Code))
+                    .Select(item => new WithdrawOrDepositItemRequest
+                    {
+                        Code = item.Code,
+                        Quantity = item.Quantity,
+                    }),
+            ]
         );
     }
 

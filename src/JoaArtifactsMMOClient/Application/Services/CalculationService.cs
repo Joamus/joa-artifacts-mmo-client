@@ -79,7 +79,7 @@ public static class CalculationService
 
         float wisdomBonus = 1 + (character.Wisdom / 100);
 
-        if (averagePlayerLevel + PlayerActionService.LEVEL_DIFF_NO_XP > monster.Level)
+        if (averagePlayerLevel > monster.Level + PlayerActionService.LEVEL_DIFF_NO_XP)
         {
             return 0;
         }

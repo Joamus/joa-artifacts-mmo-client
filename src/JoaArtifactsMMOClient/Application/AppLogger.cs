@@ -16,8 +16,15 @@ public static class AppLogger
         return _logger;
     }
 
+    public static bool DisableLogging { get; set; } = false;
+
     public static readonly Action<ILoggingBuilder> options = builder =>
     {
+        if (DisableLogging)
+        {
+            return;
+        }
+
         builder.AddSimpleConsole(options =>
         {
             options.IncludeScopes = true;

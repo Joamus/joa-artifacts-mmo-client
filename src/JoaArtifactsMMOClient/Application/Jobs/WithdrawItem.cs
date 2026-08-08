@@ -38,14 +38,9 @@ public class WithdrawItem : CharacterJob
     {
         var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
-        var matchingItemInBank = bankItems.FirstOrDefault(item => item.Code == Code);
+        var amountInBank = bankItems.FirstOrDefault(item => item.Code == Code)?.Quantity ?? 0;
 
-        int foundQuantity = 0;
-
-        if (matchingItemInBank is not null)
-        {
-            foundQuantity = Math.Min(Amount, matchingItemInBank.Quantity);
-        }
+        int amountToWithdraw = Math.Min(Amount, amountInBank);
 
         if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
         {
@@ -58,28 +53,32 @@ public class WithdrawItem : CharacterJob
         }
 
         if (
-            Character.GetAvailableInventorySpace() <= foundQuantity
-            || Character.Schema.Inventory.Count(item => string.IsNullOrWhiteSpace(item.Code)) < 1
+            Character.GetAvailableInventorySpace() == amountToWithdraw
+            || Character.GetAvailableInventorySlots() == 0
         )
         {
             await Character.QueueJobsBefore(
                 Id,
-                [new DepositUnneededItems(Character, gameState, null, false)]
+                [new DepositUnneededItems(Character, gameState, null, true)]
             );
             Status = JobStatus.Suspend;
             return new None();
         }
 
-        if (foundQuantity > 0)
+        if (amountToWithdraw > 0)
         {
             await Character.NavigateTo("bank");
             var withdrawResult = await Character.WithdrawBankItem(
-                [new WithdrawOrDepositItemRequest { Code = Code!, Quantity = foundQuantity }]
+                [new WithdrawOrDepositItemRequest { Code = Code!, Quantity = amountToWithdraw }]
             );
             // There can be a clash
             if (withdrawResult.Value is None)
             {
-                gameState.Services.BankItemCache.RemoveReservation(Character, Code, foundQuantity);
+                gameState.Services.BankItemCache.RemoveReservation(
+                    Character,
+                    Code,
+                    amountToWithdraw
+                );
                 return new None();
             }
         }
@@ -87,7 +86,7 @@ public class WithdrawItem : CharacterJob
         if (CanTriggerObtain)
         {
             logger.LogWarning(
-                $"{JobName}: [{Character.Schema.Name}]: Triggering obtain - found quantity of {Code} was {foundQuantity}"
+                $"{JobName}: [{Character.Schema.Name}]: Triggering obtain - found quantity of {Code} was {amountToWithdraw}"
             );
             var job = new ObtainOrFindItem(Character, gameState, Code, Amount);
             job.AllowUsingMaterialsFromBank = true;

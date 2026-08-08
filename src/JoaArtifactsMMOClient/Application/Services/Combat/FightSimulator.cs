@@ -2,6 +2,7 @@ using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
+using Application.Jobs;
 using Application.Records;
 using Application.Services;
 using Application.Services.Combat;
@@ -103,7 +104,7 @@ public static class FightSimulator
             .AvailableMonsters.Where(
                 (monster) =>
                 {
-                    return monster.Type != MonsterType.Boss
+                    return monster.Type != MonsterType.RaidBoss
                         && monster.Level >= lowerLevelBound
                         && monster.Level <= upperLevelBound;
                 }
@@ -112,7 +113,7 @@ public static class FightSimulator
 
         filteredMonsters.Sort((a, b) => b.Level - a.Level);
 
-        return filteredMonsters.GetRange(0, Math.Min(5, filteredMonsters.Count - 1));
+        return filteredMonsters.GetRange(0, Math.Min(5, filteredMonsters.Count));
     }
 
     public static HashSet<string> GetItemsRelevantMonsters(
@@ -141,31 +142,19 @@ public static class FightSimulator
         List<MonsterSchema> relevantMonsters
     )
     {
+        var fightSims = GetBestFightSimResultsForMonsters(
+            character,
+            gameState,
+            items,
+            includeItemsFromInventory,
+            relevantMonsters
+        );
+
         HashSet<string> relevantItems = [];
 
-        List<ItemInInventory> itemsToUse = [.. items];
-
-        if (includeItemsFromInventory)
+        foreach (var fightSim in fightSims)
         {
-            itemsToUse = character
-                .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
-                .Select(item => new ItemInInventory
-                {
-                    Item = gameState.ItemsDict[item.Code],
-                    Quantity = item.Quantity,
-                })
-                .Union(items)
-                .ToList();
-        }
-
-        foreach (var monster in relevantMonsters)
-        {
-            var bestFightItems = FindBestFightEquipment(
-                character,
-                gameState,
-                monster,
-                itemsToUse
-            ).SimResult.ItemsToEquip;
+            var bestFightItems = fightSim.ItemsToEquip;
 
             foreach (var item in bestFightItems)
             {
@@ -174,6 +163,49 @@ public static class FightSimulator
         }
 
         return relevantItems;
+    }
+
+    public static List<FightSimResult> GetBestFightSimResultsForMonsters(
+        PlayerCharacter character,
+        GameState gameState,
+        List<ItemInInventory> items,
+        bool includeItemsFromInventory,
+        List<MonsterSchema> relevantMonsters
+    )
+    {
+        HashSet<string> relevantItems = [];
+
+        List<ItemInInventory> itemsToUse = [.. items];
+
+        if (includeItemsFromInventory)
+        {
+            itemsToUse =
+            [
+                .. character
+                    .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
+                    .Select(item => new ItemInInventory
+                    {
+                        Item = gameState.ItemsDict[item.Code],
+                        Quantity = item.Quantity,
+                    })
+                    .Union(items),
+            ];
+        }
+
+        return
+        [
+            .. relevantMonsters.Select(monster =>
+            {
+                var bestFightItems = FindBestFightEquipment(
+                    character,
+                    gameState,
+                    monster,
+                    itemsToUse
+                );
+
+                return bestFightItems.SimResult;
+            }),
+        ];
     }
 
     /**
@@ -333,14 +365,14 @@ public static class FightSimulator
     )
     {
         int damage = (int)
-            Math.Round(baseDamage + baseDamage * ((elementalMultiplier + damageMultiplier) * 0.01)); // Not sure where the 0.01 is from
+            Math.Round(baseDamage * (1 + (elementalMultiplier + damageMultiplier) * 0.01)); // Not sure where the 0.01 is from
 
         if (isCrit)
         {
             damage = (int)(damage * (1 + CRIT_DAMAGE_MODIFIER));
         }
 
-        damage = (int)Math.Round(damage / (1 + resistance * 0.01));
+        damage = (int)Math.Round(damage * (1 - resistance * 0.01));
 
         return damage;
     }
@@ -627,10 +659,22 @@ public static class FightSimulator
             {
                 defender.Barrier -= damageToDeal;
                 damageToDeal = 0;
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] attacks the barrier of {defender.Entity.Name} - barrier value is now at {defender.Barrier}"
+                );
             }
             else
             {
-                damageToDeal -= defender.Barrier;
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] attacks the barrier of {defender.Entity.Name} - barrier is now broken"
+                );
                 defender.Barrier = 0;
             }
         }
@@ -1159,12 +1203,13 @@ public static class FightSimulator
     }
 
     public static FightOutcome InnerRunFightSim(
+        MonsterSchema monster,
         MonsterType monsterType,
         List<FightSimParticipant> participants,
         string attackingPlayerName
     )
     {
-        participants.Sort((a, b) => b.Entity.Initiative.CompareTo(a.Entity.Initiative));
+        participants = [.. participants.OrderByDescending((a) => a.Entity.Initiative)];
 
         FightResult? outcome = null;
 
@@ -1187,6 +1232,11 @@ public static class FightSimulator
 
             foreach (var attacker in participants)
             {
+                if (attacker.Entity.Hp <= 0)
+                {
+                    continue;
+                }
+
                 individualTurn++;
                 // Elaborate for boss fights, e.g. boss will attack different players
                 var defender = GetDefenderInFightSimulator(
@@ -1236,6 +1286,14 @@ public static class FightSimulator
 
                 if (outcome is null)
                 {
+                    List<FightSimParticipant> otherDefenders =
+                    [
+                        .. participants.Where(participant =>
+                            participant.IsPlayer == defender.IsPlayer
+                            && participant.Entity.Name != defender.Entity.Name
+                        ),
+                    ];
+
                     ProcessParticipantTurn(
                         new ProcessParticipantTurnParams
                         {
@@ -1248,21 +1306,19 @@ public static class FightSimulator
                                 ),
                             ],
                             Defender = defender,
-                            OtherDefenders =
-                            [
-                                .. participants.Where(participant =>
-                                    participant.IsPlayer == defender.IsPlayer
-                                    && participant.Entity.Name != defender.Entity.Name
-                                ),
-                            ],
-                            IsBossFight = false,
+                            OtherDefenders = otherDefenders,
+                            IsBossFight =
+                                monsterType == MonsterType.Boss
+                                || monsterType == MonsterType.RaidBoss,
                             CombatLog = combatLog,
                             TurnNumber = turnNumber,
                             IndividualTurn = individualTurn,
                         }
                     );
 
-                    bool attackerWon = defender.Entity.Hp <= 0;
+                    bool attackerWon =
+                        defender.Entity.Hp <= 0
+                        && otherDefenders.All(otherDefender => otherDefender.Entity.Hp <= 0);
 
                     if (attackerWon)
                     {
@@ -1328,6 +1384,8 @@ public static class FightSimulator
             PlayerHp = Math.Min(attackingPlayer.Entity.Hp, attackingPlayer.OriginalMaxHp), // in case of HP boost pots
             MonsterHp = defendingMonster.Entity.Hp,
             TotalTurns = turnNumber,
+            MonsterType = monsterType,
+            Monster = monster,
             IndvidualTurns = individualTurn,
             ShouldFight = GetShouldFight(
                 fightResult,
@@ -1408,16 +1466,18 @@ public static class FightSimulator
     }
 
     public static List<FightSimResult> SimulateBossFightOutcome(
-        PlayerCharacter character,
+        PlayerCharacter mainCharacter,
         List<PlayerCharacter> otherCharacters,
         GameState gameState,
         List<DropSchema> bankItems,
         MonsterSchema monster
     )
     {
-        List<PlayerCharacter> allCharacters = [.. otherCharacters, character];
+        List<PlayerCharacter> allCharacters = [.. otherCharacters, mainCharacter];
 
-        var currentlyAvailableBankItems = bankItems.ToDictionary(item => item.Code);
+        var currentlyAvailableBankItems = bankItems
+            .Select(item => item with { })
+            .ToDictionary(item => item.Code);
 
         // Look into acquiring potions if needed, we currently only check the bank.
         // var attainablePotions = gameState
@@ -1428,7 +1488,7 @@ public static class FightSimulator
         //     })
         //     .ToList();
 
-        List<(FightSimResult Result, CharacterSchema Character)> fightSimResults = [];
+        List<(FightSimResult Result, CharacterSchema OriginalCharacter)> fightSimResults = [];
 
         /**
          * First we want to run a sim for each character, to find the best equipment for each to wear.
@@ -1495,7 +1555,7 @@ public static class FightSimulator
             itemsAvailableToCharacter = [.. itemsAvailableToCharacter.Union(moreAvailableItems)];
 
             var result = FindBestFightEquipment(
-                character,
+                characterForSim,
                 gameState,
                 monster,
                 itemsAvailableToCharacter,
@@ -1503,7 +1563,9 @@ public static class FightSimulator
                 otherCharactersSim
             );
 
-            fightSimResults.Add((Result: result.SimResult, Character: characterForSim.Schema));
+            fightSimResults.Add(
+                (Result: result.SimResult, OriginalCharacter: characterForSim.Schema)
+            );
 
             var leftOverItemsDict = result.LeftOverItems.ToDictionary(item => item.Item.Code);
 
@@ -1517,7 +1579,7 @@ public static class FightSimulator
                 }
                 else if (matchInLeftOver.Quantity < item.Quantity)
                 {
-                    matchInLeftOver.Quantity = item.Quantity;
+                    item.Quantity = matchInLeftOver.Quantity;
                 }
             }
 
@@ -1526,24 +1588,18 @@ public static class FightSimulator
                 .ToDictionary();
         }
 
+        Dictionary<string, List<EquipmentSlot>> itemsToEquipForCharacters = [];
+
         List<CharacterSchema> allCharacterSchemasWithNewItems =
         [
-            .. fightSimResults.Select(result =>
+            .. fightSimResults.Select(fightSim =>
             {
-                var newSchema = result.Character with { };
+                var newSchema = fightSim.Result.Schema with { };
 
-                foreach (var item in result.Result.ItemsToEquip)
-                {
-                    var matchingNewItem = gameState.ItemsDict[item.Code];
-
-                    newSchema = PlayerActionService.SimulateItemEquip(
-                        newSchema,
-                        null,
-                        matchingNewItem,
-                        item.Slot.FromSnakeToPascalCase(), // Has to be the actual case of the properties
-                        item.Quantity
-                    );
-                }
+                itemsToEquipForCharacters.Add(
+                    fightSim.Result.Schema.Name,
+                    fightSim.Result.ItemsToEquip
+                );
 
                 return newSchema;
             }),
@@ -1558,36 +1614,46 @@ public static class FightSimulator
         [
             .. allCharacterSchemasWithNewItems.Select(schema =>
             {
-                List<PlayerCharacter> otherCharactersSim =
+                List<PlayerCharacter> allCharactersWithNewItems =
                 [
                     .. allCharacterSchemasWithNewItems
-                        .Where(otherSchema => otherSchema.Name != schema.Name)
-                        .Select(otherSchema =>
-                        {
-                            var clonedMatchingCharacter = allCharacters
-                                .First(character => character.Schema.Name == otherSchema.Name)
-                                .Clone();
+                    // .Where(otherSchema => otherSchema.Name != schema.Name)
+                    .Select(otherSchema =>
+                    {
+                        var clonedMatchingCharacter = allCharacters
+                            .First(character => character.Schema.Name == otherSchema.Name)
+                            .Clone();
 
-                            clonedMatchingCharacter.Schema = otherSchema;
+                        clonedMatchingCharacter.Schema = otherSchema;
 
-                            return clonedMatchingCharacter;
-                        }),
+                        return clonedMatchingCharacter;
+                    }),
                 ];
 
                 var result = FindBestFightEquipment(
-                    character,
+                    allCharactersWithNewItems.First(characerWithNewItem =>
+                        characerWithNewItem.Name == mainCharacter.Name
+                    ),
                     gameState,
                     monster,
-                    [],
                     null,
-                    otherCharactersSim
+                    null,
+                    [
+                        .. allCharactersWithNewItems.Where(characerWithNewItem =>
+                            characerWithNewItem.Name != mainCharacter.Name
+                        ),
+                    ]
                 );
 
-                return result.SimResult;
+                return result.SimResult with
+                {
+                    ItemsToEquip = itemsToEquipForCharacters
+                        .First((element) => element.Key == schema.Name)
+                        .Value,
+                };
             }),
         ];
 
-        // return finalSimResults.First(result => result.Schema.Name == character.Name);
         return finalSimResults;
     }
 
@@ -1606,7 +1672,7 @@ public static class FightSimulator
 
         originalAllItems ??= GetItemsFromInventoryForSim(character.Schema, gameState);
 
-        var allItemsToSim = originalAllItems.Select(item => item).ToList();
+        var allItemsToSim = originalAllItems.Select(item => item with { }).ToList();
 
         allItemsToSim =
         [
@@ -1719,7 +1785,12 @@ public static class FightSimulator
 
         string initialWeaponCode = initialSchema.WeaponSlot;
 
-        var initialFightOutcome = CalculateFightOutcome(initialSchema, [], monster, gameState);
+        var initialFightOutcome = CalculateFightOutcome(
+            initialSchema,
+            otherCharacterSchemas,
+            monster,
+            gameState
+        );
 
         var weapons = allItemsToSim
             .Where(item => item.Item.Type == "weapon" && item.Item.Subtype != "tool")
@@ -1752,6 +1823,7 @@ public static class FightSimulator
 
         foreach (var weapon in weapons)
         {
+            var allItemsToSimForWeapon = allItemsToSim.Select(item => item with { }).ToList();
             var bestSchemaCandiateWithWeapon = initialSchema with { };
 
             bestSchemaCandiateWithWeapon.Hp = bestSchemaCandiateWithWeapon.MaxHp;
@@ -1794,26 +1866,41 @@ public static class FightSimulator
 
             foreach (var equipmentTypeMapping in nonWeaponEquipmentTypes)
             {
-                var result = SimItemsForEquipmentType(
+                var result = SimEquipmentTypeMapping(
+                    equipmentTypeMapping,
                     character,
                     otherCharacterSchemas,
                     gameState,
                     monster,
-                    allItemsToSim,
-                    equipmentTypeMapping,
+                    allItemsToSimForWeapon,
                     bestFightSimResult
                 );
 
-                var simResult = result.SimResult;
-                allItemsToSim = result.LeftOverItems;
+                bestFightSimResult = result;
 
-                bestFightSimResult.Schema = simResult.Schema;
-                bestFightSimResult.Outcome = simResult.Outcome;
+                // We use the allItemsToSim on purpose
+                allItemsToSimForWeapon = GetLeftOverItems(allItemsToSim, result.ItemsToEquip);
+                // allItemsToSimForWeapon = result.
+                // var result = SimItemsForEquipmentType(
+                //     character,
+                //     otherCharacterSchemas,
+                //     gameState,
+                //     monster,
+                //     allItemsToSim,
+                //     equipmentTypeMapping,
+                //     bestFightSimResult
+                // );
 
-                bestFightSimResult.ItemsToEquip =
-                [
-                    .. bestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
-                ];
+                // var simResult = result.SimResult;
+                // allItemsToSim = result.LeftOverItems;
+
+                // bestFightSimResult.Schema = simResult.Schema;
+                // bestFightSimResult.Outcome = simResult.Outcome;
+
+                // bestFightSimResult.ItemsToEquip =
+                // [
+                //     .. bestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
+                // ];
             }
 
             var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(
@@ -1821,32 +1908,48 @@ public static class FightSimulator
                 monster
             );
 
-            var potionItemsWithoutSkippedEffects = allItemsToSim.FindAll(item =>
+            var potionItemsWithoutSkippedEffects = allItemsToSimForWeapon.FindAll(item =>
                 !item.Item.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
             );
 
             // Sim potions afterwards
             foreach (var equipmentTypeMapping in potionEquipmentTypes)
             {
-                var result = SimItemsForEquipmentType(
+                var result = SimEquipmentTypeMapping(
+                    equipmentTypeMapping,
                     character,
                     otherCharacterSchemas,
                     gameState,
                     monster,
                     potionItemsWithoutSkippedEffects,
-                    equipmentTypeMapping,
                     bestFightSimResult
                 );
 
-                var simResult = result.SimResult;
-                allItemsToSim = result.LeftOverItems;
+                bestFightSimResult = result;
+                // We use the allItemsToSim on purpose
+                allItemsToSimForWeapon = GetLeftOverItems(
+                    potionItemsWithoutSkippedEffects,
+                    result.ItemsToEquip
+                );
+                // var result = SimItemsForEquipmentType(
+                //     character,
+                //     otherCharacterSchemas,
+                //     gameState,
+                //     monster,
+                //     potionItemsWithoutSkippedEffects,
+                //     equipmentTypeMapping,
+                //     bestFightSimResult
+                // );
 
-                bestFightSimResult.Schema = simResult.Schema;
-                bestFightSimResult.Outcome = simResult.Outcome;
-                bestFightSimResult.ItemsToEquip =
-                [
-                    .. bestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
-                ];
+                // var simResult = result.SimResult;
+                // allItemsToSim = result.LeftOverItems;
+
+                // bestFightSimResult.Schema = simResult.Schema;
+                // bestFightSimResult.Outcome = simResult.Outcome;
+                // bestFightSimResult.ItemsToEquip =
+                // [
+                //     .. bestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
+                // ];
             }
 
             allCandidates.Add(bestFightSimResult);
@@ -1892,30 +1995,73 @@ public static class FightSimulator
             ),
         ];
 
-        var leftOverItems = originalAllItems
-            .Select(item =>
-            {
-                var matchInItemsToEquip = bestCandidate.ItemsToEquip.FirstOrDefault(itemToEquip =>
-                    item.Item.Code == itemToEquip.Code
-                );
-
-                if (matchInItemsToEquip is null)
-                {
-                    return item;
-                }
-
-                return item with
-                {
-                    Quantity = item.Quantity - matchInItemsToEquip.Quantity,
-                };
-            })
-            .Where(item => item.Quantity > 0)
-            .ToList();
-
         return new FightSimResultWithLeftOverItems
         {
             SimResult = bestCandidate,
-            LeftOverItems = leftOverItems,
+            LeftOverItems = GetLeftOverItems(originalAllItems, bestCandidate.ItemsToEquip),
+        };
+    }
+
+    static List<ItemInInventory> GetLeftOverItems(
+        List<ItemInInventory> allItems,
+        List<EquipmentSlot> itemsToRemoveFromList
+    )
+    {
+        return
+        [
+            .. allItems
+                .Select(item =>
+                {
+                    var matchInItemsToEquip = itemsToRemoveFromList.Where(itemToEquip =>
+                        item.Item.Code == itemToEquip.Code
+                    );
+
+                    if (matchInItemsToEquip is null)
+                    {
+                        return item;
+                    }
+
+                    return item with
+                    {
+                        Quantity =
+                            item.Quantity
+                            - matchInItemsToEquip.Sum(itemToEquip => itemToEquip.Quantity),
+                    };
+                })
+                .Where(item => item.Quantity > 0),
+        ];
+    }
+
+    private static FightSimResult SimEquipmentTypeMapping(
+        EquipmentTypeMapping equipmentTypeMapping,
+        PlayerCharacter character,
+        List<CharacterSchema> otherCharacterSchemas,
+        GameState gameState,
+        MonsterSchema monster,
+        List<ItemInInventory> allItemsToSim,
+        FightSimResult currentBestFightSimResult
+    )
+    {
+        var result = SimItemsForEquipmentType(
+            character,
+            otherCharacterSchemas,
+            gameState,
+            monster,
+            allItemsToSim,
+            equipmentTypeMapping,
+            currentBestFightSimResult
+        );
+
+        var simResult = result.SimResult;
+
+        List<EquipmentSlot> itemsToEquip =
+        [
+            .. currentBestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
+        ];
+
+        return simResult with
+        {
+            ItemsToEquip = itemsToEquip,
         };
     }
 
@@ -1961,17 +2107,9 @@ public static class FightSimulator
             return bWinsValue;
         }
 
-        if (a.AllPlayerParticipants.Count > 0 && b.AllPlayerParticipants.Count > 0)
-        {
-            int aTotalHp = a.AllPlayerParticipants.Sum(participant => participant.Entity.Hp);
+        int aTotalHp = a.AllPlayerParticipants.Sum(participant => participant.Entity.Hp);
 
-            int bTotalHp = b.AllPlayerParticipants.Sum(participant => participant.Entity.Hp);
-
-            if (aTotalHp - bTotalHp != 0)
-            {
-                return bTotalHp - aTotalHp;
-            }
-        }
+        int bTotalHp = b.AllPlayerParticipants.Sum(participant => participant.Entity.Hp);
 
         // It's only if we are winning that we care about amount of turns - if we are losing,
         // it could mean that we have good survivability
@@ -1987,12 +2125,12 @@ public static class FightSimulator
                 return bWinsValue;
             }
 
-            if (a.PlayerHp > b.PlayerHp)
+            if (aTotalHp > bTotalHp)
             {
                 return aWinsValue;
             }
 
-            if (a.PlayerHp < b.PlayerHp)
+            if (aTotalHp < bTotalHp)
             {
                 return bWinsValue;
             }
@@ -2009,6 +2147,17 @@ public static class FightSimulator
         }
         else
         {
+            // More turns = good when losing, since it means we survive longer
+            if (a.IndvidualTurns > b.IndvidualTurns)
+            {
+                return aWinsValue;
+            }
+
+            if (a.IndvidualTurns < b.IndvidualTurns)
+            {
+                return bWinsValue;
+            }
+
             if (a.MonsterHp < b.MonsterHp)
             {
                 return aWinsValue;
@@ -2019,12 +2168,12 @@ public static class FightSimulator
                 return bWinsValue;
             }
 
-            if (a.PlayerHp > b.PlayerHp)
+            if (aTotalHp > bTotalHp)
             {
                 return aWinsValue;
             }
 
-            if (a.PlayerHp < b.PlayerHp)
+            if (aTotalHp < bTotalHp)
             {
                 return bWinsValue;
             }
@@ -2081,7 +2230,7 @@ public static class FightSimulator
                 // to sim copper_ring. It's easier just to always sim all of them
                 if (slotsValuePair.Key == "ring")
                 {
-                    break;
+                    continue;
                 }
 
                 foreach (var itemToCompareTo in slotsValuePair.Value)
@@ -2175,7 +2324,15 @@ public static class FightSimulator
                 .. allPlayerParticipants,
             ];
 
-            outcomes.Add(InnerRunFightSim(monsterClone.Type, participants, originalSchema.Name));
+            outcomes.Add(
+                InnerRunFightSim(
+                    monster with
+                    { },
+                    monsterClone.Type,
+                    participants,
+                    originalSchema.Name
+                )
+            );
         }
 
         int amountWon = 0;
@@ -2221,11 +2378,13 @@ public static class FightSimulator
             ShouldFight = shouldFight,
             PlayerHp = playerHp,
             MonsterHp = monsterHp,
+            Monster = monster,
+            MonsterType = monster.Type,
             TotalTurns = totalTurns,
             IndvidualTurns = individualTurns,
             PotionsUsed = potionsUsed,
             FirstSimCombatLog = firstCombatLog!,
-            AllPlayerParticipants = [], // TODO: FIX
+            AllPlayerParticipants = outcomes[0].AllPlayerParticipants, // TODO: FIX
         };
     }
 
@@ -2262,11 +2421,14 @@ public static class FightSimulator
 
         var equipmentType = equipmentTypeMapping.ItemType;
         var equipmentSlot = equipmentTypeMapping.Slot;
-        var items = allItems
+        var itemsToSim = allItems
             .Where(item => item.Item.Type == equipmentType && item.Quantity > 0)
+            .Select(item => item with { })
             .ToList();
 
-        if (items.Count == 0)
+        List<ItemInInventory> leftOverItems = allItems;
+
+        if (itemsToSim.Count == 0)
         {
             return new FightSimResultWithLeftOverItems
             {
@@ -2292,7 +2454,7 @@ public static class FightSimulator
 
         string? initialItemCode = bestItemCandidate?.Code;
 
-        foreach (var item in items)
+        foreach (var item in itemsToSim)
         {
             ItemSchema? itemSchema =
                 gameState.ItemsDict.GetValueOrNull(item.Item.Code)
@@ -2363,7 +2525,7 @@ public static class FightSimulator
 
             int simOutcome = CompareSimOutcome(bestFightOutcome, fightOutcome);
 
-            bool fightOutcomeIsBetter = simOutcome == 1;
+            bool fightOutcomeIsBetter = simOutcome >= 1;
 
             if (fightOutcomeIsBetter)
             {
@@ -2406,19 +2568,21 @@ public static class FightSimulator
             {
                 Code = bestItemCandidate.Code,
                 Slot = snakeCaseSlot,
-                Quantity = bestItemAmount,
+                Quantity = Math.Min(bestItemAmount, PlayerActionService.MAX_AMOUNT_UTILITY_SLOT),
             };
 
-            allItems =
+            leftOverItems =
             [
-                .. allItems.Select(item =>
-                {
-                    if (item.Item.Code != newItemToEquip.Code)
+                .. allItems
+                    .Select(item =>
                     {
-                        return item;
-                    }
-                    return item with { Quantity = item.Quantity -= newItemToEquip.Quantity };
-                }),
+                        if (item.Item.Code != newItemToEquip.Code)
+                        {
+                            return item;
+                        }
+                        return item with { Quantity = item.Quantity - newItemToEquip.Quantity };
+                    })
+                    .Where(item => item.Quantity > 0),
             ];
         }
 
@@ -2430,16 +2594,27 @@ public static class FightSimulator
                 Outcome = bestFightOutcome,
                 ItemsToEquip = newItemToEquip is null ? [] : [newItemToEquip],
             },
-            LeftOverItems = allItems,
+            LeftOverItems = leftOverItems,
         };
+    }
+
+    public static int GetTimeToRest(int maxHp, int hp)
+    {
+        double percentageHpMissing = (1 - (double)hp / maxHp) * 100;
+
+        int timeToRestSeconds = (int)
+            Math.Ceiling(percentageHpMissing / FightMonster.REST_HP_PERCENTAGE_PER_SEC);
+
+        return timeToRestSeconds;
     }
 }
 
 public record FightOutcome
 {
-    public FightResult Result { get; init; }
+    public required FightResult Result { get; init; }
 
-    public MonsterType MonsterType { get; set; } = MonsterType.Normal;
+    public required MonsterType MonsterType { get; set; }
+    public required MonsterSchema Monster { get; set; }
 
     public int PlayerHp { get; init; }
 

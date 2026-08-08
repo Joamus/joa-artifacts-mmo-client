@@ -12,7 +12,7 @@ public static class PlayerCharacterHelper
 
         CharacterSchema schema = new CharacterSchema
         {
-            Name = "TestChar",
+            Name = $"TestChar_{Guid.NewGuid()}",
             Level = level,
             Hp = GetHpBasedOnLevel(level),
             MaxHp = GetHpBasedOnLevel(level),

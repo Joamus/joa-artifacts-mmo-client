@@ -1,6 +1,7 @@
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
+using Application.Character;
 using Application.Services.ApiServices;
 using Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -44,20 +45,20 @@ public static class ServiceHelper
     // methods against a faked AccountRequester that serves the cached fixture data instead of
     // hitting the live API. Each call gets its own Characters/CharacterAIs, so tests can't leak
     // character state into each other, while the expensive JSON parsing only happens once.
-    public static GameState GetPopulatedGameState()
+    public static GameState GetPopulatedGameState(BankItemCache? bankItemCache = null)
     {
         // if (ApiRequester is not null && AccountRequester is not null)
-        if (GameState is not null)
-        {
-            var newGameState = GameState;
+        // if (GameState is not null)
+        // {
+        //     var newGameState = GameState;
 
-            newGameState.Services = GameState.Services with
-            {
-                BankItemCache = GameState.Services.BankItemCache,
-            };
+        //     newGameState.Services = GameState.Services with
+        //     {
+        //         BankItemCache = GameState.Services.BankItemCache,
+        //     };
 
-            return newGameState;
-        }
+        //     return newGameState;
+        // }
 
         ReferenceGameData reference = _referenceData.Value;
 
@@ -125,7 +126,8 @@ public static class ServiceHelper
 
         GameState gameState = new(accountRequester, apiRequester);
 
-        gameState.Services.BankItemCache = Substitute.For<BankItemCache>(accountRequester);
+        gameState.Services.BankItemCache =
+            bankItemCache ?? Substitute.For<BankItemCache>(accountRequester);
 
         Task.Run(async () =>
             {

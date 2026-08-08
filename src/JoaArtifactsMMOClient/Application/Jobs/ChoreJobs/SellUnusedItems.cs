@@ -15,6 +15,8 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
     public const bool SELL_SMALL_PEARLS_IF_FULL_PERFECT_PEARLS = true;
 
+    public static readonly string[] ItemsToKeep = ["wolf_ears"];
+
     public SellUnusedItems(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 

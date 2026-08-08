@@ -186,7 +186,7 @@ public class TrainSkill : CharacterJob
                         item.Craft is not null
                         && item.Craft.Skill == skill
                         && item.Level <= skillLevel
-                        && (skillLevel - item.Craft.Level) < LEVEL_DIFF_FOR_NO_XP
+                        && (skillLevel - item.Craft.Level) <= LEVEL_DIFF_FOR_NO_XP
                     )
                     {
                         if (!await Character.PlayerActionService.CanObtainItem(item))
@@ -299,11 +299,11 @@ public class TrainSkill : CharacterJob
                     gameState,
                     bestItemToCraft.Code,
                     craftingAmount
-                );
-
-                // obtainItemJob.AllowFindingItemInBank = false;
-                obtainItemJob.AllowUsingMaterialsFromBank = true;
-                obtainItemJob.AllowUsingMaterialsFromInventory = true;
+                )
+                {
+                    AllowUsingMaterialsFromBank = true,
+                    AllowUsingMaterialsFromInventory = true,
+                };
 
                 trainJobs.Add(obtainItemJob);
 
@@ -489,7 +489,7 @@ public class TrainSkill : CharacterJob
         {
             foreach (var subComponent in matchingItem.Craft.Items)
             {
-                var subComponentResult = InnerGetInconvenienceCostCraftItem(
+                var (CanObtain, Score) = InnerGetInconvenienceCostCraftItem(
                     gameState.ItemsDict[subComponent.Code],
                     subComponent.Quantity,
                     gameState,
@@ -498,12 +498,12 @@ public class TrainSkill : CharacterJob
                     false
                 );
 
-                if (!subComponentResult.CanObtain)
+                cost += Score * quantity;
+
+                if (!CanObtain)
                 {
                     return (false, cost);
                 }
-
-                cost += subComponentResult.Score;
             }
         }
         else

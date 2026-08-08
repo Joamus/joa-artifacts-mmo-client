@@ -18,7 +18,7 @@ public class GameState
 
     ILogger logger { get; init; }
 
-    public List<PlayerCharacter> Characters { get; private set; } = [];
+    public List<PlayerCharacter> Characters { get; set; } = [];
     public List<PlayerAI> CharacterAIs { get; private set; } = [];
     public List<ItemSchema> Items { get; set; } = [];
     List<PendingItemSchema> PendingItems { get; set; } = [];

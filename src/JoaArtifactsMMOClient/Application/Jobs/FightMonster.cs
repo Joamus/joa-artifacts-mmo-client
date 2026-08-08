@@ -18,7 +18,8 @@ public class FightMonster : CharacterJob
 
     private static readonly int MIN_FOOD_TO_OBTAIN = 20;
 
-    const int REST_HP_PERCENTAGE_PER_SEC = 1;
+    public const int SECONDS_PER_TURN = 2;
+    public const int REST_HP_PERCENTAGE_PER_SEC = 1;
 
     /**
     ** We assume that obtaining a piece of food takes approx. 35 seconds, since that's roughly what it takes to fish
@@ -863,11 +864,10 @@ public class FightMonster : CharacterJob
                     int opportunityCostForFoodSeconds =
                         OPPORTUNITY_COST_PER_FOOD_SECONDS * bestFoodCandidate.Quantity;
 
-                    double percentageHpMissing =
-                        (1 - (double)Character.Schema.Hp / Character.Schema.MaxHp) * 100;
-
-                    int timeToRestSeconds = (int)
-                        Math.Ceiling(percentageHpMissing / REST_HP_PERCENTAGE_PER_SEC);
+                    int timeToRestSeconds = FightSimulator.GetTimeToRest(
+                        Character.Schema.MaxHp,
+                        Character.Schema.Hp
+                    );
 
                     shouldEatFood =
                         opportunityCostForFoodSeconds + COOLDOWN_CONSUMING_FOOD < timeToRestSeconds;

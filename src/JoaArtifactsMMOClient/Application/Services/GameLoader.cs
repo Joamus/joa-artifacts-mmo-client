@@ -40,6 +40,11 @@ public class GameLoader
             if (_gameState.ShouldReload())
             {
                 await _gameState.ReloadAll();
+
+                foreach (var character in _gameState.Characters)
+                {
+                    character.ClearJobStats();
+                }
             }
 
             if (firstRun)

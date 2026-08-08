@@ -7,8 +7,8 @@ public record BankDetailsResponse
 
 public record BankDetails
 {
-    public int Slots { get; set; }
-    public int Expansions { get; set; }
-    public int NextExpansionCost { get; set; }
-    public int Gold { get; set; }
+    public required int Slots { get; set; }
+    public required int Expansions { get; set; }
+    public required int NextExpansionCost { get; set; }
+    public required int Gold { get; set; }
 }

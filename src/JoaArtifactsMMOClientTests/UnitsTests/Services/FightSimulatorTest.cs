@@ -5,6 +5,7 @@ using Application.Records;
 using Applicaton.Services.FightSimulator;
 using JoaArtifactsMMOClientTests.Helpers;
 using NSubstitute;
+using OneOf.Types;
 
 namespace JoaArtifactsMMOClientTests;
 
@@ -49,14 +50,12 @@ public class FightSimulatorTest
 
         var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 10);
 
-        var copperDagger = gameState.ItemsDict["copper_dagger"];
         var woodenStaff = gameState.ItemsDict["wooden_staff"];
         var copperArmor = gameState.ItemsDict["copper_armor"];
         var ironArmor = gameState.ItemsDict["iron_armor"];
 
         List<ItemInInventory> itemsInInventory =
         [
-            new() { Item = copperDagger, Quantity = 1 },
             new() { Item = woodenStaff, Quantity = 1 },
             new() { Item = copperArmor, Quantity = 1 },
             new() { Item = ironArmor, Quantity = 1 },
@@ -67,7 +66,7 @@ public class FightSimulatorTest
             .SimResult;
 
         Assert.Equal(2, result.ItemsToEquip.Count);
-        Assert.True(result.ItemsToEquip.Exists(item => item.Code == copperDagger.Code));
+        Assert.True(result.ItemsToEquip.Exists(item => item.Code == woodenStaff.Code));
         Assert.True(result.ItemsToEquip.Exists(item => item.Code == ironArmor.Code));
     }
 
@@ -238,10 +237,6 @@ public class FightSimulatorTest
             1
         );
 
-        // gameState
-        //     .BankItemCache.GetBankItems(Arg.Any<PlayerCharacter>(), Arg.Any<bool>())
-        //     .Returns(call => bankItems);
-
         var result = FightSimulator
             .FindBestFightEquipment(
                 character,
@@ -362,14 +357,75 @@ public class FightSimulatorTest
     [Fact(DisplayName = "Should win the boss fight")]
     public void SimulateBossFightOutcome_ShouldWin()
     {
-        // FightSimulator.SimulateBossFightOutcome(
-        //     PlayerCharacter character,
-        //     List<PlayerCharacter> otherCharacters,
-        //     GameState gameState,
-        //     List<DropSchema> bankItems,
-        //     MonsterSchema monster
-        // )
-        // {
-        // }
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        var mainCharacter = PlayerCharacterHelper.GetFighterCharacter(gameState, 15);
+
+        var helperCharacter1 = PlayerCharacterHelper.GetFighterCharacter(gameState, 15);
+
+        var helperCharacter2 = PlayerCharacterHelper.GetFighterCharacter(gameState, 15);
+
+        List<PlayerCharacter> allCharacters = [mainCharacter, helperCharacter1, helperCharacter2];
+
+        List<DropSchema> bankItems =
+        [
+            // Earth item load out - for two characters, since second wep is fire/earth
+            new DropSchema { Code = "iron_sword", Quantity = 1 },
+            new DropSchema { Code = "mushmush_bow", Quantity = 1 },
+            new DropSchema { Code = "iron_armor", Quantity = 2 },
+            new DropSchema { Code = "iron_boots", Quantity = 2 },
+            new DropSchema { Code = "iron_legs_armor", Quantity = 2 },
+            new DropSchema { Code = "iron_helm", Quantity = 2 },
+            new DropSchema { Code = "iron_shield", Quantity = 3 },
+            // Air item load out
+            new DropSchema { Code = "highwayman_dagger", Quantity = 1 },
+            new DropSchema { Code = "leather_armor", Quantity = 1 },
+            new DropSchema { Code = "leather_boots", Quantity = 1 },
+            new DropSchema { Code = "leather_legs_armor", Quantity = 1 },
+            new DropSchema { Code = "leather_hat", Quantity = 1 },
+            new DropSchema { Code = "air_ring", Quantity = 2 },
+            // For all
+            new DropSchema { Code = "iron_ring", Quantity = 6 },
+            new DropSchema { Code = "forest_ring", Quantity = 4 },
+            new DropSchema { Code = "novice_guide", Quantity = 3 },
+            new DropSchema { Code = "life_amulet", Quantity = 3 },
+            new DropSchema { Code = "small_health_potion", Quantity = 300 },
+            new DropSchema { Code = "minor_health_potion", Quantity = 300 },
+            new DropSchema { Code = "earth_boost_potion", Quantity = 300 },
+            new DropSchema { Code = "air_boost_potion", Quantity = 300 },
+            new DropSchema { Code = "water_boost_potion", Quantity = 300 },
+        ];
+
+        var monster = gameState.MonstersDict["king_slime"];
+
+        var bossResults = FightSimulator.SimulateBossFightOutcome(
+            mainCharacter,
+            [helperCharacter1, helperCharacter2],
+            gameState,
+            bankItems,
+            monster
+        );
+
+        Assert.True(bossResults.All(result => result.Outcome.ShouldFight));
+
+        foreach (var item in bankItems)
+        {
+            int totalAmountOfItemOnCharacters = bossResults.Sum(result =>
+            {
+                int sum = 0;
+
+                foreach (var itemToEquip in result.ItemsToEquip)
+                {
+                    if (itemToEquip.Code == item.Code)
+                    {
+                        sum += itemToEquip.Quantity;
+                    }
+                }
+
+                return sum;
+            });
+
+            Assert.True(totalAmountOfItemOnCharacters <= item.Quantity);
+        }
     }
 }

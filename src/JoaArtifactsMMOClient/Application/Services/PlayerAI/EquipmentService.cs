@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Net;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
@@ -14,59 +15,46 @@ public class EquipmentService
 {
     const int ITEM_LEVEL_BUFFER = 5;
 
+    const float IMPROVEMENT_SCORE_TO_CONSIDER_ITEM = 0.15f;
+    const float IMPROVEMENT_SCORE_TO_CONSIDER_ITEM_IF_CAN_EASILY_FIGHT =
+        IMPROVEMENT_SCORE_TO_CONSIDER_ITEM * 2;
+
+    const float CAN_EASILY_FIGHT_PLAYER_HP_PERCENTAGE = 0.65f;
+
+    const float IMPROVEMENT_SCORE_MODIFIER_PER_LEVEL = 0.01f;
+
     public static List<EquipmentTypeMapping> CraftableEquipmentTypes { get; } =
-        [
-            new() { ItemType = "weapon", Slot = "WeaponSlot" },
-            new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-            new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-            new() { ItemType = "helmet", Slot = "HelmetSlot" },
-            new() { ItemType = "boots", Slot = "BootsSlot" },
-            new() { ItemType = "ring", Slot = "Ring1Slot" },
-            new() { ItemType = "ring", Slot = "Ring2Slot" },
-            new() { ItemType = "amulet", Slot = "AmuletSlot" },
-            new() { ItemType = "shield", Slot = "ShieldSlot" },
-            new() { ItemType = "utility", Slot = "Utility1Slot" },
-            new() { ItemType = "utility", Slot = "Utility2Slot" },
-        ];
+    [
+        new() { ItemType = "weapon", Slot = "WeaponSlot" },
+        new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+        new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+        new() { ItemType = "helmet", Slot = "HelmetSlot" },
+        new() { ItemType = "boots", Slot = "BootsSlot" },
+        new() { ItemType = "ring", Slot = "Ring1Slot" },
+        new() { ItemType = "ring", Slot = "Ring2Slot" },
+        new() { ItemType = "amulet", Slot = "AmuletSlot" },
+        new() { ItemType = "shield", Slot = "ShieldSlot" },
+        new() { ItemType = "utility", Slot = "Utility1Slot" },
+        new() { ItemType = "utility", Slot = "Utility2Slot" },
+    ];
 
     public static List<EquipmentTypeMapping> AllEquipmentTypes { get; } =
-        [
-            .. new List<EquipmentTypeMapping>
-            {
-                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
-                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
-                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
-                new() { ItemType = "rune", Slot = "RuneSlot" },
-            }.Union(CraftableEquipmentTypes),
-        ];
+    [
+        .. new List<EquipmentTypeMapping>
+        {
+            new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+            new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+            new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+            new() { ItemType = "rune", Slot = "RuneSlot" },
+        }.Union(CraftableEquipmentTypes),
+    ];
 
     public static async Task<CharacterJob?> EnsureFightEquipment(
         PlayerCharacter character,
-        GameState gameState
+        GameState gameState,
+        List<DropSchema> bankItems
     )
     {
-        /*
-         * Update: Changing the logic so we don't necessarily need to equip this now, but we want to ensure that we
-         * have some upgrades available. This update is to remove redundancy, so all characters won't spend time
-         * getting a lot of upgrades for their level, and possibly never use them anyway.
-         *
-         * We need some logic to make sure that the characters' equipment is somewhat up to date.
-         * It's difficult to really make this perfect, because higher level equipment isn't necessarily always better,
-         * so the ambition should just be to make sure that their items aren't horrible.
-         * It's okay if this algorithm isn't perfect, it will still save time.
-         * the issue is currently that characters can end up being severely undergeared,
-         * because we only make the characters upgrade their items in the "GetNextJobToFightMonster" method,
-         * which is only run in some cases. But if a character never gets to actually explicitly run that function,
-         * they will often just have "good enough" equipment to fight monsters, and that is inefficient.
-         * Especially, because they also end up using a lot of potions and food.
-         *
-         * Heuristic ideas:
-         * - Take an average of all of the item levels the character has equipped - the minimum level should be 10 levels below
-         * the character level. If the average is below 10,
-         Look at the lowest level items they have equipped in the "normal" equipment slots
-         * - There might not be an item
-        */
-
         var equipmentTypes = GetItemSlotsToUpgrade(character, gameState);
 
         if (equipmentTypes.Count == 0)
@@ -74,9 +62,7 @@ public class EquipmentService
             return null;
         }
 
-        var bankItemsDict = (
-            await gameState.Services.BankItemCache.GetBankItems(character)
-        ).ToDictionary(item => item.Code);
+        var bankItemsDict = bankItems.ToDictionary(item => item.Code);
 
         // We basically just want to take the first equipment type, and give one job, to get the best we can of that one
         List<(ItemSchema Item, int DesiredQuantity)> items = [];
@@ -139,21 +125,37 @@ public class EquipmentService
         }
         var relevantMonsters = FightSimulator.GetRelevantMonstersForCharacter(character, gameState);
 
-        var relevantItemsFromSim = FightSimulator
-            .GetItemsRelevantMonstersWithMonsters(
-                character,
-                gameState,
-                [
-                    .. items.Select(item => new ItemInInventory
-                    {
-                        Item = item.Item,
-                        Quantity = item.DesiredQuantity,
-                    }),
-                ],
-                false,
-                relevantMonsters
-            )
-            .Where(item =>
+        var fightSimsForMonsters = FightSimulator.GetBestFightSimResultsForMonsters(
+            character,
+            gameState,
+            [
+                .. items.Select(item => new ItemInInventory
+                {
+                    Item = item.Item,
+                    Quantity = item.DesiredQuantity,
+                }),
+            ],
+            false,
+            relevantMonsters
+        );
+
+        HashSet<string> relevantItemsFromSimSet = [];
+
+        foreach (var fightSim in fightSimsForMonsters)
+        {
+            var bestFightItems = fightSim.ItemsToEquip;
+
+            foreach (var item in bestFightItems)
+            {
+                relevantItemsFromSimSet.Add(item.Code);
+            }
+        }
+
+        var relevantItemsThatWeAlreadyHave = relevantItemsFromSimSet;
+
+        List<(string Code, bool WeDontHaveItem)> splitRelevantItems =
+        [
+            .. relevantItemsFromSimSet.Select(item =>
             {
                 var quantityInBank = bankItemsDict.GetValueOrNull(item)?.Quantity ?? 0;
 
@@ -170,9 +172,44 @@ public class EquipmentService
 
                 int probableDesiredAmount = isRing ? 2 : 1;
 
-                return quantityInBank < probableDesiredAmount;
-            })
-            .ToList();
+                return (Code: item, WeDontHaveItem: quantityInBank < probableDesiredAmount);
+            }),
+        ];
+
+        relevantItemsFromSimSet =
+        [
+            .. splitRelevantItems.Where(item => item.WeDontHaveItem).Select(item => item.Code),
+        ];
+
+        relevantItemsThatWeAlreadyHave =
+        [
+            .. splitRelevantItems.Where(item => !item.WeDontHaveItem).Select(item => item.Code),
+        ];
+
+        // relevantItemsFromSimSet =
+        // [
+        //     .. relevantItemsFromSimSet.Where(item =>
+        //     {
+        //         var quantityInBank = bankItemsDict.GetValueOrNull(item)?.Quantity ?? 0;
+
+        //         /**
+        //          * The code is needed here, because we need to SIM all available items, and then filter
+        //          * out the ones that we already have, since we don't need to obtain them if we already have them,
+        //          * since we can just withdraw when needed (in fight job)
+        //          *
+        //          * It should be improved so we actually know how many of the items we will want,
+        //          * since this implementation might create 2 rings, even if we only need one extra.
+        //          *It's fine for now.
+        //         */
+        //         var isRing = gameState.ItemsDict[item]?.Type == "ring";
+
+        //         int probableDesiredAmount = isRing ? 2 : 1;
+
+        //         return quantityInBank < probableDesiredAmount;
+        //     }),
+        // ];
+
+        List<string> relevantItemsFromSim = [.. relevantItemsFromSimSet];
 
         relevantItemsFromSim.Sort(
             (a, b) =>
@@ -238,7 +275,128 @@ public class EquipmentService
         * This threshold might need to be tested, but a good starting number might be 10%.
         */
 
-        var highestPriorityItem = relevantItemsFromSim.FirstOrDefault();
+        List<ItemImprovement> allImprovements = [];
+
+        foreach (var simWithItem in fightSimsForMonsters)
+        {
+            // int costWithoutItem = TotalSecondsCostForFight(simWithoutItem);
+
+            var attackingPlayerSchema = simWithItem.Schema;
+
+            foreach (var equipmentSlot in simWithItem.ItemsToEquip)
+            {
+                /**
+                ** This list should contain the items that are relevant to consider, so not
+                ** items that we have enough of in the bank
+                */
+                if (!relevantItemsFromSimSet.Contains(equipmentSlot.Code))
+                {
+                    continue;
+                }
+
+                var item = gameState.ItemsDict[equipmentSlot.Code];
+
+                List<ItemSchema?> otherRelevantItemsWeHaveFromSameSlot =
+                [
+                    // .. relevantItemsThatWeAlreadyHave
+                    .. splitRelevantItems
+                        .Select(relevantItem =>
+                        {
+                            var matchingItem = gameState.ItemsDict[relevantItem.Code];
+
+                            if (matchingItem.Type == item.Type && item.Code != matchingItem.Code)
+                            {
+                                return matchingItem;
+                            }
+
+                            return null;
+                        })
+                        .OfType<ItemSchema?>()
+                        .Where(itemSchema => itemSchema is not null),
+                ];
+
+                string slotName = (equipmentSlot.Slot + "_slot").FromSnakeToPascalCase();
+
+                var currentSlot = character.GetEquipmentSlot(slotName);
+
+                var itemInSlotCurrently = !string.IsNullOrWhiteSpace(currentSlot.Code)
+                    ? gameState.ItemsDict[currentSlot.Code]
+                    : null;
+
+                /**
+                ** Hacky, but essentially we only want to sim not having an item in that slot,
+                ** if we literally don't have any items in that slot. Else we will always compare a new item,
+                ** to not having any item, which is unfair, since any item will be a big improvement then.
+                */
+                if (
+                    itemInSlotCurrently is not null
+                    || itemInSlotCurrently is null
+                        && !otherRelevantItemsWeHaveFromSameSlot.Exists(otherItem =>
+                            otherItem?.Type == item.Type
+                        )
+                )
+                {
+                    otherRelevantItemsWeHaveFromSameSlot.Add(itemInSlotCurrently);
+                }
+
+                List<ItemImprovement> improvementsForItemComparedToEquivalentItems = [];
+
+                foreach (var otherItem in otherRelevantItemsWeHaveFromSameSlot)
+                {
+                    var currentItem = string.IsNullOrWhiteSpace(equipmentSlot.Code)
+                        ? null
+                        : gameState.ItemsDict[equipmentSlot.Code];
+
+                    // Remove the item equipped from the sim, and see the difference
+                    var schemaWithoutItem = PlayerActionService.SimulateItemEquip(
+                        attackingPlayerSchema,
+                        currentItem,
+                        otherItem,
+                        slotName,
+                        1
+                    );
+
+                    var simWithoutItem = FightSimulator.CalculateFightOutcome(
+                        schemaWithoutItem,
+                        [],
+                        simWithItem.Outcome.Monster,
+                        gameState
+                    );
+
+                    var improvementData = new ItemImprovement
+                    {
+                        FightOutcomeWithoutItem = simWithoutItem,
+                        FightOutcomeWithItem = simWithItem.Outcome,
+                        Item = item,
+                        FractionalImprovement = GetEfficiencyDifference(
+                            simWithItem.Outcome,
+                            simWithoutItem
+                        ),
+                        InconvenienceCostForItem = TrainSkill
+                            .GetInconvenienceCostCraftItem(item, gameState, bankItems, character)
+                            .Score,
+                    };
+
+                    improvementsForItemComparedToEquivalentItems.Add(improvementData);
+                    // allImprovements.Add(improvementData);
+                }
+
+                var mostPessimisticImprovement = improvementsForItemComparedToEquivalentItems
+                    .OrderBy(improvement => improvement.FractionalImprovement)
+                    .FirstOrDefault();
+
+                if (mostPessimisticImprovement is not null)
+                {
+                    allImprovements.Add(mostPessimisticImprovement);
+                }
+            }
+        }
+
+        var sortedItemImprovements = SortItemImprovementsRelevantFirst(
+            [.. allImprovements.Where(IsItemBigEnoughImprovement)]
+        );
+
+        var highestPriorityItem = sortedItemImprovements.FirstOrDefault()?.Item?.Code;
 
         if (highestPriorityItem is not null)
         {
@@ -297,14 +455,24 @@ public class EquipmentService
         return equipmentTypesToUpgrade;
     }
 
-    public static string GetBestNonCombatEffectForResource(
+    public static string? GetBestNonCombatEffectForResource(
         PlayerCharacter character,
         ResourceSchema resource
     )
     {
         int skilLevel = character.GetSkillLevel(resource.Skill);
 
-        return PlayerActionService.GetBestNonCombatEffectWithLevelDiff(skilLevel - resource.Level);
+        var effect = PlayerActionService.GetBestNonCombatEffectWithLevelDiff(
+            skilLevel - resource.Level
+        );
+
+        // No reason to get prospecting, if all of the drops have a 100% drop chance
+        if (effect == Effect.Prospecting && resource.Drops.All(drop => drop.Rate == 1))
+        {
+            return null;
+        }
+
+        return effect;
     }
 
     public static string? GetBestNonCombatEffectForCrafting(
@@ -560,6 +728,178 @@ public class EquipmentService
     {
         return itemType == "ring" ? 2 : 1;
     }
+
+    public static int FightLengthInSeconds(FightOutcome outcome)
+    {
+        return Math.Min(FightMonster.SECONDS_PER_TURN * outcome.TotalTurns, 5);
+    }
+
+    public static int TotalSecondsCostForFight(FightOutcome outcome)
+    {
+        int secondsToFight = FightLengthInSeconds(outcome);
+
+        int secondsToRest = outcome.AllPlayerParticipants.Sum(player =>
+        {
+            int timeToRestSeconds = FightSimulator.GetTimeToRest(
+                player.OriginalMaxHp,
+                player.Entity.Hp
+            );
+
+            return timeToRestSeconds;
+        });
+
+        return secondsToFight + secondsToRest;
+    }
+
+    public static float GetEfficiencyDifference(
+        FightOutcome outcomeWithItem,
+        FightOutcome outcomeWithoutItem
+    )
+    {
+        bool bothOutcomesLose =
+            outcomeWithItem.Result == FightResult.Loss
+            && outcomeWithoutItem.Result == FightResult.Loss;
+        /**
+        ** The lower the outcome score, the better, since it's the "cost" in seconds. So if the outcome without item is 30 sec,
+        ** and the outcome with item is 45, then the score should end up being 1.5, since it's
+        ** 1.5 times better.
+        */
+
+        int costWithoutItem;
+        int costWithItem;
+
+        if (bothOutcomesLose)
+        {
+            // Essentially if we are losing in either case, we want to consider how long we survive as an improvement
+            costWithoutItem = CombatCostIfLosing(outcomeWithoutItem);
+
+            costWithItem = CombatCostIfLosing(outcomeWithItem);
+        }
+        else
+        {
+            /**
+            ** If equipping this item will result in a switch from losing to winning,
+            ** then we should just consider this a 100% improvement - there's not a mathematical
+            ** way that we can compare an improvement from losing to winning
+            */
+            if (
+                outcomeWithItem.Result == FightResult.Win
+                && outcomeWithoutItem.Result == FightResult.Loss
+            )
+            {
+                return 1;
+            }
+            costWithoutItem = CombatCostIfWinning(outcomeWithoutItem);
+
+            costWithItem = CombatCostIfWinning(outcomeWithItem);
+        }
+
+        return GetEfficiencyDifferenceWithSeconds(costWithItem, costWithoutItem);
+    }
+
+    public static int CombatCostIfWinning(FightOutcome outcome)
+    {
+        int combatLength = FightLengthInSeconds(outcome);
+
+        int secondsToRest = outcome.AllPlayerParticipants.Sum(player =>
+        {
+            int timeToRestSeconds = FightSimulator.GetTimeToRest(
+                player.OriginalMaxHp,
+                player.Entity.Hp
+            );
+
+            return timeToRestSeconds;
+        });
+
+        return combatLength + secondsToRest;
+    }
+
+    public static int CombatCostIfLosing(FightOutcome outcome)
+    {
+        int combatLength = FightLengthInSeconds(outcome);
+
+        float monsterHpLostPercentage = Math.Max(1, (float)outcome.MonsterHp / outcome.Monster.Hp);
+
+        return (int)Math.Round(combatLength * monsterHpLostPercentage);
+    }
+
+    public static float GetEfficiencyDifferenceWithSeconds(
+        int outcomeWithItemSeconds,
+        int outcomeWithoutItemSeconds
+    )
+    {
+        /**
+        ** The lower the outcome score, the better, since it's the "cost" in seconds. So if the outcome without item is 30 sec,
+        ** and the outcome with item is 45, then the score should end up being 1.5, since it's
+        ** 1.5 times better.
+        */
+
+        // We want fraction to be e.g. 0.5 for 50%
+        float fractionalImprovement =
+            (float)(outcomeWithoutItemSeconds - outcomeWithItemSeconds) / outcomeWithItemSeconds;
+
+        // float fractionalImprovement =
+        //     1 - ((float)outcomeWithoutItemSeconds / outcomeWithItemSeconds);
+
+        return fractionalImprovement;
+    }
+
+    public static List<ItemImprovement> SortItemImprovementsRelevantFirst(
+        List<ItemImprovement> itemImprovements
+    )
+    {
+        return
+        [
+            .. itemImprovements
+                .OrderBy((improvement) => improvement.InconvenienceCostForItem)
+                .ThenByDescending((improvement) => improvement.FractionalImprovement),
+        ];
+    }
+
+    public static bool IsItemBigEnoughImprovement(ItemImprovement itemImprovementData)
+    {
+        var fightOutcomeWithItem = itemImprovementData.FightOutcomeWithItem;
+        var fightOutcomeWithoutItem = itemImprovementData.FightOutcomeWithoutItem;
+
+        /**
+        ** We have the boss check, to not always buy every upgrade because we will basically
+        ** always lose 1-1 with a monster around or level. We still want to consider the upgrades,
+        ** but we shouldnt' take them too seriously
+        */
+        if (
+            fightOutcomeWithItem.Monster.Type != MonsterType.Boss
+                && fightOutcomeWithItem.ShouldFight
+                && !fightOutcomeWithoutItem.ShouldFight
+            || fightOutcomeWithItem.Result == FightResult.Win
+                && fightOutcomeWithoutItem.Result == FightResult.Loss
+        )
+        {
+            return true;
+        }
+
+        int itemLevel = itemImprovementData.Item.Level;
+
+        bool canAlreadyEasilyFight =
+            fightOutcomeWithItem.ShouldFight
+            && fightOutcomeWithoutItem.ShouldFight
+            && fightOutcomeWithoutItem.AllPlayerParticipants.All(player =>
+                player.OriginalHp / player.OriginalMaxHp >= CAN_EASILY_FIGHT_PLAYER_HP_PERCENTAGE
+            );
+
+        float improvementScoreToConsiderItem = canAlreadyEasilyFight
+            ? IMPROVEMENT_SCORE_TO_CONSIDER_ITEM_IF_CAN_EASILY_FIGHT
+            : IMPROVEMENT_SCORE_TO_CONSIDER_ITEM;
+
+        /**
+        ** The higher level we are, the less picky we should be with improvements,
+        ** since each improvement will be relatively worse. e.g the jump from a lvl 1 to 5 weapon is higher than 45 to 50.
+        */
+        float improvementFactor = itemLevel * IMPROVEMENT_SCORE_MODIFIER_PER_LEVEL;
+
+        float finalFactor = improvementScoreToConsiderItem / (1 + improvementFactor);
+
+        return itemImprovementData.FractionalImprovement >= finalFactor;
+    }
 }
 
 public record ItemToEquip
@@ -567,5 +907,14 @@ public record ItemToEquip
     public required ItemSchema Item { get; set; }
     public required int Quantity { get; set; }
     public required bool IsInInventory { get; set; }
-    // public required string Slot { get; set; }
+}
+
+public record ItemImprovement
+{
+    public required FightOutcome FightOutcomeWithoutItem { get; init; }
+    public required FightOutcome FightOutcomeWithItem { get; init; }
+    public required ItemSchema Item { get; set; }
+
+    public required float FractionalImprovement { get; set; }
+    public required int InconvenienceCostForItem { get; set; }
 }

@@ -38,11 +38,15 @@ public class DoTaskUntilObtainedItem : CharacterJob
 
         int amountInBank = bankResponse.FirstOrDefault(item => item.Code == Code)?.Quantity ?? 0;
 
-        if (amountInBank > 0)
+        int availableInventorySpace = Character.GetAvailableInventorySpace();
+
+        int amountToWithdraw = Math.Min(Math.Min(amountInBank, availableInventorySpace), Amount);
+
+        if (amountToWithdraw > 0)
         {
             await Character.QueueJobsBefore(
                 Id,
-                [new WithdrawItem(Character, gameState, Code, Math.Min(amountInBank, Amount))]
+                [new WithdrawItem(Character, gameState, Code, amountToWithdraw)]
             );
             Status = JobStatus.Suspend;
             return new None();

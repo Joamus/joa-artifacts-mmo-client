@@ -17,7 +17,7 @@ public class BankItemCache
 
     DateTime lastCleanUpAt { get; set; } = DateTime.UtcNow;
 
-    const int CLEAN_UP_MINUTE_INTERVAL = 30;
+    const int CLEAN_UP_MINUTE_INTERVAL = 10;
 
     public BankItemCache(AccountRequester accountRequester)
     {
@@ -215,7 +215,7 @@ public class BankItemCache
         return bankResponseResult;
     }
 
-    public async Task<BankDetails> GetBankDetails()
+    public virtual async Task<BankDetails> GetBankDetails()
     {
         PreRun();
 

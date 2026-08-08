@@ -328,14 +328,14 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
     public static HashSet<string> GetRelevantEquipment(GameState gameState, List<ItemSchema> items)
     {
-        HashSet<string> relevantItems = [];
+        HashSet<string> relevantItems = [.. SellUnusedItems.ItemsToKeep];
 
         foreach (var character in gameState.Characters)
         {
             var relevantItemsFromSim = FightSimulator.GetItemsRelevantMonsters(
                 character,
                 gameState,
-                items.Select(item => new ItemInInventory { Item = item, Quantity = 100 }).ToList(),
+                [.. items.Select(item => new ItemInInventory { Item = item, Quantity = 100 })],
                 true
             );
 

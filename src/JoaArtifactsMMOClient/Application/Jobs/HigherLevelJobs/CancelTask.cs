@@ -12,6 +12,13 @@ namespace Application.Jobs;
 
 public class CancelTaskJob : CharacterJob
 {
+    static readonly List<string> ItemCodesToCancelTaskFor =
+    [
+        "enchanted_mushroom",
+        "swordfish",
+        "cooked_swordfish",
+    ];
+
     public CancelTaskJob(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
@@ -109,7 +116,8 @@ public class CancelTaskJob : CharacterJob
         ** If the item is an event item, e.g. strange_ore, we want to cancel it if we have the tasks coins for it.
         ** In the worst case scenario, we might not have the coins, but let's fake not being able to do it.
         */
-        return gameState.Services.EventService.IsEntityFromEvent(item.Code)
+        return ItemCodesToCancelTaskFor.Contains(item.Code)
+            || gameState.Services.EventService.IsEntityFromEvent(item.Code)
             || item.Craft is not null
                 && item.Craft.Items.Exists(itemComponent =>
                 {

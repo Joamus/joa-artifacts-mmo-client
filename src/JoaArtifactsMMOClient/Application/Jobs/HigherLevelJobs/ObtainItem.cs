@@ -20,8 +20,6 @@ public class ObtainItem : CharacterJob
 
     public bool CanTriggerTraining { get; set; } = true;
 
-    private List<DropSchema> itemsInBank { get; set; } = [];
-
     protected int _progressAmount { get; set; } = 0;
 
     public ObtainItem(PlayerCharacter playerCharacter, GameState gameState, string code, int amount)
@@ -101,20 +99,22 @@ public class ObtainItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
         );
 
-        itemsInBank = await gameState.Services.BankItemCache.GetBankItems(Character);
-
         // useItemIfInInventory is set to the job's value at first, so we can allow obtaining an item we already have.
         // But if we have the ingredients in our inventory, then we should always use them (for now).
         // Having this variable will allow us to e.g craft multiple copper daggers, else we could only have 1 in our inventory
 
         var result = await GetJobsRequired(
-            Character,
-            gameState,
-            AllowUsingMaterialsFromBank,
-            Code,
-            Amount,
-            AllowUsingMaterialsFromInventory,
-            CanTriggerTraining
+            new ObtainItemGetJobsParams
+            {
+                Character = Character,
+                GameState = gameState,
+                AllowUsingItemFromBank = AllowUsingMaterialsFromBank,
+                Code = Code,
+                Amount = Amount,
+                AllowUsingItemFromInventory = AllowUsingMaterialsFromInventory,
+                CanTriggerTraining = CanTriggerTraining,
+                IgnoreInventoryFull = false,
+            }
         );
 
         switch (result.Value)
@@ -160,41 +160,40 @@ public class ObtainItem : CharacterJob
      * We mutate a list to recursively add all the required jobs to the list
     */
     public static async Task<OneOf<AppError, List<CharacterJob>>> GetJobsRequired(
-        PlayerCharacter Character,
-        GameState gameState,
-        bool allowUsingItemFromBank,
-        string code,
-        int amount,
-        bool allowUsingItemFromInventory = false,
-        bool canTriggerTraining = false,
-        bool ignoreInventoryFull = false
+        ObtainItemGetJobsParams getJobsParams
     )
     {
-        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character, false);
+        var bankItems = await getJobsParams.GameState.Services.BankItemCache.GetBankItems(
+            getJobsParams.Character,
+            false
+        );
 
         List<CharacterJob> jobs = [];
 
         var result = await InnerGetJobsRequired(
-            Character,
-            Character
-                .Schema.Inventory.Select(item => new DropSchema
-                {
-                    Code = item.Code,
-                    Quantity = item.Quantity,
-                })
-                .ToList(),
-            gameState,
-            allowUsingItemFromBank,
-            bankItems
-                .Select(item => new DropSchema { Code = item.Code, Quantity = item.Quantity })
-                .ToList(),
-            jobs,
-            code,
-            amount,
-            allowUsingItemFromInventory,
-            canTriggerTraining,
-            true,
-            ignoreInventoryFull
+            new InnerGetJobsParams
+            {
+                Character = getJobsParams.Character,
+                ItemsInInventory = getJobsParams
+                    .Character.Schema.Inventory.Select(item => new DropSchema
+                    {
+                        Code = item.Code,
+                        Quantity = item.Quantity,
+                    })
+                    .ToList(),
+                GameState = getJobsParams.GameState,
+                AllowUsingItemFromBank = getJobsParams.AllowUsingItemFromBank,
+                ItemsInBank = bankItems
+                    .Select(item => new DropSchema { Code = item.Code, Quantity = item.Quantity })
+                    .ToList(),
+                Jobs = jobs,
+                Code = getJobsParams.Code,
+                Amount = getJobsParams.Amount,
+                AllowUsingItemFromInventory = getJobsParams.AllowUsingItemFromInventory,
+                CanTriggerTraining = getJobsParams.CanTriggerTraining,
+                FirstIteration = true,
+                IgnoreInventoryFull = getJobsParams.IgnoreInventoryFull,
+            }
         );
 
         return result.Value switch
@@ -208,21 +207,21 @@ public class ObtainItem : CharacterJob
      * Get all the jobs required to obtain an item
      * We mutate a list to recursively add all the required jobs to the list
     */
-    static async Task<OneOf<AppError, None>> InnerGetJobsRequired(
-        PlayerCharacter character,
-        List<DropSchema> itemsInInventory,
-        GameState gameState,
-        bool allowUsingItemFromBank,
-        List<DropSchema> itemsInBankClone,
-        List<CharacterJob> jobs,
-        string code,
-        int amount,
-        bool allowUsingItemFromInventory = false,
-        bool canTriggerTraining = false,
-        bool firstIteration = true,
-        bool ignoreInventoryFull = false
-    )
+    static async Task<OneOf<AppError, None>> InnerGetJobsRequired(InnerGetJobsParams jobParams)
     {
+        var character = jobParams.Character;
+        var itemsInInventory = jobParams.ItemsInInventory;
+        var gameState = jobParams.GameState;
+        var allowUsingItemFromBank = jobParams.AllowUsingItemFromBank;
+        var itemsInBankClone = jobParams.ItemsInBank;
+        var jobs = jobParams.Jobs;
+        var code = jobParams.Code;
+        var amount = jobParams.Amount;
+        var allowUsingItemFromInventory = jobParams.AllowUsingItemFromInventory;
+        var canTriggerTraining = jobParams.CanTriggerTraining;
+        var firstIteration = jobParams.FirstIteration;
+        var ignoreInventoryFull = jobParams.IgnoreInventoryFull;
+
         var matchingItem = gameState.Items.Find(item => item.Code == code);
 
         if (matchingItem is null)
@@ -741,17 +740,20 @@ public class ObtainItem : CharacterJob
                 int itemAmount = item.Quantity * iterationAmount;
 
                 var result = await InnerGetJobsRequired(
-                    character,
-                    itemsInInventory,
-                    gameState,
-                    allowUsingItemFromBank,
-                    itemsInBank,
-                    jobs,
-                    item.Code,
-                    itemAmount,
-                    true,
-                    canTriggerTraining,
-                    false
+                    new InnerGetJobsParams
+                    {
+                        Character = character,
+                        ItemsInInventory = itemsInInventory,
+                        GameState = gameState,
+                        AllowUsingItemFromBank = allowUsingItemFromBank,
+                        ItemsInBank = itemsInBank,
+                        Jobs = jobs,
+                        Code = item.Code,
+                        Amount = itemAmount,
+                        AllowUsingItemFromInventory = true,
+                        CanTriggerTraining = canTriggerTraining,
+                        FirstIteration = false,
+                    }
                 );
 
                 switch (result.Value)
@@ -1179,4 +1181,32 @@ public class ObtainItem : CharacterJob
 
         return jobs;
     }
+}
+
+public record ObtainItemGetJobsParams
+{
+    public required PlayerCharacter Character { get; init; }
+    public required GameState GameState { get; init; }
+    public required bool AllowUsingItemFromBank { get; init; }
+    public required string Code { get; init; }
+    public required int Amount { get; init; }
+    public bool AllowUsingItemFromInventory { get; init; } = false;
+    public bool CanTriggerTraining { get; init; } = false;
+    public bool IgnoreInventoryFull { get; init; } = false;
+}
+
+public record InnerGetJobsParams
+{
+    public required PlayerCharacter Character { get; set; }
+    public required List<DropSchema> ItemsInInventory { get; set; }
+    public required GameState GameState { get; set; }
+    public required bool AllowUsingItemFromBank { get; set; }
+    public required List<DropSchema> ItemsInBank { get; set; }
+    public required List<CharacterJob> Jobs { get; set; }
+    public required string Code { get; set; }
+    public required int Amount { get; set; }
+    public bool AllowUsingItemFromInventory { get; set; } = false;
+    public bool CanTriggerTraining { get; set; } = false;
+    public bool FirstIteration { get; set; } = true;
+    public bool IgnoreInventoryFull { get; set; } = false;
 }

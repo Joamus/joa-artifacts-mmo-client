@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -10,7 +12,9 @@ using Application.Jobs;
 using Application.Jobs.Chores;
 using Application.Records;
 using Application.Services;
+using Applicaton.Jobs.Chores;
 using Infrastructure;
+using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
@@ -20,7 +24,13 @@ namespace Application.Character;
 public class PlayerCharacter
 {
     [JsonIgnore]
+    const int MAX_AMOUNT_OF_SAME_JOB_IN_CACHE_SINCE_RELOAD = 100;
+
+    [JsonIgnore]
     const int CLEAN_UP_WISH_LIST_MINUTE_INTERVAL = 90;
+
+    [JsonIgnore]
+    Dictionary<string, int> JobStatsCache = [];
 
     [JsonIgnore]
     public static readonly int MIN_AMOUNT_OF_FOOD_TO_KEEP = 20;
@@ -379,19 +389,32 @@ public class PlayerCharacter
                 // If the job was suspended before, we set it to "New" now, because it shouldn't be suspend anymore.
                 // In the future, we might invent a JobStatus.Resumed state or something, if we want to keep track of if a job was continued.
                 CurrentJob.Status = JobStatus.New;
-                result = await CurrentJob.StartJobAsync();
 
-                switch (result.Value.Value)
+                AddJobToJobCache(CurrentJob);
+
+                if (HasScheduledJobTooManyTimes(CurrentJob))
                 {
-                    case AppError appError:
-                        Logger.LogError(
-                            $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - {appError.Message}"
-                        );
-                        failed = true;
+                    Logger.LogError(
+                        $"{GetType().Name}: [{Schema.Name}] job cancelled - job type {CurrentJob.GetType()} - scheduled the same kind of job too many times"
+                    );
+                    failed = true;
+                }
+                else
+                {
+                    result = await CurrentJob.StartJobAsync();
 
-                        break;
-                    case None:
-                        break;
+                    switch (result.Value.Value)
+                    {
+                        case AppError appError:
+                            Logger.LogError(
+                                $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - {appError.Message}"
+                            );
+                            failed = true;
+
+                            break;
+                        case None:
+                            break;
+                    }
                 }
             }
             catch (Exception e)
@@ -420,7 +443,7 @@ public class PlayerCharacter
             return result ?? new None();
         }
 
-        if (Jobs.Count > 200)
+        if (Jobs.Count > 100)
         {
             Logger.LogWarning(
                 $"{GetType().Name}: [{Schema.Name}] - detected job loop - reset all jobs."
@@ -436,6 +459,32 @@ public class PlayerCharacter
     {
         Busy = false;
         CurrentJob = null;
+    }
+
+    public void ClearJobStats()
+    {
+        JobStatsCache = [];
+    }
+
+    void AddJobToJobCache(CharacterJob job)
+    {
+        string key = GetJobKeyName(job);
+
+        if (!JobStatsCache.TryAdd(key, 1))
+        {
+            JobStatsCache[key] += 1;
+        }
+    }
+
+    static string GetJobKeyName(CharacterJob job)
+    {
+        return $"{job.JobName}_${job.Code}";
+    }
+
+    bool HasScheduledJobTooManyTimes(CharacterJob job)
+    {
+        return JobStatsCache.GetValueOrNull(GetJobKeyName(job))
+            >= MAX_AMOUNT_OF_SAME_JOB_IN_CACHE_SINCE_RELOAD;
     }
 
     public PlayerCharacter(
