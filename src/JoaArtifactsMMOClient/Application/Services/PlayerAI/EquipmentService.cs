@@ -168,9 +168,9 @@ public class EquipmentService
                  * since this implementation might create 2 rings, even if we only need one extra.
                  *It's fine for now.
                 */
-                var isRing = gameState.ItemsDict[item]?.Type == "ring";
+                var matchingItem = gameState.ItemsDict[item];
 
-                int probableDesiredAmount = isRing ? 2 : 1;
+                int probableDesiredAmount = GetAllowedItemAmount(item);
 
                 return (Code: item, WeDontHaveItem: quantityInBank < probableDesiredAmount);
             }),
@@ -185,29 +185,6 @@ public class EquipmentService
         [
             .. splitRelevantItems.Where(item => !item.WeDontHaveItem).Select(item => item.Code),
         ];
-
-        // relevantItemsFromSimSet =
-        // [
-        //     .. relevantItemsFromSimSet.Where(item =>
-        //     {
-        //         var quantityInBank = bankItemsDict.GetValueOrNull(item)?.Quantity ?? 0;
-
-        //         /**
-        //          * The code is needed here, because we need to SIM all available items, and then filter
-        //          * out the ones that we already have, since we don't need to obtain them if we already have them,
-        //          * since we can just withdraw when needed (in fight job)
-        //          *
-        //          * It should be improved so we actually know how many of the items we will want,
-        //          * since this implementation might create 2 rings, even if we only need one extra.
-        //          *It's fine for now.
-        //         */
-        //         var isRing = gameState.ItemsDict[item]?.Type == "ring";
-
-        //         int probableDesiredAmount = isRing ? 2 : 1;
-
-        //         return quantityInBank < probableDesiredAmount;
-        //     }),
-        // ];
 
         List<string> relevantItemsFromSim = [.. relevantItemsFromSimSet];
 

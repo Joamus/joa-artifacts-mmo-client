@@ -172,7 +172,7 @@ public class FightMonster : CharacterJob
             }
         }
 
-        await HealIfNotAtFullHp();
+        await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
 
         var fightSimResult = FightSimulator
             .FindBestFightEquipmentWithUsablePotions(Character, gameState, monster)
@@ -370,7 +370,7 @@ public class FightMonster : CharacterJob
 
         if (ShouldHealBeforeFight(Character, gameState, monster))
         {
-            await HealIfNotAtFullHp();
+            await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
         }
 
         await Character.NavigateTo(Code);
@@ -395,11 +395,11 @@ public class FightMonster : CharacterJob
         return new None();
     }
 
-    private FoodCandidate? GetFoodToEat()
+    private static FoodCandidate? GetFoodToEat(PlayerCharacter character, GameState gameState)
     {
         var relevantFoodItems = gameState.Items.FindAll(item =>
             item.Type == "consumable"
-            && item.Level <= Character.Schema.Level
+            && item.Level <= character.Schema.Level
             && item.Subtype == "food"
         );
         Dictionary<string, ItemSchema> relevantFoodItemsDict = new();
@@ -411,7 +411,7 @@ public class FightMonster : CharacterJob
 
         List<ItemInInventory> foodInInventory = [];
 
-        foreach (var item in Character.Schema.Inventory)
+        foreach (var item in character.Schema.Inventory)
         {
             if (string.IsNullOrEmpty(item.Code))
             {
@@ -438,7 +438,7 @@ public class FightMonster : CharacterJob
 
         foreach (var food in foodInInventory)
         {
-            var hpToHeal = Character.Schema.MaxHp - Character.Schema.Hp;
+            var hpToHeal = character.Schema.MaxHp - character.Schema.Hp;
 
             var foodHealValue = food.Item.Effects.Find(effect => effect.Code == "heal")?.Value ?? 0;
 
@@ -825,11 +825,15 @@ public class FightMonster : CharacterJob
         return maxAmount;
     }
 
-    private async Task HealIfNotAtFullHp()
+    public static async Task HealIfNotAtFullHp(
+        PlayerCharacter character,
+        GameState gameState,
+        bool isHighPrioMonster
+    )
     {
-        if (Character.Schema.Hp != Character.Schema.MaxHp)
+        if (character.Schema.Hp != character.Schema.MaxHp)
         {
-            var bestFoodCandidate = GetFoodToEat();
+            var bestFoodCandidate = GetFoodToEat(character, gameState);
 
             if (bestFoodCandidate is not null)
             {
@@ -849,7 +853,7 @@ public class FightMonster : CharacterJob
                 ** then we might as well use it
                 */
                 if (
-                    IsHighPrioMonster
+                    isHighPrioMonster
                     || ItemService.IsItemCookedMeat(
                         gameState.ItemsDict[bestFoodCandidate.Code],
                         gameState
@@ -865,8 +869,8 @@ public class FightMonster : CharacterJob
                         OPPORTUNITY_COST_PER_FOOD_SECONDS * bestFoodCandidate.Quantity;
 
                     int timeToRestSeconds = FightSimulator.GetTimeToRest(
-                        Character.Schema.MaxHp,
-                        Character.Schema.Hp
+                        character.Schema.MaxHp,
+                        character.Schema.Hp
                     );
 
                     shouldEatFood =
@@ -875,13 +879,13 @@ public class FightMonster : CharacterJob
 
                 if (shouldEatFood)
                 {
-                    await Character.UseItem(bestFoodCandidate.Code, bestFoodCandidate.Quantity);
+                    await character.UseItem(bestFoodCandidate.Code, bestFoodCandidate.Quantity);
                 }
             }
 
-            if (Character.Schema.Hp != Character.Schema.MaxHp)
+            if (character.Schema.Hp != character.Schema.MaxHp)
             {
-                await Character.Rest();
+                await character.Rest();
             }
         }
     }
@@ -894,9 +898,9 @@ public class FightMonster : CharacterJob
     {
         List<EquipmentSlot> itemsToWithdraw = [];
 
-        var bankResponse = await gameState.Services.BankItemCache.GetBankItems(character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(character);
 
-        var items = bankResponse
+        var items = bankItems
             .Where(item => !string.IsNullOrWhiteSpace(item.Code))
             .Select(item => new ItemInInventory
             {
@@ -925,13 +929,64 @@ public class FightMonster : CharacterJob
             .FindBestFightEquipmentWithUsablePotions(character, gameState, monster, items)
             .SimResult;
 
-        foreach (var item in result.ItemsToEquip)
+        // foreach (var item in result.ItemsToEquip)
+        // {
+        //     var matchingItem = gameState.ItemsDict[item.Code];
+
+        //     // It's easier for now, we can get into edge cases when withdrawing a lot of potions.
+        //     // We also don't care, because AcquirePotionJobs should take care of this
+        //     if (matchingItem.Type == "utility")
+        //     {
+        //         continue;
+        //     }
+
+        //     int amountInInventory = character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
+
+        //     int amountInBank =
+        //         bankItems.FirstOrDefault(bankItem => bankItem.Code == item.Code)?.Quantity ?? 0;
+
+        //     if (amountInBank > 0 && item.Quantity > amountInInventory)
+        //     {
+        //         int quantityMissing = item.Quantity - amountInInventory;
+
+        //         if (quantityMissing < 0)
+        //         {
+        //             quantityMissing = 0;
+        //         }
+
+        //         if (quantityMissing > 0)
+        //         {
+        //             itemsToWithdraw.Add(item with { Quantity = quantityMissing });
+        //         }
+        //     }
+        // }
+
+        return GetItemsToWithdrawFromItemsToEquip(
+            character,
+            gameState,
+            bankItems,
+            result.ItemsToEquip,
+            true
+        );
+    }
+
+    public static List<EquipmentSlot> GetItemsToWithdrawFromItemsToEquip(
+        PlayerCharacter character,
+        GameState gameState,
+        List<DropSchema> bankItems,
+        List<EquipmentSlot> itemsToEquip,
+        bool ignorePotions
+    )
+    {
+        List<EquipmentSlot> itemsToWithdraw = [];
+
+        foreach (var item in itemsToEquip)
         {
             var matchingItem = gameState.ItemsDict[item.Code];
 
             // It's easier for now, we can get into edge cases when withdrawing a lot of potions.
             // We also don't care, because AcquirePotionJobs should take care of this
-            if (matchingItem.Type == "utility")
+            if (ignorePotions && matchingItem.Type == "utility")
             {
                 continue;
             }
@@ -939,7 +994,7 @@ public class FightMonster : CharacterJob
             int amountInInventory = character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
 
             int amountInBank =
-                bankResponse.FirstOrDefault(bankItem => bankItem.Code == item.Code)?.Quantity ?? 0;
+                bankItems.FirstOrDefault(bankItem => bankItem.Code == item.Code)?.Quantity ?? 0;
 
             if (amountInBank > 0 && item.Quantity > amountInInventory)
             {
@@ -1002,7 +1057,7 @@ record FoodCandidate
     public int TotalHealAmount;
 }
 
-enum JobMode
+public enum JobMode
 {
     Kill,
     Gather,

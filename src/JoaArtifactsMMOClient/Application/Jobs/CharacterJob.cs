@@ -9,6 +9,7 @@ namespace Application.Jobs;
 public abstract class CharacterJob
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid? ParentCollabJobId { get; set; } = null;
     public string JobName { get; private set; } = "";
     public JobStatus Status = JobStatus.New;
 
@@ -106,6 +107,39 @@ public abstract class CharacterJob
     public virtual void Interrupt()
     {
         ShouldInterrupt = true;
+    }
+
+    public bool IsJobChildOfCollabJobId(Guid collabJobId)
+    {
+        if (ParentCollabJobId == collabJobId)
+        {
+            return true;
+        }
+        // We go a few levels deep - make a better solution at some point
+
+        bool isChildOfCollabJob = false;
+        int currentLevelsDeep = 0;
+        int maxLevelsDeep = 5;
+
+        CharacterJob? currentCharacterJob = this;
+
+        while (!isChildOfCollabJob && currentLevelsDeep <= maxLevelsDeep)
+        {
+            if (currentCharacterJob is null)
+            {
+                break;
+            }
+
+            var currentParent = currentCharacterJob.ParentJob;
+
+            isChildOfCollabJob = currentParent?.ParentCollabJobId == collabJobId;
+
+            currentCharacterJob = currentParent;
+
+            currentLevelsDeep += 1;
+        }
+
+        return isChildOfCollabJob;
     }
 }
 

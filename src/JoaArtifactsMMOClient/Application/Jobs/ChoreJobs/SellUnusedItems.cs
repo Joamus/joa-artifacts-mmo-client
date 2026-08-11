@@ -186,7 +186,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
     public async Task<List<DropSchema>> GetItemsToSell()
     {
-        List<DropSchema> items = [];
+        List<DropSchema> itemsToSell = [];
 
         var activeNpcs = GetActiveNpcs();
 
@@ -231,7 +231,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                     >= gameState.Characters.Count
             )
             {
-                items.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
+                itemsToSell.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
                 continue;
             }
 
@@ -239,19 +239,34 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             {
                 continue;
             }
+            bool isEquipment = ItemService.EquipmentItemTypes.Contains(matchingItem.Type);
 
             bool isEquipmentThatShouldBeSold =
                 matchingItem.Craft is not null
                 && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
                 && !relevantEquipmentFromBank.Contains(item.Code);
 
-            if (isEquipmentThatShouldBeSold || IsSellableTrashItem(matchingItem, gameState))
+            // E.g. we have 50 wolf ears, but they are still an item we want to keep - we can sell everything off apart from 5
+            if (isEquipment && !isEquipmentThatShouldBeSold)
             {
-                items.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
+                int amountToKeep =
+                    EquipmentService.GetAllowedItemAmount(matchingItem)
+                    * gameState.Characters.Count;
+
+                int amountToSell = item.Quantity - amountToKeep;
+
+                if (amountToSell > 0)
+                {
+                    itemsToSell.Add(new DropSchema { Code = item.Code, Quantity = amountToSell });
+                }
+            }
+            else if (isEquipmentThatShouldBeSold || IsSellableTrashItem(matchingItem, gameState))
+            {
+                itemsToSell.Add(new DropSchema { Code = item.Code, Quantity = item.Quantity });
             }
         }
 
-        return items;
+        return itemsToSell;
     }
 
     public static bool IsItemLowEnoughLevelToSell(int lowestCharacterLevel, ItemSchema item)

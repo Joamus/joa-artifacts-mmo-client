@@ -6,7 +6,8 @@ using Application.Services.ApiServices;
 
 public class BankItemCache
 {
-    private readonly SemaphoreSlim LoadItemsLock = new(1, 1);
+    private readonly FifoSemaphore LoadItemsLock = new(1, 1);
+    private readonly FifoSemaphore ReserveItemsLock = new(1, 1);
     public bool shouldRequestAgain { get; set; } = true;
     public bool shouldRequestDetailsAgain { get; set; } = true;
 
@@ -28,70 +29,86 @@ public class BankItemCache
 
     public async void ReserveItem(PlayerCharacter character, string code, int amount)
     {
-        PreRun();
-
-        var existingReservations = reservations.GetValueOrNull(code);
-
-        var reservation = new ItemReservation
+        try
         {
-            Item = new DropSchema { Code = code, Quantity = amount },
-            CharacterName = character.Schema.Name,
-            CreatedAt = DateTime.UtcNow,
-        };
+            await ReserveItemsLock.WaitAsync();
 
-        if (existingReservations is null)
-        {
-            reservations[code] = [reservation];
+            PreRun();
+            var existingReservations = reservations.GetValueOrNull(code);
+
+            var reservation = new ItemReservation
+            {
+                Item = new DropSchema { Code = code, Quantity = amount },
+                CharacterName = character.Schema.Name,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            if (existingReservations is null)
+            {
+                reservations.Add(code, [reservation]);
+            }
+            else
+            {
+                existingReservations.Add(
+                    new ItemReservation
+                    {
+                        Item = new DropSchema { Code = code, Quantity = amount },
+                        CharacterName = character.Schema.Name,
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+            }
         }
-        else
+        finally
         {
-            existingReservations.Add(
-                new ItemReservation
-                {
-                    Item = new DropSchema { Code = code, Quantity = amount },
-                    CharacterName = character.Schema.Name,
-                    CreatedAt = DateTime.UtcNow,
-                }
-            );
+            ReserveItemsLock.Release();
         }
     }
 
     public async void RemoveReservation(PlayerCharacter character, string code, int amount)
     {
-        PreRun();
-
-        var existingReservations = reservations.GetValueOrNull(code);
-
-        if (existingReservations is not null)
+        try
         {
-            int amountLeftToSubtract = amount;
+            await ReserveItemsLock.WaitAsync();
 
-            foreach (var existingReservation in existingReservations)
+            PreRun();
+            var existingReservations = reservations.GetValueOrNull(code);
+
+            if (existingReservations is not null)
             {
-                if (existingReservation.CharacterName != character.Schema.Name)
-                {
-                    continue;
-                }
+                int amountLeftToSubtract = amount;
 
-                if (amountLeftToSubtract >= existingReservation.Item.Quantity)
+                foreach (var existingReservation in existingReservations)
                 {
-                    existingReservation.Item.Quantity = 0;
-                    amountLeftToSubtract -= existingReservation.Item.Quantity;
-                }
-                else
-                {
-                    existingReservation.Item.Quantity -= amountLeftToSubtract;
-                    amountLeftToSubtract = 0;
-                }
+                    if (existingReservation.CharacterName != character.Schema.Name)
+                    {
+                        continue;
+                    }
 
-                if (amountLeftToSubtract == 0)
-                {
-                    break;
+                    if (amountLeftToSubtract >= existingReservation.Item.Quantity)
+                    {
+                        existingReservation.Item.Quantity = 0;
+                        amountLeftToSubtract -= existingReservation.Item.Quantity;
+                    }
+                    else
+                    {
+                        existingReservation.Item.Quantity -= amountLeftToSubtract;
+                        amountLeftToSubtract = 0;
+                    }
+
+                    if (amountLeftToSubtract == 0)
+                    {
+                        break;
+                    }
                 }
             }
-        }
 
-        RemoveEmptyReservations();
+            RemoveEmptyReservations();
+        }
+        finally
+        {
+            ReserveItemsLock.Release();
+        }
     }
 
     public void PreRun()
@@ -119,7 +136,7 @@ public class BankItemCache
                     [
                         .. reservation.Value.Where(reservation =>
                             reservation.CreatedAt
-                            > DateTime.Now.AddMinutes(-CLEAN_UP_MINUTE_INTERVAL)
+                            > DateTime.UtcNow.AddMinutes(-CLEAN_UP_MINUTE_INTERVAL)
                         ),
                     ]
                 );
@@ -188,31 +205,36 @@ public class BankItemCache
 
     async Task<BankItemsResponse> LazyGetBankItems()
     {
-        await LoadItemsLock.WaitAsync();
-
-        if (!shouldRequestAgain && lastResponse is not null)
-        {
-            LoadItemsLock.Release();
-            return lastResponse;
-        }
-
-        BankItemsResponse? bankResponseResult = null;
-
         try
         {
-            BankItemsResponse bankResponse = await accountRequester.GetBankItems();
+            await LoadItemsLock.WaitAsync();
 
-            bankResponseResult = bankResponse;
+            if (!shouldRequestAgain && lastResponse is not null)
+            {
+                return lastResponse;
+            }
 
-            lastResponse = bankResponse;
+            BankItemsResponse? bankResponseResult = null;
+
+            try
+            {
+                BankItemsResponse bankResponse = await accountRequester.GetBankItems();
+
+                bankResponseResult = bankResponse;
+
+                lastResponse = bankResponse;
+            }
+            finally
+            {
+                shouldRequestAgain = false;
+            }
+
+            return bankResponseResult;
         }
         finally
         {
-            shouldRequestAgain = false;
             LoadItemsLock.Release();
         }
-
-        return bankResponseResult;
     }
 
     public virtual async Task<BankDetails> GetBankDetails()

@@ -17,7 +17,7 @@ public class ApiRequester
 
     private readonly string _token;
 
-    private readonly SemaphoreSlim ThrottleLock = new(1, 1);
+    private readonly FifoSemaphore ThrottleLock = new(1, 1);
 
     private static readonly ILogger logger = LoggerFactory
         .Create(AppLogger.options)
@@ -78,10 +78,10 @@ public class ApiRequester
 
     private async Task ThrottleRequest()
     {
-        await ThrottleLock.WaitAsync();
-
         try
         {
+            await ThrottleLock.WaitAsync();
+
             DateTime now = DateTime.UtcNow;
             double secondsDiff = (now - _lastRequest).TotalSeconds;
 

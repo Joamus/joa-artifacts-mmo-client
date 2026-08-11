@@ -46,56 +46,102 @@ public class PlayerAI
 
     public async Task<CharacterJob?> GetNextJob()
     {
-        Logger.LogInformation(
-            "{Name}: [{CharacterName}]: Evaluating next job",
-            Name,
-            Character.Schema.Name
-        );
-
-        hasDoneItemTask =
-            gameState.AccountAchievements.FirstOrDefault(achiev =>
-                achiev.Code == "tasks_farmer" && achiev.CompletedAt is not null
-            )
-                is not null;
-
-        // Claim all the items that you can
-        if (gameState.ShouldClaimPendingItems())
+        try
         {
-            gameState.PendingItemClaimEvaluation = DateTime.UtcNow;
-            await ClaimPendingItems();
+            Logger.LogInformation(
+                "{Name}: [{CharacterName}]: Evaluating next job",
+                Name,
+                Character.Schema.Name
+            );
+
+            await Character.JobLock.WaitAsync();
+
+            if (Character.CurrentFightBossJob is not null)
+            {
+                Logger.LogInformation(
+                    "{Name}: [{CharacterName}]: Should not happen - has current fight boss job, so shouldn't be getting another job",
+                    Name,
+                    Character.Schema.Name
+                );
+
+                return null;
+            }
+
+            var depositJob = await GetDepositItemsJobIfNeeded();
+
+            if (depositJob is not null)
+            {
+                return depositJob;
+            }
+
+            hasDoneItemTask =
+                gameState.AccountAchievements.FirstOrDefault(achiev =>
+                    achiev.Code == "tasks_farmer" && achiev.CompletedAt is not null
+                )
+                    is not null;
+
+            // Claim all the items that you can
+            if (gameState.ShouldClaimPendingItems())
+            {
+                gameState.PendingItemClaimEvaluation = DateTime.UtcNow;
+                await ClaimPendingItems();
+            }
+
+            if (Character.Name == "Leonidas")
+            {
+                var otherParticipants = FightBoss.GetBestCandidatesToFight(Character, gameState);
+
+                if (otherParticipants is not null)
+                {
+                    var _ = await FightBoss.InitializeFightBossJob(
+                        Character,
+                        gameState,
+                        otherParticipants,
+                        gameState.MonstersDict["lich"],
+                        null,
+                        10
+                    );
+                }
+
+                return null;
+            }
+
+            await Character.PlayerActionService.WithdrawTeleportPotions();
+            await Character.PlayerActionService.WithdrawAndUseConsumableBags();
+
+            await CompleteTaskIfThereIsNothingLeft();
+            await CancelTaskIfItShouldNotBeDone();
+
+            var job =
+                await GetDepositItemsJobIfNeeded()
+                ?? await WithdrawAllowance()
+                // Deposit all gold above threshold - shared economy
+                ?? DepositUnneededGold()
+                ?? await EnsureAccessories()
+                // ?? await EnsureWeapon()
+                ?? await EnsureTools()
+                ?? await GetEventJob()
+                ?? await GetMonsterJobIfCanCertainlyBeDone()
+                // Support characters should have the chores higher up in their prio list
+                ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
+                ?? await GetIndividualHighPrioJob()
+                ?? await EnsureFightEquipment()
+                ?? await EnsureBag()
+                ?? GetSkillJob()
+                ?? await GetRoleJob()
+                ?? await GetChoreJob()
+                ?? await GetIndividualLowPrioJob();
+
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName} - code {job?.Code} x {job?.Amount}"
+            );
+
+            return job;
         }
-
-        await Character.PlayerActionService.WithdrawTeleportPotions();
-        await Character.PlayerActionService.WithdrawAndUseConsumableBags();
-
-        await CompleteTaskIfThereIsNothingLeft();
-        await CancelTaskIfItShouldNotBeDone();
-
-        var job =
-            await GetDepositItemsJobIfNeeded()
-            ?? await WithdrawAllowance()
-            // Deposit all gold above threshold - shared economy
-            ?? DepositUnneededGold()
-            ?? await EnsureAccessories()
-            // ?? await EnsureWeapon()
-            ?? await EnsureTools()
-            ?? await GetEventJob()
-            ?? await GetMonsterJobIfCanCertainlyBeDone()
-            // Support characters should have the chores higher up in their prio list
-            ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
-            ?? await GetIndividualHighPrioJob()
-            ?? await EnsureFightEquipment()
-            ?? await EnsureBag()
-            ?? GetSkillJob()
-            ?? await GetRoleJob()
-            ?? await GetChoreJob()
-            ?? await GetIndividualLowPrioJob();
-
-        Logger.LogInformation(
-            $"{Name}: [{Character.Schema.Name}]: Found job - {job?.JobName} - code {job?.Code} x {job?.Amount}"
-        );
-
-        return job;
+        finally
+        {
+            Character.JobLock.Release();
+        }
     }
 
     async Task CompleteTaskIfThereIsNothingLeft()
@@ -285,6 +331,16 @@ public class PlayerAI
 
             foreach (var artifact in nonCombatArtifacts)
             {
+                /**
+                ** TODO: This is very rudimentary artifact logic - we for now just want unique non-combat artifacts,
+                ** hoping that it will give us well-balanced characters. In the future, we should optimize for having
+                ** the best possible non-combat artifacts for specific jobs.
+                */
+                if (slots.Exists(slot => slot.ItemCode == artifact.Code))
+                {
+                    continue;
+                }
+
                 var result = Character.GetEquippedItemOrInInventory(artifact.Code);
 
                 (EquipmentSlot inventorySlot, bool isEquipped)? itemInInventory =
@@ -326,16 +382,6 @@ public class PlayerAI
                 }
 
                 if (!await Character.PlayerActionService.CanObtainItem(artifact))
-                {
-                    continue;
-                }
-
-                /**
-                ** TODO: This is very rudimentary artifact logic - we for now just want unique non-combat artifacts,
-                ** hoping that it will give us well-balanced characters. In the future, we should optimize for having
-                ** the best possible non-combat artifacts for specific jobs.
-                */
-                if (slots.Exists(slot => slot.ItemCode == artifact.Code))
                 {
                     continue;
                 }
@@ -984,19 +1030,21 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetMonsterJobIfCanCertainlyBeDone()
     {
-        if (
-            PREFER_MONSTER_TASK
-            && string.IsNullOrEmpty(Character.Schema.Task)
-            && await Character.PlayerActionService.CanHandlePotentialMonsterTasks()
-        )
+        if (PREFER_MONSTER_TASK)
         {
-            Logger.LogInformation(
-                "{Name}: [{character.Schema.Name}]: GetTaskJob: Found new monster task",
-                Name,
-                Character.Schema.Name
-            );
+            var potentialMonsterTask =
+                await Character.PlayerActionService.GetMonsterTaskJobIfPossible();
 
-            return new MonsterTask(Character, gameState);
+            if (potentialMonsterTask is not null)
+            {
+                Logger.LogInformation(
+                    "{Name}: [{character.Schema.Name}]: GetTaskJob: Found new monster task",
+                    Name,
+                    Character.Schema.Name
+                );
+
+                return new MonsterTask(Character, gameState);
+            }
         }
 
         return null;

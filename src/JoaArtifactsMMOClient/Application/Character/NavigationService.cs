@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
@@ -81,20 +82,19 @@ public class NavigationService
                 return false;
             }
 
-            if (map.Access.Conditions is not null)
+            List<ItemOrMapCondition> conditions = [.. map.Access.Conditions ?? []];
+
+            foreach (var condition in conditions)
             {
-                foreach (var condition in map.Access.Conditions)
-                {
-                    if (
-                        condition.Operator == ItemConditionOperator.AchievementUnlocked
-                        && gameState.AccountAchievements.Find(achievement =>
-                            achievement.Code == condition.Code
-                        )
-                            is null
+                if (
+                    condition.Operator == ItemConditionOperator.AchievementUnlocked
+                    && gameState.AccountAchievements.Find(achievement =>
+                        achievement.Code == condition.Code
                     )
-                    {
-                        return false;
-                    }
+                        is null
+                )
+                {
+                    return false;
                 }
             }
 
@@ -322,31 +322,64 @@ public class NavigationService
             }
         }
 
-        foreach (var step in steps)
-        {
-            List<MapSchema> maps = [step.CurrentMap, step.NewMap];
-
-            foreach (var map in maps)
-            {
-                List<ItemOrMapCondition> conditions =
-                [
-                    .. (map.Access?.Conditions ?? []).Union(
-                        map.Interactions?.Transition?.Conditions ?? []
-                    ),
-                ];
-
-                foreach (var condition in conditions)
+        var conditions = steps
+            .SelectMany(
+                (step, index) =>
                 {
-                    if (condition.Operator == ItemConditionOperator.HasItem)
+                    bool isFirstStep = index == 0;
+
+                    bool isLastStep = steps.Count - 1 == index;
+
+                    // If this is the first step, we are already standing here - should have access
+                    List<ItemOrMapCondition> stepConditions = isFirstStep
+                        ? []
+                        : [.. step.CurrentMap.Access?.Conditions ?? []];
+
+                    if (step.Move.ShouldTransition)
                     {
-                        itemRequirements.Add(
-                            new DropSchema { Code = condition.Code, Quantity = condition.Value }
-                        );
+                        // If we are planning to transition to the next map, we should save the requirements for getting there
+                        if (step.CurrentMap.Interactions.Transition?.Conditions is not null)
+                        {
+                            stepConditions =
+                            [
+                                .. stepConditions.Union(
+                                    step.CurrentMap.Interactions.Transition.Conditions
+                                ),
+                            ];
+                        }
                     }
-                    else if (condition.Operator == ItemConditionOperator.Cost)
+
+                    if (isLastStep && step.NewMap.Access.Conditions?.Count > 0)
                     {
-                        goldRequirement += condition.Value;
+                        stepConditions = [.. stepConditions.Union(step.NewMap.Access.Conditions)];
                     }
+
+                    isFirstStep = false;
+
+                    return stepConditions;
+                }
+            )
+            .ToList();
+
+        foreach (var condition in conditions)
+        {
+            if (condition.Operator == ItemConditionOperator.HasItem)
+            {
+                itemRequirements.Add(
+                    new DropSchema { Code = condition.Code, Quantity = condition.Value }
+                );
+            }
+            else if (condition.Operator == ItemConditionOperator.Cost)
+            {
+                if (condition.Code == "gold")
+                {
+                    goldRequirement += condition.Value;
+                }
+                else
+                {
+                    itemRequirements.Add(
+                        new DropSchema { Code = condition.Code, Quantity = condition.Value }
+                    );
                 }
             }
         }

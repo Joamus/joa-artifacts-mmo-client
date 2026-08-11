@@ -42,16 +42,6 @@ public class WithdrawItem : CharacterJob
 
         int amountToWithdraw = Math.Min(Amount, amountInBank);
 
-        if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
-        {
-            await Character.QueueJobsBefore(
-                Id,
-                [new DepositUnneededItems(Character, gameState, null, false)]
-            );
-            Status = JobStatus.Suspend;
-            return new None();
-        }
-
         if (
             Character.GetAvailableInventorySpace() == amountToWithdraw
             || Character.GetAvailableInventorySlots() == 0

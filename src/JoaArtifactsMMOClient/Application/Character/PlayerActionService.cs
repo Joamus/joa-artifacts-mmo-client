@@ -219,6 +219,53 @@ public class PlayerActionService
             Character.Schema.Name
         );
 
+        var potentialMonsterTask = await GetMonsterTaskJobIfPossible();
+
+        if (preferMonsterTask && potentialMonsterTask is not null)
+        {
+            return potentialMonsterTask;
+        }
+
+        if (Character.Schema.TaskType == TaskType.items.ToString())
+        {
+            if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+            {
+                Logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+                );
+                return new ItemTask(Character, gameState);
+            }
+            else if (await CancelTaskJob.CanCancelTask(Character, gameState))
+            {
+                await CancelTaskJob.DoCancelTask(Character, gameState);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
+        {
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+            );
+            return new ItemTask(Character, gameState);
+        }
+
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: GetTaskJob: No job found");
+
+        return potentialMonsterTask;
+    }
+
+    public async Task<CharacterJob?> GetMonsterTaskJobIfPossible()
+    {
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
+            Name,
+            Character.Schema.Name
+        );
+
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
             var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
@@ -249,26 +296,11 @@ public class PlayerActionService
                 }
             }
         }
-        else if (Character.Schema.TaskType == TaskType.items.ToString())
-        {
-            if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
-                );
-                return new ItemTask(Character, gameState);
-            }
-            else if (await CancelTaskJob.CanCancelTask(Character, gameState))
-            {
-                await CancelTaskJob.DoCancelTask(Character, gameState);
-            }
-            else
-            {
-                return null;
-            }
-        }
 
-        if (preferMonsterTask && await CanHandlePotentialMonsterTasks())
+        if (
+            string.IsNullOrWhiteSpace(Character.Schema.Task)
+            && await CanHandlePotentialMonsterTasks()
+        )
         {
             Logger.LogInformation(
                 "{Name}: [{character.Schema.Name}]: GetTaskJob: Found new monster task",
@@ -278,15 +310,6 @@ public class PlayerActionService
 
             return new MonsterTask(Character, gameState);
         }
-        if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
-        {
-            Logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
-            );
-            return new ItemTask(Character, gameState);
-        }
-
-        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: GetTaskJob: No job found");
 
         return null;
     }
@@ -357,24 +380,21 @@ public class PlayerActionService
 
         var nextJob = jobsToGetItems.ElementAtOrDefault(0);
 
-        if (nextJob is not null)
+        nextJob?.Job.onAfterSuccessEndHook = async () =>
         {
-            nextJob.Job.onAfterSuccessEndHook = async () =>
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Name}]: onAfterSuccessEndHook: Equipping {nextJob.Job.Amount} x {nextJob.Job.Code}"
-                );
-                // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?
-                await Character.EquipItem(
-                    new EquipRequest
-                    {
-                        Code = nextJob.Job.Code,
-                        Slot = nextJob.Slot.Slot.FromPascalToSnakeCase(),
-                        Quantity = nextJob.Job.Amount,
-                    }
-                );
-            };
-        }
+            Logger.LogInformation(
+                $"{Name}: [{Character.Name}]: onAfterSuccessEndHook: Equipping {nextJob.Job.Amount} x {nextJob.Job.Code}"
+            );
+            // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?
+            await Character.EquipItem(
+                new EquipRequest
+                {
+                    Code = nextJob.Job.Code,
+                    Slot = nextJob.Slot.Slot.FromPascalToSnakeCase(),
+                    Quantity = nextJob.Job.Amount,
+                }
+            );
+        };
 
         return new NextJobToFightResult { Job = nextJob?.Job };
     }

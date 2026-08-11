@@ -1445,7 +1445,7 @@ public static class FightSimulator
              * that we will burn through a lot of potions.
              */
             bool isBelowMaxPotionsUsed =
-                monsterType != MonsterType.Boss
+                monsterType == MonsterType.Boss
                 || attackingPlayerPotionsUsed + otherAttackingPlayersPotionsUsed
                     <= maxAllowedPotionsUsed;
 
@@ -1632,7 +1632,7 @@ public static class FightSimulator
 
                 var result = FindBestFightEquipment(
                     allCharactersWithNewItems.First(characerWithNewItem =>
-                        characerWithNewItem.Name == mainCharacter.Name
+                        characerWithNewItem.Name == schema.Name
                     ),
                     gameState,
                     monster,
@@ -1640,7 +1640,7 @@ public static class FightSimulator
                     null,
                     [
                         .. allCharactersWithNewItems.Where(characerWithNewItem =>
-                            characerWithNewItem.Name != mainCharacter.Name
+                            characerWithNewItem.Name != schema.Name
                         ),
                     ]
                 );
@@ -1880,27 +1880,6 @@ public static class FightSimulator
 
                 // We use the allItemsToSim on purpose
                 allItemsToSimForWeapon = GetLeftOverItems(allItemsToSim, result.ItemsToEquip);
-                // allItemsToSimForWeapon = result.
-                // var result = SimItemsForEquipmentType(
-                //     character,
-                //     otherCharacterSchemas,
-                //     gameState,
-                //     monster,
-                //     allItemsToSim,
-                //     equipmentTypeMapping,
-                //     bestFightSimResult
-                // );
-
-                // var simResult = result.SimResult;
-                // allItemsToSim = result.LeftOverItems;
-
-                // bestFightSimResult.Schema = simResult.Schema;
-                // bestFightSimResult.Outcome = simResult.Outcome;
-
-                // bestFightSimResult.ItemsToEquip =
-                // [
-                //     .. bestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
-                // ];
             }
 
             var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(
@@ -1931,25 +1910,6 @@ public static class FightSimulator
                     potionItemsWithoutSkippedEffects,
                     result.ItemsToEquip
                 );
-                // var result = SimItemsForEquipmentType(
-                //     character,
-                //     otherCharacterSchemas,
-                //     gameState,
-                //     monster,
-                //     potionItemsWithoutSkippedEffects,
-                //     equipmentTypeMapping,
-                //     bestFightSimResult
-                // );
-
-                // var simResult = result.SimResult;
-                // allItemsToSim = result.LeftOverItems;
-
-                // bestFightSimResult.Schema = simResult.Schema;
-                // bestFightSimResult.Outcome = simResult.Outcome;
-                // bestFightSimResult.ItemsToEquip =
-                // [
-                //     .. bestFightSimResult.ItemsToEquip.Union(simResult.ItemsToEquip),
-                // ];
             }
 
             allCandidates.Add(bestFightSimResult);
