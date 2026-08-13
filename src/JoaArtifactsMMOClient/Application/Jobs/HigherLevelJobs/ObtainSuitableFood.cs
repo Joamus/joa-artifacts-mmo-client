@@ -111,7 +111,7 @@ public class ObtainSuitableFood : CharacterJob
 
             jobs.Add(new WithdrawItem(Character, gameState, item.Item.Code, amountToTake));
 
-            amountFound += Math.Min(Amount - amountFound, item.Quantity);
+            amountFound += amountToTake;
 
             if (amountFound >= Amount)
             {
@@ -220,10 +220,6 @@ public class ObtainSuitableFood : CharacterJob
         CalculationService.SortItemsBasedOnEffect(viableFood, "heal");
 
         ItemSchema? gatherableFood = null;
-        // Not supporting this yet - if we are running this job, it's probably because we need to fight, so we want to obtain food asap.
-        // Fighting for food is probably not really worth it, and we want our characters to be good at cooking at fishing.
-        // if we got this far, it also means that we probably have no food in our inventory, or bank, so it's a bit of a last resort.
-        ItemSchema? fightableFood = null;
 
         foreach (var food in viableFood)
         {
@@ -248,7 +244,7 @@ public class ObtainSuitableFood : CharacterJob
             }
         }
 
-        return gatherableFood ?? fightableFood ?? gameState.ItemsDict["cooked_gudgeon"]!; // You can cook this from level 1, but this should probably never occur
+        return gatherableFood ?? gameState.ItemsDict["cooked_gudgeon"]!; // You can cook this from level 1, but this should probably never occur
     }
 
     public List<CharacterJob> GetFoodJobsFromBankFish(
@@ -279,6 +275,7 @@ public class ObtainSuitableFood : CharacterJob
                 {
                     var probablyCookedFishItem = cookedInto.FirstOrDefault(item =>
                         item.Craft is not null
+                        && ItemService.IsItemFood(item)
                         && ItemService.CanUseItem(matchingItem, Character.Schema, gameState)
                     );
 

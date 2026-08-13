@@ -846,6 +846,11 @@ public static class ItemService
             && item.Effects.Exists(effect => effect.Code == SkillService.GetSkillName(skill));
     }
 
+    public static bool IsItemFood(ItemSchema item)
+    {
+        return item.Type == "consumable" && item.Subtype == "food";
+    }
+
     // public static GetXpForCraftingItem(int skillLevel, int itemLevel)
     // {
     //     // XP = Round((XP_base + (item_level / player_level) × coefficient) × skill_multiplier × level_penalty × wisdom_bonus)

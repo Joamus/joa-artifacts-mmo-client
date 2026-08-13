@@ -224,7 +224,8 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
                     return jobs;
                 })
-                .FirstOrDefault() ?? [];
+                .FirstOrDefault()
+            ?? [];
 
         List<CharacterJob> possibleJobs = [];
 
@@ -278,8 +279,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
 
                     bool isFoodish =
                         (
-                            matchingItem.Type == "consumable"
-                            && matchingItem.Subtype == "food"
+                            ItemService.IsItemFood(matchingItem)
                             && matchingItem.Craft is not null
                             && ItemService.CanUseItem(matchingItem, character.Schema, gameState)
                         )
