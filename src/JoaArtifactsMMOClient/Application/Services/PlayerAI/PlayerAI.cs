@@ -87,24 +87,24 @@ public class PlayerAI
                 await ClaimPendingItems();
             }
 
-            if (Character.Name == "Leonidas")
-            {
-                var otherParticipants = FightBoss.GetBestCandidatesToFight(Character, gameState);
+            // if (Character.Name == "Leonidas")
+            // {
+            //     var otherParticipants = FightBoss.GetBestCandidatesToFight(Character, gameState);
 
-                if (otherParticipants is not null)
-                {
-                    var _ = await FightBoss.InitializeFightBossJob(
-                        Character,
-                        gameState,
-                        otherParticipants,
-                        gameState.MonstersDict["lich"],
-                        null,
-                        10
-                    );
-                }
+            //     if (otherParticipants is not null)
+            //     {
+            //         var _ = await FightBoss.InitializeFightBossJob(
+            //             Character,
+            //             gameState,
+            //             otherParticipants,
+            //             gameState.MonstersDict["king_slime"],
+            //             null,
+            //             3
+            //         );
+            //     }
 
-                return null;
-            }
+            //     return null;
+            // }
 
             await Character.PlayerActionService.WithdrawTeleportPotions();
             await Character.PlayerActionService.WithdrawAndUseConsumableBags();
@@ -817,30 +817,53 @@ public class PlayerAI
             Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting {fightMonster.Amount} x {fightMonster.Code}"
             );
-            var nextJobResult = await Character.PlayerActionService.GetNextJobToFightMonster(
-                gameState.AvailableMonstersDict.GetValueOrNull(fightMonster.Code)!
+            // var nextJobResult = await Character.PlayerActionService.GetNextJobToFightMonster(
+            //     gameState.AvailableMonstersDict.GetValueOrNull(fightMonster.Code)!
+            // );
+
+            var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+            var fightSim = FightSimulator.FindBestFightEquipment(
+                Character,
+                gameState,
+                gameState.MonstersDict[fightMonster.Code],
+                [
+                    .. bankItems.Select(item => new ItemInInventory
+                    {
+                        Item = gameState.ItemsDict[item.Code],
+                        Quantity = item.Quantity,
+                    }),
+                ]
             );
 
-            if (nextJobResult is not null)
+            if (fightSim.SimResult.Outcome.ShouldFight)
             {
-                if (nextJobResult.Job is not null)
-                {
-                    var nextJob = nextJobResult.Job;
-
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                    );
-                    // Do the first job in the list, we only do one thing at a time
-                    return nextJob;
-                }
-                else
-                {
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fighting {fightMonster.Amount} x {fightMonster.Code}"
-                    );
-                    return fightMonster;
-                }
+                Logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Can defeat monster with items from bank - fighting {fightMonster.Amount} x {fightMonster.Code}"
+                );
+                return fightMonster;
             }
+
+            // if (nextJobResult is not null)
+            // {
+            //     if (nextJobResult.Job is not null)
+            //     {
+            //         var nextJob = nextJobResult.Job;
+
+            //         Logger.LogInformation(
+            //             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+            //         );
+            //         // Do the first job in the list, we only do one thing at a time
+            //         return nextJob;
+            //     }
+            //     else
+            //     {
+            //         Logger.LogInformation(
+            //             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fighting {fightMonster.Amount} x {fightMonster.Code}"
+            //         );
+            //         return fightMonster;
+            //     }
+            // }
         }
 
         Logger.LogInformation(
@@ -969,23 +992,25 @@ public class PlayerAI
             && matchingMonster.Type != MonsterType.Boss
         )
         {
-            var jobsToFightMonster = await Character.PlayerActionService.GetNextJobToFightMonster(
-                matchingMonster
+            var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+            var fightSim = FightSimulator.FindBestFightEquipment(
+                Character,
+                gameState,
+                matchingMonster,
+                [
+                    .. bankItems.Select(item => new ItemInInventory
+                    {
+                        Item = gameState.ItemsDict[item.Code],
+                        Quantity = item.Quantity,
+                    }),
+                ]
             );
 
-            if (jobsToFightMonster?.Job is not null)
-            {
-                var nextJob = jobsToFightMonster.Job;
-
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetEventJob: Doing first job to fight event monster - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                );
-                return nextJob;
-            }
-            else if (jobsToFightMonster is not null && jobsToFightMonster.Job is null)
+            if (fightSim.SimResult.Outcome.ShouldFight)
             {
                 Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetMonsterEventjob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
+                    $"{Name}: [{Character.Schema.Name}]: GetMonsterEventjob: Can fight monster with items from bank - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
                 );
                 return new FightMonster(
                     Character,
@@ -994,6 +1019,30 @@ public class PlayerAI
                     TrainCombat.AMOUNT_TO_KILL
                 );
             }
+            // var jobsToFightMonster = await Character.PlayerActionService.GetNextJobToFightMonster(
+            //     matchingMonster
+            // );
+            // if (jobsToFightMonster?.Job is not null)
+            // {
+            //     var nextJob = jobsToFightMonster.Job;
+
+            //     Logger.LogInformation(
+            //         $"{Name}: [{Character.Schema.Name}]: GetEventJob: Doing first job to fight event monster - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
+            //     );
+            //     return nextJob;
+            // }
+            // else if (jobsToFightMonster is not null && jobsToFightMonster.Job is null)
+            // {
+            //     Logger.LogInformation(
+            //         $"{Name}: [{Character.Schema.Name}]: GetMonsterEventjob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
+            //     );
+            //     return new FightMonster(
+            //         Character,
+            //         gameState,
+            //         matchingMonster.Code,
+            //         TrainCombat.AMOUNT_TO_KILL
+            //     );
+            // }
         }
 
         return null;

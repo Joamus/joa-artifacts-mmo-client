@@ -1940,11 +1940,11 @@ public static class FightSimulator
                 {
                     if (item.Slot == "utility1" || item.Slot == "utility2")
                     {
-                        var matchingInitialUtilSlot = initialUtilitySlots.FirstOrDefault(utilSlot =>
-                            utilSlot.Slot == item.Slot
+                        var hasPotionEquippedAlready = initialUtilitySlots.Exists(utilSlot =>
+                            utilSlot.Code == item.Code
                         );
 
-                        if (item.Code == matchingInitialUtilSlot?.Code)
+                        if (hasPotionEquippedAlready)
                         {
                             return false;
                         }

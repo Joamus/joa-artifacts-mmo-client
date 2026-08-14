@@ -218,11 +218,19 @@ public class FightBoss
                 $"{JobName}: [{character.Schema.Name}]: Getting next job(s) to fight {Monster.Code}.."
             );
 
-            if (Status == FightBossStatus.Failed)
+            switch (Status)
             {
-                return new AppError(
-                    $"FightBoss job with for monster {Monster.Code} has failed/been disbaned - character {character.Name} cannot get a next job"
-                );
+                case FightBossStatus.Fighting:
+                    Logger.LogInformation(
+                        $"{JobName}: [{character.Schema.Name}]: Status is fighting - returning (fighting {Monster.Code}..)"
+                    );
+                    return emptyJobs;
+                case FightBossStatus.Failed:
+                    return new AppError(
+                        $"FightBoss job with for monster {Monster.Code} has failed/been disbaned - character {character.Name} cannot get a next job"
+                    );
+                case FightBossStatus.Completed:
+                    return emptyJobs;
             }
 
             if (AreAllReadyToFightBoss())
@@ -419,8 +427,6 @@ public class FightBoss
             Monster
         );
 
-        ResetCharacterStatuses();
-
         // Ugly, but double guard so we can fail the job
         if (Status == FightBossStatus.Failed)
         {
@@ -441,7 +447,27 @@ public class FightBoss
                 Logger.LogInformation(
                     $"{JobName}: StartBossFight: Fight sim is still favorable, proceeding"
                 );
+
+                // We don't want them to swap other items, only go back if they need new potions
+                var simResultWithOnlyPotionsToEquip = simResult.Select(result =>
+                {
+                    var newItemsToEquip = result
+                        .ItemsToEquip.Where(item =>
+                        {
+                            var matchingItem = GameState.ItemsDict[item.Code];
+
+                            return matchingItem.Type != "utility";
+                        })
+                        .ToList();
+
+                    var newResult = result with { ItemsToEquip = newItemsToEquip };
+
+                    return newResult;
+                });
+
                 LastFightSimResult = simResult;
+                ResetCharacterStatuses();
+                Status = FightBossStatus.Preparing;
             }
         );
     }
