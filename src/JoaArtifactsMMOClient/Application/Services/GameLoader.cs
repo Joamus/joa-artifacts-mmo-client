@@ -1,3 +1,5 @@
+using Application.Errors;
+using Application.Jobs;
 using Application.Services;
 
 namespace Application;
@@ -99,32 +101,96 @@ public class GameLoader
         // {
         //     continue;
         // }
+        //
 
-        if (playerAI.Character.Idle)
+        var character = playerAI.Character;
+
+        try
         {
-            playerAI.Character.CleanupOldWishlistItems();
-
-            if (playerAI.Enabled)
+            if (character.Idle)
             {
-                if (playerAI.Character.CurrentJob is null && playerAI.Character.Jobs.Count == 0)
+                character.CleanupOldWishlistItems();
+
+                if (character.CurrentJob is null && character.FindNextJobFromQueue() == null)
                 {
-                    Logger.LogInformation(
-                        "HandleCharacterLoop: [{Name}]: Running AI loop - getting next job and queueing it",
+                    if (character.CurrentFightBossJob is not null)
+                    {
+                        var nextBossJobResult = await character.CurrentFightBossJob.GetNextJobs(
+                            character
+                        );
+
+                        AppError? bossAppError = null;
+
+                        List<CharacterJob> nextJobs = [];
+
+                        nextBossJobResult.Switch(
+                            error =>
+                            {
+                                bossAppError = error;
+                            },
+                            nextBossJob =>
+                            {
+                                // If it returns empty, it does so after a waiting period - nothing else to do, just wait for now
+                                nextJobs = nextBossJob;
+                            }
+                        );
+
+                        if (bossAppError is not null)
+                        {
+                            await character.LeaveBossFightJob();
+
+                            // Nothing listens to return of this function, but we'll return anyway.
+                            throw bossAppError;
+                        }
+
+                        if (nextJobs is not null && nextJobs.Count > 0)
+                        {
+                            Logger.LogInformation(
+                                "HandleCharacterLoop: [{Name}]: Found jobs for boss fight with {bossFightMonster} - found {amountOfJobs} jobs",
+                                character.Name,
+                                character.CurrentFightBossJob.Monster.Code,
+                                nextJobs.Count
+                            );
+
+                            foreach (var job in nextJobs)
+                            {
+                                await character.QueueJob(job);
+                            }
+                        }
+                    }
+                    else if (playerAI.Enabled)
+                    {
+                        Logger.LogInformation(
+                            "HandleCharacterLoop: [{Name}]: Running AI loop - getting next job and queueing it",
+                            character.Name
+                        );
+
+                        var job = await playerAI.GetNextJob();
+
+                        if (job is not null)
+                        {
+                            await character.QueueJob(job);
+                        }
+                    }
+
+                    Logger.LogDebug(
+                        "HandleCharacterLoop: [{Name}]: Run job",
                         playerAI.Character.Name
                     );
-
-                    var job = await playerAI.GetNextJob();
-
-                    if (job is not null)
-                    {
-                        await playerAI.Character.QueueJob(job);
-                    }
                 }
+                await character.RunJob();
             }
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(
+                "HandleCharacterLoop: [{Name}]: Failed getting a new job - error: {message} - stack: {stack}",
+                playerAI.Character.Name,
+                e.Message,
+                e.StackTrace
+            );
 
-            Logger.LogDebug("HandleCharacterLoop: [{Name}]: Run job", playerAI.Character.Name);
-
-            await playerAI.Character.RunJob();
+            await character.ResetAfterJobFail();
         }
 
         await Task.Delay(1 * 1000);

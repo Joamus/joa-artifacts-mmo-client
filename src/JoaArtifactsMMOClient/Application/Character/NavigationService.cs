@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
@@ -81,20 +82,19 @@ public class NavigationService
                 return false;
             }
 
-            if (map.Access.Conditions is not null)
+            List<ItemOrMapCondition> conditions = [.. map.Access.Conditions ?? []];
+
+            foreach (var condition in conditions)
             {
-                foreach (var condition in map.Access.Conditions)
-                {
-                    if (
-                        condition.Operator == ItemConditionOperator.AchievementUnlocked
-                        && gameState.AccountAchievements.Find(achievement =>
-                            achievement.Code == condition.Code
-                        )
-                            is null
+                if (
+                    condition.Operator == ItemConditionOperator.AchievementUnlocked
+                    && gameState.AccountAchievements.Find(achievement =>
+                        achievement.Code == condition.Code
                     )
-                    {
-                        return false;
-                    }
+                        is null
+                )
+                {
+                    return false;
                 }
             }
 
@@ -322,31 +322,64 @@ public class NavigationService
             }
         }
 
-        foreach (var step in steps)
-        {
-            List<MapSchema> maps = [step.CurrentMap, step.NewMap];
-
-            foreach (var map in maps)
-            {
-                List<ItemOrMapCondition> conditions =
-                [
-                    .. (map.Access?.Conditions ?? []).Union(
-                        map.Interactions?.Transition?.Conditions ?? []
-                    ),
-                ];
-
-                foreach (var condition in conditions)
+        var conditions = steps
+            .SelectMany(
+                (step, index) =>
                 {
-                    if (condition.Operator == ItemConditionOperator.HasItem)
+                    bool isFirstStep = index == 0;
+
+                    bool isLastStep = steps.Count - 1 == index;
+
+                    // If this is the first step, we are already standing here - should have access
+                    List<ItemOrMapCondition> stepConditions = isFirstStep
+                        ? []
+                        : [.. step.CurrentMap.Access?.Conditions ?? []];
+
+                    if (step.Move.ShouldTransition)
                     {
-                        itemRequirements.Add(
-                            new DropSchema { Code = condition.Code, Quantity = condition.Value }
-                        );
+                        // If we are planning to transition to the next map, we should save the requirements for getting there
+                        if (step.CurrentMap.Interactions.Transition?.Conditions is not null)
+                        {
+                            stepConditions =
+                            [
+                                .. stepConditions.Union(
+                                    step.CurrentMap.Interactions.Transition.Conditions
+                                ),
+                            ];
+                        }
                     }
-                    else if (condition.Operator == ItemConditionOperator.Cost)
+
+                    if (isLastStep && step.NewMap.Access.Conditions?.Count > 0)
                     {
-                        goldRequirement += condition.Value;
+                        stepConditions = [.. stepConditions.Union(step.NewMap.Access.Conditions)];
                     }
+
+                    isFirstStep = false;
+
+                    return stepConditions;
+                }
+            )
+            .ToList();
+
+        foreach (var condition in conditions)
+        {
+            if (condition.Operator == ItemConditionOperator.HasItem)
+            {
+                itemRequirements.Add(
+                    new DropSchema { Code = condition.Code, Quantity = condition.Value }
+                );
+            }
+            else if (condition.Operator == ItemConditionOperator.Cost)
+            {
+                if (condition.Code == "gold")
+                {
+                    goldRequirement += condition.Value;
+                }
+                else
+                {
+                    itemRequirements.Add(
+                        new DropSchema { Code = condition.Code, Quantity = condition.Value }
+                    );
                 }
             }
         }
@@ -368,157 +401,6 @@ public class NavigationService
         {
             await ExecuteMove(character, step.Move);
         }
-    }
-
-    List<NavigationStep> GetNextNavigationStepIfNotInOverworld(
-        MapSchema currentMap,
-        MapSchema destinationMap
-    )
-    {
-        // No matter what, we need to find out whether we are moving within the same "underground cell", or to another one
-
-        // Logger.LogInformation(
-        //     $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer})"
-        // );
-
-        MapSchema? currentClosestTransition = FindClosestTransition(currentMap, null, false)!;
-
-        MapSchema? destinationClosestTransition = FindClosestTransition(
-            destinationMap,
-            null,
-            false
-        )!;
-
-        if (currentMap.Layer == destinationMap.Layer)
-        {
-            var activeLayer = currentMap.Layer;
-
-            // We are in the same cell, the transitions are the same
-            if (currentClosestTransition.MapId == destinationClosestTransition.MapId)
-            {
-                // Logger.LogInformation(
-                //     $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}), but moving inside the same \"cell\" - no need to transition"
-                // );
-                return [CreateMoveStep(currentMap, destinationMap)];
-            }
-            else
-            {
-                // If we are navigating to a boss, they are sometimes guarded by a mob, who is standing ontop of a transition.
-                // e.g. we can be in a cave, and the cave has a transition inside to the boss.
-                //
-                var currentClosestTransitionTo = gameState.MapsDict[
-                    currentClosestTransition.Interactions.Transition!.MapId
-                ];
-                var destinationClosestTransitionTo = gameState.MapsDict[
-                    destinationClosestTransition.Interactions.Transition!.MapId
-                ];
-
-                // We now have to handle that we either be at the boss, i.e. in "underground transition", or trying to go away from the boss.
-
-                MapSchema? transitionInvoledWithBoss = null;
-
-                foreach (
-                    var map in new List<MapSchema>
-                    {
-                        currentClosestTransitionTo,
-                        destinationClosestTransitionTo,
-                    }
-                )
-                {
-                    if (map.Layer == activeLayer)
-                    {
-                        transitionInvoledWithBoss = map;
-                        break;
-                    }
-                }
-
-                if (transitionInvoledWithBoss is null)
-                {
-                    throw new AppError($"Could not find transition to boss");
-                }
-
-                bool currentlyAtBoss = transitionInvoledWithBoss == currentClosestTransitionTo;
-
-                if (currentlyAtBoss)
-                {
-                    var moveStepAwayFromBoss = CreateMoveStep(currentMap, currentClosestTransition);
-                    var transitionStepAwayFromBoss = CreateTransitionStep(
-                        gameState.MapsDict,
-                        moveStepAwayFromBoss.NewMap
-                    );
-
-                    return [moveStepAwayFromBoss, transitionStepAwayFromBoss];
-                }
-                else
-                {
-                    var moveStepAwayTowardsBoss = CreateMoveStep(
-                        currentMap,
-                        destinationClosestTransitionTo
-                    );
-                    var transitionStepTowardsBoss = CreateTransitionStep(
-                        gameState.MapsDict,
-                        moveStepAwayTowardsBoss.NewMap
-                    );
-
-                    return [moveStepAwayTowardsBoss, transitionStepTowardsBoss];
-                }
-            }
-        }
-
-        // Logger.LogInformation(
-        //     $"{Name}: [{character.Name}]: Currently not in the overworld ({currentMap.Layer}) - need to transition first - moving to ({currentClosestTransition.X}, {currentClosestTransition.Y})"
-        // );
-        // Don't care if we are going from e.g. underground -> overworld or interior, we need to go to the overworld first
-        var moveStep = CreateMoveStep(currentMap, currentClosestTransition);
-        var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
-
-        return [moveStep, transitionStep];
-    }
-
-    List<NavigationStep> GetNextNavigationStepFromOverworldToOtherLayer(
-        MapSchema currentMap,
-        MapSchema destinationMap
-    )
-    {
-        /* We know that normal overworld -> other layer transitions are directly above their counterpart, e.g. if the door to a house is on position 1,1,
-           then when we transition through that door, we will be on 1,1 in the interior or underground layer. So we can just calculate the distance from where
-           we are, and to the destination map, and find the closest transition point from the destination map. It's not entirely bullet-proof, but it should be
-           good enough.
-        */
-        MapSchema? closestTransitionNotInTheOverworld = FindClosestTransition(
-            destinationMap,
-            MapLayer.Overworld,
-            false
-        );
-
-        if (closestTransitionNotInTheOverworld is null)
-        {
-            throw new AppError(
-                $"Could not find transition to get to {destinationMap.Name} - x = {destinationMap.X} y = {destinationMap.Y}",
-                ErrorStatus.NotFound
-            );
-        }
-
-        if (closestTransitionNotInTheOverworld.Access?.Conditions?.Count > 0)
-        {
-            // Logger.LogDebug(
-            //     $"Condition to go to {destinationMap.MapId} ({destinationMap.X}, {destinationMap.Y})"
-            // );
-        }
-
-        var transitionToUse = gameState.MapsDict[
-            closestTransitionNotInTheOverworld.Interactions.Transition!.MapId
-        ];
-
-        // Logger.LogInformation(
-        //     $"{Name}: [{character.Name}]: Going inside from the overworld - moving to ({transitionToUse.X}, {transitionToUse.Y}, {transitionToUse.Layer.GetDisplayName()}) and transitioning"
-        // );
-
-        var moveStep = CreateMoveStep(currentMap, transitionToUse);
-
-        var transitionStep = CreateTransitionStep(gameState.MapsDict, moveStep.NewMap);
-
-        return [moveStep, transitionStep];
     }
 
     public MapSchema? FindClosestTransition(
@@ -670,13 +552,11 @@ public class NavigationService
 
     public static async Task ExecuteMove(PlayerCharacter character, Move move)
     {
+        await character.Move(move.X, move.Y);
+
         if (move.ShouldTransition)
         {
             await character.Transition();
-        }
-        else
-        {
-            await character.Move(move.X, move.Y);
         }
 
         if (move.AfterMoveAction is not null)
