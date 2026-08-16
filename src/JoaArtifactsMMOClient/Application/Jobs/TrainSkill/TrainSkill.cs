@@ -15,6 +15,7 @@ namespace Application.Jobs;
 public class TrainSkill : CharacterJob
 {
     const int MONSTER_COST = 5;
+    const int MONSTER_BOSS_COST = MONSTER_COST * 5;
     const int CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST = 15;
     const int TASKS_COINS_COST = 120;
     const int EVENT_COST = 200;
@@ -539,10 +540,15 @@ public class TrainSkill : CharacterJob
         int dropRateFactor =
             monster.Drops.FirstOrDefault(drop => drop.Code == itemDrop.Code)!.Rate * itemAmount;
 
+        int baseMonsterCost =
+            (monster.Type == MonsterType.Boss || monster.Type == MonsterType.RaidBoss)
+                ? MONSTER_BOSS_COST
+                : MONSTER_COST;
+
         int monsterCost =
             monster.Level < character.Schema.Level + CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST
                 ? 0
-                : MONSTER_COST;
+                : baseMonsterCost;
 
         if (isEventMonster)
         {
