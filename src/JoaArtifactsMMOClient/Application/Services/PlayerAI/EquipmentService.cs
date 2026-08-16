@@ -487,11 +487,9 @@ public class EquipmentService
         }
     }
 
-    public static async Task<List<(ItemToEquip item, string Slot)>> GetItemsToEquipWithEffect(
-        PlayerCharacter character,
-        GameState gameState,
-        string effectName
-    )
+    public static async Task<
+        List<(ItemToEquipNeedsBetterName item, string Slot)>
+    > GetItemsToEquipWithEffect(PlayerCharacter character, GameState gameState, string effectName)
     {
         bool IsItemWithEffect(DropSchema item)
         {
@@ -505,7 +503,7 @@ public class EquipmentService
             return matchingItem.Effects.Exists(effect => effect.Code == effectName);
         }
 
-        List<ItemToEquip> bankItems =
+        List<ItemToEquipNeedsBetterName> bankItems =
         [
             .. (await gameState.Services.BankItemCache.GetBankItems(character))
                 .Where(IsItemWithEffect)
@@ -513,7 +511,7 @@ public class EquipmentService
                 {
                     var matchingItem = gameState.ItemsDict[item.Code];
 
-                    return new ItemToEquip
+                    return new ItemToEquipNeedsBetterName
                     {
                         Item = matchingItem,
                         Quantity = item.Quantity,
@@ -522,7 +520,7 @@ public class EquipmentService
                 }),
         ];
 
-        List<ItemToEquip> inventoryItems =
+        List<ItemToEquipNeedsBetterName> inventoryItems =
         [
             .. character
                 .Schema.Inventory.Where(
@@ -535,7 +533,7 @@ public class EquipmentService
                 {
                     var matchingItem = gameState.ItemsDict[item.Code];
 
-                    return new ItemToEquip
+                    return new ItemToEquipNeedsBetterName
                     {
                         Item = matchingItem,
                         Quantity = item.Quantity,
@@ -544,9 +542,9 @@ public class EquipmentService
                 }),
         ];
 
-        List<ItemToEquip> allItems = [.. inventoryItems.Union(bankItems)];
+        List<ItemToEquipNeedsBetterName> allItems = [.. inventoryItems.Union(bankItems)];
 
-        Dictionary<string, List<ItemToEquip>> typeToItemsDict = [];
+        Dictionary<string, List<ItemToEquipNeedsBetterName>> typeToItemsDict = [];
 
         foreach (var item in allItems)
         {
@@ -555,7 +553,7 @@ public class EquipmentService
                 typeToItemsDict.Add(item.Item.Type, []);
             }
 
-            List<ItemToEquip> currentItems = typeToItemsDict[item.Item.Type]!;
+            List<ItemToEquipNeedsBetterName> currentItems = typeToItemsDict[item.Item.Type]!;
 
             currentItems.Add(item);
         }
@@ -587,7 +585,7 @@ public class EquipmentService
 
         var newSlots = character.GetAllEquipmentSlots();
 
-        List<(ItemToEquip item, string Slot)> chosenItems = [];
+        List<(ItemToEquipNeedsBetterName item, string Slot)> chosenItems = [];
 
         foreach (var slot in originalSlots)
         {
@@ -635,8 +633,8 @@ public class EquipmentService
 
                 bestCandidate.Quantity -= amountThatCanBeEquippedInASlot;
 
-                (ItemToEquip item, string Slot) result = (
-                    new ItemToEquip
+                (ItemToEquipNeedsBetterName item, string Slot) result = (
+                    new ItemToEquipNeedsBetterName
                     {
                         Item = bestCandidate.Item,
                         IsInInventory = bestCandidate.IsInInventory,
@@ -853,7 +851,7 @@ public class EquipmentService
     }
 }
 
-public record ItemToEquip
+public record ItemToEquipNeedsBetterName
 {
     public required ItemSchema Item { get; set; }
     public required int Quantity { get; set; }

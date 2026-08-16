@@ -8,6 +8,7 @@ using Application.ArtifactsApi.Schemas.Responses;
 using Application.Errors;
 using Application.Jobs;
 using Application.Jobs.Chores;
+using Application.Jobs.Orchestrators;
 using Application.Records;
 using Application.Services;
 using Infrastructure;
@@ -71,8 +72,9 @@ public class PlayerCharacter
 
     private readonly FifoSemaphore CurrentFightBossLock = new(1, 1);
     public readonly FifoSemaphore JobLock = new(1, 1);
-    public readonly FifoSemaphore ActionLock = new(1, 1);
-    public FightBoss? CurrentFightBossJob { get; set; }
+
+    // public readonly FifoSemaphore ActionLock = new(1, 1);
+    public FightBossOrchestrator? CurrentJobOrchestrator { get; set; }
 
     [JsonIgnore]
     private readonly GameState GameState;
@@ -160,7 +162,7 @@ public class PlayerCharacter
         );
     }
 
-    public async Task<bool> JoinBossFightJob(FightBoss fightBossJob)
+    public async Task<bool> JoinBossFightJob(FightBossOrchestrator fightBossJob)
     {
         bool wasRecruited = false;
 
@@ -169,9 +171,9 @@ public class PlayerCharacter
             await CurrentFightBossLock.WaitAsync();
             // await JobLock.WaitAsync();
 
-            if (CurrentFightBossJob is null || CurrentFightBossJob.Id == fightBossJob.Id)
+            if (CurrentJobOrchestrator is null || CurrentJobOrchestrator.Id == fightBossJob.Id)
             {
-                CurrentFightBossJob = fightBossJob;
+                CurrentJobOrchestrator = fightBossJob;
                 wasRecruited = true;
 
                 CurrentJob?.Interrupt();
@@ -197,7 +199,7 @@ public class PlayerCharacter
             Jobs = [];
             CurrentJob = null;
 
-            CurrentFightBossJob?.Disband($"Current job failed for {Name}", false);
+            CurrentJobOrchestrator?.Disband($"Current job failed for {Name}", false);
         }
         finally
         {
@@ -481,7 +483,7 @@ public class PlayerCharacter
                 if (HasScheduledJobTooManyTimes(CurrentJob))
                 {
                     Logger.LogError(
-                        $"{GetType().Name}: [{Schema.Name}] job cancelled - job type {CurrentJob.GetType()} - scheduled the same kind of job too many times"
+                        $"{GetType().Name}: [{Schema.Name}] job cancelled - job type {CurrentJob?.GetType()} - scheduled the same kind of job too many times"
                     );
                     failed = true;
                 }
@@ -493,7 +495,7 @@ public class PlayerCharacter
                     {
                         case AppError appError:
                             Logger.LogError(
-                                $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob.GetType()} - {appError.Message}"
+                                $"{GetType().Name}: [{Schema.Name}] job failed - job type {CurrentJob?.GetType()} - {appError?.Message}"
                             );
                             failed = true;
 
@@ -542,9 +544,11 @@ public class PlayerCharacter
 
     public (CharacterJob Job, int Index)? FindNextJobFromQueue()
     {
-        if (CurrentFightBossJob is not null)
+        if (CurrentJobOrchestrator is not null)
         {
-            var index = Jobs.FindIndex(job => job.IsJobChildOfCollabJobId(CurrentFightBossJob.Id));
+            var index = Jobs.FindIndex(job =>
+                job.IsJobChildOfCollabJobId(CurrentJobOrchestrator.Id)
+            );
 
             if (index != -1)
             {
@@ -626,7 +630,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             if (Schema.X == x && Schema.Y == y)
             {
                 return;
@@ -648,7 +652,7 @@ public class PlayerCharacter
 
             var content = await response.Content.ReadAsStringAsync();
 
-            var result = JsonSerializer.Deserialize<MoveResponse>(
+            var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
                 content,
                 ApiRequester.getJsonOptions()
             )!;
@@ -657,7 +661,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -665,7 +669,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var response = await ApiRequester.PostAsync(
@@ -675,7 +679,7 @@ public class PlayerCharacter
 
             var content = await response.Content.ReadAsStringAsync();
 
-            var result = JsonSerializer.Deserialize<MoveResponse>(
+            var result = JsonSerializer.Deserialize<GenericCharacterResponse>(
                 content,
                 ApiRequester.getJsonOptions()
             )!;
@@ -684,7 +688,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -692,7 +696,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var result = await GameState.Services.AccountRequester.GetCharacter(Schema.Name);
@@ -711,7 +715,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -723,7 +727,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var _body = JsonSerializer.Serialize(
@@ -761,7 +765,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -769,7 +773,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             if (Schema.Hp == Schema.MaxHp)
             {
                 return;
@@ -788,7 +792,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -800,7 +804,7 @@ public class PlayerCharacter
 
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/gathering", null);
@@ -813,7 +817,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
 
         if ((int)response.StatusCode == (int)ResponseCode.InventoryFull)
@@ -839,7 +843,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
@@ -856,7 +860,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -864,7 +868,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(new { quantity });
@@ -886,7 +890,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -894,7 +898,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(new { quantity });
@@ -917,7 +921,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -925,7 +929,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var response = await ApiRequester.PostAsync(
@@ -946,7 +950,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -954,7 +958,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
             string _body = JsonSerializer.Serialize(depositItems);
 
@@ -977,7 +981,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -990,7 +994,7 @@ public class PlayerCharacter
 
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(withdrawItems);
@@ -1011,7 +1015,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
 
         if ((int)response.StatusCode == (int)ResponseCode.InventoryFull)
@@ -1037,7 +1041,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
@@ -1053,7 +1057,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1077,7 +1081,7 @@ public class PlayerCharacter
         HttpResponseMessage? response;
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(
@@ -1102,7 +1106,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
 
         if ((int)response.StatusCode == (int)ResponseCode.InventoryFull)
@@ -1262,7 +1266,7 @@ public class PlayerCharacter
 
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(
@@ -1274,7 +1278,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
 
         // Cannot unequip item because of HP difference - just needs to rest first (could eat food, but this is an edgecase anyway)
@@ -1298,7 +1302,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(
@@ -1326,7 +1330,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1334,7 +1338,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/task/new", null);
@@ -1348,7 +1352,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1356,7 +1360,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
@@ -1375,7 +1379,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1383,7 +1387,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var response = await ApiRequester.PostAsync(
@@ -1402,7 +1406,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1410,7 +1414,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var response = await ApiRequester.PostAsync(
@@ -1427,7 +1431,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1435,7 +1439,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var response = await ApiRequester.PostAsync(
@@ -1452,7 +1456,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1463,7 +1467,7 @@ public class PlayerCharacter
 
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             spillOverQuantity = quantity > 100 ? quantity - 100 : 0;
@@ -1479,7 +1483,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
 
         if ((int)response.StatusCode == (int)ResponseCode.InventoryFull)
@@ -1509,7 +1513,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
@@ -1526,7 +1530,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1534,7 +1538,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
@@ -1550,7 +1554,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1558,7 +1562,7 @@ public class PlayerCharacter
     {
         try
         {
-            await ActionLock.WaitAsync();
+            // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
             var response = await ApiRequester.PostAsync(
@@ -1578,7 +1582,7 @@ public class PlayerCharacter
         }
         finally
         {
-            ActionLock.Release();
+            // ActionLock.Release();
         }
     }
 
@@ -1587,16 +1591,10 @@ public class PlayerCharacter
         await WaitForCooldown();
     }
 
-    public async Task PostTaskHandler(CooldownSchema? cooldown, CharacterSchema? character)
+    public async Task PostTaskHandler(CooldownSchema cooldown, CharacterSchema character)
     {
-        if (cooldown is not null)
-        {
-            Cooldown = cooldown;
-        }
-        if (character is not null)
-        {
-            Schema = character;
-        }
+        Cooldown = cooldown;
+        Schema = character;
     }
 
     public async Task<OneOf<AppError, None>> NavigateTo(string code)

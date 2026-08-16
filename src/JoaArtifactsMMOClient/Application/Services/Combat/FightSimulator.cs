@@ -2614,6 +2614,24 @@ public record FightSimResult
     public required List<EquipmentSlot> ItemsToEquip { get; set; }
 }
 
+public record FightSimResultWithWithdrawInfo
+{
+    public required CharacterSchema Schema { get; set; }
+    public required FightOutcome Outcome { get; set; }
+    public required List<EquipmentSlotWithWithdrawInfo> ItemsToEquip { get; set; }
+}
+
+public record EquipmentSlotWithWithdrawInfo
+{
+    public required string Slot { get; set; }
+
+    public required string Code { get; set; }
+
+    public required int Quantity { get; set; }
+
+    public required int AmountInBank { get; set; }
+}
+
 public record FightSimResultWithLeftOverItems
 {
     public required FightSimResult SimResult { get; set; }

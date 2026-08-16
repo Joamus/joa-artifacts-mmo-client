@@ -382,7 +382,7 @@ public class PlayerActionService
 
         nextJob?.Job.onAfterSuccessEndHook = async () =>
         {
-            Logger.LogInformation(
+            Logger.LogDebug(
                 $"{Name}: [{Character.Name}]: onAfterSuccessEndHook: Equipping {nextJob.Job.Amount} x {nextJob.Job.Code}"
             );
             // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?

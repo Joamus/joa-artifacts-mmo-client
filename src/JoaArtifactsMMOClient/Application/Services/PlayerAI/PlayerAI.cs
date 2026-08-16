@@ -6,6 +6,7 @@ using Application.Character;
 using Application.Dtos;
 using Application.Jobs;
 using Application.Jobs.Chores;
+using Application.Jobs.Orchestrators;
 using Application.Records;
 using Applicaton.Jobs;
 using Applicaton.Jobs.Chores;
@@ -56,7 +57,7 @@ public class PlayerAI
 
             await Character.JobLock.WaitAsync();
 
-            if (Character.CurrentFightBossJob is not null)
+            if (Character.CurrentJobOrchestrator is not null)
             {
                 Logger.LogInformation(
                     "{Name}: [{CharacterName}]: Should not happen - has current fight boss job, so shouldn't be getting another job",
@@ -117,10 +118,10 @@ public class PlayerAI
                 ?? await WithdrawAllowance()
                 // Deposit all gold above threshold - shared economy
                 ?? DepositUnneededGold()
-                ?? await EnsureAccessories()
-                // ?? await EnsureWeapon()
-                ?? await EnsureTools()
                 ?? await GetEventJob()
+                ?? await GetBossGrindingJob()
+                ?? await EnsureAccessories()
+                ?? await EnsureTools()
                 ?? await GetMonsterJobIfCanCertainlyBeDone()
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
@@ -987,6 +988,14 @@ public class PlayerAI
         var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(eventContent.Code);
 
         if (
+            matchingMonster?.Type == MonsterType.Boss
+            || matchingMonster?.Type == MonsterType.RaidBoss
+        )
+        {
+            return await GetMonsterBossEventJob(matchingMonster);
+        }
+
+        if (
             matchingMonster is not null
             && matchingMonster.Level <= Character.Schema.Level
             && matchingMonster.Type != MonsterType.Boss
@@ -1019,30 +1028,41 @@ public class PlayerAI
                     TrainCombat.AMOUNT_TO_KILL
                 );
             }
-            // var jobsToFightMonster = await Character.PlayerActionService.GetNextJobToFightMonster(
-            //     matchingMonster
-            // );
-            // if (jobsToFightMonster?.Job is not null)
-            // {
-            //     var nextJob = jobsToFightMonster.Job;
+        }
 
-            //     Logger.LogInformation(
-            //         $"{Name}: [{Character.Schema.Name}]: GetEventJob: Doing first job to fight event monster - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-            //     );
-            //     return nextJob;
-            // }
-            // else if (jobsToFightMonster is not null && jobsToFightMonster.Job is null)
-            // {
-            //     Logger.LogInformation(
-            //         $"{Name}: [{Character.Schema.Name}]: GetMonsterEventjob: No items left to get to do fight event monster - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
-            //     );
-            //     return new FightMonster(
-            //         Character,
-            //         gameState,
-            //         matchingMonster.Code,
-            //         TrainCombat.AMOUNT_TO_KILL
-            //     );
-            // }
+        return null;
+    }
+
+    async Task<CharacterJob?> GetMonsterBossEventJob(MonsterSchema monster)
+    {
+        if (monster is not null && monster.Level <= Character.Schema.Level)
+        {
+            var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+            var fightSims = FightSimulator.SimulateBossFightOutcome(
+                Character,
+                FightBossOrchestrator.GetBestCandidatesToFight(Character, gameState),
+                gameState,
+                bankItems,
+                monster
+            );
+
+            if (fightSims.All(sim => sim.Outcome.ShouldFight))
+            {
+                Logger.LogInformation(
+                    "{Name}: [{Character.Schema.Name}]: GetMonsterBossEventJob: Can fight boss monster with items from bank - fighting {TrainCombat.AMOUNT_TO_KILL_BOSS} x {monster.Code}",
+                    Name,
+                    Character.Schema.Name,
+                    TrainCombat.AMOUNT_TO_KILL_BOSS,
+                    monster.Code
+                );
+                return new FightMonster(
+                    Character,
+                    gameState,
+                    monster.Code,
+                    TrainCombat.AMOUNT_TO_KILL_BOSS
+                );
+            }
         }
 
         return null;
@@ -1329,6 +1349,52 @@ public class PlayerAI
                     _ => null,
                 };
             }
+        }
+
+        return null;
+    }
+
+    async Task<CharacterJob?> GetBossGrindingJob()
+    {
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: GetBossGrindingJob: Looking for job to kill a boss for XP",
+            Name,
+            Character.Schema.Name
+        );
+
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+        var result = await FightBossOrchestrator.FindBossMonsterCandidateForXp(
+            Character,
+            gameState,
+            bankItems
+        );
+
+        if (result is not null)
+        {
+            Logger.LogInformation(
+                "{Name}: [{Character.Schema.Name}]: GetBossGrindingJob: Found boss grinding job - get help from {otherCharacters} to kill {monster}",
+                Name,
+                Character.Schema.Name,
+                string.Join(
+                    ", ",
+                    result.OtherCharacters.Select(otherCharacter => otherCharacter.Name)
+                ),
+                result.Monster.Code
+            );
+
+            return new InitializeFightBoss(
+                new InitializeFightBossJobParams
+                {
+                    Character = Character,
+                    GameState = gameState,
+                    Amount = TrainCombat.AMOUNT_TO_KILL_BOSS,
+                    AllowUsingMaterialsFromInventory = true,
+                    ItemCode = null,
+                    Monster = result.Monster,
+                    OtherCharacters = result.OtherCharacters,
+                }
+            );
         }
 
         return null;
