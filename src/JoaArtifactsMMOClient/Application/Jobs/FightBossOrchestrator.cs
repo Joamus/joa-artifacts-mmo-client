@@ -202,22 +202,30 @@ public class FightBossOrchestrator
 
     public async Task<OneOf<AppError, List<CharacterJob>>> GetNextJobs(PlayerCharacter character)
     {
-        var result = await InnerGetNextJobs(character);
-
-        if (result.IsT0)
+        try
         {
-            return result.AsT0;
-        }
-        else
-        {
-            var jobs = result.AsT1;
+            await GetNextJobLock.WaitAsync();
+            var result = await InnerGetNextJobs(character);
 
-            if (jobs.Count == 0 && Status != FightBossStatus.Failed)
+            if (result.IsT0)
             {
-                // We do this outside of the lock, so other characters can get their next job
-                await Task.Delay(WAIT_WHEN_NO_JOB_MS);
+                return result.AsT0;
             }
-            return jobs;
+            else
+            {
+                var jobs = result.AsT1;
+
+                if (jobs.Count == 0 && Status != FightBossStatus.Failed)
+                {
+                    // We do this outside of the lock, so other characters can get their next job
+                    await Task.Delay(WAIT_WHEN_NO_JOB_MS);
+                }
+                return jobs;
+            }
+        }
+        finally
+        {
+            GetNextJobLock.Release();
         }
     }
 
@@ -229,8 +237,6 @@ public class FightBossOrchestrator
 
             // Dirty hack, but we cannot just return [] without casting
             List<CharacterJob> emptyJobs = [];
-
-            await GetNextJobLock.WaitAsync();
 
             Logger.LogInformation(
                 $"{JobName}: [{character.Schema.Name}]: Getting next job(s) to fight {Monster.Code}.."
@@ -252,51 +258,54 @@ public class FightBossOrchestrator
             }
 
             // Only allow main character to start the fight
-            if (AreAllReadyToFightBoss() && character.Name == MainCharacter.Name)
+            if (AreAllReadyToFightBoss())
             {
-                Logger.LogInformation(
-                    $"{JobName}: [{character.Schema.Name}]: Detected that the group is ready to fight {Monster.Code}.."
-                );
-                Status = FightBossStatus.Fighting;
-                await StartBossFight().WaitAsync(CancellationTokenSource.Token);
-
-                switch (Mode)
-                {
-                    case JobMode.Kill:
-                        ProgressAmount += 1;
-                        break;
-                    case JobMode.Gather:
-                        int amountInInventory =
-                            MainCharacter.GetItemFromInventory(ItemCode!)?.Quantity ?? 0;
-
-                        ProgressAmount = amountInInventory - InitialAmount;
-                        break;
-                }
-
-                Logger.LogInformation(
-                    $"{JobName}: [{character.Schema.Name}]: Fought {Monster.Code} - progress is {ProgressAmount}/{Amount}{(Mode == JobMode.Gather ? $" (gathering {ItemCode})" : $"")}"
-                );
-
-                if (ProgressAmount >= Amount)
+                if (character.Name == MainCharacter.Name)
                 {
                     Logger.LogInformation(
-                        $"{JobName}: [{character.Schema.Name}]: Done fighting {Monster.Code} - progress is {ProgressAmount}/{Amount}{(Mode == JobMode.Gather ? $" (gathering {ItemCode})" : $"")}"
+                        $"{JobName}: [{character.Schema.Name}]: Detected that the group is ready to fight {Monster.Code}.."
+                    );
+                    Status = FightBossStatus.Fighting;
+                    await StartBossFight().WaitAsync(CancellationTokenSource.Token);
+
+                    switch (Mode)
+                    {
+                        case JobMode.Kill:
+                            ProgressAmount += 1;
+                            break;
+                        case JobMode.Gather:
+                            int amountInInventory =
+                                MainCharacter.GetItemFromInventory(ItemCode!)?.Quantity ?? 0;
+
+                            ProgressAmount = amountInInventory - InitialAmount;
+                            break;
+                    }
+
+                    Logger.LogInformation(
+                        $"{JobName}: [{character.Schema.Name}]: Fought {Monster.Code} - progress is {ProgressAmount}/{Amount}{(Mode == JobMode.Gather ? $" (gathering {ItemCode})" : $"")}"
                     );
 
-                    Disband("Done with job", true);
+                    if (ProgressAmount >= Amount)
+                    {
+                        Logger.LogInformation(
+                            $"{JobName}: [{character.Schema.Name}]: Done fighting {Monster.Code} - progress is {ProgressAmount}/{Amount}{(Mode == JobMode.Gather ? $" (gathering {ItemCode})" : $"")}"
+                        );
+
+                        Disband("Done with job", true);
+                    }
+                    /**
+                    ** Delay is here, inside of the lock, to prevent data races with characters being asked to do things, while they are on cooldown
+                    */
+
+                    await Task.Delay(WAIT_WHEN_NO_JOB_MS);
+
+                    ResetCharacterStatuses();
+                    Status = FightBossStatus.New;
+                    /**
+                    ** We don't neccessarily need the return here, we could just fall through and give the next job,
+                    ** but it's just easier to understand that they are different flows
+                    */
                 }
-                /**
-                ** Delay is here, inside of the lock, to prevent data races with characters being asked to do things, while they are on cooldown
-                */
-
-                await Task.Delay(WAIT_WHEN_NO_JOB_MS);
-
-                ResetCharacterStatuses();
-                Status = FightBossStatus.New;
-                /**
-                ** We don't neccessarily need the return here, we could just fall through and give the next job,
-                ** but it's just easier to understand that they are different flows
-                */
                 return emptyJobs;
             }
 
@@ -390,10 +399,6 @@ public class FightBossOrchestrator
             HandleError($"Generic error caught for {character.Name} - {appError.Message}");
             return appError;
         }
-        finally
-        {
-            GetNextJobLock.Release();
-        }
     }
 
     bool AreAllReadyToFightBoss()
@@ -443,13 +448,11 @@ public class FightBossOrchestrator
             return;
         }
 
-        CancellationToken cancellationToken = CancellationTokenSource.Token;
-
         var preFightRoutinesForAllCharacters = AllCharacters
             .Select(PreFightRoutineForCharacter)
             .ToList();
 
-        await Task.WhenAll(preFightRoutinesForAllCharacters).WaitAsync(cancellationToken);
+        await Task.WhenAll(preFightRoutinesForAllCharacters);
 
         Logger.LogInformation(
             $"{JobName}: StartBossFight: Pre-fight routines are done - fighting {Monster.Code}"
@@ -478,7 +481,7 @@ public class FightBossOrchestrator
 
         if (fightSimResult.IsT0)
         {
-            fightSimResult = await GetLastFightSimAndRequirements(
+            var newFightSimResult = await GetLastFightSimAndRequirements(
                 MainCharacter,
                 OtherCharacters,
                 GameState,
@@ -487,6 +490,8 @@ public class FightBossOrchestrator
             );
 
             skipItemsToEquip = false;
+
+            fightSimResult = newFightSimResult;
         }
 
         // Ugly, but double guard so we can fail the job
@@ -623,6 +628,13 @@ public class FightBossOrchestrator
             : await gameState.Services.BankItemCache.GetBankItems(character);
         var bankDetails = await gameState.Services.BankItemCache.GetBankDetails();
 
+        if (gameState.Services.EventService.IsEntityFromEventThatIsUnavailable(monster.Code))
+        {
+            return new AppError(
+                $"Cannot not fight boss {monster.Code}, since it is an event boss that is not available"
+            );
+        }
+
         var result = FightSimulator.SimulateBossFightOutcome(
             character,
             otherCharacters,
@@ -676,8 +688,8 @@ public class FightBossOrchestrator
             }
 
             var requirementsResult = GetRequirementsJobIfTheyCanBeWithdrawn(
-                bankDetails,
-                bankItems,
+                mutatingBankDetails,
+                mutatingBankItems,
                 jobsNeededForNavigationResult.AsT1
             );
 
@@ -698,6 +710,13 @@ public class FightBossOrchestrator
 
                 matchInBank.Quantity -= itemToWithdraw.Quantity;
             });
+        }
+
+        if (mutatingBankDetails.Gold < 0 || mutatingBankItems.Exists(item => item.Quantity < 0))
+        {
+            return new AppError(
+                $"Not all item/gold requirements can be fulfilled to go defeat {monster.Code}"
+            );
         }
 
         return new None();
@@ -912,7 +931,7 @@ public class FightBossOrchestrator
         return false;
     }
 
-    public static BossGrindDetails? GetOtherCharactersToMaximizeXpAgainstBoss(
+    public static async Task<BossGrindDetails?> GetOtherCharactersToMaximizeXpAgainstBoss(
         PlayerCharacter character,
         List<PlayerCharacter> otherCharacters,
         GameState gameState,
@@ -952,7 +971,7 @@ public class FightBossOrchestrator
                 monster
             );
 
-            if (xpForKill > 1)
+            if (xpForKill == 0)
             {
                 continue;
             }
@@ -965,9 +984,16 @@ public class FightBossOrchestrator
                 monster
             );
 
-            if (fightSimResults.All(simResult => simResult.Outcome.ShouldFight))
+            if (
+                fightSimResults.All(simResult => simResult.Outcome.ShouldFight)
+                && await CanFulfillRequirementsForFightingBoss(
+                    character,
+                    otherCharacters,
+                    gameState,
+                    monster
+                )
+            )
             {
-                // results.Add((combination, xpForKill, fightSimResults));
                 results.Add(
                     new BossGrindDetails
                     {
@@ -1029,14 +1055,11 @@ public class FightBossOrchestrator
         [
             .. gameState.Monsters.Where(monster =>
             {
-                if (monster.Type != MonsterType.Boss)
-                {
-                    return false;
-                }
-
                 if (
-                    gameState.Services.EventService.IsEntityFromEvent(monster.Code)
-                    && gameState.Services.EventService.WhereIsEntityActive(monster.Code) is null
+                    monster.Type != MonsterType.Boss
+                    || gameState.Services.EventService.IsEntityFromEventThatIsUnavailable(
+                        monster.Code
+                    )
                 )
                 {
                     return false;
@@ -1064,7 +1087,7 @@ public class FightBossOrchestrator
 
         foreach (var bossCandidate in bossCandidates)
         {
-            var result = GetOtherCharactersToMaximizeXpAgainstBoss(
+            var result = await GetOtherCharactersToMaximizeXpAgainstBoss(
                 character,
                 otherCharacters,
                 gameState,

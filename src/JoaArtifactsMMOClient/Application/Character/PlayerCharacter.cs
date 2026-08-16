@@ -169,7 +169,6 @@ public class PlayerCharacter
         try
         {
             await CurrentFightBossLock.WaitAsync();
-            // await JobLock.WaitAsync();
 
             if (CurrentJobOrchestrator is null || CurrentJobOrchestrator.Id == fightBossJob.Id)
             {
@@ -177,14 +176,11 @@ public class PlayerCharacter
                 wasRecruited = true;
 
                 CurrentJob?.Interrupt();
-                // We could improve this with time, and put the jobs in an "inactive" queue - but they might become stale anyway
-                // ClearJobs();
             }
         }
         finally
         {
             CurrentFightBossLock.Release();
-            // JobLock.Release();
         }
 
         return wasRecruited;
@@ -196,7 +192,14 @@ public class PlayerCharacter
         {
             await CurrentFightBossLock.WaitAsync();
 
-            Jobs = [];
+            if (CurrentJobOrchestrator is not null)
+            {
+                Jobs =
+                [
+                    .. Jobs.Where(job => !job.IsJobChildOfCollabJobId(CurrentJobOrchestrator.Id)),
+                ];
+            }
+
             CurrentJob = null;
 
             CurrentJobOrchestrator?.Disband($"Current job failed for {Name}", false);

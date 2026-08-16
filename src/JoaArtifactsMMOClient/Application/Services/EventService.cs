@@ -154,13 +154,22 @@ public class EventService
         return EventEntitiesDict.GetValueOrNull(code) is not null;
     }
 
+    public bool IsEntityFromEventThatIsUnavailable(string code)
+    {
+        return IsEntityFromEvent(code) && WhereIsEntityActive(code) is null;
+    }
+
     async Task NotifyCharactersOnEventChange()
     {
         logger.LogInformation(
             $"New active events have been detected - notifying character AIs to evaluate new events"
         );
 
-        foreach (var characterAi in gameState.CharacterAIs.Where(ai => ai.Enabled))
+        foreach (
+            var characterAi in gameState.CharacterAIs.Where(ai =>
+                ai.Enabled && ai.Character.CurrentJobOrchestrator is null
+            )
+        )
         {
             _ = Task.Run(async () =>
             {

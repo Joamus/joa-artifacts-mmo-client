@@ -141,7 +141,7 @@ public class GameLoader
                             await character.LeaveBossFightJob();
 
                             // Nothing listens to return of this function, but we'll return anyway.
-                            throw bossAppError;
+                            // throw bossAppError;
                         }
 
                         if (nextJobs is not null && nextJobs.Count > 0)
