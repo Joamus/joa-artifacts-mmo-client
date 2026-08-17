@@ -22,7 +22,7 @@ public class FightBossOrchestrator
     private static ILogger Logger { get; set; } =
         AppLogger.loggerFactory.CreateLogger<FightBossOrchestrator>();
 
-    private readonly FifoSemaphore GetNextJobLock = new(1, 1);
+    private readonly SemaphoreSlim GetNextJobLock = new(1, 1);
     public const int CHARACTERS_IN_BOSS_FIGHT = 3;
     public const int WAIT_WHEN_NO_JOB_MS = 5_000;
     public FightBossStatus Status = FightBossStatus.New;
@@ -309,77 +309,61 @@ public class FightBossOrchestrator
                 return emptyJobs;
             }
 
-            bool isReadyToFight = false;
-
-            if (GetCharacterStatus(character) == CharacterFightBossStatus.New)
+            switch (GetCharacterStatus(character))
             {
-                var nextPreparationJobResult = await GetPreparationJobAndItemsToEquip(character);
+                case CharacterFightBossStatus.New:
+                    var nextPreparationJobResult = await GetPreparationJobAndItemsToEquip(
+                        character
+                    );
 
-                if (nextPreparationJobResult.IsT0)
-                {
-                    return nextPreparationJobResult.AsT0;
-                }
-
-                nextPreparationJobs = nextPreparationJobResult.AsT1.Jobs;
-
-                List<EquipRequest> equipRequests =
-                [
-                    .. nextPreparationJobResult.AsT1.ItemsToEquip.Select(item => new EquipRequest
+                    if (nextPreparationJobResult.IsT0)
                     {
-                        Code = item.Code,
-                        Quantity = item.Quantity,
-                        Slot = item.Slot,
-                    }),
-                ];
+                        return nextPreparationJobResult.AsT0;
+                    }
 
-                if (equipRequests.Count > 0)
-                {
-                    await character.EquipItems(equipRequests);
-                }
+                    nextPreparationJobs = nextPreparationJobResult.AsT1.Jobs;
 
-                // First time prompting for jobs, but there is nothing to get - then they are ready
-                isReadyToFight = nextPreparationJobs.Count == 0;
-            }
-            else if (GetCharacterStatus(character) == CharacterFightBossStatus.Preparing)
-            {
-                Logger.LogInformation(
-                    $"{JobName}: [{character.Schema.Name}]: Status is \"preparing\", so should be ready to fight - fighting {Monster.Code}"
-                );
-                isReadyToFight = true;
-            }
+                    List<EquipRequest> equipRequests =
+                    [
+                        .. nextPreparationJobResult.AsT1.ItemsToEquip.Select(
+                            item => new EquipRequest
+                            {
+                                Code = item.Code,
+                                Quantity = item.Quantity,
+                                Slot = item.Slot,
+                            }
+                        ),
+                    ];
 
-            if (isReadyToFight)
-            {
-                if (GetCharacterStatus(character) == CharacterFightBossStatus.ReadyToFight)
-                {
+                    if (equipRequests.Count > 0)
+                    {
+                        await character.EquipItems(equipRequests);
+                    }
+                    // Set this fight boss job as the parent collab job of all jobs we return.
+                    nextPreparationJobs.ForEach(job => job.ParentCollabJobId = Id);
+
+                    /**
+                    ** The character's status should be "New" here, and after they have done these jobs, they should be ready in preparing.
+                    ** They reason that we have this Preparing state, is to prevent another character from just starting the fight, even though
+                    ** they haven't done the jobs they need to do yet.
+                    */
+                    SetCharacterStatus(character, CharacterFightBossStatus.Preparing);
+
+                    return nextPreparationJobs;
+                case CharacterFightBossStatus.Preparing:
+                    Logger.LogInformation(
+                        $"{JobName}: [{character.Schema.Name}]: Status was \"preparing\" - changing status to \"ready to fight\" - fighting {Monster.Code}"
+                    );
+                    SetCharacterStatus(character, CharacterFightBossStatus.ReadyToFight);
+                    break;
+                case CharacterFightBossStatus.ReadyToFight:
                     Logger.LogInformation(
                         $"{JobName}: [{character.Schema.Name}]: Is ready to fight, but waiting for others - fighting {Monster.Code}"
                     );
-                }
-                else
-                {
-                    Logger.LogInformation(
-                        $"{JobName}: [{character.Schema.Name}]: Changing status - ready to fight {Monster.Code}"
-                    );
-                    SetCharacterStatus(character, CharacterFightBossStatus.ReadyToFight);
-                    // Might as well do it here already, so they are ready to fight
-                }
+                    break;
             }
 
-            // Set this fight boss job as the parent collab job of all jobs we return.
-            nextPreparationJobs.ForEach(job => job.ParentCollabJobId = Id);
-
-            if (nextPreparationJobs.Count > 0)
-            {
-                /**
-                ** The character's status should be "New" here, and after they have done these jobs, they should be ready in preparing.
-                ** They reason that we have this Preparing state, is to prevent another character from just starting the fight, even though
-                ** they haven't done the jobs they need to do yet.
-                */
-                SetCharacterStatus(character, CharacterFightBossStatus.Preparing);
-            }
-
-            return nextPreparationJobs;
+            return emptyJobs;
         }
         catch (AppError appError)
         {
