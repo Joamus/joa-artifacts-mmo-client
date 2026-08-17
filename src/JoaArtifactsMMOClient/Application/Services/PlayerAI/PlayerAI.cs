@@ -122,9 +122,9 @@ public class PlayerAI
                 ?? await GetBossGrindingJob()
                 ?? await EnsureAccessories()
                 ?? await EnsureTools()
-                ?? await GetMonsterJobIfCanCertainlyBeDone()
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
+                ?? await GetMonsterJobIfCanCertainlyBeDone()
                 ?? await GetIndividualHighPrioJob()
                 ?? await EnsureFightEquipment()
                 ?? await EnsureBag()
@@ -1107,7 +1107,7 @@ public class PlayerAI
             if (potentialMonsterTask is not null)
             {
                 Logger.LogInformation(
-                    "{Name}: [{character.Schema.Name}]: GetTaskJob: Found new monster task",
+                    "{Name}: [{character.Schema.Name}]: GetMonsterJobIfCanCertainlyBeDone: Found monster task to do",
                     Name,
                     Character.Schema.Name
                 );

@@ -5,6 +5,7 @@ using Application.ArtifactsApi.Schemas.Responses;
 using Application.Dtos;
 using Application.Errors;
 using Application.Jobs;
+using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -261,7 +262,7 @@ public class PlayerActionService
     public async Task<CharacterJob?> GetMonsterTaskJobIfPossible()
     {
         Logger.LogInformation(
-            "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
+            "{Name}: [{Character.Schema.Name}]: GetMonsterTaskJobIfPossible: Start",
             Name,
             Character.Schema.Name
         );
@@ -269,31 +270,32 @@ public class PlayerActionService
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
             var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
-            var nextJobResult = await GetNextJobToFightMonster(monster);
 
-            if (nextJobResult is not null)
+            var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+            var fightSim = FightSimulator.FindBestFightEquipment(
+                Character,
+                gameState,
+                gameState.MonstersDict[monster.Code],
+                [
+                    .. bankItems.Select(item => new ItemInInventory
+                    {
+                        Item = gameState.ItemsDict[item.Code],
+                        Quantity = item.Quantity,
+                    }),
+                ]
+            );
+
+            if (fightSim.SimResult.Outcome.ShouldFight)
             {
-                if (nextJobResult.Job is not null)
-                {
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Job found - do monster task ({monster.Code})"
-                    );
-
-                    var nextJob = nextJobResult.Job;
-
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                    );
-                    // Do the first job in the list, we only do one thing at a time
-                    return nextJob;
-                }
-                else
-                {
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
-                    );
-                    return new MonsterTask(Character, gameState);
-                }
+                Logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetMonsterTaskJobIfPossible: Can defeat monster in monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
+                );
+                return new MonsterTask(Character, gameState);
+            }
+            else
+            {
+                return null;
             }
         }
 

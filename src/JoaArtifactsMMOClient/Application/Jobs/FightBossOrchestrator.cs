@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
@@ -19,11 +20,17 @@ public class FightBossOrchestrator
     public Guid Id { get; init; } = Guid.NewGuid();
     public string JobName { get; private set; } = "FightBoss";
 
+    [JsonIgnore]
     private static ILogger Logger { get; set; } =
         AppLogger.loggerFactory.CreateLogger<FightBossOrchestrator>();
 
+    [JsonIgnore]
     private readonly SemaphoreSlim GetNextJobLock = new(1, 1);
+
+    [JsonIgnore]
     public const int CHARACTERS_IN_BOSS_FIGHT = 3;
+
+    [JsonIgnore]
     public const int WAIT_WHEN_NO_JOB_MS = 5_000;
     public FightBossStatus Status = FightBossStatus.New;
 
@@ -41,14 +48,18 @@ public class FightBossOrchestrator
     protected int InitialAmount { get; set; } = 0;
 
     // Cancellation token source is for cancelling promises when the job completes
+    [JsonIgnore]
     readonly CancellationTokenSource CancellationTokenSource = new();
 
     public bool AllowUsingMaterialsFromInventory = false;
+
+    [JsonIgnore]
     public required GameState GameState { get; set; }
     public required List<PlayerCharacter> OtherCharacters { get; set; }
     public required List<PlayerCharacter> AllCharacters { get; set; }
     public required List<BossFightCharacterStatus> AllCharactersStatuses { get; set; }
 
+    [JsonIgnore]
     public required List<FightSimResult> LastFightSimResult { get; set; }
 
     public static async Task<OneOf<AppError, FightBossOrchestrator>> InitializeFightBossJob(
