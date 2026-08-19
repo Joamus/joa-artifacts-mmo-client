@@ -983,7 +983,7 @@ public class FightBossOrchestrator
                 fightSimResults.All(simResult => simResult.Outcome.ShouldFight)
                 && await CanFulfillRequirementsForFightingBoss(
                     character,
-                    otherCharacters,
+                    otherChars,
                     gameState,
                     monster
                 )

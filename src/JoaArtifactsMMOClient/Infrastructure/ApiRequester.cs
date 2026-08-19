@@ -194,7 +194,7 @@ public partial class ApiRequester
             for (var i = 0; i < MAX_RETRIES; i++)
             {
                 string contentString = content is not null ? await content.ReadAsStringAsync() : "";
-                logger.LogInformation($"POST \"{requestUri}\" - content: {contentString}");
+                logger.LogDebug($"POST \"{requestUri}\" - content: {contentString}");
                 response = await _httpClient.PostAsync(requestUri, content);
 
                 int statusCode = (int)response.StatusCode;
