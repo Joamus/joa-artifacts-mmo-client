@@ -140,8 +140,7 @@ public class GambleTasksCoins : CharacterJob, ICharacterChoreJob
                     float dropRate = RestockResources.CalculateDropRate(
                         gameState
                             .TasksRewards.FirstOrDefault(reward => reward.Code == matchingItem.Code)
-                            ?.Rate
-                        ?? 0
+                            ?.Rate ?? 0
                     );
 
                     int amountNeeded = (int)
