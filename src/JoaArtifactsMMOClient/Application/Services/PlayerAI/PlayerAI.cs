@@ -1166,9 +1166,9 @@ public class PlayerAI
 
         List<ChorePriority> chorePriorities =
         [
-            ChorePriority.High,
-            ChorePriority.Medium,
             ChorePriority.Low,
+            ChorePriority.Medium,
+            ChorePriority.High,
         ];
 
         foreach (var priority in chorePriorities)
