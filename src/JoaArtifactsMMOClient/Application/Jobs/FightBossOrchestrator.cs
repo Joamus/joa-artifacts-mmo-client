@@ -54,7 +54,7 @@ public class FightBossOrchestrator
     public bool AllowUsingMaterialsFromInventory = false;
 
     [JsonIgnore]
-    public required GameState GameState { get; set; }
+    public required GameState GameState;
     public required List<PlayerCharacter> OtherCharacters { get; set; }
     public required List<PlayerCharacter> AllCharacters { get; set; }
     public required List<BossFightCharacterStatus> AllCharactersStatuses { get; set; }
