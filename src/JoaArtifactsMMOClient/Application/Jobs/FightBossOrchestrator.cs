@@ -59,7 +59,7 @@ public class FightBossOrchestrator
     public required List<PlayerCharacter> AllCharacters { get; set; }
     public required List<BossFightCharacterStatus> AllCharactersStatuses { get; set; }
 
-    [JsonIgnore]
+    // [JsonIgnore]
     public required List<FightSimResult> LastFightSimResult { get; set; }
 
     public static async Task<OneOf<AppError, FightBossOrchestrator>> InitializeFightBossJob(

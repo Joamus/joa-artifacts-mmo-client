@@ -250,10 +250,9 @@ public class TrainSkill : CharacterJob
                             }
                         )
                         .Where((result) => result.CanObtain)
-                        .Select((result) => (result.item, result.Cost)),
+                        .Select((result) => (result.item, result.Cost))
+                        .OrderBy((result) => result.Cost),
                 ];
-
-                itemsWithCost.Sort((a, b) => a.Cost - b.Cost);
 
                 bestItemToCraft = itemsWithCost.FirstOrDefault().Item;
 
@@ -492,14 +491,14 @@ public class TrainSkill : CharacterJob
             {
                 var (CanObtain, Score) = InnerGetInconvenienceCostCraftItem(
                     gameState.ItemsDict[subComponent.Code],
-                    subComponent.Quantity,
+                    subComponent.Quantity * quantity,
                     gameState,
                     bankItems,
                     character,
                     false
                 );
 
-                cost += Score * quantity;
+                cost += Score;
 
                 if (!CanObtain)
                 {
@@ -557,6 +556,7 @@ public class TrainSkill : CharacterJob
 
         int score =
             monsterCost + (int)Math.Round((float)fightOutcome!.TotalTurns / 10) * dropRateFactor;
+
         return score;
     }
 }
