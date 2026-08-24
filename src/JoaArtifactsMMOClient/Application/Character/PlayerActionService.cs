@@ -215,7 +215,7 @@ public class PlayerActionService
     public async Task<CharacterJob?> GetTaskJobIfPossible(bool preferMonsterTask)
     {
         Logger.LogInformation(
-            "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
+            "{Name}: [{Character.Schema.Name}]: GetTaskJobIfPossible: Start",
             Name,
             Character.Schema.Name
         );
@@ -232,7 +232,7 @@ public class PlayerActionService
             if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
             {
                 Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+                    $"{Name}: [{Character.Schema.Name}]: GetTaskJobIfPossible: Found new item task"
                 );
                 return new ItemTask(Character, gameState);
             }
@@ -249,14 +249,16 @@ public class PlayerActionService
         if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
         {
             Logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+                $"{Name}: [{Character.Schema.Name}]: GetTaskJobIfPossible: Found new item task"
             );
             return new ItemTask(Character, gameState);
         }
 
-        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: GetTaskJob: No job found");
+        Logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: GetTaskJobIfPossible: No job found"
+        );
 
-        return potentialMonsterTask;
+        return null;
     }
 
     public async Task<CharacterJob?> GetMonsterTaskJobIfPossible()
@@ -269,6 +271,13 @@ public class PlayerActionService
 
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
+            bool canNavigateTo = await NavigationService.CanNavigateTo(Character.Schema.Task);
+
+            if (!canNavigateTo)
+            {
+                return null;
+            }
+
             var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
 
             var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
@@ -291,6 +300,7 @@ public class PlayerActionService
                 Logger.LogInformation(
                     $"{Name}: [{Character.Schema.Name}]: GetMonsterTaskJobIfPossible: Can defeat monster in monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
                 );
+
                 return new MonsterTask(Character, gameState);
             }
             else
@@ -627,7 +637,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)

@@ -1209,10 +1209,13 @@ public class PlayerAI
                             );
                             break;
                         case CharacterChoreKind.RestockTasksCoins:
-                            job = await ProcessChoreJob(
-                                new RestockTasksCoins(Character, gameState, priority),
-                                CharacterChoreKind.RestockTasksCoins
-                            );
+                            if (await RestockTasksCoins.CanDoJob(Character, gameState))
+                            {
+                                job = await ProcessChoreJob(
+                                    new RestockTasksCoins(Character, gameState, priority),
+                                    CharacterChoreKind.RestockTasksCoins
+                                );
+                            }
                             break;
                         // Cheeky - reusing the same job
                         case CharacterChoreKind.RestockTasksCoinsOnlyFight:
