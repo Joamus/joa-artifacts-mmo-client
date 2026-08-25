@@ -1,24 +1,36 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
+using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Application.Services;
+using Applicaton.Jobs;
 using Applicaton.Services.FightSimulator;
 using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
-namespace Application.Jobs;
+namespace Application.Jobs.Orchestrators;
 
-public class FightBoss
+public class FightBossOrchestrator
 {
     public Guid Id { get; init; } = Guid.NewGuid();
     public string JobName { get; private set; } = "FightBoss";
 
-    private static ILogger Logger { get; set; } = AppLogger.loggerFactory.CreateLogger<FightBoss>();
+    [JsonIgnore]
+    private static ILogger Logger { get; set; } =
+        AppLogger.loggerFactory.CreateLogger<FightBossOrchestrator>();
 
-    private readonly FifoSemaphore GetNextJobLock = new(1, 1);
+    [JsonIgnore]
+    private readonly SemaphoreSlim GetNextJobLock = new(1, 1);
+
+    [JsonIgnore]
     public const int CHARACTERS_IN_BOSS_FIGHT = 3;
+
+    [JsonIgnore]
     public const int WAIT_WHEN_NO_JOB_MS = 5_000;
     public FightBossStatus Status = FightBossStatus.New;
 
@@ -34,22 +46,34 @@ public class FightBoss
     protected int Amount { get; set; } = 0;
     protected int ProgressAmount { get; set; } = 0;
     protected int InitialAmount { get; set; } = 0;
-    public required GameState GameState { get; set; }
+
+    // Cancellation token source is for cancelling promises when the job completes
+    [JsonIgnore]
+    readonly CancellationTokenSource CancellationTokenSource = new();
+
+    public bool AllowUsingMaterialsFromInventory = false;
+
+    [JsonIgnore]
+    public required GameState GameState;
     public required List<PlayerCharacter> OtherCharacters { get; set; }
     public required List<PlayerCharacter> AllCharacters { get; set; }
     public required List<BossFightCharacterStatus> AllCharactersStatuses { get; set; }
 
+    // [JsonIgnore]
     public required List<FightSimResult> LastFightSimResult { get; set; }
 
-    public static async Task<FightBoss?> InitializeFightBossJob(
-        PlayerCharacter character,
-        GameState gameState,
-        List<PlayerCharacter> otherCharacters,
-        MonsterSchema monster,
-        string? itemCode,
-        int amount
+    public static async Task<OneOf<AppError, FightBossOrchestrator>> InitializeFightBossJob(
+        InitializeFightBossJobParams jobParams
     )
     {
+        var character = jobParams.Character;
+        var gameState = jobParams.GameState;
+        var otherCharacters = jobParams.OtherCharacters;
+        var monster = jobParams.Monster;
+        var itemCode = jobParams.ItemCode;
+        var amount = jobParams.Amount;
+        var allowUsingMaterialsFromInventory = jobParams.AllowUsingMaterialsFromInventory;
+
         Logger.LogInformation(
             $"FightBoss: [{character.Schema.Name}]: Initializing fight boss job to fight {monster.Code}"
         );
@@ -58,21 +82,20 @@ public class FightBoss
             character,
             otherCharacters,
             gameState,
-            monster
+            monster,
+            false
         );
 
         List<FightSimResult> fightSim = [];
 
-        result.Switch(
-            appError =>
-            {
-                throw appError;
-            },
-            simResult =>
-            {
-                fightSim = simResult;
-            }
-        );
+        if (result.IsT0)
+        {
+            return result.AsT0;
+        }
+        else
+        {
+            fightSim = result.AsT1;
+        }
 
         List<PlayerCharacter> allCharacters = [character, .. otherCharacters];
 
@@ -90,7 +113,14 @@ public class FightBoss
 
         var mode = itemCode is null ? JobMode.Kill : JobMode.Gather;
 
-        var job = new FightBoss
+        int initialAmont = 0;
+
+        if (mode == JobMode.Gather && jobParams.AllowUsingMaterialsFromInventory)
+        {
+            initialAmont = character.GetItemFromInventory(itemCode!)?.Quantity ?? 0;
+        }
+
+        var job = new FightBossOrchestrator
         {
             MainCharacter = character,
             GameState = gameState,
@@ -101,15 +131,13 @@ public class FightBoss
             LastFightSimResult = fightSim,
 
             AllCharactersStatuses = allCharactersStatuses,
+            AllowUsingMaterialsFromInventory = jobParams.AllowUsingMaterialsFromInventory,
 
             Monster = monster,
             Mode = mode,
             ItemCode = itemCode,
             Amount = amount,
-            InitialAmount =
-                mode == JobMode.Gather
-                    ? character.GetItemFromInventory(itemCode!)?.Quantity ?? 0
-                    : 0,
+            InitialAmount = initialAmont,
         };
 
         bool notAllJoined = false;
@@ -138,10 +166,9 @@ public class FightBoss
                 await participant.LeaveBossFightJob();
             }
 
-            Logger.LogInformation(
+            return new AppError(
                 $"FightBoss: [{character.Schema.Name}]: Failed to initialize fight boss job to fight {monster.Code} - stopping"
             );
-            return null;
         }
 
         Logger.LogInformation(
@@ -152,9 +179,9 @@ public class FightBoss
 
     void RemoveCharacterFromJob(PlayerCharacter character)
     {
-        if (character.CurrentFightBossJob?.Id == Id)
+        if (character.CurrentJobOrchestrator?.Id == Id)
         {
-            character.CurrentFightBossJob = null;
+            character.CurrentJobOrchestrator = null;
         }
     }
 
@@ -162,6 +189,8 @@ public class FightBoss
     {
         // Assume that a job is failed when we remove people
         Status = successful ? FightBossStatus.Completed : FightBossStatus.Failed;
+
+        CancellationTokenSource.Cancel();
 
         Logger.LogInformation(
             $"{JobName}: Disbanding group - status: {Status.GetDisplayName()} - reason {reason}"
@@ -172,9 +201,9 @@ public class FightBoss
             RemoveCharacterFromJob(character);
         }
 
-        AllCharacters = [];
-        AllCharactersStatuses = [];
-        OtherCharacters = [];
+        // AllCharacters = [];
+        // AllCharactersStatuses = [];
+        // OtherCharacters = [];
     }
 
     void HandleError(string errorReason)
@@ -184,35 +213,41 @@ public class FightBoss
 
     public async Task<OneOf<AppError, List<CharacterJob>>> GetNextJobs(PlayerCharacter character)
     {
-        var result = await InnerGetNextJobs(character);
-
-        if (result.IsT0)
+        try
         {
-            return result.AsT0;
-        }
-        else
-        {
-            var jobs = result.AsT1;
+            await GetNextJobLock.WaitAsync();
+            var result = await InnerGetNextJobs(character);
 
-            if (jobs.Count == 0 && Status != FightBossStatus.Failed)
+            if (result.IsT0)
             {
-                // We do this outside of the lock, so other characters can get their next job
-                await Task.Delay(WAIT_WHEN_NO_JOB_MS);
+                return result.AsT0;
             }
-            return jobs;
+            else
+            {
+                var jobs = result.AsT1;
+
+                if (jobs.Count == 0 && Status != FightBossStatus.Failed)
+                {
+                    // We do this outside of the lock, so other characters can get their next job
+                    await Task.Delay(WAIT_WHEN_NO_JOB_MS);
+                }
+                return jobs;
+            }
+        }
+        finally
+        {
+            GetNextJobLock.Release();
         }
     }
 
     async Task<OneOf<AppError, List<CharacterJob>>> InnerGetNextJobs(PlayerCharacter character)
     {
-        List<CharacterJob> nextPreparationJobs = [];
-
-        // Dirty hack, but we cannot just return [] without casting
-        List<CharacterJob> emptyJobs = [];
-
         try
         {
-            await GetNextJobLock.WaitAsync();
+            List<CharacterJob> nextPreparationJobs = [];
+
+            // Dirty hack, but we cannot just return [] without casting
+            List<CharacterJob> emptyJobs = [];
 
             Logger.LogInformation(
                 $"{JobName}: [{character.Schema.Name}]: Getting next job(s) to fight {Monster.Code}.."
@@ -233,93 +268,113 @@ public class FightBoss
                     return emptyJobs;
             }
 
+            // Only allow main character to start the fight
             if (AreAllReadyToFightBoss())
             {
-                Logger.LogInformation(
-                    $"{JobName}: [{character.Schema.Name}]: Detected that the group is ready to fight {Monster.Code}.."
-                );
-                Status = FightBossStatus.Fighting;
-                await StartBossFight();
-
-                switch (Mode)
-                {
-                    case JobMode.Kill:
-                        ProgressAmount += 1;
-                        break;
-                    case JobMode.Gather:
-                        int amountInInventory =
-                            MainCharacter.GetItemFromInventory(ItemCode!)?.Quantity ?? 0;
-
-                        ProgressAmount = amountInInventory - InitialAmount;
-                        break;
-                }
-
-                Logger.LogInformation(
-                    $"{JobName}: [{character.Schema.Name}]: Fought {Monster.Code} - progress is {ProgressAmount}/{Amount}{(Mode == JobMode.Gather ? $" (gathering {ItemCode})" : $"")}"
-                );
-
-                if (ProgressAmount >= Amount)
+                if (character.Name == MainCharacter.Name)
                 {
                     Logger.LogInformation(
-                        $"{JobName}: [{character.Schema.Name}]: Done fighting {Monster.Code} - progress is {ProgressAmount}/{Amount}{(Mode == JobMode.Gather ? $" (gathering {ItemCode})" : $"")}"
+                        $"{JobName}: [{character.Schema.Name}]: Detected that the group is ready to fight {Monster.Code}.."
+                    );
+                    Status = FightBossStatus.Fighting;
+                    await StartBossFight().WaitAsync(CancellationTokenSource.Token);
+
+                    switch (Mode)
+                    {
+                        case JobMode.Kill:
+                            ProgressAmount += 1;
+                            break;
+                        case JobMode.Gather:
+                            int amountInInventory =
+                                MainCharacter.GetItemFromInventory(ItemCode!)?.Quantity ?? 0;
+
+                            ProgressAmount = amountInInventory - InitialAmount;
+                            break;
+                    }
+
+                    Logger.LogInformation(
+                        $"{JobName}: [{character.Schema.Name}]: Fought {Monster.Code} - progress is {ProgressAmount}/{Amount}{(Mode == JobMode.Gather ? $" (gathering {ItemCode})" : $"")}"
                     );
 
-                    Disband("Done with job", true);
-                }
-                /**
-                ** Delay is here, inside of the lock, to prevent data races with characters being asked to do things, while they are on cooldown
-                */
+                    if (ProgressAmount >= Amount)
+                    {
+                        Logger.LogInformation(
+                            $"{JobName}: [{character.Schema.Name}]: Done fighting {Monster.Code} - progress is {ProgressAmount}/{Amount}{(Mode == JobMode.Gather ? $" (gathering {ItemCode})" : $"")}"
+                        );
 
-                await Task.Delay(WAIT_WHEN_NO_JOB_MS);
-                /**
-                ** We don't neccessarily need the return here, we could just fall through and give the next job,
-                ** but it's just easier to understand that they are different flows
-                */
+                        Disband("Done with job", true);
+                    }
+                    /**
+                    ** Delay is here, inside of the lock, to prevent data races with characters being asked to do things, while they are on cooldown
+                    */
+
+                    await Task.Delay(WAIT_WHEN_NO_JOB_MS);
+
+                    ResetCharacterStatuses();
+                    Status = FightBossStatus.New;
+                    /**
+                    ** We don't neccessarily need the return here, we could just fall through and give the next job,
+                    ** but it's just easier to understand that they are different flows
+                    */
+                }
                 return emptyJobs;
             }
 
-            bool isReadyToFight = false;
-
-            if (GetCharacterStatus(character) == CharacterFightBossStatus.New)
+            switch (GetCharacterStatus(character))
             {
-                var nextPreparationJobResult = await GetPreparationJob(character);
+                case CharacterFightBossStatus.New:
+                    var nextPreparationJobResult = await GetPreparationJobAndItemsToEquip(
+                        character
+                    );
 
-                if (nextPreparationJobResult.IsT0)
-                {
-                    return nextPreparationJobResult.AsT0;
-                }
+                    if (nextPreparationJobResult.IsT0)
+                    {
+                        return nextPreparationJobResult.AsT0;
+                    }
 
-                nextPreparationJobs = nextPreparationJobResult.AsT1;
+                    nextPreparationJobs = nextPreparationJobResult.AsT1.Jobs;
 
-                // First time prompting for jobs, but there is nothing to get - then they are ready
-                isReadyToFight = nextPreparationJobs.Count == 0;
-            }
-            else if (GetCharacterStatus(character) == CharacterFightBossStatus.Preparing)
-            {
-                Logger.LogInformation(
-                    $"{JobName}: [{character.Schema.Name}]: Status is \"preparing\", so should be ready to fight - fighting {Monster.Code}"
-                );
-                isReadyToFight = true;
-            }
+                    List<EquipRequest> equipRequests =
+                    [
+                        .. nextPreparationJobResult.AsT1.ItemsToEquip.Select(
+                            item => new EquipRequest
+                            {
+                                Code = item.Code,
+                                Quantity = item.Quantity,
+                                Slot = item.Slot,
+                            }
+                        ),
+                    ];
 
-            if (isReadyToFight)
-            {
-                if (GetCharacterStatus(character) == CharacterFightBossStatus.ReadyToFight)
-                {
+                    if (equipRequests.Count > 0)
+                    {
+                        await character.EquipItems(equipRequests);
+                    }
+                    // Set this fight boss job as the parent collab job of all jobs we return.
+                    nextPreparationJobs.ForEach(job => job.ParentCollabJobId = Id);
+
+                    /**
+                    ** The character's status should be "New" here, and after they have done these jobs, they should be ready in preparing.
+                    ** They reason that we have this Preparing state, is to prevent another character from just starting the fight, even though
+                    ** they haven't done the jobs they need to do yet.
+                    */
+                    SetCharacterStatus(character, CharacterFightBossStatus.Preparing);
+
+                    return nextPreparationJobs;
+                case CharacterFightBossStatus.Preparing:
+                    Logger.LogInformation(
+                        $"{JobName}: [{character.Schema.Name}]: Status was \"preparing\" - changing status to \"ready to fight\" - fighting {Monster.Code}"
+                    );
+                    SetCharacterStatus(character, CharacterFightBossStatus.ReadyToFight);
+                    break;
+                case CharacterFightBossStatus.ReadyToFight:
                     Logger.LogInformation(
                         $"{JobName}: [{character.Schema.Name}]: Is ready to fight, but waiting for others - fighting {Monster.Code}"
                     );
-                }
-                else
-                {
-                    Logger.LogInformation(
-                        $"{JobName}: [{character.Schema.Name}]: Changing status - ready to fight {Monster.Code}"
-                    );
-                    SetCharacterStatus(character, CharacterFightBossStatus.ReadyToFight);
-                    // Might as well do it here already, so they are ready to fight
-                    _ = PreFightRoutineForCharacter(character);
-                }
+                    break;
             }
+
+            return emptyJobs;
         }
         catch (AppError appError)
         {
@@ -339,25 +394,6 @@ public class FightBoss
             HandleError($"Generic error caught for {character.Name} - {appError.Message}");
             return appError;
         }
-        finally
-        {
-            GetNextJobLock.Release();
-        }
-
-        // Set this fight boss job as the parent collab job of all jobs we return.
-        nextPreparationJobs.ForEach(job => job.ParentCollabJobId = Id);
-
-        if (nextPreparationJobs.Count > 0)
-        {
-            /**
-            ** The character's status should be "New" here, and after they have done these jobs, they should be ready in preparing.
-            ** They reason that we have this Preparing state, is to prevent another character from just starting the fight, even though
-            ** they haven't done the jobs they need to do yet.
-            */
-            SetCharacterStatus(character, CharacterFightBossStatus.Preparing);
-        }
-
-        return nextPreparationJobs;
     }
 
     bool AreAllReadyToFightBoss()
@@ -369,8 +405,9 @@ public class FightBoss
 
     void SetCharacterStatus(PlayerCharacter character, CharacterFightBossStatus status)
     {
-        AllCharactersStatuses.First(status => status.Character.Name == character.Name).Status =
-            status;
+        AllCharactersStatuses
+            .FirstOrDefault(status => status.Character.Name == character.Name)
+            ?.Status = status;
     }
 
     CharacterFightBossStatus GetCharacterStatus(PlayerCharacter character)
@@ -401,6 +438,11 @@ public class FightBoss
             $"{JobName}: StartBossFight: Running pre-fight routine for all participants - fighting {Monster.Code}"
         );
 
+        if (IsJobDone())
+        {
+            return;
+        }
+
         var preFightRoutinesForAllCharacters = AllCharacters
             .Select(PreFightRoutineForCharacter)
             .ToList();
@@ -411,7 +453,7 @@ public class FightBoss
             $"{JobName}: StartBossFight: Pre-fight routines are done - fighting {Monster.Code}"
         );
 
-        if (Status == FightBossStatus.Failed)
+        if (IsJobDone())
         {
             return;
         }
@@ -420,15 +462,35 @@ public class FightBoss
 
         Logger.LogInformation($"{JobName}: StartBossFight: Round against {Monster.Code} done");
 
+        // Try first without new bank items, to save time getting slight upgrades.
+
+        bool skipItemsToEquip = true;
+
         var fightSimResult = await GetLastFightSimAndRequirements(
             MainCharacter,
             OtherCharacters,
             GameState,
-            Monster
+            Monster,
+            true
         );
 
+        if (fightSimResult.IsT0)
+        {
+            var newFightSimResult = await GetLastFightSimAndRequirements(
+                MainCharacter,
+                OtherCharacters,
+                GameState,
+                Monster,
+                false
+            );
+
+            skipItemsToEquip = false;
+
+            fightSimResult = newFightSimResult;
+        }
+
         // Ugly, but double guard so we can fail the job
-        if (Status == FightBossStatus.Failed)
+        if (IsJobDone())
         {
             return;
         }
@@ -448,26 +510,35 @@ public class FightBoss
                     $"{JobName}: StartBossFight: Fight sim is still favorable, proceeding"
                 );
 
-                // We don't want them to swap other items, only go back if they need new potions
-                var simResultWithOnlyPotionsToEquip = simResult.Select(result =>
-                {
-                    var newItemsToEquip = result
-                        .ItemsToEquip.Where(item =>
+                // We only want them to go back if it's needed due to potions. So if they want to swap to other items,
+                // it's OK, as long as they are also getting other potions. If they aren't getting potions, skip the entire thing,
+                // since we might have to pay money/items to get back to the boss again, and it's probably won't make a big difference
+                var simResultWithCorrectedItemsToEquip = simResult
+                    .Select(result =>
+                    {
+                        if (skipItemsToEquip)
+                        {
+                            return result with { ItemsToEquip = [] };
+                        }
+
+                        bool itemsToEquipContainsPotions = result.ItemsToEquip.Exists(item =>
                         {
                             var matchingItem = GameState.ItemsDict[item.Code];
 
-                            return matchingItem.Type != "utility";
-                        })
-                        .ToList();
+                            return matchingItem.Type == "utility";
+                        });
 
-                    var newResult = result with { ItemsToEquip = newItemsToEquip };
+                        var newItemsToEquip = itemsToEquipContainsPotions
+                            ? result.ItemsToEquip
+                            : [];
 
-                    return newResult;
-                });
+                        var newResult = result with { ItemsToEquip = newItemsToEquip };
 
-                LastFightSimResult = simResult;
-                ResetCharacterStatuses();
-                Status = FightBossStatus.Preparing;
+                        return newResult;
+                    })
+                    .ToList();
+
+                LastFightSimResult = simResultWithCorrectedItemsToEquip;
             }
         );
     }
@@ -475,14 +546,15 @@ public class FightBoss
     async Task PreFightRoutineForCharacter(PlayerCharacter character)
     {
         await character.WaitForCooldown();
+
         await FightMonster.HealIfNotAtFullHp(character, GameState, true);
-        // await character.PlayerActionService.EquipBestFightEquipment(Monster);
 
         await character.NavigateTo(Monster.Code);
+
         await character.WaitForCooldown();
     }
 
-    public static List<PlayerCharacter>? GetBestCandidatesToFight(
+    public static List<PlayerCharacter> GetBestCandidatesToFight(
         PlayerCharacter character,
         GameState gameState
     )
@@ -492,13 +564,15 @@ public class FightBoss
             .. gameState
                 .Characters.Where(otherCharacter =>
                     otherCharacter.Schema.Name != character.Schema.Name
-                    && (otherCharacter.CurrentFightBossJob is null)
+                    && (otherCharacter.CurrentJobOrchestrator is null)
+                    // A bit wonky, but we should only take characters with us who have enough inventory space
+                    && (!DepositUnneededItems.ShouldInitDepositItems(otherCharacter, false))
                 )
                 .OrderByDescending((b) => b.Schema.Level),
         ];
 
         // Allow partial groups, e.g. only 2, since there might be cases where they can win
-        int amountToRecruit = CHARACTERS_IN_BOSS_FIGHT - 1;
+        int amountToRecruit = Math.Min(otherAvailablePlayers.Count, CHARACTERS_IN_BOSS_FIGHT - 1);
 
         return otherAvailablePlayers.GetRange(0, amountToRecruit);
     }
@@ -526,7 +600,8 @@ public class FightBoss
             character,
             otherCharacters,
             gameState,
-            monster
+            monster,
+            false
         );
 
         return result.Match(
@@ -539,11 +614,21 @@ public class FightBoss
         PlayerCharacter character,
         List<PlayerCharacter> otherCharacters,
         GameState gameState,
-        MonsterSchema monster
+        MonsterSchema monster,
+        bool skipBankItems
     )
     {
-        var bankItems = await gameState.Services.BankItemCache.GetBankItems(character);
+        var bankItems = skipBankItems
+            ? []
+            : await gameState.Services.BankItemCache.GetBankItems(character);
         var bankDetails = await gameState.Services.BankItemCache.GetBankDetails();
+
+        if (gameState.Services.EventService.IsEntityFromEventThatIsUnavailable(monster.Code))
+        {
+            return new AppError(
+                $"Cannot not fight boss {monster.Code}, since it is an event boss that is not available"
+            );
+        }
 
         var result = FightSimulator.SimulateBossFightOutcome(
             character,
@@ -598,8 +683,8 @@ public class FightBoss
             }
 
             var requirementsResult = GetRequirementsJobIfTheyCanBeWithdrawn(
-                bankDetails,
-                bankItems,
+                mutatingBankDetails,
+                mutatingBankItems,
                 jobsNeededForNavigationResult.AsT1
             );
 
@@ -622,14 +707,21 @@ public class FightBoss
             });
         }
 
+        if (mutatingBankDetails.Gold < 0 || mutatingBankItems.Exists(item => item.Quantity < 0))
+        {
+            return new AppError(
+                $"Not all item/gold requirements can be fulfilled to go defeat {monster.Code}"
+            );
+        }
+
         return new None();
     }
 
-    public async Task<OneOf<AppError, List<CharacterJob>>> GetPreparationJob(
-        PlayerCharacter character
-    )
+    public async Task<
+        OneOf<AppError, (List<CharacterJob> Jobs, List<EquipmentSlot> ItemsToEquip)>
+    > GetPreparationJobAndItemsToEquip(PlayerCharacter character)
     {
-        var itemsToObtain = LastFightSimResult
+        var itemsToEquipFromSim = LastFightSimResult
             .First(simResult => simResult.Schema.Name == character.Name)
             .ItemsToEquip;
 
@@ -639,13 +731,32 @@ public class FightBoss
             character,
             GameState,
             bankItems,
-            itemsToObtain,
+            itemsToEquipFromSim,
             false
         );
 
+        // We need to get the required items from the bank, and not if where we currently might be,
+        // which could be at the boss.
+        bool goingBackToBank = itemsToWithdraw.Count > 0;
+
+        MapSchema? closestBank = null;
+
+        if (goingBackToBank)
+        {
+            var steps = character
+                .PlayerActionService.NavigationService.GetAllStepsToDestination("bank")
+                .AsT1.Steps;
+
+            if (steps.Count > 0)
+            {
+                closestBank = steps.Last().NewMap;
+            }
+        }
+
         var jobsNeededForNavigationResult =
             await character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(
-                Monster.Code
+                Monster.Code,
+                closestBank
             );
 
         if (jobsNeededForNavigationResult.Value is AppError)
@@ -655,18 +766,12 @@ public class FightBoss
 
         List<CharacterJob> jobsNeededForNavigation = jobsNeededForNavigationResult.AsT1 ?? [];
 
-        /**
-        ** TODO: A bit of a hack for now - we know that the jobsNeededForNavigation are ObtainOrFindItem jobs, but those are
-        ** "higher level jobs", i.e. they create other jobs, including withdraw jobs. In the current iteration, child jobs
-        ** of jobs spawned by "collab jobs" will get the "collab id" on it.
-        */
-        //
-        // jobsNeededForNavigation =
-        // [
-        //     .. jobsNeededForNavigation.Select(job =>
-        //         (CharacterJob)new WithdrawItem(character, GameState, job.Code, job.Amount)
-        //     ),
-        // ];
+        List<EquipmentSlot> itemsToEquipButNotWithdraw =
+        [
+            .. itemsToEquipFromSim.Where(itemToEquip =>
+                !itemsToWithdraw.Exists(itemToWithdraw => itemToWithdraw.Code == itemToEquip.Code)
+            ),
+        ];
 
         List<CharacterJob> jobs = BatchWithdrawJobsForEquipping(
                 character,
@@ -675,38 +780,14 @@ public class FightBoss
             )
             .ConvertAll(job => (CharacterJob)job);
 
+        // if (DepositUnneededItems.ShouldInitDepositItems(character, true))
+        // {
+        //     jobs.Add(new DepositUnneededItems(character, GameState, null, true));
+        // }
+
         List<CharacterJob> resultJobs = [.. jobsNeededForNavigation.Union(jobs)];
 
-        // resultJobs =
-        // [
-        //     .. resultJobs.Where(job =>
-        //     {
-        //         if (!job.JobName.Contains("WithdrawItem"))
-        //         {
-        //             return true;
-        //         }
-
-        //         var matchingItem = GameState.ItemsDict[job.Code];
-
-        //         var inventoryResult = character.GetEquippedItemOrInInventory(job.Code);
-
-        //         var amountEquippedOrInInventory = inventoryResult.Sum(itemInInventory =>
-        //             itemInInventory.equipmentSlot.Quantity
-        //         );
-
-        //         bool shouldKeepJob = amountEquippedOrInInventory < job.Amount;
-
-        //         if (!shouldKeepJob)
-        //         {
-        //             Logger.LogInformation(
-        //                 $"{JobName}: [{character.Schema.Name}]: GetPreparationJob: Skipping withdrawing {job.Amount} x {job.Code} for fighting {Monster.Code} - already have this item"
-        //             );
-        //         }
-        //         return shouldKeepJob;
-        //     }),
-        // ];
-
-        return resultJobs;
+        return (Jobs: resultJobs, ItemsToEquip: itemsToEquipButNotWithdraw);
     }
 
     static OneOf<AppError, JobsAndRequirementsForBoss> GetRequirementsJobIfTheyCanBeWithdrawn(
@@ -844,12 +925,197 @@ public class FightBoss
         // Stop the job after a timeout
         return false;
     }
+
+    public static async Task<BossGrindDetails?> GetOtherCharactersToMaximizeXpAgainstBoss(
+        PlayerCharacter character,
+        List<PlayerCharacter> otherCharacters,
+        GameState gameState,
+        MonsterSchema monster,
+        List<DropSchema> bankItems
+    )
+    {
+        // int maxCharactersInBossFight = 3;
+
+        // List<(List<PlayerCharacter> AllCharacters, int XpPerKill)> results = [];
+
+        // Hack until we feel like writing a recursive function.
+        // Note, this only works as long as boss fights is max 3 characters, and we have 5 characters in total
+        List<List<PlayerCharacter>> combinations =
+        [
+            [character, otherCharacters[0], otherCharacters[1]],
+            [character, otherCharacters[0], otherCharacters[2]],
+            [character, otherCharacters[0], otherCharacters[3]],
+            [character, otherCharacters[1], otherCharacters[2]],
+            [character, otherCharacters[1], otherCharacters[3]],
+            [character, otherCharacters[2], otherCharacters[3]],
+        ];
+
+        List<BossGrindDetails> results = [];
+
+        foreach (var combination in combinations)
+        {
+            var otherChars = combination
+                .Where(combinationChar => combinationChar.Name != character.Name)
+                .ToList();
+
+            int averageLevel = otherChars.Sum(player => player.Schema.Level) / otherChars.Count;
+
+            int xpForKill = CalculationService.GetXpForFight(
+                character.Schema,
+                otherChars.Select(player => player.Schema.Level).ToList(),
+                monster
+            );
+
+            if (xpForKill == 0)
+            {
+                continue;
+            }
+
+            var fightSimResults = FightSimulator.SimulateBossFightOutcome(
+                character,
+                otherChars,
+                gameState,
+                bankItems,
+                monster
+            );
+
+            if (
+                fightSimResults.All(simResult => simResult.Outcome.ShouldFight)
+                && await CanFulfillRequirementsForFightingBoss(
+                    character,
+                    otherChars,
+                    gameState,
+                    monster
+                )
+            )
+            {
+                results.Add(
+                    new BossGrindDetails
+                    {
+                        AllCharacters = combination,
+                        MainCharacter = character,
+                        OtherCharacters = otherChars,
+                        Monster = monster,
+                        FightSimResults = fightSimResults,
+                        XpPerKill = xpForKill,
+                    }
+                );
+            }
+        }
+        // List<List<PlayerCharacter>> knownCombinations = [];
+
+        // bool IsCombinationKnown(List<PlayerCharacter> input)
+        // {
+        //     return knownCombinations.Exists(combination =>
+        //         combination.All(charInCombination =>
+        //             input.Exists(startListChar => startListChar.Name == charInCombination.Name)
+        //         )
+        //     );
+        // }
+
+        // foreach (var otherCharacter in otherCharacters)
+        // {
+        //     List<PlayerCharacter> startList = [character, otherCharacter];
+
+        //     if (IsCombinationKnown(startList))
+        //     {
+        //         continue;
+        //     }
+
+        //     knownCombinations.Add(startList);
+
+        //     int charactersNeeded = maxCharactersInBossFight - startList.Count;
+
+        //     while (charactersNeeded > 0)
+        //     {
+        //         List<PlayerCharacter> proposedList = [.. startList];
+
+        //         foreach (var otherCharacter2 in otherCharacters)
+        //         {
+        //             List<PlayerCharacter> proposedList = [.. startList, otherCharacter2];
+        //         }
+        //     }
+        // }
+
+        return results.OrderByDescending(element => element.XpPerKill).FirstOrDefault();
+    }
+
+    public static async Task<BossGrindDetails?> FindBossMonsterCandidateForXp(
+        PlayerCharacter character,
+        GameState gameState,
+        List<DropSchema> bankItems
+    )
+    {
+        List<MonsterSchema> bossCandidates =
+        [
+            .. gameState.Monsters.Where(monster =>
+            {
+                if (
+                    monster.Type != MonsterType.Boss
+                    || gameState.Services.EventService.IsEntityFromEventThatIsUnavailable(
+                        monster.Code
+                    )
+                )
+                {
+                    return false;
+                }
+
+                int lowestLevelBound =
+                    character.Schema.Level - PlayerActionService.LEVEL_DIFF_NO_XP;
+
+                int highestLevelBound =
+                    character.Schema.Level + PlayerActionService.LEVEL_DIFF_NO_XP;
+
+                bool isInLevelRange =
+                    monster.Level >= lowestLevelBound && monster.Level <= highestLevelBound;
+
+                return isInLevelRange;
+            }),
+        ];
+
+        List<PlayerCharacter> otherCharacters =
+        [
+            .. gameState.Characters.Where(gameStateChar => gameStateChar.Name != character.Name),
+        ];
+
+        List<BossGrindDetails> outcomes = [];
+
+        foreach (var bossCandidate in bossCandidates)
+        {
+            var result = await GetOtherCharactersToMaximizeXpAgainstBoss(
+                character,
+                otherCharacters,
+                gameState,
+                bossCandidate,
+                bankItems
+            );
+
+            if (result is not null)
+            {
+                outcomes.Add(result);
+            }
+        }
+
+        var bestOutcome = outcomes
+            .OrderByDescending(outcome => outcome.XpPerKill)
+            .FirstOrDefault(outcome =>
+                outcome.OtherCharacters.All(otherCharacter =>
+                    otherCharacter.CurrentJobOrchestrator is null
+                )
+            );
+
+        return bestOutcome;
+    }
+
+    bool IsJobDone()
+    {
+        return Status == FightBossStatus.Failed || Status == FightBossStatus.Completed;
+    }
 }
 
 public enum FightBossStatus
 {
     New,
-    Preparing,
     Fighting,
 
     Failed,
@@ -874,4 +1140,15 @@ public record JobsAndRequirementsForBoss
     public required List<CharacterJob> Jobs { get; set; }
     public required List<DropSchema> ItemsToWithdraw { get; set; }
     public required int GoldToWithdraw { get; set; }
+}
+
+public record BossGrindDetails
+{
+    public required PlayerCharacter MainCharacter { get; init; }
+    public required List<PlayerCharacter> AllCharacters { get; init; }
+    public required List<PlayerCharacter> OtherCharacters { get; init; }
+
+    public required MonsterSchema Monster { get; init; }
+    public required int XpPerKill { get; init; }
+    public required List<FightSimResult> FightSimResults { get; init; }
 }

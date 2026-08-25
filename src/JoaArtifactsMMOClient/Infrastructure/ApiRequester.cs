@@ -1,13 +1,17 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Application;
 using Application.Errors;
 
 namespace Infrastructure;
 
-public class ApiRequester
+public partial class ApiRequester
 {
+    [GeneratedRegex("\"[-+]?\\d+(\\.\\d+)?\"")]
+    private static partial Regex CdFromResponseRegex();
+
     private readonly float _secondsBetweenRequests = 0.6f;
     static int AMOUNT_OF_500_REQUESTS = 0;
 
@@ -189,11 +193,29 @@ public class ApiRequester
         {
             for (var i = 0; i < MAX_RETRIES; i++)
             {
+                string contentString = content is not null ? await content.ReadAsStringAsync() : "";
+                logger.LogDebug($"POST \"{requestUri}\" - content: {contentString}");
                 response = await _httpClient.PostAsync(requestUri, content);
 
-                if ((int)response.StatusCode == 499)
+                int statusCode = (int)response.StatusCode;
+                if (statusCode == 499 || statusCode == 486)
                 {
-                    await Task.Delay(1 * 1000);
+                    Regex regex = CdFromResponseRegex();
+
+                    float secondsToWait = 1;
+
+                    string? stringContent =
+                        statusCode == 499 ? await response.Content.ReadAsStringAsync() ?? "" : "";
+
+                    var parsedSeconds = ParseSecondFromCooldownResponse(stringContent);
+
+                    if (parsedSeconds is not null)
+                    {
+                        // Function doesn't correctly parse decimal points, so just add one second
+                        secondsToWait = (float)parsedSeconds + 1;
+                    }
+
+                    await Task.Delay((int)Math.Ceiling(secondsToWait) * 1000);
                 }
                 else
                 {
@@ -317,5 +339,20 @@ public class ApiRequester
         }
 
         return response!;
+    }
+
+    static float? ParseSecondFromCooldownResponse(string content)
+    {
+        // Format: {"error":{"code":499,"message":"The character is in cooldown: 23.27 seconds remaining."}}
+        var splitOne = content.Split("is in cooldown:");
+
+        var splitTwo = splitOne.LastOrDefault()?.Split("seconds remaining");
+
+        string secondsContent =
+            (splitTwo?.FirstOrDefault() ?? "").Trim().Split(".").FirstOrDefault() ?? "";
+
+        bool wasParsed = float.TryParse(secondsContent, out float parsedSeconds);
+
+        return wasParsed ? parsedSeconds : null;
     }
 }

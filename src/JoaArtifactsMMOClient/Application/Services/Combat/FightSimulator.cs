@@ -582,11 +582,13 @@ public static class FightSimulator
         {
             damageToDeal += Damage;
 
+            string suffix = attack.IsCrit ? " (critical strike)" : "";
+
             combatLog.Log(
                 individualTurn,
                 attacker.Entity,
                 defender.Entity,
-                $"[{attacker.Entity.Name}] used {Element} attack and dealt {Damage} damage"
+                $"[{attacker.Entity.Name}] used {Element} attack and dealt {Damage} damage{suffix}"
             );
 
             SimpleEffectSchema? corrupted = defender.Effects.FirstOrDefault(effect =>
@@ -1435,7 +1437,7 @@ public static class FightSimulator
                 PlayerHasEnoughHpAfterFight
             );
 
-            bool enoughPlayersLeftWithHp = amountOfPlayersWithEnoughHp >= totalPlayers * 0.5f;
+            bool enoughPlayersLeftWithHp = amountOfPlayersWithEnoughHp >= totalPlayers;
 
             int maxAllowedPotionsUsed = MAX_AMOUNT_OF_USED_POTIONS * totalPlayers;
 
@@ -1650,6 +1652,9 @@ public static class FightSimulator
                     ItemsToEquip = itemsToEquipForCharacters
                         .First((element) => element.Key == schema.Name)
                         .Value,
+                    // ItemsToEquip = itemsToEquipForCharacters
+                    //     .First((element) => element.Key == schema.Name)
+                    //     .Value,
                 };
             }),
         ];
@@ -2612,6 +2617,24 @@ public record FightSimResult
     public required CharacterSchema Schema { get; set; }
     public required FightOutcome Outcome { get; set; }
     public required List<EquipmentSlot> ItemsToEquip { get; set; }
+}
+
+public record FightSimResultWithWithdrawInfo
+{
+    public required CharacterSchema Schema { get; set; }
+    public required FightOutcome Outcome { get; set; }
+    public required List<EquipmentSlotWithWithdrawInfo> ItemsToEquip { get; set; }
+}
+
+public record EquipmentSlotWithWithdrawInfo
+{
+    public required string Slot { get; set; }
+
+    public required string Code { get; set; }
+
+    public required int Quantity { get; set; }
+
+    public required int AmountInBank { get; set; }
 }
 
 public record FightSimResultWithLeftOverItems

@@ -35,7 +35,9 @@ public class NavigationService
 
     public async Task<OneOf<AppError, None>> NavigateTo(string contentCode)
     {
-        var result = GetAllStepsToDestination(contentCode);
+        var currentMap = gameState.MapsDict[character.Schema.MapId];
+
+        var result = GetAllStepsToDestination(contentCode, currentMap);
 
         if (result.Value is AppError)
         {
@@ -46,7 +48,6 @@ public class NavigationService
         ** If we are at the bank, do some stuff before leaving it.
         ** It's a bit dirty, but what the hell.
         */
-        var currentMap = gameState.MapsDict[character.Schema.MapId];
 
         if (
             contentCode != "bank"
@@ -69,10 +70,32 @@ public class NavigationService
         return new None();
     }
 
+    public async ValueTask<bool> CanNavigateTo(string contentCode, MapSchema? currentMap = null)
+    {
+        var result = GetAllStepsToDestination(contentCode, currentMap);
+
+        if (result.IsT0)
+        {
+            return false;
+        }
+
+        var jobsResult = await GetJobsNeededForNavigation(contentCode, currentMap);
+
+        if (jobsResult.IsT0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     public OneOf<AppError, NavigationStepsAndRequirements> GetAllStepsToDestination(
-        string contentCode
+        string contentCode,
+        MapSchema? currentMap = null
     )
     {
+        currentMap ??= gameState.MapsDict[character.Schema.MapId];
+
         var maps = gameState.Maps.FindAll(map =>
         {
             bool matchesCode = map.Interactions.Content?.Code == contentCode;
@@ -128,8 +151,8 @@ public class NavigationService
             {
                 destinationMap = map;
                 closestCost = CalculationService.CalculateDistanceToMap(
-                    character.Schema.X,
-                    character.Schema.Y,
+                    currentMap.X,
+                    currentMap.Y,
                     map.X,
                     map.Y
                 );
@@ -137,8 +160,8 @@ public class NavigationService
             }
 
             int cost = CalculationService.CalculateDistanceToMap(
-                character.Schema.X,
-                character.Schema.Y,
+                currentMap.X,
+                currentMap.Y,
                 map.X,
                 map.Y
             );
@@ -169,7 +192,7 @@ public class NavigationService
             );
         }
 
-        var currentMap = gameState.MapsDict[character.Schema.MapId];
+        // var currentMap = gameState.MapsDict[character.Schema.MapId];
 
         NavigationStepsAndRequirements result = CalculateStepsToDestination(
             currentMap,
@@ -187,10 +210,13 @@ public class NavigationService
     }
 
     public async Task<OneOf<AppError, List<CharacterJob>>> GetJobsNeededForNavigation(
-        string contentCode
+        string contentCode,
+        MapSchema? currentMap = null
     )
     {
-        var result = GetAllStepsToDestination(contentCode);
+        currentMap ??= gameState.MapsDict[character.Schema.MapId];
+
+        var result = GetAllStepsToDestination(contentCode, currentMap);
 
         if (result.Value is AppError)
         {

@@ -5,6 +5,7 @@ using Application.ArtifactsApi.Schemas.Responses;
 using Application.Dtos;
 using Application.Errors;
 using Application.Jobs;
+using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -214,7 +215,7 @@ public class PlayerActionService
     public async Task<CharacterJob?> GetTaskJobIfPossible(bool preferMonsterTask)
     {
         Logger.LogInformation(
-            "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
+            "{Name}: [{Character.Schema.Name}]: GetTaskJobIfPossible: Start",
             Name,
             Character.Schema.Name
         );
@@ -231,7 +232,7 @@ public class PlayerActionService
             if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
             {
                 Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+                    $"{Name}: [{Character.Schema.Name}]: GetTaskJobIfPossible: Found new item task"
                 );
                 return new ItemTask(Character, gameState);
             }
@@ -248,52 +249,63 @@ public class PlayerActionService
         if (await Character.PlayerActionService.CanItemFromItemTaskBeObtained())
         {
             Logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Found new item task"
+                $"{Name}: [{Character.Schema.Name}]: GetTaskJobIfPossible: Found new item task"
             );
             return new ItemTask(Character, gameState);
         }
 
-        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: GetTaskJob: No job found");
+        Logger.LogInformation(
+            $"{Name}: [{Character.Schema.Name}]: GetTaskJobIfPossible: No job found"
+        );
 
-        return potentialMonsterTask;
+        return null;
     }
 
     public async Task<CharacterJob?> GetMonsterTaskJobIfPossible()
     {
         Logger.LogInformation(
-            "{Name}: [{Character.Schema.Name}]: GetTaskJob: Start",
+            "{Name}: [{Character.Schema.Name}]: GetMonsterTaskJobIfPossible: Start",
             Name,
             Character.Schema.Name
         );
 
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
-            var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
-            var nextJobResult = await GetNextJobToFightMonster(monster);
+            bool canNavigateTo = await NavigationService.CanNavigateTo(Character.Schema.Task);
 
-            if (nextJobResult is not null)
+            if (!canNavigateTo)
             {
-                if (nextJobResult.Job is not null)
-                {
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Job found - do monster task ({monster.Code})"
-                    );
+                return null;
+            }
 
-                    var nextJob = nextJobResult.Job;
+            var monster = gameState.AvailableMonstersDict.GetValueOrNull(Character.Schema.Task)!;
 
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: Doing first job to fight job for monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-                    );
-                    // Do the first job in the list, we only do one thing at a time
-                    return nextJob;
-                }
-                else
-                {
-                    Logger.LogInformation(
-                        $"{Name}: [{Character.Schema.Name}]: GetTaskJob: No items left to get to do monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
-                    );
-                    return new MonsterTask(Character, gameState);
-                }
+            var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+            var fightSim = FightSimulator.FindBestFightEquipment(
+                Character,
+                gameState,
+                gameState.MonstersDict[monster.Code],
+                [
+                    .. bankItems.Select(item => new ItemInInventory
+                    {
+                        Item = gameState.ItemsDict[item.Code],
+                        Quantity = item.Quantity,
+                    }),
+                ]
+            );
+
+            if (fightSim.SimResult.Outcome.ShouldFight)
+            {
+                Logger.LogInformation(
+                    $"{Name}: [{Character.Schema.Name}]: GetMonsterTaskJobIfPossible: Can defeat monster in monster task - fighting {Character.Schema.TaskTotal - Character.Schema.TaskProgress} x {monster.Code}"
+                );
+
+                return new MonsterTask(Character, gameState);
+            }
+            else
+            {
+                return null;
             }
         }
 
@@ -382,7 +394,7 @@ public class PlayerActionService
 
         nextJob?.Job.onAfterSuccessEndHook = async () =>
         {
-            Logger.LogInformation(
+            Logger.LogDebug(
                 $"{Name}: [{Character.Name}]: onAfterSuccessEndHook: Equipping {nextJob.Job.Amount} x {nextJob.Job.Code}"
             );
             // TODO: In general, we should figure out how we handle rings/artifacts - how do we really know which item to replace? By level?

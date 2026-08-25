@@ -3,6 +3,7 @@ using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Dtos;
 using Application.Errors;
+using Application.Jobs.Orchestrators;
 using Application.Records;
 using Application.Services;
 using Applicaton.Jobs;
@@ -494,19 +495,20 @@ public class ObtainItem : CharacterJob
         return iterations;
     }
 
-    public static async Task<List<MonsterSchema>> GetDefeatableMonstersFromList(
-        PlayerCharacter Character,
+    public static async Task<List<DefeatableMonsterDetails>> GetDefeatableMonstersFromList(
+        PlayerCharacter character,
+        List<PlayerCharacter> otherCharacters,
         GameState gameState,
         List<MonsterSchema> monsters,
         List<DropSchema> bankItems
     )
     {
-        List<MonsterSchema> monstersThatCanBeDefeated = [];
+        List<DefeatableMonsterDetails> monstersThatCanBeDefeated = [];
 
         foreach (var monster in monsters)
         {
             // For now, we assume that we cannot fight monsters a few levels above us.
-            if (monster.Level > Character.Schema.Level + 5)
+            if (monster.Level > character.Schema.Level + 5)
             {
                 continue;
             }
@@ -531,7 +533,7 @@ public class ObtainItem : CharacterJob
 
             var fightSim = FightSimulator
                 .FindBestFightEquipmentWithUsablePotions(
-                    Character,
+                    character,
                     gameState,
                     monster,
                     bankItems
@@ -545,7 +547,7 @@ public class ObtainItem : CharacterJob
                 .SimResult;
 
             var jobsNeededForNavigationResult =
-                await Character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(
+                await character.PlayerActionService.NavigationService.GetJobsNeededForNavigation(
                     monster.Code
                 );
 
@@ -556,8 +558,34 @@ public class ObtainItem : CharacterJob
 
             if (fightSim.Outcome.ShouldFight)
             {
-                monstersThatCanBeDefeated.Add(monster);
-                continue;
+                monstersThatCanBeDefeated.Add(
+                    new DefeatableMonsterDetails
+                    {
+                        Monster = monster,
+                        RequiredOtherCharactersIfBoss = null,
+                    }
+                );
+            }
+            else if (monster.Type == MonsterType.Boss)
+            {
+                bool canFightBoss =
+                    await FightBossOrchestrator.CanFulfillRequirementsForFightingBoss(
+                        character,
+                        otherCharacters,
+                        gameState,
+                        monster
+                    );
+
+                if (canFightBoss)
+                {
+                    monstersThatCanBeDefeated.Add(
+                        new DefeatableMonsterDetails
+                        {
+                            Monster = monster,
+                            RequiredOtherCharactersIfBoss = otherCharacters,
+                        }
+                    );
+                }
             }
         }
 
@@ -941,12 +969,15 @@ public class ObtainItem : CharacterJob
             }
         );
 
-        MonsterSchema? lowestLevelMonster = null;
+        DefeatableMonsterDetails? lowestLevelMonsterDetails = null;
 
         var foundMonsterThatIsFromEvent = false;
 
+        var otherCharacters = FightBossOrchestrator.GetBestCandidatesToFight(character, gameState);
+
         var monstersWeCanDefeatThatDropTheItem = await GetDefeatableMonstersFromList(
             character,
+            otherCharacters,
             gameState,
             monstersThatDropTheItem,
             itemsInBank
@@ -954,9 +985,12 @@ public class ObtainItem : CharacterJob
 
         if (monstersWeCanDefeatThatDropTheItem.Count > 0)
         {
-            monstersWeCanDefeatThatDropTheItem.Sort((a, b) => a.Level - b.Level);
+            monstersWeCanDefeatThatDropTheItem =
+            [
+                .. monstersWeCanDefeatThatDropTheItem.OrderBy((details) => details.Monster.Level),
+            ];
 
-            lowestLevelMonster = monstersWeCanDefeatThatDropTheItem.ElementAt(0);
+            lowestLevelMonsterDetails = monstersWeCanDefeatThatDropTheItem.ElementAt(0);
         }
 
         if (monstersThatDropTheItem.Count > 0 && monstersWeCanDefeatThatDropTheItem.Count == 0)
@@ -966,48 +1000,21 @@ public class ObtainItem : CharacterJob
             );
         }
 
-        if (lowestLevelMonster is not null)
+        if (lowestLevelMonsterDetails is not null)
         {
-            var fightSimIfUsingWithdrawnItems = FightSimulator
-                .FindBestFightEquipmentWithUsablePotions(
-                    character,
-                    gameState,
-                    lowestLevelMonster,
-                    [
-                        .. itemsInBank.Select(item => new ItemInInventory
-                        {
-                            Item = gameState.ItemsDict[item.Code],
-                            Quantity = item.Quantity,
-                        }),
-                    ]
-                )
-                .SimResult;
-
-            if (
-                fightSimIfUsingWithdrawnItems is null
-                || !fightSimIfUsingWithdrawnItems.Outcome.ShouldFight
-            )
-            {
-                return new AppError(
-                    $"Cannot fight {lowestLevelMonster.Code} to obtain item with code {code}"
-                );
-            }
-
             // Don't really care if the sim uses the withdrawn items or not, we can fight them
-            if (fightSimIfUsingWithdrawnItems.Outcome.ShouldFight)
-            {
-                var job = new FightMonster(
-                    character,
-                    gameState,
-                    lowestLevelMonster.Code,
-                    requiredAmount,
-                    code
-                )
-                {
-                    AllowUsingMaterialsFromInventory = isMaterialForCraftedItem,
-                };
-                return job;
-            }
+
+            var job = GetFightMonsterOrFightBossJobForItem(
+                character,
+                otherCharacters,
+                lowestLevelMonsterDetails.RequiredOtherCharactersIfBoss is null,
+                gameState,
+                lowestLevelMonsterDetails.Monster,
+                requiredAmount,
+                code,
+                isMaterialForCraftedItem
+            );
+            return job;
         }
 
         if (monstersWeCanDefeatThatDropTheItem.Count > 0)
@@ -1130,12 +1137,18 @@ public class ObtainItem : CharacterJob
                     );
                 }
 
-                monstersThatDropCurrency = await GetDefeatableMonstersFromList(
-                    character,
-                    gameState,
-                    monstersThatDropCurrency,
-                    itemsInBank
-                );
+                monstersThatDropCurrency =
+                [
+                    .. (
+                        await GetDefeatableMonstersFromList(
+                            character,
+                            [],
+                            gameState,
+                            monstersThatDropCurrency,
+                            itemsInBank
+                        )
+                    ).Select((details) => details.Monster),
+                ];
 
                 if (monstersThatDropCurrency.Count == 0)
                 {
@@ -1181,6 +1194,42 @@ public class ObtainItem : CharacterJob
 
         return jobs;
     }
+
+    static CharacterJob GetFightMonsterOrFightBossJobForItem(
+        PlayerCharacter character,
+        List<PlayerCharacter> otherCharacters,
+        bool canDefeatAlone,
+        GameState gameState,
+        MonsterSchema monster,
+        int amount,
+        string itemCode,
+        bool allowUsingItemsFromInventory
+    )
+    {
+        if (canDefeatAlone)
+        {
+            var job = new FightMonster(character, gameState, monster.Code, amount, itemCode)
+            {
+                AllowUsingMaterialsFromInventory = allowUsingItemsFromInventory,
+            };
+            return job;
+        }
+        else
+        {
+            return new InitializeFightBoss(
+                new InitializeFightBossJobParams
+                {
+                    Character = character,
+                    OtherCharacters = otherCharacters,
+                    GameState = gameState,
+                    Monster = monster,
+                    ItemCode = itemCode,
+                    Amount = amount,
+                    AllowUsingMaterialsFromInventory = allowUsingItemsFromInventory,
+                }
+            );
+        }
+    }
 }
 
 public record ObtainItemGetJobsParams
@@ -1209,4 +1258,10 @@ public record InnerGetJobsParams
     public bool CanTriggerTraining { get; set; } = false;
     public bool FirstIteration { get; set; } = true;
     public bool IgnoreInventoryFull { get; set; } = false;
+}
+
+public record DefeatableMonsterDetails
+{
+    public required MonsterSchema Monster { get; set; }
+    public required List<PlayerCharacter>? RequiredOtherCharactersIfBoss { get; set; }
 }

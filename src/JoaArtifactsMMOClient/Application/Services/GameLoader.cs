@@ -111,11 +111,12 @@ public class GameLoader
             {
                 character.CleanupOldWishlistItems();
 
+                // if (character.CurrentJob is null && character.FindNextJobFromQueue() == null)
                 if (character.CurrentJob is null && character.FindNextJobFromQueue() == null)
                 {
-                    if (character.CurrentFightBossJob is not null)
+                    if (character.CurrentJobOrchestrator is not null)
                     {
-                        var nextBossJobResult = await character.CurrentFightBossJob.GetNextJobs(
+                        var nextBossJobResult = await character.CurrentJobOrchestrator.GetNextJobs(
                             character
                         );
 
@@ -140,7 +141,7 @@ public class GameLoader
                             await character.LeaveBossFightJob();
 
                             // Nothing listens to return of this function, but we'll return anyway.
-                            throw bossAppError;
+                            // throw bossAppError;
                         }
 
                         if (nextJobs is not null && nextJobs.Count > 0)
@@ -148,7 +149,7 @@ public class GameLoader
                             Logger.LogInformation(
                                 "HandleCharacterLoop: [{Name}]: Found jobs for boss fight with {bossFightMonster} - found {amountOfJobs} jobs",
                                 character.Name,
-                                character.CurrentFightBossJob.Monster.Code,
+                                character.CurrentJobOrchestrator.Monster.Code,
                                 nextJobs.Count
                             );
 

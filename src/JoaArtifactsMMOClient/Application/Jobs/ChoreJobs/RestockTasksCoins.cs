@@ -73,8 +73,10 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
     )
     {
         while (
-            !await character.PlayerActionService.CanItemFromItemTaskBeObtained()
-            && await CancelTaskJob.CanCancelTask(character, gameState)
+            (
+                !await character.PlayerActionService.CanItemFromItemTaskBeObtained()
+                || await character.PlayerActionService.GetMonsterTaskJobIfPossible() is null
+            ) && await CancelTaskJob.CanCancelTask(character, gameState)
         )
         {
             await CancelTaskJob.DoCancelTask(character, gameState);
@@ -94,7 +96,9 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
 
     public static async Task<bool> CanDoJob(PlayerCharacter character, GameState gameState)
     {
-        return GetJobToGetCoins(character, gameState) != null;
+        var result = await GetJobToGetCoins(character, gameState);
+
+        return result.Match(appError => false, job => true);
     }
 
     public async Task<bool> NeedsToBeDone()
