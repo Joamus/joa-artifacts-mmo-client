@@ -17,6 +17,11 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
     public static readonly string[] ItemsToKeep = ["wolf_ears"];
 
+    public static readonly List<string> SellableEquipmentItemTypes =
+    [
+        .. ItemService.EquipmentItemTypes.Where(itemType => itemType != "utility"),
+    ];
+
     public SellUnusedItems(PlayerCharacter playerCharacter, GameState gameState)
         : base(playerCharacter, gameState) { }
 
@@ -95,6 +100,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                         );
 
                         item.Quantity -= amountToWithdraw;
+                        amountInInventory += amountToWithdraw;
                     }
 
                     if (
@@ -118,10 +124,8 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                 {
                     doneSellingAllItems = true;
                 }
-                else
-                {
-                    await SellAllItemsToNpc(npc.Key);
-                }
+
+                await SellAllItemsToNpc(npc.Key);
             }
         }
 
@@ -133,7 +137,6 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
         logger.LogInformation(
             $"{JobName}: [{Character.Schema.Name}] selling all items to \"{npcCode}\""
         );
-        await Character.NavigateTo(npcCode);
 
         foreach (var item in Character.Schema.Inventory)
         {
@@ -149,12 +152,14 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                 continue;
             }
 
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
+            // var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
 
-            if (!IsSellableTrashItem(matchingItem, gameState))
-            {
-                continue;
-            }
+            // if (!IsSellableTrashItem(matchingItem, gameState))
+            // {
+            //     continue;
+            // }
+
+            await Character.NavigateTo(npcCode);
 
             await Character.NpcSellItem(item.Code, item.Quantity);
         }
@@ -170,12 +175,12 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
                 npc.Code
             );
 
-            if (npcEvent is not null)
+            if (
+                npcEvent is not null
+                && gameState.Services.EventService.WhereIsEntityActive(npcEvent.Code) is null
+            )
             {
-                if (gameState.Services.EventService.WhereIsEntityActive(npcEvent.Code) is null)
-                {
-                    continue;
-                }
+                continue;
             }
 
             npcs.Add(npc.Code, npc);
@@ -213,10 +218,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             // Incorporate evaluating whether a "fight item" is still relevant (look at RecycleUnusedItems), else we can sell them, e.g forest_ring.
             var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(item.Code);
 
-            if (
-                matchingNpcItem is null
-                || !EventService.IsNpcActive(gameState, matchingNpcItem.Npc)
-            )
+            if (matchingNpcItem is null || !activeNpcs.ContainsKey(matchingNpcItem.Npc))
             {
                 continue;
             }
@@ -239,11 +241,13 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             {
                 continue;
             }
-            bool isEquipment = ItemService.EquipmentItemTypes.Contains(matchingItem.Type);
+
+            bool isEquipment = SellableEquipmentItemTypes.Contains(matchingItem.Type);
 
             bool isEquipmentThatShouldBeSold =
                 matchingItem.Craft is not null
-                && ItemService.EquipmentItemTypes.Contains(matchingItem.Type)
+                && matchingItem.Type != "utility"
+                && SellableEquipmentItemTypes.Contains(matchingItem.Type)
                 && !relevantEquipmentFromBank.Contains(item.Code);
 
             // E.g. we have 50 wolf ears, but they are still an item we want to keep - we can sell everything off apart from 5

@@ -43,7 +43,7 @@ public class WithdrawItem : CharacterJob
         int amountToWithdraw = Math.Min(Amount, amountInBank);
 
         if (
-            Character.GetAvailableInventorySpace() == amountToWithdraw
+            Character.GetAvailableInventorySpace() < amountToWithdraw
             || Character.GetAvailableInventorySlots() == 0
         )
         {

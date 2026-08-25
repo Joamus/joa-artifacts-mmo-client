@@ -900,7 +900,27 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetEventJob()
     {
-        var activeEvents = gameState.Services.EventService.ActiveEvents;
+        var activeEvents = gameState
+            .Services.EventService.ActiveEvents.Select(activeEvent =>
+            {
+                var gameEvent = gameState.Services.EventService.EventsDict.GetValueOrNull(
+                    activeEvent.Code
+                )!;
+
+                return gameEvent;
+            })
+            .OrderByDescending(gameEvent =>
+            {
+                int priority = gameEvent.Content.Type switch
+                {
+                    ContentType.Raid => 3,
+                    ContentType.Npc => 2,
+                    _ => 0,
+                };
+
+                return priority;
+            })
+            .ToList();
 
         Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetEventJob: Evaluating active events - there are {activeEvents.Count} active events"
@@ -916,11 +936,7 @@ public class PlayerAI
 
         foreach (var activeEvent in activeEvents)
         {
-            var gameEvent = gameState.Services.EventService.EventsDict.GetValueOrNull(
-                activeEvent.Code
-            )!;
-
-            var eventContent = gameEvent.Content;
+            var eventContent = activeEvent.Content;
 
             CharacterJob? job = null;
 
@@ -928,6 +944,16 @@ public class PlayerAI
             {
                 case ContentType.Monster:
                     job = await GetMonsterEventJob(eventContent);
+                    break;
+                case ContentType.Raid:
+
+                    var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(
+                        eventContent.Code
+                    );
+                    if (matchingMonster is not null)
+                    {
+                        job = await GetMonsterBossEventJob(matchingMonster);
+                    }
                     break;
                 case ContentType.Npc:
                     job = await GetNpcEventJob(eventContent);
@@ -987,10 +1013,7 @@ public class PlayerAI
     {
         var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(eventContent.Code);
 
-        if (
-            matchingMonster?.Type == MonsterType.Boss
-            || matchingMonster?.Type == MonsterType.RaidBoss
-        )
+        if (matchingMonster?.Type == MonsterType.Boss)
         {
             return await GetMonsterBossEventJob(matchingMonster);
         }
