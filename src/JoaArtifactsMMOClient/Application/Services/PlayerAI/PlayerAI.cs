@@ -1194,6 +1194,11 @@ public class PlayerAI
             ChorePriority.Low,
         ];
 
+        /**
+         * E.g. if a character has "Low" prio for a certain chore, it means that they will help out when it's high, medium, or low priority,
+         * and if they have high prio, they would only help out when it's high priority, etc.
+        */
+
         foreach (var priority in chorePriorities)
         {
             var characterChores = Character.Chores.Where(characterChore =>
