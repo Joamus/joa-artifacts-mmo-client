@@ -1253,6 +1253,7 @@ public class PlayerAI
                                     || string.IsNullOrWhiteSpace(Character.Schema.Task)
                                 )
                                 && await Character.PlayerActionService.CanHandlePotentialMonsterTasks()
+                                && await RestockTasksCoins.CanDoJob(Character, gameState)
                             )
                             {
                                 job = await ProcessChoreJob(
