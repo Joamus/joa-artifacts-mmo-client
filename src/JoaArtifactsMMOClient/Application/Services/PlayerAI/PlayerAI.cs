@@ -124,10 +124,10 @@ public class PlayerAI
                 ?? await EnsureTools()
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
+                ?? await EnsureBag()
                 ?? await GetMonsterJobIfCanCertainlyBeDone()
                 ?? await GetIndividualHighPrioJob()
                 ?? await EnsureFightEquipment()
-                ?? await EnsureBag()
                 ?? GetSkillJob()
                 ?? await GetRoleJob()
                 ?? await GetChoreJob()
@@ -858,7 +858,27 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetEventJob()
     {
-        var activeEvents = gameState.Services.EventService.ActiveEvents;
+        var activeEvents = gameState
+            .Services.EventService.ActiveEvents.Select(activeEvent =>
+            {
+                var gameEvent = gameState.Services.EventService.EventsDict.GetValueOrNull(
+                    activeEvent.Code
+                )!;
+
+                return gameEvent;
+            })
+            .OrderByDescending(gameEvent =>
+            {
+                int priority = gameEvent.Content.Type switch
+                {
+                    ContentType.Raid => 3,
+                    ContentType.Npc => 2,
+                    _ => 0,
+                };
+
+                return priority;
+            })
+            .ToList();
 
         Logger.LogInformation(
             $"{Name}: [{Character.Schema.Name}]: GetEventJob: Evaluating active events - there are {activeEvents.Count} active events"
@@ -874,11 +894,7 @@ public class PlayerAI
 
         foreach (var activeEvent in activeEvents)
         {
-            var gameEvent = gameState.Services.EventService.EventsDict.GetValueOrNull(
-                activeEvent.Code
-            )!;
-
-            var eventContent = gameEvent.Content;
+            var eventContent = activeEvent.Content;
 
             CharacterJob? job = null;
 
@@ -886,6 +902,16 @@ public class PlayerAI
             {
                 case ContentType.Monster:
                     job = await GetMonsterEventJob(eventContent);
+                    break;
+                case ContentType.Raid:
+
+                    var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(
+                        eventContent.Code
+                    );
+                    if (matchingMonster is not null)
+                    {
+                        job = await GetMonsterBossEventJob(matchingMonster);
+                    }
                     break;
                 case ContentType.Npc:
                     job = await GetNpcEventJob(eventContent);
@@ -945,10 +971,7 @@ public class PlayerAI
     {
         var matchingMonster = gameState.AvailableMonstersDict.GetValueOrNull(eventContent.Code);
 
-        if (
-            matchingMonster?.Type == MonsterType.Boss
-            || matchingMonster?.Type == MonsterType.RaidBoss
-        )
+        if (matchingMonster?.Type == MonsterType.Boss)
         {
             return await GetMonsterBossEventJob(matchingMonster);
         }
@@ -1129,6 +1152,11 @@ public class PlayerAI
             ChorePriority.Low,
         ];
 
+        /**
+         * E.g. if a character has "Low" prio for a certain chore, it means that they will help out when it's high, medium, or low priority,
+         * and if they have high prio, they would only help out when it's high priority, etc.
+        */
+
         foreach (var priority in chorePriorities)
         {
             var characterChores = Character.Chores.Where(characterChore =>
@@ -1183,6 +1211,7 @@ public class PlayerAI
                                     || string.IsNullOrWhiteSpace(Character.Schema.Task)
                                 )
                                 && await Character.PlayerActionService.CanHandlePotentialMonsterTasks()
+                                && await RestockTasksCoins.CanDoJob(Character, gameState)
                             )
                             {
                                 job = await ProcessChoreJob(

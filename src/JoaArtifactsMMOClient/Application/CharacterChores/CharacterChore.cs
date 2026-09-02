@@ -17,9 +17,9 @@ public record CharacterChore
 
 public enum ChorePriority
 {
-    Low,
-    Medium,
-    High,
+    High = 2,
+    Medium = 1,
+    Low = 0,
 }
 
 public enum CharacterChoreKind
