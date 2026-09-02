@@ -638,7 +638,7 @@ public class PlayerAI
             var result = Character.GetEquippedItemOrInInventory(tool.Code);
 
             (EquipmentSlot inventorySlot, bool isEquipped)? itemInInventory =
-                result.Count > 0 ? result.ElementAt(0)! : null;
+                result.Count > 0 ? result.ElementAtOrDefault(0)! : null;
 
             if (itemInInventory is not null)
             {
@@ -660,7 +660,7 @@ public class PlayerAI
 
             if (equippedWeapon is not null)
             {
-                var bestUpgrade = ItemService.GetBestItemIfUpgrade(equippedWeapon, tool);
+                var bestUpgrade = ItemService.GetBestToolIfUpgrade(equippedWeapon, tool);
 
                 if (bestUpgrade is not null)
                 {
@@ -683,7 +683,7 @@ public class PlayerAI
                     continue;
                 }
 
-                var bestUpgrade = ItemService.GetBestItemIfUpgrade(inventoryTool.Item, tool);
+                var bestUpgrade = ItemService.GetBestToolIfUpgrade(inventoryTool.Item, tool);
 
                 if (bestUpgrade is not null)
                 {

@@ -648,6 +648,38 @@ public static class ItemService
         return highestLevelItem;
     }
 
+    public static ItemSchema? GetBestToolIfUpgrade(ItemSchema a, ItemSchema b)
+    {
+        List<ItemSchema> items = [a, b];
+
+        items.Sort((a, b) => a.Level - b.Level);
+
+        var lowestLevelItem = items[0];
+        var highestLevelItem = items[1];
+
+        var lowestLevelGatherEffect = lowestLevelItem.Effects.FirstOrDefault(effect =>
+            effect.Value < 0
+        );
+
+        var highestLevelGatherEffect = highestLevelItem.Effects.FirstOrDefault(effect =>
+            effect.Value < 0
+        );
+
+        // We need to ensure that both tools have the same effect, and the higher level item has a better effect.
+        // Remember that "better effect" for tool is a lower value, since it's minus.
+        if (
+            lowestLevelGatherEffect is not null
+            && highestLevelGatherEffect is not null
+            && lowestLevelGatherEffect.Code == highestLevelGatherEffect.Code
+            && highestLevelGatherEffect.Value < lowestLevelGatherEffect.Value
+        )
+        {
+            return highestLevelItem;
+        }
+
+        return null;
+    }
+
     public static async Task<List<ItemInInventory>> GetItemsThatCanBeSimmed(
         PlayerCharacter character,
         GameState gameState,
@@ -826,7 +858,8 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
+                    ?? true;
 
                 return isOnlyUsedForFood;
             });
