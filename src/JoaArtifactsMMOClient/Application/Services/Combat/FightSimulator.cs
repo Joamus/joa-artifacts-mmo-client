@@ -154,7 +154,7 @@ public static class FightSimulator
 
         filteredMonsters.Sort((a, b) => b.Level - a.Level);
 
-        return filteredMonsters.GetRange(0, Math.Min(5, filteredMonsters.Count));
+        return filteredMonsters.GetRange(0, Math.Min(10, filteredMonsters.Count));
     }
 
     public static HashSet<string> GetItemsRelevantMonsters(

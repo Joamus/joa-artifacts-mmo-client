@@ -239,6 +239,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             {
                 continue;
             }
+
             bool isEquipment = ItemService.EquipmentItemTypes.Contains(matchingItem.Type);
 
             bool isEquipmentThatShouldBeSold =

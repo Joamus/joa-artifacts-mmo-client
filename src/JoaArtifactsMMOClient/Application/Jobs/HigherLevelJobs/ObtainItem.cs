@@ -536,13 +536,13 @@ public class ObtainItem : CharacterJob
                     character,
                     gameState,
                     monster,
-                    bankItems
-                        .Select(item => new ItemInInventory
+                    [
+                        .. bankItems.Select(item => new ItemInInventory
                         {
                             Item = gameState.ItemsDict[item.Code],
                             Quantity = item.Quantity,
-                        })
-                        .ToList()
+                        }),
+                    ]
                 )
                 .SimResult;
 
