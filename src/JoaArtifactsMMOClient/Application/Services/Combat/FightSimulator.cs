@@ -27,6 +27,9 @@ public static class FightSimulator
 
     private static ILogger Logger = AppLogger.GetLogger();
 
+    /**
+     * This function assumes all potions can be acquired
+    */
     public static FightSimResultWithLeftOverItems FindBestFightEquipmentWithUsablePotions(
         PlayerCharacter character,
         GameState gameState,
@@ -34,13 +37,29 @@ public static class FightSimulator
         List<ItemInInventory>? allItems = null
     )
     {
-        var allPotions = gameState
-            .UtilityItemsDict.Select(item => new ItemInInventory
-            {
-                Item = item.Value,
-                Quantity = 100,
-            })
-            .ToList();
+        List<ItemInInventory> allPotions = [];
+
+        foreach (var item in gameState.UtilityItemsDict)
+        {
+            var matchingItem = gameState.ItemsDict[item.Key];
+            allPotions.Add(new ItemInInventory { Item = matchingItem, Quantity = 100 });
+        }
+
+        // Add this back in later - we cannot acquire all potions!
+        // foreach (var item in gameState.UtilityItemsDict)
+        // {
+        //     var matchingItem = gameState.ItemsDict[item.Key];
+        //     var canObtain = await character.PlayerActionService.CanObtainItem(
+        //         matchingItem,
+        //         100,
+        //         false
+        //     );
+
+        //     if (canObtain)
+        //     {
+        //         allPotions.Add(new ItemInInventory { Item = matchingItem, Quantity = 100 });
+        //     }
+        // }
 
         var itemsInInventoryForSimming = GetItemsFromInventoryForSim(character.Schema, gameState);
 
@@ -48,8 +67,30 @@ public static class FightSimulator
 
         if (allItems is not null)
         {
-            itemCandidates = itemCandidates.Union(allItems).ToList();
+            itemCandidates = [.. itemCandidates.Union(allItems)];
         }
+
+        // Add all quantities together
+        itemCandidates =
+        [
+            .. itemCandidates
+                .GroupBy(item => item.Item.Code)
+                .Select(itemGroup =>
+                {
+                    if (itemGroup.Count() == 1)
+                    {
+                        return itemGroup.ElementAt(0);
+                    }
+
+                    var addedItem = new ItemInInventory
+                    {
+                        Item = itemGroup.ElementAt(0).Item,
+                        Quantity = itemGroup.Sum(item => item.Quantity),
+                    };
+
+                    return addedItem;
+                }),
+        ];
 
         return FindBestFightEquipment(character, gameState, monster, itemCandidates);
     }
@@ -1652,9 +1693,6 @@ public static class FightSimulator
                     ItemsToEquip = itemsToEquipForCharacters
                         .First((element) => element.Key == schema.Name)
                         .Value,
-                    // ItemsToEquip = itemsToEquipForCharacters
-                    //     .First((element) => element.Key == schema.Name)
-                    //     .Value,
                 };
             }),
         ];
@@ -1698,9 +1736,12 @@ public static class FightSimulator
         }
         else
         {
-            tempEquipmentTypes = EquipmentService
-                .AllEquipmentTypes.Where(type => itemTypesToSim.Contains(type.ItemType))
-                .ToList();
+            tempEquipmentTypes =
+            [
+                .. EquipmentService.AllEquipmentTypes.Where(type =>
+                    itemTypesToSim.Contains(type.ItemType)
+                ),
+            ];
         }
 
         List<EquipmentTypeMapping> potionEquipmentTypes = [];

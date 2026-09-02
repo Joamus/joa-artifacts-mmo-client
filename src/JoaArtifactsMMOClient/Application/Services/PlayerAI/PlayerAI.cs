@@ -818,53 +818,11 @@ public class PlayerAI
             Logger.LogInformation(
                 $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Finding a train combat job - fighting {fightMonster.Amount} x {fightMonster.Code}"
             );
-            // var nextJobResult = await Character.PlayerActionService.GetNextJobToFightMonster(
-            //     gameState.AvailableMonstersDict.GetValueOrNull(fightMonster.Code)!
-            // );
 
-            var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
-
-            var fightSim = FightSimulator.FindBestFightEquipment(
-                Character,
-                gameState,
-                gameState.MonstersDict[fightMonster.Code],
-                [
-                    .. bankItems.Select(item => new ItemInInventory
-                    {
-                        Item = gameState.ItemsDict[item.Code],
-                        Quantity = item.Quantity,
-                    }),
-                ]
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Can defeat monster with items from bank - fighting {fightMonster.Amount} x {fightMonster.Code}"
             );
-
-            if (fightSim.SimResult.Outcome.ShouldFight)
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Can defeat monster with items from bank - fighting {fightMonster.Amount} x {fightMonster.Code}"
-                );
-                return fightMonster;
-            }
-
-            // if (nextJobResult is not null)
-            // {
-            //     if (nextJobResult.Job is not null)
-            //     {
-            //         var nextJob = nextJobResult.Job;
-
-            //         Logger.LogInformation(
-            //             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Doing first job to fight {fightMonster.Amount} x {fightMonster.Code} - job is {nextJob.JobName} for {nextJob.Amount} x {nextJob.Code}"
-            //         );
-            //         // Do the first job in the list, we only do one thing at a time
-            //         return nextJob;
-            //     }
-            //     else
-            //     {
-            //         Logger.LogInformation(
-            //             $"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Fighting {fightMonster.Amount} x {fightMonster.Code}"
-            //         );
-            //         return fightMonster;
-            //     }
-            // }
+            return fightMonster;
         }
 
         Logger.LogInformation(
@@ -1003,7 +961,7 @@ public class PlayerAI
         {
             var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
-            var fightSim = FightSimulator.FindBestFightEquipment(
+            var fightSim = FightSimulator.FindBestFightEquipmentWithUsablePotions(
                 Character,
                 gameState,
                 matchingMonster,

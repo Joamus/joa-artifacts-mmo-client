@@ -282,7 +282,7 @@ public class PlayerActionService
 
             var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
-            var fightSim = FightSimulator.FindBestFightEquipment(
+            var fightSim = FightSimulator.FindBestFightEquipmentWithUsablePotions(
                 Character,
                 gameState,
                 gameState.MonstersDict[monster.Code],
@@ -707,6 +707,31 @@ public class PlayerActionService
         }
 
         return true;
+    }
+
+    public async Task<List<ItemInInventory>> GetObtainablePotions(
+        PlayerCharacter character,
+        GameState gameState
+    )
+    {
+        List<ItemInInventory> allPotions = [];
+
+        foreach (var item in gameState.UtilityItemsDict)
+        {
+            var matchingItem = gameState.ItemsDict[item.Key];
+            var canObtain = await character.PlayerActionService.CanObtainItem(
+                matchingItem,
+                100,
+                false
+            );
+
+            if (canObtain)
+            {
+                allPotions.Add(new ItemInInventory { Item = matchingItem, Quantity = 100 });
+            }
+        }
+
+        return allPotions;
     }
 
     public async Task<List<CharacterJobAndEquipmentSlot>?> GetJobsToGetItemsToFightMonster(
