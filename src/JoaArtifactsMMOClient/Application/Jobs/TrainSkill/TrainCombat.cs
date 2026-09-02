@@ -81,6 +81,15 @@ public class TrainCombat : CharacterJob
 
         var bankItems = await FightSimulator.GetBankItemsForFightSim(character, gameState);
 
+        var obtainablePotions = await character.PlayerActionService.GetObtainablePotions(
+            character,
+            gameState
+        );
+
+        var availableItems = ItemService.MergeItemEntries(
+            bankItems.Union(obtainablePotions).ToList()
+        );
+
         foreach (var monster in gameState.AvailableMonsters)
         {
             // Our character might be able to punch above their weight
@@ -93,7 +102,7 @@ public class TrainCombat : CharacterJob
             }
 
             var outcome = FightSimulator
-                .FindBestFightEquipmentWithUsablePotions(character, gameState, monster, bankItems)
+                .FindBestFightEquipment(character, gameState, monster, availableItems)
                 .SimResult.Outcome;
 
             if (outcome.ShouldFight)

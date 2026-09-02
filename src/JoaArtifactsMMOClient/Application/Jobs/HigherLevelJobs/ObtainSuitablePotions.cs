@@ -61,12 +61,14 @@ public class ObtainSuitablePotions : CharacterJob
     public static int GetPotionsToObtain(PlayerCharacter character)
     {
         // We want to ensure that we don't fill our inventory
-        int inventorySpaceLeft = character.GetAvailableInventorySpace();
+        // int inventorySpaceLeft = character.GetAvailableInventorySpace();
 
-        return Math.Min(
-            PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
-            (int)Math.Round(inventorySpaceLeft * 0.65)
-        );
+        // return Math.Min(
+        //     PlayerActionService.MAX_AMOUNT_UTILITY_SLOT,
+        //     (int)Math.Round(inventorySpaceLeft * 0.65)
+        // );
+
+        return PlayerActionService.MAX_AMOUNT_UTILITY_SLOT;
     }
 
     public static async Task<List<CharacterJob>> GetAcquirePotionJobs(

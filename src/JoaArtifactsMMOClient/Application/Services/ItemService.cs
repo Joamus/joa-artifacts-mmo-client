@@ -422,7 +422,7 @@ public static class ItemService
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster,
-        Dictionary<string, DropSchema> bankItems
+        Dictionary<string, DropSchema> bankItemsDict
     )
     {
         // 100 quantity for potions, doesn't really matter
@@ -434,15 +434,22 @@ public static class ItemService
             character,
             gameState,
             allItemCandidates,
-            bankItems
+            bankItemsDict
         );
 
         itemsForSimming = FightSimulator.GetItemsWorthSimming(itemsForSimming);
 
         Dictionary<string, EquipmentSlot> relevantItemsDict = [];
 
+        var obtainablePotions = await character.PlayerActionService.GetObtainablePotions(
+            character,
+            gameState
+        );
+
+        itemsForSimming = [.. itemsForSimming.Union(obtainablePotions)];
+
         var result = FightSimulator
-            .FindBestFightEquipmentWithUsablePotions(character, gameState, monster, itemsForSimming)
+            .FindBestFightEquipment(character, gameState, monster, itemsForSimming)
             .SimResult;
 
         foreach (var item in result.ItemsToEquip)
@@ -858,8 +865,7 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
-                    ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
 
                 return isOnlyUsedForFood;
             });
@@ -881,6 +887,81 @@ public static class ItemService
     public static bool IsItemFood(ItemSchema item)
     {
         return item.Type == "consumable" && item.Subtype == "food";
+    }
+
+    public static List<ItemInInventory> MergeItemEntries(List<ItemInInventory> items)
+    {
+        List<ItemInInventory> mergedItems =
+        [
+            .. items
+                .GroupBy(item => item.Item.Code)
+                .Select(itemGroup =>
+                {
+                    if (itemGroup.Count() == 1)
+                    {
+                        return itemGroup.ElementAt(0);
+                    }
+
+                    var addedItem = new ItemInInventory
+                    {
+                        Item = itemGroup.ElementAt(0).Item,
+                        Quantity = itemGroup.Sum(item => item.Quantity),
+                    };
+
+                    return addedItem;
+                }),
+        ];
+
+        return mergedItems;
+    }
+
+    public static List<DropSchema> MergeItemEntries(List<DropSchema> items)
+    {
+        List<DropSchema> mergedItems =
+        [
+            .. items
+                .GroupBy(item => item.Code)
+                .Select(itemGroup =>
+                {
+                    if (itemGroup.Count() == 1)
+                    {
+                        return itemGroup.ElementAt(0);
+                    }
+
+                    var addedItem = new DropSchema
+                    {
+                        Code = itemGroup.ElementAt(0).Code,
+                        Quantity = itemGroup.Sum(item => item.Quantity),
+                    };
+
+                    return addedItem;
+                }),
+        ];
+
+        return mergedItems;
+    }
+
+    public static List<ItemInInventory> DropSchemaListToItemInInventoryList(
+        List<DropSchema> items,
+        Dictionary<string, ItemSchema> allItems
+    )
+    {
+        return items
+            .Select(item =>
+            {
+                if (string.IsNullOrWhiteSpace(item.Code))
+                {
+                    return null;
+                }
+
+                var matchingItem = allItems.GetValueOrNull(item.Code);
+
+                return matchingItem is null
+                    ? null
+                    : new ItemInInventory { Item = matchingItem, Quantity = item.Quantity };
+            })
+            .OfType<ItemInInventory>()
+            .ToList();
     }
 
     // public static GetXpForCraftingItem(int skillLevel, int itemLevel)

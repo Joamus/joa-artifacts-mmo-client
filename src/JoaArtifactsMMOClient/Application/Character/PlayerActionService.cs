@@ -282,17 +282,23 @@ public class PlayerActionService
 
             var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
-            var fightSim = FightSimulator.FindBestFightEquipmentWithUsablePotions(
+            var obtainablePotions = await Character.PlayerActionService.GetObtainablePotions(
+                Character,
+                gameState
+            );
+
+            var availableItems = ItemService.MergeItemEntries(
+                ItemService
+                    .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                    .Union(obtainablePotions)
+                    .ToList()
+            );
+
+            var fightSim = FightSimulator.FindBestFightEquipment(
                 Character,
                 gameState,
                 gameState.MonstersDict[monster.Code],
-                [
-                    .. bankItems.Select(item => new ItemInInventory
-                    {
-                        Item = gameState.ItemsDict[item.Code],
-                        Quantity = item.Quantity,
-                    }),
-                ]
+                availableItems
             );
 
             if (fightSim.SimResult.Outcome.ShouldFight)
@@ -413,6 +419,19 @@ public class PlayerActionService
 
     public async Task<bool> CanHandlePotentialMonsterTasks()
     {
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+        var obtainablePotions = await Character.PlayerActionService.GetObtainablePotions(
+            Character,
+            gameState
+        );
+
+        var availableItems = ItemService.MergeItemEntries(
+            ItemService
+                .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                .Union(obtainablePotions)
+                .ToList()
+        );
         foreach (var task in gameState.Tasks)
         {
             if (task.Type != TaskType.monsters)
@@ -429,12 +448,7 @@ public class PlayerActionService
 
             if (
                 !FightSimulator
-                    .FindBestFightEquipmentWithUsablePotions(
-                        Character,
-                        gameState,
-                        matchingMonster,
-                        await FightSimulator.GetBankItemsForFightSim(Character, gameState)
-                    )
+                    .FindBestFightEquipment(Character, gameState, matchingMonster, availableItems)
                     .SimResult.Outcome.ShouldFight
             )
             {
@@ -637,8 +651,7 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value
-                            ?? 0;
+                                ?.Value ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
