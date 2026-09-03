@@ -969,7 +969,7 @@ public static class FightSimulator
     )
     {
         // No reason to loop through effects, if we have already applied poison damage before
-        if (defender.ActivePoisonDamage is null)
+        if (defender.ActivePoisonDamage is null && turnNumber == 1)
         {
             var poison = attacker.Effects.FirstOrDefault(effect => effect.Code == Effect.Poison);
 
@@ -982,7 +982,7 @@ public static class FightSimulator
               The poison effect causes x damage per turn, unless the defender has an antidote. If the defender has an antidote,
               it subtracts the antidote value from the poison, using only 1 antidote.
             **/
-            if (poison is not null && turnNumber == 1)
+            if (poison is not null)
             {
                 int poisonDamage = poison.Value;
 
