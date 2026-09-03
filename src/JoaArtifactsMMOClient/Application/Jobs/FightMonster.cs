@@ -1031,10 +1031,10 @@ public class FightMonster : CharacterJob
         }
         if (character.Schema.Hp >= character.Schema.MaxHp * 0.75)
         {
-            var schemaWithoutPots = character.Schema with { };
+            var schemaWithoutNewPots = character.Schema with { };
 
             var fightSimAtCurrentHpWithoutPots = FightSimulator.CalculateFightOutcome(
-                schemaWithoutPots,
+                schemaWithoutNewPots,
                 [],
                 monster,
                 gameState,

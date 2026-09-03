@@ -231,14 +231,15 @@ public class ObtainSuitablePotions : CharacterJob
             characterClone.Schema,
             monster,
             gameState,
-            potionCandidates.Select(potion => potion.item).ToList()
+            [.. potionCandidates.Select(potion => potion.item)]
         );
 
-        potionCandidates = potionCandidates
-            .Where(candidate =>
+        potionCandidates =
+        [
+            .. potionCandidates.Where(candidate =>
                 potionsToAcquire.Exists(potion => candidate.item.Code == potion.Code)
-            )
-            .ToList();
+            ),
+        ];
 
         // There should only be two
         if (potionCandidates.Count > 2)
@@ -249,6 +250,8 @@ public class ObtainSuitablePotions : CharacterJob
         List<CharacterJob> resultJobs = [];
 
         // Implement finding the 2 best pots, if any, and equip. Use up stuff from the bank.
+
+        int availableInventorySpace = character.GetAvailableInventorySpace();
 
         foreach (var potion in potionCandidates)
         {
@@ -266,7 +269,7 @@ public class ObtainSuitablePotions : CharacterJob
             if (potion.amountInBank > 0)
             {
                 var amount = Math.Min(
-                    character.GetAvailableInventorySpace() - 1,
+                    availableInventorySpace,
                     Math.Min(preferedAmount, potion.amountInBank)
                 );
 
@@ -274,7 +277,7 @@ public class ObtainSuitablePotions : CharacterJob
                 {
                     var job = new WithdrawItem(character, gameState, potion.item.Code, amount);
 
-                    amountLeft = amountLeft - amount;
+                    amountLeft -= amount;
                     resultJobs.Add(job);
 
                     // Craft it or learn to craft it, if needed.
@@ -293,23 +296,35 @@ public class ObtainSuitablePotions : CharacterJob
                 int totalIngredientsRequired = ingredientsRequiredToCraftOne * amountLeft;
 
                 int iterations = (int)
-                    Math.Ceiling((double)totalIngredientsRequired / POTION_BATCH_SIZE);
+                    Math.Ceiling((double)totalIngredientsRequired / availableInventorySpace);
+
+                int amountToCraftPerBatch = amountLeft / iterations;
 
                 for (int i = 0; i < iterations; i++)
                 {
-                    int amountToCraft = Math.Min(amountLeft, POTION_BATCH_SIZE);
+                    // int inventorySpaceRequiredToCreateBatch = (int)
+                    //     Math.Ceiling((float)totalIngredientsRequired / iterations);
 
-                    if (amountLeft <= 0)
+                    int amountToCraftInThisBatch = Math.Min(amountToCraftPerBatch, amountLeft);
+
+                    if (amountToCraftInThisBatch <= 0)
                     {
                         break;
                     }
+
                     string itemCode = potion.item.Code;
 
-                    var job = new ObtainOrFindItem(character, gameState, itemCode, amountToCraft);
+                    var job = new ObtainOrFindItem(
+                        character,
+                        gameState,
+                        itemCode,
+                        amountToCraftInThisBatch
+                    )
+                    {
+                        AllowUsingMaterialsFromBank = true,
+                    };
 
-                    job.AllowUsingMaterialsFromBank = true;
-
-                    amountLeft = amountLeft - amountToCraft;
+                    amountLeft -= amountToCraftInThisBatch;
                     resultJobs.Add(job);
                 }
             }

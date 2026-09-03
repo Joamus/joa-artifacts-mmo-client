@@ -15,7 +15,7 @@ public static class FightSimulator
     private static readonly int MAX_LEVEL = 50;
     public const double PERCENTAGE_OF_SIMS_TO_WIN = 0.85;
     private const float SHOULD_FIGHT_MAX_HP_PLAYER_THRESHOLD = 0.35f;
-    private const int MAX_AMOUNT_OF_USED_POTIONS = 10;
+    private const int MAX_AMOUNT_OF_USED_POTIONS = 6;
     private const double CRIT_DAMAGE_MODIFIER = 0.5;
     private const double RESTORE_EFFECT_MAX_HP_THRESHOLD = 0.50;
     private const double LOSE_AFTER_TURNS = 100;

@@ -827,7 +827,12 @@ public class PlayerCharacter
         {
             // We still want to throw below, so we reset the job queue
             // This isn't pretty, but might help catch some issues
+            var currentContentCode = GameState.MapsDict[Schema.MapId].Interactions.Content!.Code;
+
             await PlayerActionService.DepositAllItems();
+
+            await PlayerActionService.NavigationService.NavigateTo(currentContentCode);
+
             return await Gather();
         }
 
