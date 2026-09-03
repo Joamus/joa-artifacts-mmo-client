@@ -505,10 +505,19 @@ public class ObtainItem : CharacterJob
     {
         List<DefeatableMonsterDetails> monstersThatCanBeDefeated = [];
 
-        var obtainablePotions = await character.PlayerActionService.GetObtainablePotions(
-            character,
-            gameState
-        );
+        // var obtainablePotions = await character.PlayerActionService.GetObtainablePotions(
+        //     character,
+        //     gameState
+        // );
+
+        var obtainablePotions = gameState.UtilityItemsDict.Select(item => new ItemInInventory
+        {
+            Item = item.Value,
+            Quantity = 100,
+        });
+        //     character,
+        //     gameState
+        // );
 
         var availableItems = ItemService.MergeItemEntries(
             ItemService

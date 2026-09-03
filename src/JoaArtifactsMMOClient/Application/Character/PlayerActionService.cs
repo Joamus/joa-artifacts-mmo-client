@@ -651,7 +651,8 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value ?? 0;
+                                ?.Value
+                            ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -732,6 +733,23 @@ public class PlayerActionService
         foreach (var item in gameState.UtilityItemsDict)
         {
             var matchingItem = gameState.ItemsDict[item.Key];
+
+            // bool isItemNonEventOrNonMob =
+            //     matchingItem.Craft is not null
+            //     && matchingItem.Craft.Items.All(material =>
+            //     {
+            //         var matchingMaterial = gameState.ItemsDict[material.Code];
+            //         return !(
+            //             matchingMaterial.Subtype == "mob"
+            //             || gameState.Services.EventService.IsEntityFromEvent(material.Code)
+            //         );
+            //     });
+
+            // if (!isItemNonEventOrNonMob)
+            // {
+            //     continue;
+            // }
+
             var canObtain = await character.PlayerActionService.CanObtainItem(
                 matchingItem,
                 100,

@@ -88,25 +88,6 @@ public class PlayerAI
                 await ClaimPendingItems();
             }
 
-            // if (Character.Name == "Leonidas")
-            // {
-            //     var otherParticipants = FightBoss.GetBestCandidatesToFight(Character, gameState);
-
-            //     if (otherParticipants is not null)
-            //     {
-            //         var _ = await FightBoss.InitializeFightBossJob(
-            //             Character,
-            //             gameState,
-            //             otherParticipants,
-            //             gameState.MonstersDict["king_slime"],
-            //             null,
-            //             3
-            //         );
-            //     }
-
-            //     return null;
-            // }
-
             await Character.PlayerActionService.WithdrawTeleportPotions();
             await Character.PlayerActionService.WithdrawAndUseConsumableBags();
 
