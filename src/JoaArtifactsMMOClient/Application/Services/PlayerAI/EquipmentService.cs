@@ -24,30 +24,30 @@ public class EquipmentService
     const float IMPROVEMENT_SCORE_MODIFIER_PER_LEVEL = 0.01f;
 
     public static List<EquipmentTypeMapping> CraftableEquipmentTypes { get; } =
-    [
-        new() { ItemType = "weapon", Slot = "WeaponSlot" },
-        new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-        new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-        new() { ItemType = "helmet", Slot = "HelmetSlot" },
-        new() { ItemType = "boots", Slot = "BootsSlot" },
-        new() { ItemType = "ring", Slot = "Ring1Slot" },
-        new() { ItemType = "ring", Slot = "Ring2Slot" },
-        new() { ItemType = "amulet", Slot = "AmuletSlot" },
-        new() { ItemType = "shield", Slot = "ShieldSlot" },
-        new() { ItemType = "utility", Slot = "Utility1Slot" },
-        new() { ItemType = "utility", Slot = "Utility2Slot" },
-    ];
+        [
+            new() { ItemType = "weapon", Slot = "WeaponSlot" },
+            new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+            new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+            new() { ItemType = "helmet", Slot = "HelmetSlot" },
+            new() { ItemType = "boots", Slot = "BootsSlot" },
+            new() { ItemType = "ring", Slot = "Ring1Slot" },
+            new() { ItemType = "ring", Slot = "Ring2Slot" },
+            new() { ItemType = "amulet", Slot = "AmuletSlot" },
+            new() { ItemType = "shield", Slot = "ShieldSlot" },
+            new() { ItemType = "utility", Slot = "Utility1Slot" },
+            new() { ItemType = "utility", Slot = "Utility2Slot" },
+        ];
 
     public static List<EquipmentTypeMapping> AllEquipmentTypes { get; } =
-    [
-        .. new List<EquipmentTypeMapping>
-        {
-            new() { ItemType = "artifact", Slot = "Artifact1Slot" },
-            new() { ItemType = "artifact", Slot = "Artifact2Slot" },
-            new() { ItemType = "artifact", Slot = "Artifact3Slot" },
-            new() { ItemType = "rune", Slot = "RuneSlot" },
-        }.Union(CraftableEquipmentTypes),
-    ];
+        [
+            .. new List<EquipmentTypeMapping>
+            {
+                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+                new() { ItemType = "rune", Slot = "RuneSlot" },
+            }.Union(CraftableEquipmentTypes),
+        ];
 
     public static async Task<CharacterJob?> EnsureFightEquipment(
         PlayerCharacter character,
@@ -221,6 +221,26 @@ public class EquipmentService
 
         List<ItemImprovement> allImprovements = [];
 
+        var obtainablePotions = (
+            await character.PlayerActionService.GetObtainablePotions(character, gameState)
+        );
+        // .Select(item => new DropSchema { Code = item.Item.Code, Quantity = item.Quantity })
+        // .ToList();
+
+        List<ItemInInventory> availableItems = ItemService.MergeItemEntries(
+            [
+                .. obtainablePotions.Union(
+                    bankItems
+                        .Where(item => !string.IsNullOrWhiteSpace(item.Code))
+                        .Select(item => new ItemInInventory
+                        {
+                            Item = gameState.ItemsDict[item.Code],
+                            Quantity = item.Quantity,
+                        })
+                ),
+            ]
+        );
+
         foreach (var simWithItem in fightSimsForMonsters)
         {
             // int costWithoutItem = TotalSecondsCostForFight(simWithoutItem);
@@ -317,7 +337,12 @@ public class EquipmentService
                             simWithoutItem
                         ),
                         InconvenienceCostForItem = TrainSkill
-                            .GetInconvenienceCostCraftItem(item, gameState, bankItems, character)
+                            .GetInconvenienceCostCraftItem(
+                                item,
+                                gameState,
+                                availableItems,
+                                character
+                            )
                             .Score,
                     };
 

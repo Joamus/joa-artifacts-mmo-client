@@ -174,8 +174,22 @@ public class FightMonster : CharacterJob
 
         await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
 
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+        var obtainablePotions = await Character.PlayerActionService.GetObtainablePotions(
+            Character,
+            gameState
+        );
+
+        var availableItems = ItemService.MergeItemEntries(
+            ItemService
+                .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                .Union(obtainablePotions)
+                .ToList()
+        );
+
         var fightSimResult = FightSimulator
-            .FindBestFightEquipmentWithUsablePotions(Character, gameState, monster)
+            .FindBestFightEquipment(Character, gameState, monster, availableItems)
             .SimResult;
 
         if (!fightSimResult.Outcome.ShouldFight)
@@ -229,18 +243,6 @@ public class FightMonster : CharacterJob
 
         await Character.PlayerActionService.EquipBestFightEquipment(monster);
 
-        int potionSlotsUsed = 0;
-
-        if (Character.Schema.Utility1SlotQuantity > 0)
-        {
-            potionSlotsUsed++;
-        }
-
-        if (Character.Schema.Utility2SlotQuantity > 0)
-        {
-            potionSlotsUsed++;
-        }
-
         while (Amount > ProgressAmount)
         {
             if (ShouldInterrupt)
@@ -248,7 +250,7 @@ public class FightMonster : CharacterJob
                 return new None();
             }
 
-            var result = await InnerJobAsync(monster, fightSimResult, potionSlotsUsed);
+            var result = await InnerJobAsync(monster, fightSimResult);
 
             switch (result.Value)
             {
@@ -289,8 +291,7 @@ public class FightMonster : CharacterJob
 
     protected async Task<OneOf<AppError, None>> InnerJobAsync(
         MonsterSchema monster,
-        FightSimResult fightSimResult,
-        int initialPotionSlotsUsed
+        FightSimResult originalFightSimResult
     )
     {
         logger.LogInformation(
@@ -330,56 +331,34 @@ public class FightMonster : CharacterJob
             return new None();
         }
 
-        bool hasRunOutOfPotions = false;
-
-        if (initialPotionSlotsUsed > 0)
+        switch (GetActionBeforeFight(Character, gameState, monster))
         {
-            if (initialPotionSlotsUsed == 1)
+            case ActionBeforeFight.None:
+                break;
+            case ActionBeforeFight.AcquirePotions:
             {
-                if (
-                    Character.Schema.Utility1SlotQuantity == 0
-                    && Character.Schema.Utility2SlotQuantity == 0
-                )
+                var obtainPotionJobs = await HandlePotionsPreFight(monster, originalFightSimResult);
+
+                if (obtainPotionJobs.Count > 0)
                 {
-                    hasRunOutOfPotions = true;
+                    await Character.QueueJobsBefore(Id, obtainPotionJobs);
+                    Status = JobStatus.Suspend;
+                    return new None();
                 }
+                break;
             }
-            else if (initialPotionSlotsUsed == 2)
-            {
-                if (
-                    Character.Schema.Utility1SlotQuantity == 0
-                    || Character.Schema.Utility2SlotQuantity == 0
-                )
-                {
-                    hasRunOutOfPotions = true;
-                }
-            }
-        }
-
-        if (hasRunOutOfPotions)
-        {
-            var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
-
-            if (obtainPotionJobs.Count > 0)
-            {
-                await Character.QueueJobsBefore(Id, obtainPotionJobs);
-                Status = JobStatus.Suspend;
-                return new None();
-            }
-        }
-
-        if (ShouldHealBeforeFight(Character, gameState, monster))
-        {
-            await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
+            case ActionBeforeFight.Heal:
+                await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
+                break;
         }
 
         await Character.NavigateTo(Code);
 
         var result = await Character.Fight();
 
-        if (result.Value is AppError)
+        if (result.Value is AppError error)
         {
-            return (AppError)result.Value;
+            return error;
         }
         else if (
             result.Value is FightResponse fightResponse
@@ -900,14 +879,26 @@ public class FightMonster : CharacterJob
 
         var bankItems = await gameState.Services.BankItemCache.GetBankItems(character);
 
-        var items = bankItems
-            .Where(item => !string.IsNullOrWhiteSpace(item.Code))
-            .Select(item => new ItemInInventory
-            {
-                Item = gameState.ItemsDict[item.Code],
-                Quantity = item.Quantity,
-            })
-            .ToList();
+        var obtainablePotions = await character.PlayerActionService.GetObtainablePotions(
+            character,
+            gameState
+        );
+
+        var availableItems = ItemService.MergeItemEntries(
+            ItemService
+                .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                .Union(obtainablePotions)
+                .ToList()
+        );
+
+        // var items = bankItems
+        //     .Where(item => !string.IsNullOrWhiteSpace(item.Code))
+        //     .Select(item => new ItemInInventory
+        //     {
+        //         Item = gameState.ItemsDict[item.Code],
+        //         Quantity = item.Quantity,
+        //     })
+        //     .ToList();
 
         foreach (var item in character.Schema.Inventory)
         {
@@ -916,7 +907,7 @@ public class FightMonster : CharacterJob
                 continue;
             }
 
-            items.Add(
+            availableItems.Add(
                 new ItemInInventory
                 {
                     Item = gameState.ItemsDict[item.Code],
@@ -926,7 +917,7 @@ public class FightMonster : CharacterJob
         }
 
         var result = FightSimulator
-            .FindBestFightEquipmentWithUsablePotions(character, gameState, monster, items)
+            .FindBestFightEquipment(character, gameState, monster, availableItems)
             .SimResult;
 
         // foreach (var item in result.ItemsToEquip)
@@ -1015,15 +1006,28 @@ public class FightMonster : CharacterJob
         return itemsToWithdraw;
     }
 
-    public static bool ShouldHealBeforeFight(
+    public static ActionBeforeFight GetActionBeforeFight(
         PlayerCharacter character,
         GameState gameState,
         MonsterSchema monster
     )
     {
+        var fightSimWithCurrentOutcome = FightSimulator.CalculateFightOutcome(
+            character.Schema,
+            [],
+            monster,
+            gameState,
+            true
+        );
+
+        if (!fightSimWithCurrentOutcome.ShouldFight)
+        {
+            return ActionBeforeFight.AcquirePotions;
+        }
+
         if (character.Schema.Hp == character.Schema.MaxHp)
         {
-            return false;
+            return ActionBeforeFight.None;
         }
         if (character.Schema.Hp >= character.Schema.MaxHp * 0.75)
         {
@@ -1042,12 +1046,19 @@ public class FightMonster : CharacterJob
                 && fightSimAtCurrentHpWithoutPots.PlayerHp >= character.Schema.MaxHp * 0.40
             )
             {
-                return false;
+                return ActionBeforeFight.None;
             }
         }
 
-        return true;
+        return ActionBeforeFight.Heal;
     }
+}
+
+public enum ActionBeforeFight
+{
+    None,
+    AcquirePotions,
+    Heal,
 }
 
 record FoodCandidate

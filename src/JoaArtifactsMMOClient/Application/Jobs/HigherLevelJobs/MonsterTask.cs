@@ -92,6 +92,20 @@ public class MonsterTask : CharacterJob
             return new None();
         }
 
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+        var obtainablePotions = await Character.PlayerActionService.GetObtainablePotions(
+            Character,
+            gameState
+        );
+
+        var availableItems = ItemService.MergeItemEntries(
+            ItemService
+                .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                .Union(obtainablePotions)
+                .ToList()
+        );
+
         if (Character.Schema.TaskType == TaskType.monsters.ToString())
         {
             var code = Character.Schema.Task;
@@ -102,12 +116,7 @@ public class MonsterTask : CharacterJob
                 return new AppError($"Cannot find monster {code} to fight in task");
             }
             var outcome = FightSimulator
-                .FindBestFightEquipmentWithUsablePotions(
-                    Character,
-                    gameState,
-                    monster,
-                    await FightSimulator.GetBankItemsForFightSim(Character, gameState)
-                )
+                .FindBestFightEquipment(Character, gameState, monster, availableItems)
                 .SimResult.Outcome;
 
             if (!outcome.ShouldFight)

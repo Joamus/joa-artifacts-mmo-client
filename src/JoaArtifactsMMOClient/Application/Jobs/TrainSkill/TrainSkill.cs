@@ -5,6 +5,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
 using OneOf;
@@ -227,7 +228,10 @@ public class TrainSkill : CharacterJob
                                     GetInconvenienceCostCraftItem(
                                         item,
                                         gameState,
-                                        bankItemsResponse,
+                                        ItemService.DropSchemaListToItemInInventoryList(
+                                            bankItemsResponse,
+                                            gameState.ItemsDict
+                                        ),
                                         Character
                                     )
                                 );
@@ -367,7 +371,7 @@ public class TrainSkill : CharacterJob
     public static (bool CanObtain, int Score) GetInconvenienceCostCraftItem(
         ItemSchema item,
         GameState gameState,
-        List<DropSchema> bankItems,
+        List<ItemInInventory> availableItems,
         PlayerCharacter character
     )
     {
@@ -381,7 +385,7 @@ public class TrainSkill : CharacterJob
             item,
             1,
             gameState,
-            bankItems,
+            availableItems,
             character,
             true
         );
@@ -393,7 +397,7 @@ public class TrainSkill : CharacterJob
         ItemSchema item,
         int quantity,
         GameState gameState,
-        List<DropSchema> bankItems,
+        List<ItemInInventory> availableItems,
         PlayerCharacter character,
         bool initialItem
     )
@@ -402,8 +406,8 @@ public class TrainSkill : CharacterJob
         bool canObtain = true;
 
         int amountInBank =
-            bankItems
-                .Find(bankItem => bankItem.Code == item.Code && bankItem.Quantity >= quantity)
+            availableItems
+                .Find(bankItem => bankItem.Item.Code == item.Code && bankItem.Quantity >= quantity)
                 ?.Quantity ?? 0;
 
         var matchingItem = gameState.ItemsDict[item.Code];
@@ -450,7 +454,7 @@ public class TrainSkill : CharacterJob
                     continue;
                 }
                 var fightOutcome = FightSimulator
-                    .FindBestFightEquipmentWithUsablePotions(character, gameState, monster)
+                    .FindBestFightEquipment(character, gameState, monster, availableItems)
                     .SimResult.Outcome;
 
                 if (fightOutcome.ShouldFight)
@@ -493,7 +497,7 @@ public class TrainSkill : CharacterJob
                     gameState.ItemsDict[subComponent.Code],
                     subComponent.Quantity * quantity,
                     gameState,
-                    bankItems,
+                    availableItems,
                     character,
                     false
                 );

@@ -505,6 +505,18 @@ public class ObtainItem : CharacterJob
     {
         List<DefeatableMonsterDetails> monstersThatCanBeDefeated = [];
 
+        var obtainablePotions = await character.PlayerActionService.GetObtainablePotions(
+            character,
+            gameState
+        );
+
+        var availableItems = ItemService.MergeItemEntries(
+            ItemService
+                .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                .Union(obtainablePotions)
+                .ToList()
+        );
+
         foreach (var monster in monsters)
         {
             // For now, we assume that we cannot fight monsters a few levels above us.
@@ -532,18 +544,7 @@ public class ObtainItem : CharacterJob
             }
 
             var fightSim = FightSimulator
-                .FindBestFightEquipmentWithUsablePotions(
-                    character,
-                    gameState,
-                    monster,
-                    [
-                        .. bankItems.Select(item => new ItemInInventory
-                        {
-                            Item = gameState.ItemsDict[item.Code],
-                            Quantity = item.Quantity,
-                        }),
-                    ]
-                )
+                .FindBestFightEquipment(character, gameState, monster, availableItems)
                 .SimResult;
 
             var jobsNeededForNavigationResult =

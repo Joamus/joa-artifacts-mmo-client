@@ -71,26 +71,7 @@ public static class FightSimulator
         }
 
         // Add all quantities together
-        itemCandidates =
-        [
-            .. itemCandidates
-                .GroupBy(item => item.Item.Code)
-                .Select(itemGroup =>
-                {
-                    if (itemGroup.Count() == 1)
-                    {
-                        return itemGroup.ElementAt(0);
-                    }
-
-                    var addedItem = new ItemInInventory
-                    {
-                        Item = itemGroup.ElementAt(0).Item,
-                        Quantity = itemGroup.Sum(item => item.Quantity),
-                    };
-
-                    return addedItem;
-                }),
-        ];
+        itemCandidates = ItemService.MergeItemEntries(itemCandidates);
 
         return FindBestFightEquipment(character, gameState, monster, itemCandidates);
     }
@@ -2550,6 +2531,8 @@ public static class FightSimulator
                 if (
                     equipmentTypeMapping.ItemType != "utility"
                     && fightOutcome.PotionsUsed > bestFightOutcome.PotionsUsed
+                    && fightOutcome.ShouldFight
+                    && bestFightOutcome.ShouldFight
                 )
                 {
                     continue;
