@@ -294,7 +294,7 @@ public class PlayerActionService
                     .ToList()
             );
 
-            var fightSim = FightSimulator.FindBestFightEquipment(
+            var fightSim = FightSimulator.FindBestFightEquipmentIncludingInventory(
                 Character,
                 gameState,
                 gameState.MonstersDict[monster.Code],
@@ -448,7 +448,12 @@ public class PlayerActionService
 
             if (
                 !FightSimulator
-                    .FindBestFightEquipment(Character, gameState, matchingMonster, availableItems)
+                    .FindBestFightEquipmentIncludingInventory(
+                        Character,
+                        gameState,
+                        matchingMonster,
+                        availableItems
+                    )
                     .SimResult.Outcome.ShouldFight
             )
             {

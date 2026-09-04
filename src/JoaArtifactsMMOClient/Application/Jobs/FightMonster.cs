@@ -181,15 +181,20 @@ public class FightMonster : CharacterJob
             gameState
         );
 
-        var availableItems = ItemService.MergeItemEntries(
-            ItemService
-                .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
-                .Union(obtainablePotions)
-                .ToList()
-        );
+        // var availableItems = ItemService.MergeItemEntries(
+        //     ItemService
+        //         .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+        //         .Union(obtainablePotions)
+        //         .ToList()
+        // );
 
         var fightSimResult = FightSimulator
-            .FindBestFightEquipment(Character, gameState, monster, availableItems)
+            .FindBestFightEquipmentIncludingInventory(
+                Character,
+                gameState,
+                monster,
+                obtainablePotions
+            )
             .SimResult;
 
         if (!fightSimResult.Outcome.ShouldFight)
@@ -250,7 +255,7 @@ public class FightMonster : CharacterJob
                 return new None();
             }
 
-            var result = await InnerJobAsync(monster, fightSimResult);
+            var result = await InnerJobAsync(monster, fightSimResult, obtainablePotions);
 
             switch (result.Value)
             {
@@ -291,7 +296,8 @@ public class FightMonster : CharacterJob
 
     protected async Task<OneOf<AppError, None>> InnerJobAsync(
         MonsterSchema monster,
-        FightSimResult originalFightSimResult
+        FightSimResult originalFightSimResult,
+        List<ItemInInventory> availablePotions
     )
     {
         logger.LogInformation(
@@ -331,21 +337,22 @@ public class FightMonster : CharacterJob
             return new None();
         }
 
-        switch (GetActionBeforeFight(Character, gameState, monster))
+        var actionResult = await GetActionBeforeFight(
+            Character,
+            gameState,
+            monster,
+            availablePotions
+        );
+
+        switch (actionResult.Action)
         {
             case ActionBeforeFight.None:
                 break;
             case ActionBeforeFight.AcquirePotions:
             {
-                var obtainPotionJobs = await HandlePotionsPreFight(monster, originalFightSimResult);
-
-                if (obtainPotionJobs.Count > 0)
-                {
-                    await Character.QueueJobsBefore(Id, obtainPotionJobs);
-                    Status = JobStatus.Suspend;
-                    return new None();
-                }
-                break;
+                await Character.QueueJobsBefore(Id, actionResult.Jobs);
+                Status = JobStatus.Suspend;
+                return new None();
             }
             case ActionBeforeFight.Heal:
                 await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
@@ -680,13 +687,13 @@ public class FightMonster : CharacterJob
         // var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(Character.Schema, monster);
         List<string> potionEffectsToSkip = [];
 
-        if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResult))
-        {
-            foreach (var effect in EffectService.preFightEffects)
-            {
-                potionEffectsToSkip.Add(effect);
-            }
-        }
+        // if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResult))
+        // {
+        //     foreach (var effect in EffectService.preFightEffects)
+        //     {
+        //         potionEffectsToSkip.Add(effect);
+        //     }
+        // }
 
         List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
 
@@ -722,7 +729,7 @@ public class FightMonster : CharacterJob
             {
                 var potion = gameState.ItemsDict[job.Code];
 
-                return !potion.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code));
+                return potion.Effects.Exists(effect => !potionEffectsToSkip.Contains(effect.Code));
             })
             .ToList();
 
@@ -917,7 +924,7 @@ public class FightMonster : CharacterJob
         }
 
         var result = FightSimulator
-            .FindBestFightEquipment(character, gameState, monster, availableItems)
+            .FindBestFightEquipmentIncludingInventory(character, gameState, monster, availableItems)
             .SimResult;
 
         // foreach (var item in result.ItemsToEquip)
@@ -1006,10 +1013,11 @@ public class FightMonster : CharacterJob
         return itemsToWithdraw;
     }
 
-    public static ActionBeforeFight GetActionBeforeFight(
+    public async Task<ActionBeforeFightData> GetActionBeforeFight(
         PlayerCharacter character,
         GameState gameState,
-        MonsterSchema monster
+        MonsterSchema monster,
+        List<ItemInInventory> availableItems
     )
     {
         var fightSimWithCurrentOutcome = FightSimulator.CalculateFightOutcome(
@@ -1022,12 +1030,30 @@ public class FightMonster : CharacterJob
 
         if (!fightSimWithCurrentOutcome.ShouldFight)
         {
-            return ActionBeforeFight.AcquirePotions;
+            var fightSimResultWithPossibleItems = FightSimulator
+                .FindBestFightEquipmentIncludingInventory(
+                    character,
+                    gameState,
+                    monster,
+                    availableItems
+                )
+                .SimResult;
+
+            var obtainPotionJobs = await HandlePotionsPreFight(
+                monster,
+                fightSimResultWithPossibleItems
+            );
+
+            return new ActionBeforeFightData
+            {
+                Action = ActionBeforeFight.AcquirePotions,
+                Jobs = obtainPotionJobs,
+            };
         }
 
         if (character.Schema.Hp == character.Schema.MaxHp)
         {
-            return ActionBeforeFight.None;
+            return new ActionBeforeFightData { Action = ActionBeforeFight.None, Jobs = [] };
         }
         if (character.Schema.Hp >= character.Schema.MaxHp * 0.75)
         {
@@ -1046,11 +1072,11 @@ public class FightMonster : CharacterJob
                 && fightSimAtCurrentHpWithoutPots.PlayerHp >= character.Schema.MaxHp * 0.40
             )
             {
-                return ActionBeforeFight.None;
+                return new ActionBeforeFightData { Action = ActionBeforeFight.None, Jobs = [] };
             }
         }
 
-        return ActionBeforeFight.Heal;
+        return new ActionBeforeFightData { Action = ActionBeforeFight.Heal, Jobs = [] };
     }
 }
 
@@ -1059,6 +1085,12 @@ public enum ActionBeforeFight
     None,
     AcquirePotions,
     Heal,
+}
+
+public record ActionBeforeFightData
+{
+    public required ActionBeforeFight Action { get; init; }
+    public required List<CharacterJob> Jobs { get; init; }
 }
 
 record FoodCandidate

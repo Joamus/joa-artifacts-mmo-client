@@ -67,18 +67,10 @@ public class DepositUnneededItems : CharacterJob
 
         var bestFightItems = MonsterSchema is not null
             ? (
-                FightSimulator.FindBestFightEquipment(
+                FightSimulator.FindBestFightEquipmentIncludingInventory(
                     Character,
                     gameState,
-                    MonsterSchema,
-                    Character
-                        .Schema.Inventory.Where(item => !string.IsNullOrEmpty(item.Code))
-                        .Select(item => new ItemInInventory
-                        {
-                            Item = gameState.ItemsDict[item.Code],
-                            Quantity = item.Quantity,
-                        })
-                        .ToList()
+                    MonsterSchema
                 )
             ).SimResult.ItemsToEquip.ToDictionary(item => item.Code)
             : [];

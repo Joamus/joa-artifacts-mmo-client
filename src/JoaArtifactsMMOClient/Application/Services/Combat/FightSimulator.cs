@@ -1681,6 +1681,30 @@ public static class FightSimulator
         return finalSimResults;
     }
 
+    public static FightSimResultWithLeftOverItems FindBestFightEquipmentIncludingInventory(
+        PlayerCharacter character,
+        GameState gameState,
+        MonsterSchema monster,
+        List<ItemInInventory>? otherItems = null,
+        List<string>? itemTypesToSim = null,
+        List<PlayerCharacter>? otherCharacters = null
+    )
+    {
+        otherItems ??= [];
+
+        var inventoryItems = GetItemsFromInventoryForSim(character.Schema, gameState);
+        var allItems = ItemService.MergeItemEntries(otherItems.Union(inventoryItems).ToList());
+
+        return FindBestFightEquipment(
+            character,
+            gameState,
+            monster,
+            allItems,
+            itemTypesToSim,
+            otherCharacters
+        );
+    }
+
     public static FightSimResultWithLeftOverItems FindBestFightEquipment(
         PlayerCharacter character,
         GameState gameState,

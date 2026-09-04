@@ -454,7 +454,12 @@ public class TrainSkill : CharacterJob
                     continue;
                 }
                 var fightOutcome = FightSimulator
-                    .FindBestFightEquipment(character, gameState, monster, availableItems)
+                    .FindBestFightEquipmentIncludingInventory(
+                        character,
+                        gameState,
+                        monster,
+                        availableItems
+                    )
                     .SimResult.Outcome;
 
                 if (fightOutcome.ShouldFight)

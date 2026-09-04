@@ -553,7 +553,12 @@ public class ObtainItem : CharacterJob
             }
 
             var fightSim = FightSimulator
-                .FindBestFightEquipment(character, gameState, monster, availableItems)
+                .FindBestFightEquipmentIncludingInventory(
+                    character,
+                    gameState,
+                    monster,
+                    availableItems
+                )
                 .SimResult;
 
             var jobsNeededForNavigationResult =
