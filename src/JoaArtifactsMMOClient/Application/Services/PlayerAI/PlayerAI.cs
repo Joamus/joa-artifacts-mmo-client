@@ -965,17 +965,23 @@ public class PlayerAI
         {
             var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
-            var fightSim = FightSimulator.FindBestFightEquipmentWithUsablePotions(
+            var obtainablePotions = await Character.PlayerActionService.GetObtainablePotions(
+                Character,
+                gameState
+            );
+
+            var availableItems = ItemService.MergeItemEntries(
+                ItemService
+                    .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                    .Union(obtainablePotions)
+                    .ToList()
+            );
+
+            var fightSim = FightSimulator.FindBestFightEquipmentIncludingInventory(
                 Character,
                 gameState,
                 matchingMonster,
-                [
-                    .. bankItems.Select(item => new ItemInInventory
-                    {
-                        Item = gameState.ItemsDict[item.Code],
-                        Quantity = item.Quantity,
-                    }),
-                ]
+                availableItems
             );
 
             if (fightSim.SimResult.Outcome.ShouldFight)
