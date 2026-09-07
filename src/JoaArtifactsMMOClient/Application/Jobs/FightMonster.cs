@@ -174,19 +174,19 @@ public class FightMonster : CharacterJob
 
         await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
 
-        // var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
 
         var obtainablePotions = await Character.PlayerActionService.GetObtainablePotions(
             Character,
             gameState
         );
 
-        // var availableItems = ItemService.MergeItemEntries(
-        //     ItemService
-        //         .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
-        //         .Union(obtainablePotions)
-        //         .ToList()
-        // );
+        var availableItems = ItemService.MergeItemEntries(
+            ItemService
+                .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                .Union(obtainablePotions)
+                .ToList()
+        );
 
         var fightSimResult = FightSimulator
             .FindBestFightEquipmentIncludingInventory(
