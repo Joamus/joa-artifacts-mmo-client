@@ -12,7 +12,7 @@ public partial class ApiRequester
     [GeneratedRegex("\"[-+]?\\d+(\\.\\d+)?\"")]
     private static partial Regex CdFromResponseRegex();
 
-    private readonly float _secondsBetweenRequests = 0.6f;
+    private readonly float _secondsBetweenRequests = 0.8f;
     static int AMOUNT_OF_500_REQUESTS = 0;
 
     private readonly int MAX_RETRIES = 3;

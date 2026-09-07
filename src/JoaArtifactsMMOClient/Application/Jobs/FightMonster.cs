@@ -189,12 +189,7 @@ public class FightMonster : CharacterJob
         );
 
         var fightSimResult = FightSimulator
-            .FindBestFightEquipmentIncludingInventory(
-                Character,
-                gameState,
-                monster,
-                obtainablePotions
-            )
+            .FindBestFightEquipmentIncludingInventory(Character, gameState, monster, availableItems)
             .SimResult;
 
         if (!fightSimResult.Outcome.ShouldFight)
