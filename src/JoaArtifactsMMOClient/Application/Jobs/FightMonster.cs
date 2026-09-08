@@ -353,6 +353,15 @@ public class FightMonster : CharacterJob
                 }
                 break;
             }
+            case ActionBeforeFight.Stop:
+                logger.LogWarning(
+                    "{JobName}: [{Character.Schema.Name}] cannot fight {Code} any longer - interrupting job",
+                    JobName,
+                    Character.Schema.Name,
+                    Code
+                );
+                Status = JobStatus.Failed;
+                return new None();
             case ActionBeforeFight.Heal:
                 await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
                 break;
@@ -1038,6 +1047,10 @@ public class FightMonster : CharacterJob
                 )
                 .SimResult;
 
+            if (!fightSimResultWithPossibleItems.Outcome.ShouldFight)
+            {
+                return new ActionBeforeFightData { Action = ActionBeforeFight.Stop, Jobs = [] };
+            }
             var obtainPotionJobs = await HandlePotionsPreFight(
                 monster,
                 fightSimResultWithPossibleItems
@@ -1082,6 +1095,7 @@ public class FightMonster : CharacterJob
 public enum ActionBeforeFight
 {
     None,
+    Stop,
     AcquirePotions,
     Heal,
 }
