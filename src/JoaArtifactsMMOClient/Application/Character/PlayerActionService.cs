@@ -1138,9 +1138,14 @@ public class PlayerActionService
         }
     }
 
-    public static string GetBestNonCombatEffectWithLevelDiff(int levelDifference)
+    public static string GetBestNonCombatEffectWithLevelDiff(int skillLevel, int resourceLevel)
     {
-        return levelDifference > LEVEL_DIFF_NO_XP ? Effect.Prospecting : Effect.Wisdom;
+        if (skillLevel == PlayerCharacter.MAX_LEVEL)
+        {
+            return Effect.Prospecting;
+        }
+
+        return skillLevel - resourceLevel > LEVEL_DIFF_NO_XP ? Effect.Prospecting : Effect.Wisdom;
     }
 }
 

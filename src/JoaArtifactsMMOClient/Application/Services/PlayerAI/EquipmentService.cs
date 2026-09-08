@@ -432,7 +432,8 @@ public class EquipmentService
         int skilLevel = character.GetSkillLevel(resource.Skill);
 
         var effect = PlayerActionService.GetBestNonCombatEffectWithLevelDiff(
-            skilLevel - resource.Level
+            skilLevel,
+            resource.Level
         );
 
         // No reason to get prospecting, if all of the drops have a 100% drop chance
@@ -452,9 +453,7 @@ public class EquipmentService
         // Should make better, but OK for now
         int skilLevel = item.Craft is not null ? character.GetSkillLevel(item.Craft.Skill) : 0;
 
-        string res = PlayerActionService.GetBestNonCombatEffectWithLevelDiff(
-            skilLevel - item.Level
-        );
+        string res = PlayerActionService.GetBestNonCombatEffectWithLevelDiff(skilLevel, item.Level);
 
         // Only wisdom works for crafting
         return res == Effect.Wisdom ? Effect.Wisdom : null;

@@ -1333,6 +1333,11 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetBossGrindingJob()
     {
+        if (Character.Schema.Level == PlayerCharacter.MAX_LEVEL)
+        {
+            return null;
+        }
+
         Logger.LogInformation(
             "{Name}: [{Character.Schema.Name}]: GetBossGrindingJob: Looking for job to kill a boss for XP",
             Name,
