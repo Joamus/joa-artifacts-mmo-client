@@ -345,9 +345,13 @@ public class FightMonster : CharacterJob
                 break;
             case ActionBeforeFight.AcquirePotions:
             {
-                await Character.QueueJobsBefore(Id, actionResult.Jobs);
-                Status = JobStatus.Suspend;
-                return new None();
+                if (actionResult.Jobs.Count > 0)
+                {
+                    await Character.QueueJobsBefore(Id, actionResult.Jobs);
+                    Status = JobStatus.Suspend;
+                    return new None();
+                }
+                break;
             }
             case ActionBeforeFight.Heal:
                 await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
