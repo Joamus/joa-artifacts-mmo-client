@@ -255,7 +255,9 @@ public class ObtainSuitablePotions : CharacterJob
 
         foreach (var potion in potionCandidates)
         {
-            var amountInInventory = character.GetItemFromInventory(potion.item.Code)?.Quantity ?? 0;
+            var amountInInventory = character
+                .GetEquippedItemOrInInventory(potion.item.Code)
+                .Sum(item => item.equipmentSlot.Quantity);
 
             int amountLeft = preferedAmount;
 
