@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
@@ -24,6 +25,7 @@ public static class FightSimulator
     private const int SHELL_EFFECT_DURATION = 3;
     private const int VAMPIRIC_STRIKE_COOLDOWN_TURNS = 3;
     private const int SHELL_ACTIVATION_THRESHOLD_HP_PERCENTAGE = 40;
+    public const float BERSERKER_RAGE_MAX_HP_ACTIVATION_THRESHOLD = 0.25f;
 
     private static ILogger Logger = AppLogger.GetLogger();
 
@@ -524,6 +526,8 @@ public static class FightSimulator
 
         HandleProtectiveBubble(attacker, defender, combatLog, turnNumber, individualTurn);
 
+        HandleDefenderBerserkerRage(attacker, defender, combatLog, individualTurn);
+
         // Count down vampiric strike cooldown
         if (attacker.VampiricStrikeCooldown > 0)
         {
@@ -545,7 +549,9 @@ public static class FightSimulator
         // Only lasts one turn
         attacker.Frenzy = 0;
 
-        int damageToDeal = HandleAttackerBurnDamage(
+        int damageToDeal = 0;
+
+        int burnDamage = HandleAttackerBurnDamage(
             attacker,
             defender,
             attack,
@@ -554,9 +560,58 @@ public static class FightSimulator
             individualTurn
         );
 
-        if (poisonDamage > 0)
+        damageToDeal += burnDamage;
+
+        damageToDeal += poisonDamage;
+
+        var voidDrainResult = HandleAttackerVoidDrain(
+            attacker,
+            defender,
+            otherDefenders,
+            combatLog,
+            turnNumber,
+            individualTurn
+        );
+
+        if (voidDrainResult is not null)
         {
-            damageToDeal += poisonDamage;
+            voidDrainResult.Attacks.ForEach(attack =>
+            {
+                FightSimParticipant matchingDefender;
+
+                if (attack.CharacterName == defender.Entity.Name)
+                {
+                    damageToDeal += attack.DamageToDeal;
+                    matchingDefender = defender;
+                }
+                else
+                {
+                    matchingDefender = otherDefenders.First(defender =>
+                        defender.Entity.Name == attack.CharacterName
+                    );
+
+                    matchingDefender.Entity.Hp -= attack.DamageToDeal;
+                }
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    matchingDefender.Entity,
+                    $"[{attacker.Entity.Name}] deals {attack.DamageToDeal} void drain damage to {matchingDefender.Entity.Name}"
+                );
+            });
+
+            combatLog.Log(
+                individualTurn,
+                attacker.Entity,
+                defender.Entity,
+                $"[{attacker.Entity.Name}] heals {voidDrainResult.AmountToHeal} from void drain"
+            );
+
+            attacker.Entity.Hp = Math.Min(
+                voidDrainResult.AmountToHeal + attacker.Entity.Hp,
+                attacker.Entity.MaxHp
+            );
         }
 
         foreach (var potionUtility in attackerPotionEffects)
@@ -596,6 +651,42 @@ public static class FightSimulator
                     defender,
                     combatLog,
                     individualTurn
+                );
+            }
+        }
+
+        int extraDamageBoostEffects =
+            currentFrenzyValue + defender.BeserkerRage?.DamagePercentageEffect ?? 0;
+
+        if (extraDamageBoostEffects > 0)
+        {
+            attack.ElementalAttacks =
+            [
+                .. attack.ElementalAttacks.Select(attack =>
+                    (
+                        Damage: attack.Damage = attack.Damage * 1 + currentFrenzyValue,
+                        attack.Elemental
+                    )
+                ),
+            ];
+
+            if (currentFrenzyValue > 0)
+            {
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] boosting all damage, due to {currentFrenzyValue}% frenzy"
+                );
+            }
+
+            if (defender.BeserkerRage is not null)
+            {
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] boosting all damage, due to {defender.BeserkerRage.DamagePercentageEffect}% berserker rage"
                 );
             }
         }
@@ -662,19 +753,6 @@ public static class FightSimulator
                     $"[{defender.Entity.Name}] is corrupted and received {Element} element damage for {Damage} (new resistance is {newResistance})"
                 );
             }
-        }
-
-        if (currentFrenzyValue > 0)
-        {
-            int oldDamageToDeal = damageToDeal;
-            damageToDeal *= 1 + currentFrenzyValue;
-
-            combatLog.Log(
-                individualTurn,
-                attacker.Entity,
-                defender.Entity,
-                $"[{attacker.Entity.Name}] boosting all damage, due to {currentFrenzyValue}% frenzy - total damage for turn is {damageToDeal} (originally {oldDamageToDeal})"
-            );
         }
 
         if (defender.Barrier > 0)
@@ -1011,6 +1089,43 @@ public static class FightSimulator
         return 0;
     }
 
+    static VoidDrainResult? HandleAttackerVoidDrain(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        List<FightSimParticipant> otherDefenders,
+        CombatLog combatLog,
+        int turnNumber,
+        int individualTurn
+    )
+    {
+        var voidDrain = attacker.Effects.FirstOrDefault(effect => effect.Code == Effect.VoidDrain);
+
+        if (voidDrain is null)
+        {
+            return null;
+        }
+        // No reason to loop through effects, if we have already applied poison damage before
+
+        List<(string CharacterName, int DamageToDeal)> attacks =
+        [
+            .. otherDefenders
+                .Prepend(defender)
+                .Select(defender =>
+                {
+                    int damageToDeal = (int)
+                        Math.Round(defender.Entity.MaxHp * (voidDrain.Value * 0.01));
+
+                    return (CharacterName: defender.Entity.Name, DamageToDeal: damageToDeal);
+                }),
+        ];
+
+        return new VoidDrainResult
+        {
+            Attacks = attacks,
+            AmountToHeal = attacks.Sum(attack => attack.DamageToDeal),
+        };
+    }
+
     static void HandleProtectiveBubble(
         FightSimParticipant attacker,
         FightSimParticipant defender,
@@ -1043,6 +1158,48 @@ public static class FightSimulator
             attacker.Entity,
             defender.Entity,
             $"[{defender.Entity.Name}] got a protective bubble - boost values: Fire = {defender.ProtectiveBubble.ResFire} - Earth = {defender.ProtectiveBubble.ResEarth} - Water = {defender.ProtectiveBubble.ResWater} - Air = {defender.ProtectiveBubble.ResAir}"
+        );
+    }
+
+    static void HandleDefenderBerserkerRage(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        CombatLog combatLog,
+        int individualTurn
+    )
+    {
+        // Already triggered the effect
+        if (defender.BeserkerRage is not null)
+        {
+            return;
+        }
+
+        var berserkerRage = defender.Effects.FirstOrDefault(effect =>
+            effect.Code == Effect.BerserkerRage
+        );
+
+        if (berserkerRage is null)
+        {
+            return;
+        }
+
+        if (
+            defender.Entity.Hp
+            <= defender.Entity.MaxHp * BERSERKER_RAGE_MAX_HP_ACTIVATION_THRESHOLD
+        )
+        {
+            defender.BeserkerRage = new BerserkerRageEffect
+            {
+                DamagePercentageEffect = berserkerRage.Value,
+                IsActive = true,
+            };
+        }
+
+        combatLog.Log(
+            individualTurn,
+            attacker.Entity,
+            defender.Entity,
+            $"[{defender.Entity.Name}] activated berserker rage - boosting damage by {berserkerRage.Value}%"
         );
     }
 
@@ -1284,7 +1441,7 @@ public static class FightSimulator
                     break;
                 }
 
-                if (turnNumber > LOSE_AFTER_TURNS)
+                if (individualTurn > LOSE_AFTER_TURNS)
                 {
                     if (monsterType == MonsterType.RaidBoss)
                     {
@@ -2716,6 +2873,11 @@ public record FightSimParticipant
     public int ProtectiveBubbleChangedOnTurn { get; set; } = 0;
     public ResistanceBoost? ProtectiveBubble { get; set; }
 
+    public GreedEffect? Greed { get; set; }
+    public BerserkerRageEffect? BeserkerRage { get; set; }
+    public EnchantedMirrorEffect? EnchantedMirror { get; set; }
+    public SunShieldEffect? SunShield { get; set; }
+
     public int VampiricStrikeCooldown { get; set; } = 0;
 
     public int? ActivePoisonDamage { get; set; } = null;
@@ -2738,6 +2900,12 @@ public record ProcessParticipantTurnParams
     public required int IndividualTurn { get; set; }
 }
 
+public record VoidDrainResult
+{
+    public required List<(string CharacterName, int DamageToDeal)> Attacks { get; set; }
+    public required int AmountToHeal { get; set; }
+}
+
 public record ResistanceBoost
 {
     public required int ResFire { get; set; } = 0;
@@ -2747,4 +2915,30 @@ public record ResistanceBoost
     public required int ResWater { get; set; } = 0;
 
     public required int ResAir { get; set; } = 0;
+}
+
+public record GreedEffect
+{
+    public required int NextHpThreshold { get; set; }
+    public required int CurrentBoost { get; set; }
+}
+
+public record SunShieldEffect
+{
+    public required int LastTurnTrigger { get; set; }
+    public required bool HasBeenActivatedThisTurn { get; set; }
+    public required int ReductionPercentageEffect { get; set; }
+}
+
+public record EnchantedMirrorEffect
+{
+    public required int LastTurnTrigger { get; set; }
+    public required bool HasBeenActivatedThisTurn { get; set; }
+    public required int DamagePercentageEffect { get; set; }
+}
+
+public record BerserkerRageEffect
+{
+    public required int DamagePercentageEffect { get; set; }
+    public required bool IsActive { get; set; }
 }
