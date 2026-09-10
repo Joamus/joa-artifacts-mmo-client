@@ -263,7 +263,7 @@ public class ObtainSuitablePotions : CharacterJob
 
             amountLeft -= Math.Min(amountInInventory, amountLeft);
 
-            if (amountLeft < 0)
+            if (amountLeft <= 0)
             {
                 continue;
             }
