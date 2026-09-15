@@ -360,8 +360,9 @@ public class FightMonster : CharacterJob
                     Character.Schema.Name,
                     Code
                 );
+
                 Status = JobStatus.Failed;
-                return new None();
+                return new AppError($"Cannot fight {Code} any longer");
             case ActionBeforeFight.Heal:
                 await HealIfNotAtFullHp(Character, gameState, IsHighPrioMonster);
                 break;
