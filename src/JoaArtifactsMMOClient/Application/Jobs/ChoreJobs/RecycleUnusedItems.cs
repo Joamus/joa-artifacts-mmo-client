@@ -13,7 +13,7 @@ namespace Application.Jobs;
 
 public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 {
-    public const int RECYCLE_LEVEL_DIFF = 10;
+    public const int RECYCLE_LEVEL_DIFF = 16;
 
     public RecycleUnusedItems(PlayerCharacter character, GameState gameState)
         : base(character, gameState) { }

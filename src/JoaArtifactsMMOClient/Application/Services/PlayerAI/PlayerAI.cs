@@ -106,11 +106,11 @@ public class PlayerAI
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
                 ?? await EnsureBag()
+                ?? await GetRoleJob()
                 ?? await GetMonsterJobIfCanCertainlyBeDone()
                 ?? await GetIndividualHighPrioJob()
                 ?? await EnsureFightEquipment()
                 ?? GetSkillJob()
-                ?? await GetRoleJob()
                 ?? await GetChoreJob()
                 ?? await GetIndividualLowPrioJob();
 
@@ -1333,6 +1333,11 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetBossGrindingJob()
     {
+        if (Character.Schema.Level == PlayerCharacter.MAX_LEVEL)
+        {
+            return null;
+        }
+
         Logger.LogInformation(
             "{Name}: [{Character.Schema.Name}]: GetBossGrindingJob: Looking for job to kill a boss for XP",
             Name,

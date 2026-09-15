@@ -255,13 +255,15 @@ public class ObtainSuitablePotions : CharacterJob
 
         foreach (var potion in potionCandidates)
         {
-            var amountInInventory = character.GetItemFromInventory(potion.item.Code)?.Quantity ?? 0;
+            var amountInInventory = character
+                .GetEquippedItemOrInInventory(potion.item.Code)
+                .Sum(item => item.equipmentSlot.Quantity);
 
             int amountLeft = preferedAmount;
 
             amountLeft -= Math.Min(amountInInventory, amountLeft);
 
-            if (amountLeft < 0)
+            if (amountLeft <= 0)
             {
                 continue;
             }

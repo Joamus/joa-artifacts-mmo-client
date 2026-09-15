@@ -135,6 +135,11 @@ public static class EffectService
             effectsToSkip.Add(Effect.Antipoison);
         }
 
+        if (monsterSchema.Type != MonsterType.Boss && monsterSchema.Type != MonsterType.RaidBoss)
+        {
+            effectsToSkip.Add(Effect.SplashRestore);
+        }
+
         return effectsToSkip;
     }
 

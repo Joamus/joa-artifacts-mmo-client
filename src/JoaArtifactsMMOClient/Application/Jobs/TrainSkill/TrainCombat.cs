@@ -77,6 +77,11 @@ public class TrainCombat : CharacterJob
         int playerLevel
     )
     {
+        if (character.Schema.Level == PlayerCharacter.MAX_LEVEL)
+        {
+            return null;
+        }
+
         List<(FightOutcome Outcome, MonsterSchema Monster)> monsterCandidates = [];
 
         var bankItems = await FightSimulator.GetBankItemsForFightSim(character, gameState);

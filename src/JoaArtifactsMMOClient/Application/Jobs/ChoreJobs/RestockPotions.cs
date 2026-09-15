@@ -70,31 +70,49 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
         var bestPotions = await GetAllPotionCandidates();
 
-        bestPotions.Sort(
-            (a, b) =>
-            {
-                int aWinsValue = -1;
-                int bWinsValue = 1;
+        bestPotions =
+        [
+            .. bestPotions.OrderBy(
+                // (a, b) =>
+                // {
+                //     int aWinsValue = -1;
+                //     int bWinsValue = 1;
 
-                bool aIsRestoreHpPot = IsRestorePotion(a);
-                bool bIsRestoreHpPot = IsRestorePotion(b);
+                //     bool aIsRestoreHpPot = IsRestorePotion(a);
+                //     bool bIsRestoreHpPot = IsRestorePotion(b);
 
-                if (aIsRestoreHpPot && bIsRestoreHpPot)
-                {
-                    return b.Level - a.Level;
-                }
-                else if (aIsRestoreHpPot)
-                {
-                    return aWinsValue;
-                }
-                else if (bIsRestoreHpPot)
-                {
-                    return bWinsValue;
-                }
+                //     if (aIsRestoreHpPot && bIsRestoreHpPot)
+                //     {
+                //         return b.Level - a.Level;
+                //     }
+                //     else if (aIsRestoreHpPot)
+                //     {
+                //         return aWinsValue;
+                //     }
+                //     else if (bIsRestoreHpPot)
+                //     {
+                //         return bWinsValue;
+                //     }
 
-                return b.Level - a.Level;
-            }
-        );
+                //     return b.Level - a.Level;
+                // }
+                (a) =>
+                {
+                    if (IsRestorePotion(a))
+                    {
+                        return 0;
+                    }
+
+                    if (a.Effects.Exists(effect => effect.Code == Effect.SplashRestore))
+                    {
+                        return 1;
+                    }
+
+                    // Ugly, but it works
+                    return 1000 - a.Level;
+                }
+            ),
+        ];
 
         List<string> potionCodesWeHaveEnoughOf = [];
 
@@ -227,19 +245,19 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         {
             ChorePriority.Low => new RestockPotionsParams
             {
-                MinimumAmountRestorePotionsInBank = 400,
+                MinimumAmountRestoreLikePotionsInBank = 400,
                 MinimumAmountOtherPotionsInBank = 80,
                 AmountToGather = 30,
             },
             ChorePriority.Medium => new RestockPotionsParams
             {
-                MinimumAmountRestorePotionsInBank = 300,
+                MinimumAmountRestoreLikePotionsInBank = 300,
                 MinimumAmountOtherPotionsInBank = 50,
                 AmountToGather = 30,
             },
             ChorePriority.High => new RestockPotionsParams
             {
-                MinimumAmountRestorePotionsInBank = 200,
+                MinimumAmountRestoreLikePotionsInBank = 200,
                 MinimumAmountOtherPotionsInBank = 50,
                 AmountToGather = 30,
             },
@@ -249,12 +267,14 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
     public bool ShouldRestock(ItemSchema item, int currentAmount)
     {
-        bool isRestorePotion = IsRestorePotion(item);
+        bool isRestoreLikePotion =
+            IsRestorePotion(item)
+            || item.Effects.Exists(effect => effect.Code == Effect.SplashRestore);
 
         return currentAmount
             <= (
-                isRestorePotion
-                    ? JobParams.MinimumAmountRestorePotionsInBank
+                isRestoreLikePotion
+                    ? JobParams.MinimumAmountRestoreLikePotionsInBank
                     : JobParams.MinimumAmountOtherPotionsInBank
             );
     }
@@ -286,7 +306,10 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
                 if (amountInBank < totalAmountWanted)
                 {
-                    int amountToObtain = totalAmountWanted - amountInBank;
+                    int amountToObtain = Math.Max(
+                        totalAmountWanted - amountInBank,
+                        JobParams.AmountToGather
+                    );
 
                     var canObtain = await Character.PlayerActionService.CanObtainItem(
                         item,
@@ -327,7 +350,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
 public record RestockPotionsParams
 {
-    public required int MinimumAmountRestorePotionsInBank { get; init; }
+    public required int MinimumAmountRestoreLikePotionsInBank { get; init; }
     public required int MinimumAmountOtherPotionsInBank { get; init; }
     public required int AmountToGather { get; init; }
 }

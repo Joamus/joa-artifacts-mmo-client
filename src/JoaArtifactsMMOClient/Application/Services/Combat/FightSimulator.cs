@@ -128,16 +128,14 @@ public static class FightSimulator
             .AvailableMonsters.Where(
                 (monster) =>
                 {
-                    return monster.Type != MonsterType.RaidBoss
-                        && monster.Level >= lowerLevelBound
-                        && monster.Level <= upperLevelBound;
+                    return monster.Level >= lowerLevelBound && monster.Level <= upperLevelBound;
                 }
             )
             .ToList();
 
         filteredMonsters.Sort((a, b) => b.Level - a.Level);
 
-        return filteredMonsters.GetRange(0, Math.Min(10, filteredMonsters.Count));
+        return filteredMonsters.GetRange(0, Math.Min(15, filteredMonsters.Count));
     }
 
     public static HashSet<string> GetItemsRelevantMonsters(
