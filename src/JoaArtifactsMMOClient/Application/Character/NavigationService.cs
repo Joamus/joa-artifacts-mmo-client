@@ -11,7 +11,10 @@ namespace Application.Services;
 
 public class NavigationService
 {
-    public static string ChristmasIsland = "Christmas Island";
+    public const string ChristmasIsland = "Christmas Island";
+    public const string SandwhisperIsland = "Christmas Island";
+
+    public readonly List<string> Islands = [SandwhisperIsland, ChristmasIsland];
 
     const int COOLDOWN_PER_MAP_SECONDS = 5;
     const int SECONDS_SAVED_TO_USE_TELEPORT_POTION = 45;
@@ -127,12 +130,6 @@ public class NavigationService
         MapSchema? destinationMap = null;
         int closestCost = 0;
 
-        /** Handle navigating across transitions to different layers
-         * Handle Sandwhisper Isle - we always need at least 1k gold to cross, and ideally want a recall potion to get back.
-         * The transition is also "hardcoded", e.g if you want to navigate from a non-Sandwhisper isle map to a sandwhisper one, we need
-         * to go to specific transition points
-        **/
-
         if (maps.Count == 0)
         {
             var map = gameState.Services.EventService.WhereIsEntityActive(contentCode);
@@ -199,7 +196,13 @@ public class NavigationService
             destinationMap
         );
 
-        var potionMove = GetPotionMove(character, gameState, result, currentMap, destinationMap);
+        var potionMove = GetPotionOrOtherCheekyMove(
+            character,
+            gameState,
+            result,
+            currentMap,
+            destinationMap
+        );
 
         if (potionMove is not null)
         {
@@ -541,7 +544,7 @@ public class NavigationService
                 Y = destinationMap.Y,
                 Layer = destinationMap.Layer,
                 ShouldTransition = false,
-                AfterMoveAction = MoveAction,
+                BeforeMoveAction = MoveAction,
             },
             NewMap = destinationMap,
         };
@@ -570,7 +573,7 @@ public class NavigationService
                 Y = currentMap.Y,
                 Layer = currentMap.Layer,
                 ShouldTransition = true,
-                AfterMoveAction = MoveAction,
+                BeforeMoveAction = MoveAction,
             },
             NewMap = destinationMap,
         };
@@ -585,9 +588,9 @@ public class NavigationService
             await character.Transition();
         }
 
-        if (move.AfterMoveAction is not null)
+        if (move.BeforeMoveAction is not null)
         {
-            await move.AfterMoveAction();
+            await move.BeforeMoveAction();
         }
     }
 
@@ -598,7 +601,7 @@ public class NavigationService
         return cost * COOLDOWN_PER_MAP_SECONDS;
     }
 
-    public NavigationStepsAndRequirements? GetPotionMove(
+    public NavigationStepsAndRequirements? GetPotionOrOtherCheekyMove(
         PlayerCharacter character,
         GameState gameState,
         NavigationStepsAndRequirements currentToDestinationSteps,
@@ -692,7 +695,7 @@ public class NavigationService
                         Y = currentMap.Y,
                         Layer = currentMap.Layer,
                         ShouldTransition = false,
-                        AfterMoveAction = async () =>
+                        BeforeMoveAction = async () =>
                         {
                             int secondsSaved =
                                 GetSecondsToMoveToMap(bestCandidate.teleportToDestinationDistance)
@@ -722,7 +725,64 @@ public class NavigationService
                 return resultWithTeleportPotion;
             }
         }
+        else if (
+            (
+                currentToDestinationSteps.GoldRequirement > 0
+                || currentToDestinationSteps.ItemRequirements.Count > 0
+            )
+            // && Islands.Contains(currentMap.Name)
+            && currentMap.Name == SandwhisperIsland
+        )
+        {
+            // Evaluate ghetto recall - go fight a monster, until the character dies and is sent back to spawn
+            var spawn = gameState.Maps.Find(map =>
+                map.X == 0 && map.Y == 0 && map.Layer == MapLayer.Overworld
+            )!;
 
+            // We are already standing here - we make a fake step, so we can attach the beforeMoveAction
+            var ghettoRecallStep = CreateMoveStep(currentMap, destinationMap);
+
+            ghettoRecallStep = ghettoRecallStep with
+            {
+                Move = new Move
+                {
+                    X = currentMap.X,
+                    Y = currentMap.Y,
+                    Layer = currentMap.Layer,
+                    ShouldTransition = false,
+                    BeforeMoveAction = async () =>
+                    {
+                        string monsterCode = "sandwarden";
+
+                        while (character.Schema.MapId != spawn.MapId)
+                        {
+                            await character.NavigateTo(monsterCode);
+
+                            await character.Fight();
+                        }
+
+                        Logger.LogInformation(
+                            "[{name}]: Attempting to ghetto recall - going to fight {monsterCode} until I end up at spawn",
+                            character.Name,
+                            monsterCode
+                        );
+                    },
+                },
+                NewMap = spawn with { },
+            };
+
+            NavigationStepsAndRequirements resultWithGhettoRecall = CalculateStepsToDestination(
+                spawn,
+                destinationMap
+            );
+
+            resultWithGhettoRecall.Steps =
+            [
+                .. resultWithGhettoRecall.Steps.Prepend(ghettoRecallStep),
+            ];
+
+            return resultWithGhettoRecall;
+        }
         return result;
     }
 
@@ -760,7 +820,7 @@ public record Move
     public required bool ShouldTransition { get; init; }
 
     /** An action that can be run, which will take the character to the destinationMap of a move. E.g. using a recall potion*/
-    public Func<Task>? AfterMoveAction { get; init; }
+    public Func<Task>? BeforeMoveAction { get; init; }
 }
 
 public record NavigationStepsAndRequirements
