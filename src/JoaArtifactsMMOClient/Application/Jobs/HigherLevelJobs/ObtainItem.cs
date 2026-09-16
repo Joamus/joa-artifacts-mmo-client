@@ -510,14 +510,32 @@ public class ObtainItem : CharacterJob
         //     gameState
         // );
 
-        var obtainablePotions = gameState.UtilityItemsDict.Select(item => new ItemInInventory
-        {
-            Item = item.Value,
-            Quantity = 100,
-        });
+        // var obtainablePotions = gameState.UtilityItemsDict.Select(item => new ItemInInventory
+        // {
+        //     Item = item.Value,
+        //     Quantity = 100,
+        // });
         //     character,
         //     gameState
         // );
+        var obtainablePotions = gameState
+            .UtilityItemsDict.Select(item =>
+            {
+                bool isItemEventRelated = ItemService.DoesItemNeedEventMaterials(
+                    item.Value,
+                    gameState
+                );
+
+                // Very rudimentary, but we cannot use the "GetObtainablePotions" function here, since it will create an infinite loop.
+                // Instead, we assume that we cannot acquire items that need event items, if we don't already have them (then they should be in the availableItems list)
+                if (isItemEventRelated)
+                {
+                    return null;
+                }
+
+                return new ItemInInventory { Item = item.Value, Quantity = 100 };
+            })
+            .OfType<ItemInInventory>();
 
         var availableItems = ItemService.MergeItemEntries(
             ItemService

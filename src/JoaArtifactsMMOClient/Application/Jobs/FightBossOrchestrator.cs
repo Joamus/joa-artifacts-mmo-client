@@ -1051,7 +1051,7 @@ public class FightBossOrchestrator
             .. gameState.Monsters.Where(monster =>
             {
                 if (
-                    monster.Type != MonsterType.Boss
+                    (monster.Type != MonsterType.Boss && monster.Type != MonsterType.RaidBoss)
                     || gameState.Services.EventService.IsEntityFromEventThatIsUnavailable(
                         monster.Code
                     )
