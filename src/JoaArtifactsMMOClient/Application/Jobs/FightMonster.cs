@@ -250,7 +250,7 @@ public class FightMonster : CharacterJob
                 return new None();
             }
 
-            var result = await InnerJobAsync(monster, fightSimResult, obtainablePotions);
+            var result = await InnerJobAsync(monster, fightSimResult, availableItems);
 
             switch (result.Value)
             {
@@ -1052,6 +1052,7 @@ public class FightMonster : CharacterJob
             {
                 return new ActionBeforeFightData { Action = ActionBeforeFight.Stop, Jobs = [] };
             }
+
             var obtainPotionJobs = await HandlePotionsPreFight(
                 monster,
                 fightSimResultWithPossibleItems
