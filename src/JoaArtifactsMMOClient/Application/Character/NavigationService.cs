@@ -12,9 +12,9 @@ namespace Application.Services;
 public class NavigationService
 {
     public const string ChristmasIsland = "Christmas Island";
-    public const string SandwhisperIsland = "Christmas Island";
+    public const string SandwhisperIsle = "Sandwhisper Isle";
 
-    public readonly List<string> Islands = [SandwhisperIsland, ChristmasIsland];
+    public readonly List<string> Islands = [SandwhisperIsle, ChristmasIsland];
 
     const int COOLDOWN_PER_MAP_SECONDS = 5;
     const int SECONDS_SAVED_TO_USE_TELEPORT_POTION = 45;
@@ -731,7 +731,7 @@ public class NavigationService
                 || currentToDestinationSteps.ItemRequirements.Count > 0
             )
             // && Islands.Contains(currentMap.Name)
-            && currentMap.Name == SandwhisperIsland
+            && currentMap.Name == SandwhisperIsle
         )
         {
             // Evaluate ghetto recall - go fight a monster, until the character dies and is sent back to spawn

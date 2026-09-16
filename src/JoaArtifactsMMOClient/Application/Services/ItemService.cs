@@ -972,8 +972,22 @@ public static class ItemService
             && item.Craft.Items.All(material =>
             {
                 var matchingMaterial = gameState.ItemsDict[material.Code];
-                return matchingMaterial.Subtype == "mob"
-                    && gameState.Services.EventService.IsEntityFromEvent(material.Code);
+                // return matchingMaterial.Subtype == "mob"
+                if (matchingMaterial.Type == "resource")
+                {
+                    bool allDropsAreFromEventResources = gameState.Resources.All(resource =>
+                        resource.Drops.Exists(drop => drop.Code == material.Code)
+                        && gameState.Services.EventService.IsEntityFromEventThatIsUnavailable(
+                            resource.Code
+                        )
+                    );
+
+                    return allDropsAreFromEventResources;
+                }
+
+                return false;
+
+                // && gameState.Services.EventService.IsEntityFromEvent(material.Code);
             });
 
         return doesItemNeedEventDrops;
