@@ -26,6 +26,8 @@ public static class FightSimulator
     private const int VAMPIRIC_STRIKE_COOLDOWN_TURNS = 3;
     private const int SHELL_ACTIVATION_THRESHOLD_HP_PERCENTAGE = 40;
     public const float BERSERKER_RAGE_MAX_HP_ACTIVATION_THRESHOLD = 0.25f;
+    public const float GREED_HP_PERCENTAGE_ACTIVATION = 0.10f;
+    public const int ENCHANTED_MIRROR_ACTIVATE_EVERY_X_TURN = 3;
 
     private static ILogger Logger = AppLogger.GetLogger();
 
@@ -378,7 +380,41 @@ public static class FightSimulator
         }
     }
 
-    private static int CalculateElementalAttack(
+    private static ElementalAttack CalculateElementalAttack(
+        int baseDamage,
+        int elementalMultiplier,
+        int damageMultiplier,
+        bool isCrit,
+        int resistance
+    )
+    {
+        int damage = InnerCalculateElementalAttack(
+            baseDamage,
+            elementalMultiplier,
+            damageMultiplier,
+            isCrit,
+            resistance
+        );
+
+        if (!isCrit)
+        {
+            return new ElementalAttack { Damage = damage, DamageWithoutCrit = damage };
+        }
+
+        return new ElementalAttack
+        {
+            Damage = damage,
+            DamageWithoutCrit = InnerCalculateElementalAttack(
+                baseDamage,
+                elementalMultiplier,
+                damageMultiplier,
+                isCrit,
+                resistance
+            ),
+        };
+    }
+
+    private static int InnerCalculateElementalAttack(
         int baseDamage,
         int elementalMultiplier,
         int damageMultiplier,
@@ -408,6 +444,7 @@ public static class FightSimulator
         {
             ElementalAttacks = [],
             TotalDamage = 0,
+            TotalDamageWithoutCrit = 0,
             IsCrit = false,
         };
 
@@ -441,7 +478,7 @@ public static class FightSimulator
             result.IsCrit = true;
         }
 
-        var fireDamage = CalculateElementalAttack(
+        var fireAttack = CalculateElementalAttack(
             attacker.Entity.AttackFire,
             attacker.Entity.DmgFire,
             attacker.Entity.Dmg,
@@ -449,12 +486,12 @@ public static class FightSimulator
             resFire
         );
 
-        if (fireDamage > 0)
+        if (fireAttack.Damage > 0)
         {
-            result.ElementalAttacks.Add((fireDamage, "fire"));
+            result.ElementalAttacks.Add((fireAttack, "fire"));
         }
 
-        var earthDamage = CalculateElementalAttack(
+        var earthAttack = CalculateElementalAttack(
             attacker.Entity.AttackEarth,
             attacker.Entity.DmgEarth,
             attacker.Entity.Dmg,
@@ -462,12 +499,12 @@ public static class FightSimulator
             resEarth
         );
 
-        if (earthDamage > 0)
+        if (earthAttack.Damage > 0)
         {
-            result.ElementalAttacks.Add((earthDamage, "earth"));
+            result.ElementalAttacks.Add((earthAttack, "earth"));
         }
 
-        var waterDamage = CalculateElementalAttack(
+        var waterAttack = CalculateElementalAttack(
             attacker.Entity.AttackWater,
             attacker.Entity.DmgWater,
             attacker.Entity.Dmg,
@@ -475,12 +512,12 @@ public static class FightSimulator
             resWater
         );
 
-        if (waterDamage > 0)
+        if (waterAttack.Damage > 0)
         {
-            result.ElementalAttacks.Add((waterDamage, "water"));
+            result.ElementalAttacks.Add((waterAttack, "water"));
         }
 
-        var airDamage = CalculateElementalAttack(
+        var airAttack = CalculateElementalAttack(
             attacker.Entity.AttackAir,
             attacker.Entity.DmgAir,
             attacker.Entity.Dmg,
@@ -488,12 +525,19 @@ public static class FightSimulator
             resAir
         );
 
-        if (airDamage > 0)
+        if (airAttack.Damage > 0)
         {
-            result.ElementalAttacks.Add((airDamage, "air"));
+            result.ElementalAttacks.Add((airAttack, "air"));
         }
 
-        result.TotalDamage = fireDamage + earthDamage + waterDamage + airDamage;
+        result.TotalDamage =
+            fireAttack.Damage + earthAttack.Damage + waterAttack.Damage + airAttack.Damage;
+
+        result.TotalDamageWithoutCrit =
+            fireAttack.DamageWithoutCrit
+            + earthAttack.DamageWithoutCrit
+            + waterAttack.DamageWithoutCrit
+            + airAttack.DamageWithoutCrit;
 
         return result;
     }
@@ -521,6 +565,7 @@ public static class FightSimulator
                 defender.ShellResistanceBoost = null;
             }
         }
+        InitGreed(attacker, defender, combatLog, turnNumber, individualTurn);
 
         HandleProtectiveBubble(attacker, defender, combatLog, turnNumber, individualTurn);
 
@@ -588,7 +633,15 @@ public static class FightSimulator
                         defender.Entity.Name == attack.CharacterName
                     );
 
-                    matchingDefender.Entity.Hp -= attack.DamageToDeal;
+                    DefenderTakeDamage(
+                        attacker,
+                        matchingDefender,
+                        attack.DamageToDeal,
+                        combatLog,
+                        turnNumber,
+                        individualTurn
+                    );
+                    // matchingDefender.Entity.Hp -= attack.DamageToDeal;
                 }
 
                 combatLog.Log(
@@ -653,8 +706,12 @@ public static class FightSimulator
             }
         }
 
-        int extraDamageBoostEffects =
-            currentFrenzyValue + defender.BeserkerRage?.DamagePercentageEffect ?? 0;
+        float extraDamageBoostEffects =
+            (
+                currentFrenzyValue + defender.BerserkerRage?.DamagePercentageEffect
+                ?? 0 + defender.Greed?.CurrentBoost
+                ?? 0
+            ) / 100;
 
         if (extraDamageBoostEffects > 0)
         {
@@ -662,7 +719,11 @@ public static class FightSimulator
             [
                 .. attack.ElementalAttacks.Select(attack =>
                     (
-                        Damage: attack.Damage = attack.Damage * 1 + currentFrenzyValue,
+                        Attack: new ElementalAttack
+                        {
+                            Damage = attack.Attack.Damage =
+                                (int)Math.Round(attack.Attack.Damage * 1 + extraDamageBoostEffects),
+                        },
                         attack.Elemental
                     )
                 ),
@@ -678,20 +739,30 @@ public static class FightSimulator
                 );
             }
 
-            if (defender.BeserkerRage is not null)
+            if (defender.BerserkerRage is not null)
             {
                 combatLog.Log(
                     individualTurn,
                     attacker.Entity,
                     defender.Entity,
-                    $"[{attacker.Entity.Name}] boosting all damage, due to {defender.BeserkerRage.DamagePercentageEffect}% berserker rage"
+                    $"[{attacker.Entity.Name}] boosting all damage, due to {defender.BerserkerRage.DamagePercentageEffect}% berserker rage"
+                );
+            }
+
+            if (defender.Greed is not null)
+            {
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] boosting all damage, due to {defender.Greed.CurrentBoost}% berserker rage"
                 );
             }
         }
 
-        foreach (var (Damage, Element) in attack.ElementalAttacks)
+        foreach (var (Attack, Element) in attack.ElementalAttacks)
         {
-            damageToDeal += Damage;
+            damageToDeal += Attack.Damage;
 
             string suffix = attack.IsCrit ? " (critical strike)" : "";
 
@@ -699,7 +770,7 @@ public static class FightSimulator
                 individualTurn,
                 attacker.Entity,
                 defender.Entity,
-                $"[{attacker.Entity.Name}] used {Element} attack and dealt {Damage} damage{suffix}"
+                $"[{attacker.Entity.Name}] used {Element} attack and dealt {Attack.Damage} damage{suffix}"
             );
 
             SimpleEffectSchema? corrupted = defender.Effects.FirstOrDefault(effect =>
@@ -748,7 +819,7 @@ public static class FightSimulator
                     individualTurn,
                     attacker.Entity,
                     defender.Entity,
-                    $"[{defender.Entity.Name}] is corrupted and received {Element} element damage for {Damage} (new resistance is {newResistance})"
+                    $"[{defender.Entity.Name}] is corrupted and received {Element} element damage for {Attack.Damage} (new resistance is {newResistance})"
                 );
             }
         }
@@ -779,7 +850,14 @@ public static class FightSimulator
             }
         }
 
-        defender.Entity.Hp -= damageToDeal;
+        var defenderTakeDamageResult = DefenderTakeDamage(
+            attacker,
+            defender,
+            damageToDeal,
+            combatLog,
+            turnNumber,
+            individualTurn
+        );
 
         if (defender.Entity.Hp <= 0)
         {
@@ -1108,6 +1186,7 @@ public static class FightSimulator
         [
             .. otherDefenders
                 .Prepend(defender)
+                .Where(defender => defender.Entity.Hp > 0)
                 .Select(defender =>
                 {
                     int damageToDeal = (int)
@@ -1122,6 +1201,145 @@ public static class FightSimulator
             Attacks = attacks,
             AmountToHeal = attacks.Sum(attack => attack.DamageToDeal),
         };
+    }
+
+    static void InitGreed(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        CombatLog combatLog,
+        int turnNumber,
+        int individualTurn
+    )
+    {
+        if (turnNumber != 1)
+        {
+            return;
+        }
+
+        var greed = defender.Effects.FirstOrDefault(effect => effect.Code == Effect.Greed);
+
+        if (greed is null)
+        {
+            return;
+        }
+
+        defender.Greed = new GreedEffect
+        {
+            NextHpThreshold = (int)
+                Math.Round(defender.OriginalMaxHp * 1 - GREED_HP_PERCENTAGE_ACTIVATION),
+            CurrentBoost = 0,
+            Boost = greed.Value,
+            Activations = 0,
+        };
+
+        combatLog.Log(
+            individualTurn,
+            attacker.Entity,
+            defender.Entity,
+            $"[{defender.Entity.Name}] had greed effect activated - will activate at {defender.Greed.NextHpThreshold} HP"
+        );
+    }
+
+    static void HandleGreedWhenTakingDamage(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        int newDefenderHp,
+        CombatLog combatLog,
+        int individualTurn
+    )
+    {
+        if (defender.Greed is null)
+        {
+            return;
+        }
+
+        if (newDefenderHp <= defender.Greed.NextHpThreshold)
+        {
+            int activations = defender.Greed.Activations + 1;
+
+            defender.Greed = defender.Greed with
+            {
+                NextHpThreshold = (int)
+                    Math.Round(
+                        defender.OriginalMaxHp * 1
+                            - (GREED_HP_PERCENTAGE_ACTIVATION * (activations + 1))
+                    ),
+                CurrentBoost = defender.Greed.Boost * activations,
+                Activations = activations,
+            };
+
+            combatLog.Log(
+                individualTurn,
+                attacker.Entity,
+                defender.Entity,
+                $"[{defender.Entity.Name}] crossed next HP threshold to activate greed - now has {defender.Greed.CurrentBoost}% damage boost - next threshold is {defender.Greed.NextHpThreshold} HP"
+            );
+        }
+    }
+
+    static void InitEnchantedMirror(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        CombatLog combatLog,
+        int turnNumber,
+        int individualTurn
+    )
+    {
+        if (turnNumber != 1)
+        {
+            return;
+        }
+
+        var enchantedMirror = defender.Effects.FirstOrDefault(effect =>
+            effect.Code == Effect.EnchantedMirror
+        );
+
+        if (enchantedMirror is null)
+        {
+            return;
+        }
+
+        defender.EnchantedMirror = new EnchantedMirrorEffect
+        {
+            NextTurnTrigger = 1,
+            DamagePercentageEffect = enchantedMirror.Value,
+        };
+
+        combatLog.Log(
+            individualTurn,
+            attacker.Entity,
+            defender.Entity,
+            $"[{defender.Entity.Name}] had enchanted mirror effect activated"
+        );
+    }
+
+    static int HandleEnchantedMirrorWhenTakingDamage(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        int damageToDeal,
+        int turnNumber
+    )
+    {
+        if (
+            defender.EnchantedMirror is null
+            || defender.EnchantedMirror.NextTurnTrigger != turnNumber
+        )
+        {
+            return 0;
+        }
+
+        defender.EnchantedMirror = defender.EnchantedMirror with
+        {
+            NextTurnTrigger = ENCHANTED_MIRROR_ACTIVATE_EVERY_X_TURN + turnNumber,
+        };
+
+        // returns damage that defender should take
+
+
+        return (int)
+            Math.Round(
+                (double)damageToDeal * (defender.EnchantedMirror.DamagePercentageEffect / 100)
+            );
     }
 
     static void HandleProtectiveBubble(
@@ -1167,7 +1385,7 @@ public static class FightSimulator
     )
     {
         // Already triggered the effect
-        if (defender.BeserkerRage is not null)
+        if (defender.BerserkerRage is not null)
         {
             return;
         }
@@ -1186,7 +1404,7 @@ public static class FightSimulator
             <= defender.Entity.MaxHp * BERSERKER_RAGE_MAX_HP_ACTIVATION_THRESHOLD
         )
         {
-            defender.BeserkerRage = new BerserkerRageEffect
+            defender.BerserkerRage = new BerserkerRageEffect
             {
                 DamagePercentageEffect = berserkerRage.Value,
                 IsActive = true,
@@ -1229,7 +1447,7 @@ public static class FightSimulator
             */
             double burnFactor = burn.Value * 0.01;
 
-            burnDamage = (int)Math.Round(attack.TotalDamage * burnFactor);
+            burnDamage = (int)Math.Round(attack.TotalDamageWithoutCrit * burnFactor);
         }
         else
         {
@@ -1413,6 +1631,18 @@ public static class FightSimulator
             {
                 if (attacker.Entity.Hp <= 0)
                 {
+                    if (participants.Count == 0)
+                    {
+                        combatLog.Log(
+                            individualTurn,
+                            attacker.Entity,
+                            attacker.Entity,
+                            $"[{attacker.Entity.Name}] outcome: {outcome.GetDisplayName()} - this scenario should not happen - no participants left!"
+                        );
+
+                        outcome = FightResult.Loss;
+                        break;
+                    }
                     continue;
                 }
 
@@ -2775,6 +3005,70 @@ public static class FightSimulator
 
         return timeToRestSeconds;
     }
+
+    static DefenderDamageResult DefenderTakeDamage(
+        FightSimParticipant attacker,
+        FightSimParticipant defender,
+        int damageToDeal,
+        CombatLog combatLog,
+        int turnNumber,
+        int individualTurn
+    )
+    {
+        if (defender.Barrier > 0)
+        {
+            if (defender.Barrier >= damageToDeal)
+            {
+                defender.Barrier -= damageToDeal;
+                damageToDeal = 0;
+
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] attacks the barrier of {defender.Entity.Name} - barrier value is now at {defender.Barrier}"
+                );
+            }
+            else
+            {
+                combatLog.Log(
+                    individualTurn,
+                    attacker.Entity,
+                    defender.Entity,
+                    $"[{attacker.Entity.Name}] attacks the barrier of {defender.Entity.Name} - barrier is now broken"
+                );
+                damageToDeal -= defender.Barrier;
+                defender.Barrier = 0;
+            }
+        }
+
+        int newDefenderHp = defender.Entity.Hp - damageToDeal;
+
+        HandleGreedWhenTakingDamage(attacker, defender, newDefenderHp, combatLog, individualTurn);
+
+        int reflectedDamage = HandleEnchantedMirrorWhenTakingDamage(
+            attacker,
+            defender,
+            damageToDeal,
+            turnNumber
+        );
+
+        if (reflectedDamage > 0)
+        {
+            combatLog.Log(
+                individualTurn,
+                attacker.Entity,
+                defender.Entity,
+                $"[{attacker.Entity.Name}] gets {reflectedDamage} damage reflected from enchatned mirror"
+            );
+
+            attacker.Entity.Hp -= reflectedDamage;
+        }
+
+        defender.Entity.Hp = newDefenderHp;
+
+        return new DefenderDamageResult { IsDefenderDead = defender.Entity.Hp <= 0 };
+    }
 }
 
 public record FightOutcome
@@ -2848,8 +3142,9 @@ public record FightSimResultWithLeftOverItems
 
 public record TurnDamageResult
 {
-    public required List<(int Damage, string Elemental)> ElementalAttacks { get; set; }
+    public required List<(ElementalAttack Attack, string Elemental)> ElementalAttacks { get; set; }
     public required int TotalDamage { get; set; }
+    public required int TotalDamageWithoutCrit { get; set; }
 
     public required bool IsCrit { get; set; } = false;
 }
@@ -2872,7 +3167,7 @@ public record FightSimParticipant
     public ResistanceBoost? ProtectiveBubble { get; set; }
 
     public GreedEffect? Greed { get; set; }
-    public BerserkerRageEffect? BeserkerRage { get; set; }
+    public BerserkerRageEffect? BerserkerRage { get; set; }
     public EnchantedMirrorEffect? EnchantedMirror { get; set; }
     public SunShieldEffect? SunShield { get; set; }
 
@@ -2918,7 +3213,9 @@ public record ResistanceBoost
 public record GreedEffect
 {
     public required int NextHpThreshold { get; set; }
+    public required int Activations { get; set; }
     public required int CurrentBoost { get; set; }
+    public required int Boost { get; set; }
 }
 
 public record SunShieldEffect
@@ -2930,8 +3227,10 @@ public record SunShieldEffect
 
 public record EnchantedMirrorEffect
 {
-    public required int LastTurnTrigger { get; set; }
-    public required bool HasBeenActivatedThisTurn { get; set; }
+    public required int NextTurnTrigger { get; set; }
+
+    // public required int LastTurnTrigger { get; set; }
+    // public required bool HasBeenActivatedThisTurn { get; set; }
     public required int DamagePercentageEffect { get; set; }
 }
 
@@ -2939,4 +3238,16 @@ public record BerserkerRageEffect
 {
     public required int DamagePercentageEffect { get; set; }
     public required bool IsActive { get; set; }
+}
+
+public record ElementalAttack
+{
+    public int Damage { get; set; }
+    public int DamageWithoutCrit { get; set; }
+}
+
+public record DefenderDamageResult
+{
+    public bool IsDefenderDead { get; set; }
+    // public int Damage { get; set; }
 }

@@ -112,6 +112,15 @@ public class AccountRequester
         return JsonSerializer.Deserialize<MapsResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
+    public virtual async Task<RaidsResponse> GetRaids(int pageNumber = 1)
+    {
+        var response = await _apiService.GetAsync($"/raids?page={pageNumber}&size=1000");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<RaidsResponse>(result, ApiRequester.getJsonOptions())!;
+    }
+
     public async Task<BankItemsResponse> GetBankItems()
     {
         int pageNumber = 1;

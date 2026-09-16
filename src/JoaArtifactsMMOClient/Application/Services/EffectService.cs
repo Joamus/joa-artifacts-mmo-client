@@ -301,4 +301,6 @@ public static class Effect
     public const string Initiative = "initiative";
     public const string Threat = "threat";
     public const string ProtectiveBubble = "protective_bubble";
+    public const string Greed = "greed";
+    public const string EnchantedMirror = "enchanted_mirror";
 }
