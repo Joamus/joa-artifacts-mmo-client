@@ -458,6 +458,30 @@ public class FightBossOrchestrator
             return;
         }
 
+        if (Monster.Type == MonsterType.RaidBoss)
+        {
+            // Wait for x time until the boss is ready
+            var raid = GameState.RaidsMonsterDict.GetValueOrNull(Monster.Code);
+
+            if (raid is null)
+            {
+                throw new AppError(
+                    $"{JobName}: StartBossFight: Error - trying to fight RaidBoss, but cannot find boss - throwing error (fighting {Monster.Code})"
+                );
+            }
+
+            double secondsUntilNextRaid = (DateTime.UtcNow - raid.NextStartAt).TotalSeconds;
+
+            if (secondsUntilNextRaid > 10 * 60)
+            {
+                throw new AppError(
+                    $"{JobName}: StartBossFight: Error - trying to fight RaidBoss, but the wait time is too long {Monster.Code}"
+                );
+            }
+
+            await Task.Delay((int)Math.Ceiling(secondsUntilNextRaid) + 2);
+        }
+
         await MainCharacter.Fight(OtherCharacters);
 
         Logger.LogInformation($"{JobName}: StartBossFight: Round against {Monster.Code} done");

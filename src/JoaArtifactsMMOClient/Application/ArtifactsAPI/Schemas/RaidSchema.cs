@@ -6,6 +6,7 @@ public record RaidSchema
     public required string Name { get; set; }
     public required string Monster { get; set; }
     public required RaidScheduleSchema Schedule { get; set; }
+    public required RaidInstanceSchema? ActiveInstance { get; set; }
     public required RaidRewardsSchema Rewards { get; set; }
     public required RaidStatus Status { get; set; }
     public required DateTime NextStartAt { get; set; }

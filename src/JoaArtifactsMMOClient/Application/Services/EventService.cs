@@ -159,7 +159,7 @@ public class EventService
         return IsEntityFromEvent(code) && WhereIsEntityActive(code) is null;
     }
 
-    async Task NotifyCharactersOnEventChange()
+    public async Task NotifyCharactersOnEventChange()
     {
         logger.LogInformation(
             $"New active events have been detected - notifying character AIs to evaluate new events"
@@ -205,6 +205,25 @@ public class EventService
         }
 
         return true;
+    }
+
+    public static bool RaidIsComingUp(List<RaidSchema> oldRaids, List<RaidSchema> newRaids)
+    {
+        static bool IsActive(RaidSchema raid) => raid.ActiveInstance is not null;
+
+        static bool IsComingUp(RaidSchema raid) =>
+            (raid.NextStartAt - DateTime.UtcNow).TotalSeconds
+            <= PlayerAI.START_RAID_IF_WITHIN_SECONDS;
+
+        if (
+            !oldRaids.Exists(IsActive) && newRaids.Exists(IsActive)
+            || !oldRaids.Exists(IsComingUp) && newRaids.Exists(IsComingUp)
+        )
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public static bool EventListsAreDifferent(

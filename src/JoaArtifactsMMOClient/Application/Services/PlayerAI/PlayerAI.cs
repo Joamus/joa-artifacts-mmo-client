@@ -26,6 +26,7 @@ public class PlayerAI
     public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
 
     public const bool PREFER_MONSTER_TASK = true;
+    public const int START_RAID_IF_WITHIN_SECONDS = 5 * 60;
     public PlayerCharacter Character { get; init; }
 
     public bool Enabled { get; set; } = true;
@@ -99,6 +100,7 @@ public class PlayerAI
                 ?? await WithdrawAllowance()
                 // Deposit all gold above threshold - shared economy
                 ?? DepositUnneededGold()
+                ?? await StartRaid()
                 ?? await GetEventJob()
                 ?? await GetBossGrindingJob()
                 ?? await EnsureAccessories()
@@ -1326,6 +1328,52 @@ public class PlayerAI
                     _ => null,
                 };
             }
+        }
+
+        return null;
+    }
+
+    async Task<CharacterJob?> StartRaid()
+    {
+        if (Character.Schema.Level == PlayerCharacter.MAX_LEVEL)
+        {
+            return null;
+        }
+
+        var upcomingRaid = gameState
+            .Raids.OrderBy(raid =>
+                raid.ActiveInstance is not null
+                    ? 0
+                    : (raid.NextStartAt - DateTime.UtcNow).TotalSeconds
+            )
+            .FirstOrDefault();
+
+        if (upcomingRaid is null)
+        {
+            return null;
+        }
+
+        if (
+            upcomingRaid.ActiveInstance is not null
+                && upcomingRaid.ActiveInstance.Status == RaidStatus.Active
+            || (upcomingRaid.NextStartAt - DateTime.UtcNow).TotalSeconds
+                <= START_RAID_IF_WITHIN_SECONDS
+        )
+        {
+            var monster = gameState.MonstersDict[upcomingRaid.Monster];
+
+            var job = await MonsterService.GetRaidBossJobIfPossible(Character, monster, gameState);
+
+            if (job is not null)
+            {
+                Logger.LogInformation(
+                    "{Name}: [{Character.Schema.Name}]: StartRaid: Found job to start raid to fight {Monster}",
+                    Name,
+                    Character.Schema.Name,
+                    monster.Code
+                );
+            }
+            return job;
         }
 
         return null;

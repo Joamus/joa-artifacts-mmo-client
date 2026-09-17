@@ -28,6 +28,7 @@ public static class FightSimulator
     public const float BERSERKER_RAGE_MAX_HP_ACTIVATION_THRESHOLD = 0.25f;
     public const float GREED_HP_PERCENTAGE_ACTIVATION = 0.10f;
     public const int ENCHANTED_MIRROR_ACTIVATE_EVERY_X_TURN = 3;
+    public const int RECONSTITUION_ACTIVATION_EVERY_TURN = 20;
 
     private static ILogger Logger = AppLogger.GetLogger();
 
@@ -1076,7 +1077,7 @@ public static class FightSimulator
             }
         }
 
-        if (turnNumber % 20 == 0)
+        if (turnNumber % RECONSTITUION_ACTIVATION_EVERY_TURN == 0)
         {
             SimpleEffectSchema? reconstitution = attacker.Effects.FirstOrDefault(effect =>
                 effect.Code == Effect.Reconstitution
@@ -1795,11 +1796,12 @@ public static class FightSimulator
             TotalTurns = turnNumber,
             MonsterType = monsterType,
             Monster = monster,
-            IndvidualTurns = individualTurn,
+            IndividualTurns = individualTurn,
             ShouldFight = GetShouldFight(
                 fightResult,
                 attackingPlayer,
-                monsterType,
+                monster,
+                turnNumber,
                 attackingPlayerPotionsUsed,
                 otherAttackingPlayersPotionsUsed,
                 otherPlayerParticipants
@@ -1819,7 +1821,8 @@ public static class FightSimulator
     public static bool GetShouldFight(
         FightResult fightResult,
         FightSimParticipant attackingPlayer,
-        MonsterType monsterType,
+        MonsterSchema monster,
+        int totalRounds,
         int attackingPlayerPotionsUsed,
         int otherAttackingPlayersPotionsUsed,
         List<FightSimParticipant> otherPlayerParticipants
@@ -1829,7 +1832,10 @@ public static class FightSimulator
         {
             return false;
         }
-        else if (monsterType == MonsterType.Boss || monsterType == MonsterType.RaidBoss)
+
+        bool isBossFight = monster.Type == MonsterType.Boss || monster.Type == MonsterType.RaidBoss;
+
+        if (isBossFight)
         {
             int amountOfPlayersWithEnoughHp = 0;
 
@@ -1844,9 +1850,20 @@ public static class FightSimulator
                 PlayerHasEnoughHpAfterFight
             );
 
-            bool enoughPlayersLeftWithHp = amountOfPlayersWithEnoughHp >= totalPlayers;
-
             int maxAllowedPotionsUsed = MAX_AMOUNT_OF_USED_POTIONS * totalPlayers;
+
+            bool primaryShouldFightDecision;
+
+            if (monster.Effects.Exists(effect => effect.Code == Effect.Reconstitution))
+            {
+                primaryShouldFightDecision =
+                    amountOfPlayersWithEnoughHp >= totalPlayers
+                    && totalRounds <= RECONSTITUION_ACTIVATION_EVERY_TURN - 4;
+            }
+            else
+            {
+                primaryShouldFightDecision = amountOfPlayersWithEnoughHp >= 1;
+            }
 
             /**
              * For now, we don't want to burn through too many potions to fight bosses,
@@ -1854,11 +1871,11 @@ public static class FightSimulator
              * that we will burn through a lot of potions.
              */
             bool isBelowMaxPotionsUsed =
-                monsterType == MonsterType.Boss
+                monster.Type == MonsterType.RaidBoss
                 || attackingPlayerPotionsUsed + otherAttackingPlayersPotionsUsed
-                    <= maxAllowedPotionsUsed;
+                    <= (maxAllowedPotionsUsed * 1.5);
 
-            return enoughPlayersLeftWithHp && isBelowMaxPotionsUsed;
+            return primaryShouldFightDecision && isBelowMaxPotionsUsed;
         }
 
         bool attackerHasEnoughHp = PlayerHasEnoughHpAfterFight(attackingPlayer);
@@ -2122,15 +2139,15 @@ public static class FightSimulator
 
         if (itemTypesToSim is null)
         {
-            tempEquipmentTypes = EquipmentService.AllEquipmentTypes;
+            tempEquipmentTypes = EquipmentService.GetEquipmentTypesForSim();
         }
         else
         {
             tempEquipmentTypes =
             [
-                .. EquipmentService.AllEquipmentTypes.Where(type =>
-                    itemTypesToSim.Contains(type.ItemType)
-                ),
+                .. EquipmentService
+                    .GetEquipmentTypesForSim()
+                    .Where(type => itemTypesToSim.Contains(type.ItemType)),
             ];
         }
 
@@ -2511,14 +2528,17 @@ public static class FightSimulator
         // it could mean that we have good survivability
         if (a.Result == FightResult.Win && b.Result == FightResult.Win)
         {
-            if (a.IndvidualTurns < b.IndvidualTurns)
+            if (a.Monster.Type != MonsterType.RaidBoss)
             {
-                return aWinsValue;
-            }
+                if (a.IndividualTurns < b.IndividualTurns)
+                {
+                    return aWinsValue;
+                }
 
-            if (a.IndvidualTurns > b.IndvidualTurns)
-            {
-                return bWinsValue;
+                if (a.IndividualTurns > b.IndividualTurns)
+                {
+                    return bWinsValue;
+                }
             }
 
             if (aTotalHp > bTotalHp)
@@ -2544,12 +2564,12 @@ public static class FightSimulator
         else
         {
             // More turns = good when losing, since it means we survive longer
-            if (a.IndvidualTurns > b.IndvidualTurns)
+            if (a.IndividualTurns > b.IndividualTurns)
             {
                 return aWinsValue;
             }
 
-            if (a.IndvidualTurns < b.IndvidualTurns)
+            if (a.IndividualTurns < b.IndividualTurns)
             {
                 return bWinsValue;
             }
@@ -2749,7 +2769,7 @@ public static class FightSimulator
             playerHp += outcome.PlayerHp;
             monsterHp += outcome.MonsterHp;
             totalTurns += outcome.TotalTurns;
-            individualTurns += outcome.IndvidualTurns;
+            individualTurns += outcome.IndividualTurns;
             potionsUsed += outcome.PotionsUsed;
         }
 
@@ -2777,7 +2797,7 @@ public static class FightSimulator
             Monster = monster,
             MonsterType = monster.Type,
             TotalTurns = totalTurns,
-            IndvidualTurns = individualTurns,
+            IndividualTurns = individualTurns,
             PotionsUsed = potionsUsed,
             FirstSimCombatLog = firstCombatLog!,
             AllPlayerParticipants = outcomes[0].AllPlayerParticipants, // TODO: FIX
@@ -3083,7 +3103,7 @@ public record FightOutcome
     public int MonsterHp { get; init; }
 
     public int TotalTurns { get; init; }
-    public int IndvidualTurns { get; init; }
+    public int IndividualTurns { get; init; }
 
     public bool ShouldFight { get; init; }
 

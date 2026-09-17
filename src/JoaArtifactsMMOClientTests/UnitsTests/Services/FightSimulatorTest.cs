@@ -354,8 +354,8 @@ public class FightSimulatorTest
         Assert.True(result.Exists(item => item.Item.Code == "snakeskin_legs_armor"));
     }
 
-    [Fact(DisplayName = "Should win the boss fight")]
-    public void SimulateBossFightOutcome_ShouldWin()
+    [Fact(DisplayName = "Should win the boss fight against KingSlime")]
+    public void SimulateBossFightOutcome_ShouldWinAgainstKingSlime()
     {
         GameState gameState = ServiceHelper.GetPopulatedGameState();
 
@@ -397,6 +397,105 @@ public class FightSimulatorTest
         ];
 
         var monster = gameState.MonstersDict["king_slime"];
+
+        var bossResults = FightSimulator.SimulateBossFightOutcome(
+            mainCharacter,
+            [helperCharacter1, helperCharacter2],
+            gameState,
+            bankItems,
+            monster
+        );
+
+        Assert.True(bossResults.All(result => result.Outcome.ShouldFight));
+
+        foreach (var item in bankItems)
+        {
+            int totalAmountOfItemOnCharacters = bossResults.Sum(result =>
+            {
+                int sum = 0;
+
+                foreach (var itemToEquip in result.ItemsToEquip)
+                {
+                    if (itemToEquip.Code == item.Code)
+                    {
+                        sum += itemToEquip.Quantity;
+                    }
+                }
+
+                return sum;
+            });
+
+            Assert.True(totalAmountOfItemOnCharacters <= item.Quantity);
+        }
+    }
+
+    [Fact(DisplayName = "Should win the boss fight against Pixie")]
+    public void SimulateBossFightOutcome_ShouldWinAgainstPixie()
+    {
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        var mainCharacter = PlayerCharacterHelper.GetFighterCharacter(gameState, 45);
+
+        var helperCharacter1 = PlayerCharacterHelper.GetFighterCharacter(gameState, 45);
+
+        var helperCharacter2 = PlayerCharacterHelper.GetFighterCharacter(gameState, 45);
+
+        List<PlayerCharacter> allCharacters = [mainCharacter, helperCharacter1, helperCharacter2];
+
+        List<DropSchema> bankItems =
+        [
+            // Armor
+            new DropSchema { Code = "cultist_hat", Quantity = 300 },
+            new DropSchema { Code = "obsidian_helmet", Quantity = 300 },
+            new DropSchema { Code = "hork_helmet", Quantity = 300 },
+            new DropSchema { Code = "jester_hat", Quantity = 300 },
+            new DropSchema { Code = "malefic_armor", Quantity = 300 },
+            new DropSchema { Code = "dreadful_armor", Quantity = 300 },
+            new DropSchema { Code = "obsidian_armor", Quantity = 300 },
+            new DropSchema { Code = "enchanter_pants", Quantity = 300 },
+            new DropSchema { Code = "mithril_platelegs", Quantity = 300 },
+            new DropSchema { Code = "ancient_jean", Quantity = 300 },
+            new DropSchema { Code = "enchanter_boots", Quantity = 300 },
+            new DropSchema { Code = "lizard_boots", Quantity = 300 },
+            new DropSchema { Code = "gold_boots", Quantity = 300 },
+            // Amulet
+            new DropSchema { Code = "masterful_necklace", Quantity = 300 },
+            new DropSchema { Code = "diamond_amulet", Quantity = 300 },
+            new DropSchema { Code = "greater_ruby_amulet", Quantity = 300 },
+            new DropSchema { Code = "greater_dreadful_amulet", Quantity = 300 },
+            // Shield
+            new DropSchema { Code = "mithril_shield", Quantity = 300 },
+            new DropSchema { Code = "dreadful_shield", Quantity = 300 },
+            new DropSchema { Code = "gold_shield", Quantity = 300 },
+            // Rune
+            new DropSchema { Code = "burn_rune", Quantity = 3 },
+            new DropSchema { Code = "healing_rune", Quantity = 5 },
+            new DropSchema { Code = "healing_aura_rune", Quantity = 5 },
+            new DropSchema { Code = "lifesteal_rune", Quantity = 5 },
+            // Ring
+            new DropSchema { Code = "malefic_ring", Quantity = 300 },
+            new DropSchema { Code = "royal_skeleton_ring", Quantity = 300 },
+            // Weapon
+            new DropSchema { Code = "mithril_sword", Quantity = 300 },
+            new DropSchema { Code = "bloodblade", Quantity = 300 },
+            new DropSchema { Code = "wrathsword", Quantity = 300 },
+            new DropSchema { Code = "dreadful_battleaxe", Quantity = 300 },
+            // Potions
+            new DropSchema { Code = "earth_boost_potion", Quantity = 300 },
+            new DropSchema { Code = "fire_boost_potion", Quantity = 300 },
+            new DropSchema { Code = "air_boost_potion", Quantity = 300 },
+            new DropSchema { Code = "water_boost_potion", Quantity = 300 },
+            new DropSchema { Code = "water_res_potion", Quantity = 300 },
+            new DropSchema { Code = "air_res_potion", Quantity = 300 },
+            new DropSchema { Code = "fire_res_potion", Quantity = 300 },
+            new DropSchema { Code = "earth_res_potion", Quantity = 300 },
+            new DropSchema { Code = "greater_health_potion", Quantity = 300 },
+            new DropSchema { Code = "enhanced_health_potion", Quantity = 300 },
+            new DropSchema { Code = "health_splash_potion", Quantity = 300 },
+            new DropSchema { Code = "health_boost_potion", Quantity = 300 },
+        ];
+
+        var monster = gameState.MonstersDict["pixie"];
 
         var bossResults = FightSimulator.SimulateBossFightOutcome(
             mainCharacter,

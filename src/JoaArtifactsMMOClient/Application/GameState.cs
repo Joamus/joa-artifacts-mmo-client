@@ -343,8 +343,18 @@ public class GameState
 
             pageNumber++;
         }
-        Raids = raids;
+        bool raidsHasChanged = EventService.RaidIsComingUp(Raids, raids);
+
         RaidsMonsterDict = raidSchema;
+        Raids = raids;
+
+        if (raidsHasChanged)
+        {
+            // A bit cheating, since it's actual the raids that have changed, but oh well
+            logger.LogInformation($"Raids have changed - notifying characters");
+            await Services.EventService.NotifyCharactersOnEventChange();
+        }
+
         logger.LogInformation("Loading raids - DONE;");
     }
 
@@ -442,6 +452,8 @@ public class GameState
                 if (isOnMap && monster.Type == MonsterType.RaidBoss)
                 {
                     // figure out if the boss still has more HP left, and is currently active
+                    return RaidsMonsterDict.GetValueOrNull(monster.Code)?.ActiveInstance?.Status
+                        == RaidStatus.Active;
                 }
 
                 return isOnMap;

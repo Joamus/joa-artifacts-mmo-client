@@ -24,30 +24,68 @@ public class EquipmentService
     const float IMPROVEMENT_SCORE_MODIFIER_PER_LEVEL = 0.01f;
 
     public static List<EquipmentTypeMapping> CraftableEquipmentTypes { get; } =
-    [
-        new() { ItemType = "weapon", Slot = "WeaponSlot" },
-        new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-        new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-        new() { ItemType = "helmet", Slot = "HelmetSlot" },
-        new() { ItemType = "boots", Slot = "BootsSlot" },
-        new() { ItemType = "ring", Slot = "Ring1Slot" },
-        new() { ItemType = "ring", Slot = "Ring2Slot" },
-        new() { ItemType = "amulet", Slot = "AmuletSlot" },
-        new() { ItemType = "shield", Slot = "ShieldSlot" },
-        new() { ItemType = "utility", Slot = "Utility1Slot" },
-        new() { ItemType = "utility", Slot = "Utility2Slot" },
-    ];
+        [
+            new() { ItemType = "weapon", Slot = "WeaponSlot" },
+            new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+            new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+            new() { ItemType = "helmet", Slot = "HelmetSlot" },
+            new() { ItemType = "boots", Slot = "BootsSlot" },
+            new() { ItemType = "ring", Slot = "Ring1Slot" },
+            new() { ItemType = "ring", Slot = "Ring2Slot" },
+            new() { ItemType = "amulet", Slot = "AmuletSlot" },
+            new() { ItemType = "shield", Slot = "ShieldSlot" },
+            new() { ItemType = "utility", Slot = "Utility1Slot" },
+            new() { ItemType = "utility", Slot = "Utility2Slot" },
+        ];
 
     public static List<EquipmentTypeMapping> AllEquipmentTypes { get; } =
-    [
-        .. new List<EquipmentTypeMapping>
+        [
+            .. new List<EquipmentTypeMapping>
+            {
+                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+                new() { ItemType = "rune", Slot = "RuneSlot" },
+            }.Union(CraftableEquipmentTypes),
+        ];
+
+    static List<EquipmentTypeMapping>? _equipmentTypesForSim = null;
+
+    public static List<EquipmentTypeMapping> GetEquipmentTypesForSim()
+    {
+        if (_equipmentTypesForSim is not null)
         {
-            new() { ItemType = "artifact", Slot = "Artifact1Slot" },
-            new() { ItemType = "artifact", Slot = "Artifact2Slot" },
-            new() { ItemType = "artifact", Slot = "Artifact3Slot" },
-            new() { ItemType = "rune", Slot = "RuneSlot" },
-        }.Union(CraftableEquipmentTypes),
-    ];
+            return _equipmentTypesForSim;
+        }
+
+        _equipmentTypesForSim =
+        [
+            .. AllEquipmentTypes.OrderBy(type =>
+            {
+                return type.Slot switch
+                {
+                    "WeaponSlot" => 1,
+                    "BodyArmorSlot" => 2,
+                    "LegArmorSlot" => 3,
+                    "HelmetSlot" => 4,
+                    "BootsSlot" => 5,
+                    "Ring1Slot" => 6,
+                    "Ring2Slot" => 7,
+                    "AmuletSlot" => 8,
+                    "ShieldSlot" => 9,
+                    "Utility1Slot" => 10,
+                    "Utility2Slot" => 11,
+                    "Amulet1Slot" => 12,
+                    "Amulet2Slot" => 13,
+                    "Amulet3Slot" => 14,
+                    "Rune" => 15,
+                    _ => 20,
+                };
+            }),
+        ];
+
+        return _equipmentTypesForSim;
+    }
 
     public static async Task<CharacterJob?> EnsureFightEquipment(
         PlayerCharacter character,
