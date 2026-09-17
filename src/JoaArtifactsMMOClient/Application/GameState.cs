@@ -45,6 +45,9 @@ public class GameState
     public List<MapSchema> Maps { get; set; } = [];
 
     public Dictionary<int, MapSchema> MapsDict { get; set; } = [];
+    public List<RaidSchema> Raids { get; set; } = [];
+
+    public Dictionary<string, RaidSchema> RaidsMonsterDict { get; set; } = [];
     public List<ResourceSchema> Resources { get; set; } = [];
     public List<NpcSchema> Npcs { get; set; } = [];
     public List<NpcSchema> AvailableNpcs { get; set; } = [];
@@ -85,6 +88,7 @@ public class GameState
         await LoadNpcItems();
         await LoadResources();
         await LoadMonsters();
+        await LoadRaids();
         await LoadPendingItems();
         await LoadAccountAchievements();
         await LoadTasksList();
@@ -314,6 +318,36 @@ public class GameState
         logger.LogInformation("Loading maps - DONE;");
     }
 
+    public async Task LoadRaids()
+    {
+        logger.LogInformation("Loading raids...");
+        bool doneLoading = false;
+        List<RaidSchema> raids = [];
+        Dictionary<string, RaidSchema> raidSchema = [];
+        int pageNumber = 1;
+
+        while (!doneLoading)
+        {
+            var result = await Services.AccountRequester.GetRaids(pageNumber);
+
+            foreach (var map in result.Data)
+            {
+                raids.Add(map);
+                raidSchema.Add(map.Monster, map);
+            }
+
+            if (result.Data.Count == 0)
+            {
+                doneLoading = true;
+            }
+
+            pageNumber++;
+        }
+        Raids = raids;
+        RaidsMonsterDict = raidSchema;
+        logger.LogInformation("Loading raids - DONE;");
+    }
+
     public async Task LoadResources()
     {
         logger.LogInformation("Loading resources...");
@@ -402,11 +436,16 @@ public class GameState
         return
         [
             .. monsters.Where(monster =>
-                Maps.Exists(map =>
-                    map.Interactions.Content?.Code == monster.Code
-                // && !NavigationService.UnavailableIslands.Contains(map.Name)
-                )
-            ),
+            {
+                bool isOnMap = Maps.Exists(map => map.Interactions.Content?.Code == monster.Code);
+
+                if (isOnMap && monster.Type == MonsterType.RaidBoss)
+                {
+                    // figure out if the boss still has more HP left, and is currently active
+                }
+
+                return isOnMap;
+            }),
         ];
     }
 
