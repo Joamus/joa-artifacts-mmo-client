@@ -339,9 +339,13 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 true
             );
 
-            foreach (var item in relevantItemsFromSim)
+            foreach (var itemCode in relevantItemsFromSim)
             {
-                relevantItems.Add(item);
+                AddAllItemMaterialsToList(
+                    relevantItems,
+                    gameState.ItemsDict,
+                    gameState.ItemsDict[itemCode]
+                );
             }
         }
 
@@ -353,5 +357,24 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
         List<DropSchema> items = await GetItemsToRecycleFromBank();
 
         return items.Count > 0;
+    }
+
+    static void AddAllItemMaterialsToList(
+        ICollection<string> itemCodes,
+        Dictionary<string, ItemSchema> itemsDict,
+        ItemSchema item
+    )
+    {
+        itemCodes.Add(item.Code);
+
+        if (item.Craft is not null)
+        {
+            foreach (var material in item.Craft.Items)
+            {
+                var matchingMaterial = itemsDict[material.Code];
+
+                AddAllItemMaterialsToList(itemCodes, itemsDict, matchingMaterial);
+            }
+        }
     }
 }
