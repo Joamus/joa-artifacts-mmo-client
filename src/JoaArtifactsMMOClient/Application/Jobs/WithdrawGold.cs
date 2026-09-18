@@ -24,10 +24,10 @@ public class WithdrawGold : CharacterJob
 
         // if (goldInBank >= Amount)
         // {
-        await Character.NavigateTo("bank");
 
         if (Amount > 0)
         {
+            await Character.NavigateTo("bank");
             await Character.WithdrawBankGold(Amount);
         }
         // }

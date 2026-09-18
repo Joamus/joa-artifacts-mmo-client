@@ -457,41 +457,6 @@ public class DepositUnneededItems : CharacterJob
         return new None();
     }
 
-    public async Task BuyBankSpaceIfNeeded()
-    {
-        var result = await gameState.Services.BankItemCache.GetBankDetails();
-
-        if (result.NextExpansionCost < Character.Schema.Gold + result.Gold)
-        {
-            var itemsInBank = await gameState.Services.BankItemCache.GetBankItems(null);
-
-            int amountFree = result.Slots - itemsInBank.Count;
-
-            if (amountFree <= MIN_FREE_BANK_SLOTS)
-            {
-                int amountNeededToWithdraw =
-                    result.NextExpansionCost > Character.Schema.Gold
-                        ? result.NextExpansionCost - Character.Schema.Gold
-                        : 0;
-
-                if (amountNeededToWithdraw > 0)
-                {
-                    logger.LogInformation(
-                        $"{JobName}: [{Character.Schema.Name}] withdrawing {amountNeededToWithdraw} to buy bank expansions"
-                    );
-                    await Character.WithdrawBankGold(amountNeededToWithdraw);
-                }
-
-                logger.LogInformation(
-                    $"{JobName}: [{Character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got {Character.Schema.Gold} gold, next expansion costs {result.NextExpansionCost}"
-                );
-                // Buy bank expansion
-                await Character.NavigateTo("bank");
-                await Character.BuyBankExpansion(Character.Schema.Name);
-            }
-        }
-    }
-
     public static bool ShouldInitDepositItems(PlayerCharacter character, bool preJob = true)
     {
         bool result = ShouldKeepDepositingIfAtBank(character, preJob);

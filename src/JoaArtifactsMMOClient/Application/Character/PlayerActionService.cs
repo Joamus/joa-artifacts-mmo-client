@@ -1125,6 +1125,7 @@ public class PlayerActionService
                     Logger.LogInformation(
                         $"[{Character.Schema.Name}] withdrawing {amountNeededToWithdraw} to buy bank expansions"
                     );
+                    await Character.NavigateTo("bank");
                     await Character.WithdrawBankGold(amountNeededToWithdraw);
                 }
 

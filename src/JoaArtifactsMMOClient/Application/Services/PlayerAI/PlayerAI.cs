@@ -616,8 +616,17 @@ public class PlayerAI
             Character.Schema.WeaponSlot
         );
 
+        List<string> skipEffects = [];
+
         foreach (var tool in bestTools)
         {
+            var effect = tool.Effects.First(effect => effect.Value < 0);
+
+            if (skipEffects.Contains(effect.Code))
+            {
+                continue;
+            }
+
             var result = Character.GetEquippedItemOrInInventory(tool.Code);
 
             (EquipmentSlot inventorySlot, bool isEquipped)? itemInInventory =
@@ -630,9 +639,13 @@ public class PlayerAI
 
             if (Character.ExistsInWishlist(tool.Code))
             {
+                // Should be only minus effect
+
                 Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: EnsureTools: Skipping obtaining tool {tool.Code} - is already in wish list"
+                    $"{Name}: [{Character.Schema.Name}]: EnsureTools: Skipping obtaining any tool for effect {effect.Code} - tool: {tool.Code} - is already in wish list"
                 );
+                skipEffects.Add(effect.Code);
+
                 continue;
             }
 
