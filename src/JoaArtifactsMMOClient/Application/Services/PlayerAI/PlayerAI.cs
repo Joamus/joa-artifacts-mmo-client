@@ -1017,7 +1017,7 @@ public class PlayerAI
                 monster
             );
 
-            if (fightSims.All(sim => sim.Outcome.ShouldFight))
+            if (fightSims.Exists(sim => sim.Outcome.ShouldFight))
             {
                 Logger.LogInformation(
                     "{Name}: [{Character.Schema.Name}]: GetMonsterBossEventJob: Can fight boss monster with items from bank - fighting {TrainCombat.AMOUNT_TO_KILL_BOSS} x {monster.Code}",
@@ -1335,11 +1335,6 @@ public class PlayerAI
 
     async Task<CharacterJob?> StartRaid()
     {
-        if (Character.Schema.Level == PlayerCharacter.MAX_LEVEL)
-        {
-            return null;
-        }
-
         var upcomingRaid = gameState
             .Raids.OrderBy(raid =>
                 raid.ActiveInstance is not null

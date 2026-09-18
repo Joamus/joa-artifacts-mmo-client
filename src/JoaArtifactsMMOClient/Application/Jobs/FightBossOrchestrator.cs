@@ -630,7 +630,7 @@ public class FightBossOrchestrator
 
         return result.Match(
             appError => false,
-            fightSimResults => fightSimResults.All(result => result.Outcome.ShouldFight)
+            fightSimResults => fightSimResults.Exists(result => result.Outcome.ShouldFight)
         );
     }
 

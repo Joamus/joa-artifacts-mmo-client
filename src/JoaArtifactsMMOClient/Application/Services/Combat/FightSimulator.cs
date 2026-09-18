@@ -1336,7 +1336,6 @@ public static class FightSimulator
 
         // returns damage that defender should take
 
-
         return (int)
             Math.Round(
                 (double)damageToDeal * (defender.EnchantedMirror.DamagePercentageEffect / 100)
@@ -2036,51 +2035,140 @@ public static class FightSimulator
         */
 
         // Not needed to calculate all of them, but it's OK for now, might need the code later.
-        List<FightSimResult> finalSimResults =
+
+        List<PlayerCharacter> allCharactersWithNewItems =
         [
-            .. allCharacterSchemasWithNewItems.Select(schema =>
+            .. allCharacterSchemasWithNewItems
+            // .Where(otherSchema => otherSchema.Name != schema.Name)
+            .Select(otherSchema =>
             {
-                List<PlayerCharacter> allCharactersWithNewItems =
-                [
-                    .. allCharacterSchemasWithNewItems
-                    // .Where(otherSchema => otherSchema.Name != schema.Name)
-                    .Select(otherSchema =>
-                    {
-                        var clonedMatchingCharacter = allCharacters
-                            .First(character => character.Schema.Name == otherSchema.Name)
-                            .Clone();
+                var clonedMatchingCharacter = allCharacters
+                    .First(character => character.Schema.Name == otherSchema.Name)
+                    .Clone();
 
-                        clonedMatchingCharacter.Schema = otherSchema;
+                clonedMatchingCharacter.Schema = otherSchema;
 
-                        return clonedMatchingCharacter;
-                    }),
-                ];
-
-                var result = FindBestFightEquipment(
-                    allCharactersWithNewItems.First(characerWithNewItem =>
-                        characerWithNewItem.Name == schema.Name
-                    ),
-                    gameState,
-                    monster,
-                    null,
-                    null,
-                    [
-                        .. allCharactersWithNewItems.Where(characerWithNewItem =>
-                            characerWithNewItem.Name != schema.Name
-                        ),
-                    ]
-                );
-
-                return result.SimResult with
-                {
-                    ItemsToEquip = itemsToEquipForCharacters
-                        .First((element) => element.Key == schema.Name)
-                        .Value,
-                };
+                return clonedMatchingCharacter;
             }),
         ];
 
+        List<FightSimResult> finalSimResults = [];
+
+        foreach (var schema in allCharacterSchemasWithNewItems)
+        {
+            // List<PlayerCharacter> allCharactersWithNewItems =
+            // [
+            //     .. allCharacterSchemasWithNewItems
+            //     // .Where(otherSchema => otherSchema.Name != schema.Name)
+            //     .Select(otherSchema =>
+            //     {
+            //         var clonedMatchingCharacter = allCharacters
+            //             .First(character => character.Schema.Name == otherSchema.Name)
+            //             .Clone();
+
+            //         clonedMatchingCharacter.Schema = otherSchema;
+
+            //         return clonedMatchingCharacter;
+            //     }),
+            // ];
+
+            var originalCharacterForSim = allCharacters.First(characerWithNewItem =>
+                characerWithNewItem.Name == schema.Name
+            );
+
+            var result = FindBestFightEquipment(
+                // allCharactersWithNewItems.First(characerWithNewItem =>
+                //     characerWithNewItem.Name == schema.Name
+                // ),
+                originalCharacterForSim,
+                gameState,
+                monster,
+                ItemService.DropSchemaListToItemInInventoryList(
+                    [.. currentlyAvailableBankItems.Select(item => item.Value)],
+                    gameState.ItemsDict
+                ),
+                null,
+                [
+                    .. allCharactersWithNewItems.Where(characerWithNewItem =>
+                        characerWithNewItem.Name != schema.Name
+                    ),
+                ]
+            );
+
+            // var oldItemsToEquip = itemsToEquipForCharacters
+            //     .First((element) => element.Key == schema.Name)
+            //     .Value;
+
+            // var newItemsToEquip = result.SimResult.ItemsToEquip;
+
+            // var mergedItemsToEquip = MergeItemsToEquipForBossFight(
+            //     oldItemsToEquip,
+            //     newItemsToEquip
+            // );
+
+            var mergedItemsToEquip = result.SimResult.ItemsToEquip;
+
+            finalSimResults.Add(result.SimResult with { ItemsToEquip = mergedItemsToEquip });
+
+            // Really dirty, but also doing for performance.
+            // We are mutating the list the other chars use for simming.
+
+            for (var i = 0; i < allCharactersWithNewItems.Count; i++)
+            {
+                var schemaForSim = allCharactersWithNewItems[i];
+
+                if (schemaForSim.Name != schema.Name)
+                {
+                    continue;
+                }
+
+                // var clonedMatchingCharacter = allCharactersWithNewItems[i].Clone();
+
+                originalCharacterForSim.Schema = result.SimResult.Schema;
+
+                allCharactersWithNewItems[i] = originalCharacterForSim;
+            }
+        }
+
         return finalSimResults;
+    }
+
+    static List<EquipmentSlot> MergeItemsToEquipForBossFight(
+        List<EquipmentSlot> oldItemsToEquip,
+        List<EquipmentSlot> newItemsToEquip
+    )
+    {
+        // The old items are from the "baseline" simultation, and the new items are when
+        // all characters have chosen initial items, and they are looking for improvements.
+        // In that case, the new item has preceedence, if there is a replacement for the same slot.
+        //
+        //
+        List<EquipmentSlot> result =
+        [
+            .. oldItemsToEquip.Select(oldItem =>
+            {
+                var sameSlotMatch = newItemsToEquip.FirstOrDefault(newItem =>
+                    newItem.Slot == oldItem.Slot
+                );
+
+                if (sameSlotMatch is not null)
+                {
+                    return sameSlotMatch;
+                }
+
+                return oldItem;
+            }),
+        ];
+
+        foreach (var newItem in newItemsToEquip)
+        {
+            if (!result.Exists(finalItem => finalItem.Slot == newItem.Slot))
+            {
+                result.Add(newItem);
+            }
+        }
+
+        return result;
     }
 
     public static FightSimResultWithLeftOverItems FindBestFightEquipmentIncludingInventory(
