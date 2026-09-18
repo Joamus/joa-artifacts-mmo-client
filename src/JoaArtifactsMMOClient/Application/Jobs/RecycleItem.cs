@@ -41,7 +41,7 @@ public class RecycleItem : CharacterJob
 
             foreach (var drop in recycledDrops)
             {
-                var depositItemJob = new DepositItems(
+                var depositItemJob = new DepositItem(
                     Character,
                     gameState,
                     drop.Code,

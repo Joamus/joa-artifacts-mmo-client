@@ -1310,8 +1310,16 @@ public class PlayerCharacter
     {
         try
         {
-            // await ActionLock.WaitAsync();
             await PreTaskHandler();
+
+            Logger.LogInformation(
+                "{GetType().Name}: [{Schema.Name}] Recycling {itemCode} x {quantity} - enhanced: {enhanced}",
+                GetType().Name,
+                Schema.Name,
+                itemCode,
+                quantity,
+                enhanced
+            );
 
             string _body = JsonSerializer.Serialize(
                 new

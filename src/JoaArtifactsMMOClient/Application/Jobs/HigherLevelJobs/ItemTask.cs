@@ -42,7 +42,7 @@ public class ItemTask : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositing them"
                 );
                 await Character.QueueJob(
-                    new DepositItems(Character, gameState, ItemService.TasksCoin, taskCoinsAmount),
+                    new DepositItem(Character, gameState, ItemService.TasksCoin, taskCoinsAmount),
                     true
                 );
             }
@@ -53,7 +53,7 @@ public class ItemTask : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositing them"
                 );
                 await Character.QueueJob(
-                    new DepositItems(Character, gameState, ItemCode, (int)ItemAmount),
+                    new DepositItem(Character, gameState, ItemCode, (int)ItemAmount),
                     true
                 );
             }

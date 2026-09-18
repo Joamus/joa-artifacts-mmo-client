@@ -28,7 +28,7 @@ public class CraftItem : CharacterJob
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
-            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+            var depositItemJob = new DepositItem(Character, gameState, Code, Amount);
 
             await Character.QueueJob(depositItemJob, true);
         };

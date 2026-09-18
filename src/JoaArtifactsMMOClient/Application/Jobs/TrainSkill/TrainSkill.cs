@@ -315,21 +315,54 @@ public class TrainSkill : CharacterJob
                 {
                     obtainItemJob.onSuccessEndHook = async () =>
                     {
-                        AppLogger
-                            .GetLogger()
-                            .LogInformation(
-                                $"TrainSkill: [{Character.Name}]: onSuccessEndHook: Adding job to recycle {craftingAmount} x {bestItemToCraft.Code}"
-                            );
-                        var recycleJob = new RecycleItem(
-                            Character,
-                            gameState,
-                            bestItemToCraft.Code,
-                            craftingAmount
-                        ).SetParent<RecycleItem>(obtainItemJob);
+                        int amountOnAll = await gameState.GetAmountOfItemFromAll(
+                            bestItemToCraft.Code
+                        );
 
-                        recycleJob.ForBank();
+                        if (
+                            amountOnAll
+                            > EquipmentService.GetAllowedItemAmount(bestItemToCraft)
+                                * gameState.Characters.Count
+                        )
+                        {
+                            AppLogger
+                                .GetLogger()
+                                .LogInformation(
+                                    "TrainSkill: [{Character.Name}]: onSuccessEndHook: Adding job to recycle {craftingAmount} x {bestItemToCraft.Code}",
+                                    Character.Name,
+                                    craftingAmount,
+                                    bestItemToCraft.Code
+                                );
 
-                        await Character.QueueJob(recycleJob, true);
+                            var recycleJob = new RecycleItem(
+                                Character,
+                                gameState,
+                                bestItemToCraft.Code,
+                                craftingAmount
+                            ).SetParent<RecycleItem>(obtainItemJob);
+
+                            recycleJob.ForBank();
+
+                            await Character.QueueJob(recycleJob, true);
+                        }
+                        else
+                        {
+                            AppLogger
+                                .GetLogger()
+                                .LogInformation(
+                                    "TrainSkill: [{Character.Name}]: onSuccessEndHook: Depositting item instead of recycling - the item might be useful, since we have less than the max necessary amount",
+                                    Character.Name
+                                );
+
+                            var depositItemJob = new DepositItem(
+                                Character,
+                                gameState,
+                                bestItemToCraft.Code,
+                                craftingAmount
+                            ).SetParent<DepositItem>(obtainItemJob);
+
+                            await Character.QueueJob(depositItemJob, true);
+                        }
                     };
                 }
                 else

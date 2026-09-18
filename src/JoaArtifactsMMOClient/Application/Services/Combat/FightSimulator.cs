@@ -1890,7 +1890,7 @@ public static class FightSimulator
             >= (attacker.OriginalMaxHp * SHOULD_FIGHT_MAX_HP_PLAYER_THRESHOLD);
     }
 
-    public static List<FightSimResult> SimulateBossFightOutcome(
+    public static List<FightSimResult> OldSimulateBossFightOutcome(
         PlayerCharacter mainCharacter,
         List<PlayerCharacter> otherCharacters,
         GameState gameState,
@@ -1903,15 +1903,6 @@ public static class FightSimulator
         var currentlyAvailableBankItems = bankItems
             .Select(item => item with { })
             .ToDictionary(item => item.Code);
-
-        // Look into acquiring potions if needed, we currently only check the bank.
-        // var attainablePotions = gameState
-        //     .UtilityItemsDict.Select(item => new ItemInInventory
-        //     {
-        //         Item = item.Value,
-        //         Quantity = 100,
-        //     })
-        //     .ToList();
 
         List<(FightSimResult Result, CharacterSchema OriginalCharacter)> fightSimResults = [];
 
@@ -2038,9 +2029,7 @@ public static class FightSimulator
 
         List<PlayerCharacter> allCharactersWithNewItems =
         [
-            .. allCharacterSchemasWithNewItems
-            // .Where(otherSchema => otherSchema.Name != schema.Name)
-            .Select(otherSchema =>
+            .. allCharacterSchemasWithNewItems.Select(otherSchema =>
             {
                 var clonedMatchingCharacter = allCharacters
                     .First(character => character.Schema.Name == otherSchema.Name)
@@ -2056,30 +2045,11 @@ public static class FightSimulator
 
         foreach (var schema in allCharacterSchemasWithNewItems)
         {
-            // List<PlayerCharacter> allCharactersWithNewItems =
-            // [
-            //     .. allCharacterSchemasWithNewItems
-            //     // .Where(otherSchema => otherSchema.Name != schema.Name)
-            //     .Select(otherSchema =>
-            //     {
-            //         var clonedMatchingCharacter = allCharacters
-            //             .First(character => character.Schema.Name == otherSchema.Name)
-            //             .Clone();
-
-            //         clonedMatchingCharacter.Schema = otherSchema;
-
-            //         return clonedMatchingCharacter;
-            //     }),
-            // ];
-
             var originalCharacterForSim = allCharacters.First(characerWithNewItem =>
                 characerWithNewItem.Name == schema.Name
             );
 
             var result = FindBestFightEquipment(
-                // allCharactersWithNewItems.First(characerWithNewItem =>
-                //     characerWithNewItem.Name == schema.Name
-                // ),
                 originalCharacterForSim,
                 gameState,
                 monster,
@@ -2094,17 +2064,6 @@ public static class FightSimulator
                     ),
                 ]
             );
-
-            // var oldItemsToEquip = itemsToEquipForCharacters
-            //     .First((element) => element.Key == schema.Name)
-            //     .Value;
-
-            // var newItemsToEquip = result.SimResult.ItemsToEquip;
-
-            // var mergedItemsToEquip = MergeItemsToEquipForBossFight(
-            //     oldItemsToEquip,
-            //     newItemsToEquip
-            // );
 
             var mergedItemsToEquip = result.SimResult.ItemsToEquip;
 
@@ -2122,8 +2081,6 @@ public static class FightSimulator
                     continue;
                 }
 
-                // var clonedMatchingCharacter = allCharactersWithNewItems[i].Clone();
-
                 originalCharacterForSim.Schema = result.SimResult.Schema;
 
                 allCharactersWithNewItems[i] = originalCharacterForSim;
@@ -2131,6 +2088,283 @@ public static class FightSimulator
         }
 
         return finalSimResults;
+    }
+
+    public static List<FightSimResult> SimulateBossFightOutcome(
+        PlayerCharacter mainCharacter,
+        List<PlayerCharacter> otherCharacters,
+        GameState gameState,
+        List<DropSchema> bankItems,
+        MonsterSchema monster
+    )
+    {
+        /**
+         * We do a sort of "first pass", where we simulate what the initial best load out is for each item.
+         * What we want to do afterwards, is for each character, we want to try to give them a new loadout,
+         * but the other participants will still have the first ideal load out. This will usually give a different result,
+         * since they will now start using more "cooperative" items.
+         */
+        //
+        var (fightSimResults, LeftOverItems) = InnerSimulateBossOutcome(
+            mainCharacter,
+            otherCharacters,
+            gameState,
+            bankItems,
+            monster
+        );
+
+        Dictionary<string, List<EquipmentSlot>> itemsToEquipForCharacters = [];
+
+        List<CharacterSchema> allCharacterSchemasWithNewItems =
+        [
+            .. fightSimResults.Select(fightSim =>
+            {
+                var newSchema = fightSim.Schema with { };
+
+                itemsToEquipForCharacters.Add(fightSim.Schema.Name, fightSim.ItemsToEquip);
+
+                return newSchema;
+            }),
+        ];
+
+        return fightSimResults;
+
+        /**
+         * Now we need to run simulation(s) with all of the ideal items for each character, and see what the outcome is.
+        */
+
+        // Not needed to calculate all of them, but it's OK for now, might need the code later.
+
+        // List<PlayerCharacter> allCharactersWithNewItems =
+        // [
+        //     .. allCharacterSchemasWithNewItems.Select(otherSchema =>
+        //     {
+        //         var clonedMatchingCharacter = allCharacters
+        //             .First(character => character.Schema.Name == otherSchema.Name)
+        //             .Clone();
+
+        //         clonedMatchingCharacter.Schema = otherSchema;
+
+        //         return clonedMatchingCharacter;
+        //     }),
+        // ];
+
+        // List<FightSimResult> finalSimResults = [];
+
+        // foreach (var schema in allCharacterSchemasWithNewItems)
+        // {
+        //     var originalCharacterForSim = allCharacters.First(characerWithNewItem =>
+        //         characerWithNewItem.Name == schema.Name
+        //     );
+
+        //     var result = FindBestFightEquipment(
+        //         originalCharacterForSim,
+        //         gameState,
+        //         monster,
+        //         ItemService.DropSchemaListToItemInInventoryList(
+        //             [.. currentlyAvailableBankItems.Select(item => item.Value)],
+        //             gameState.ItemsDict
+        //         ),
+        //         null,
+        //         [
+        //             .. allCharactersWithNewItems.Where(characerWithNewItem =>
+        //                 characerWithNewItem.Name != schema.Name
+        //             ),
+        //         ]
+        //     );
+
+        //     var mergedItemsToEquip = result.SimResult.ItemsToEquip;
+
+        //     finalSimResults.Add(result.SimResult with { ItemsToEquip = mergedItemsToEquip });
+
+        //     // Really dirty, but also doing for performance.
+        //     // We are mutating the list the other chars use for simming.
+
+        //     for (var i = 0; i < allCharactersWithNewItems.Count; i++)
+        //     {
+        //         var schemaForSim = allCharactersWithNewItems[i];
+
+        //         if (schemaForSim.Name != schema.Name)
+        //         {
+        //             continue;
+        //         }
+
+        //         originalCharacterForSim.Schema = result.SimResult.Schema;
+
+        //         allCharactersWithNewItems[i] = originalCharacterForSim;
+        //     }
+        // }
+
+        // return finalSimResults;
+    }
+
+    public static (
+        List<FightSimResult> Results,
+        List<DropSchema> LeftOverItems
+    ) InnerSimulateBossOutcome(
+        PlayerCharacter mainCharacter,
+        List<PlayerCharacter> otherCharacters,
+        GameState gameState,
+        List<DropSchema> bankItems,
+        MonsterSchema monster
+    )
+    {
+        List<PlayerCharacter> allCharacters = [.. otherCharacters, mainCharacter];
+        List<PlayerCharacter> mutatingAllCharacters = [.. allCharacters];
+
+        var currentlyAvailableBankItems = bankItems
+            .Select(item => item with { })
+            .ToDictionary(item => item.Code);
+
+        List<FightSimResult> fightSimResults = [];
+
+        /**
+         * First we want to run a sim for each character, to find the best equipment for each to wear.
+         * After doing the first character, that outcome should be used for the next simulations, etc.
+         *
+         * They might not be wearing suitable combat gear at the moment, so we assume that we will probably lose,
+         * in these fight results. The idea is to get the best loadout for each character (even if they lose), and then
+         * afterward run a fight sim with the best load out for each.
+        */
+        foreach (var characterForSim in allCharacters)
+        {
+            var otherCharactersSim = mutatingAllCharacters
+                .Where(character => character.Name != characterForSim.Name)
+                .ToList();
+
+            /**
+             * A bit dirty, but here we go through the items in the characters inventory,
+             * and if there is a match in the bank, we add that quantity to the characters inventory.
+            */
+            var itemsAvailableToCharacter = characterForSim
+                .Schema.Inventory.Select(item =>
+                {
+                    if (string.IsNullOrWhiteSpace(item.Code))
+                    {
+                        return null;
+                    }
+
+                    int amountInBank =
+                        currentlyAvailableBankItems.GetValueOrNull(item.Code)?.Quantity ?? 0;
+
+                    var matchingItem = gameState.ItemsDict[item.Code];
+
+                    return new ItemInInventory
+                    {
+                        Item = matchingItem,
+                        Quantity = item.Quantity + amountInBank,
+                    };
+                })
+                .OfType<ItemInInventory>()
+                .ToList();
+
+            /**
+             * Now we want to take the items without a match, and add them to the list
+            */
+            List<ItemInInventory> moreAvailableItems = [];
+
+            foreach (var (key, item) in currentlyAvailableBankItems)
+            {
+                if (
+                    !string.IsNullOrWhiteSpace(item.Code)
+                    && !itemsAvailableToCharacter.Exists(itemOnCharacter =>
+                        itemOnCharacter.Item.Code == item.Code
+                    )
+                )
+                {
+                    moreAvailableItems.Add(
+                        new ItemInInventory
+                        {
+                            Item = gameState.ItemsDict[item.Code],
+                            Quantity = item.Quantity,
+                        }
+                    );
+                }
+            }
+
+            itemsAvailableToCharacter = [.. itemsAvailableToCharacter.Union(moreAvailableItems)];
+
+            var result = FindBestFightEquipment(
+                characterForSim,
+                gameState,
+                monster,
+                itemsAvailableToCharacter,
+                null,
+                otherCharactersSim
+            );
+
+            fightSimResults.Add(result.SimResult);
+
+            var leftOverItemsDict = result.LeftOverItems.ToDictionary(item => item.Item.Code);
+
+            foreach (var (key, item) in currentlyAvailableBankItems)
+            {
+                var matchInLeftOver = leftOverItemsDict.GetValueOrNull(key);
+
+                if (matchInLeftOver is null)
+                {
+                    item.Quantity = 0;
+                }
+                else if (matchInLeftOver.Quantity < item.Quantity)
+                {
+                    item.Quantity = matchInLeftOver.Quantity;
+                }
+            }
+
+            currentlyAvailableBankItems = currentlyAvailableBankItems
+                .Where(item => item.Value.Quantity > 0)
+                .ToDictionary();
+
+            var newCharacterForSim = result.SimResult.Schema;
+
+            for (var i = 0; i < mutatingAllCharacters.Count; i++)
+            {
+                var mutatingCharacter = mutatingAllCharacters[i];
+
+                if (mutatingCharacter.Schema.Name == newCharacterForSim.Name)
+                {
+                    var clonedCharacter = characterForSim.Clone();
+                    clonedCharacter.Schema = newCharacterForSim;
+
+                    mutatingAllCharacters[i] = clonedCharacter;
+                }
+            }
+        }
+
+        // Do final sims with all of the best loadouts
+        List<FightSimResult> bestFightSimResults =
+        [
+            .. mutatingAllCharacters.Select(characterForSim =>
+            {
+                var otherCharactersSim = mutatingAllCharacters
+                    .Where(character => character.Name != characterForSim.Name)
+                    .ToList();
+
+                var result = FindBestFightEquipment(
+                    characterForSim,
+                    gameState,
+                    monster,
+                    [],
+                    null,
+                    otherCharactersSim
+                );
+
+                var oldSimResult = fightSimResults.First(simResult =>
+                    simResult.Schema.Name == characterForSim.Schema.Name
+                );
+
+                return result.SimResult with
+                {
+                    ItemsToEquip = oldSimResult.ItemsToEquip,
+                };
+            }),
+        ];
+
+        return (
+            // Results: fightSimResults,
+            Results: bestFightSimResults,
+            LeftOverItems: [.. currentlyAvailableBankItems.Select(item => item.Value)]
+        );
     }
 
     static List<EquipmentSlot> MergeItemsToEquipForBossFight(

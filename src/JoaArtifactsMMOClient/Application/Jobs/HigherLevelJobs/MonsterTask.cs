@@ -41,12 +41,12 @@ public class MonsterTask : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {taskCoinsAmount} task coins - queue depositting them"
                 );
                 await Character.QueueJob(
-                    new DepositItems(
+                    new DepositItem(
                         Character,
                         gameState,
                         ItemService.TasksCoin,
                         taskCoinsAmount
-                    ).SetParent<DepositItems>(this),
+                    ).SetParent<DepositItem>(this),
                     true
                 );
             }
@@ -57,12 +57,12 @@ public class MonsterTask : CharacterJob
                     $"{JobName}: [{Character.Schema.Name}] onSuccessHook: found {ItemAmount} x {ItemCode} - queue depositting them"
                 );
                 await Character.QueueJob(
-                    new DepositItems(
+                    new DepositItem(
                         Character,
                         gameState,
                         ItemCode,
                         (int)ItemAmount
-                    ).SetParent<DepositItems>(this),
+                    ).SetParent<DepositItem>(this),
                     true
                 );
             }

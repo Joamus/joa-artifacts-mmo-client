@@ -45,12 +45,12 @@ public class ObtainItem : CharacterJob
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: for character {recipient.Schema.Name} - queueing job to deposit {Amount} x {Code} to the bank"
             );
 
-            var depositItemJob = new DepositItems(
+            var depositItemJob = new DepositItem(
                 Character,
                 gameState,
                 Code,
                 Amount
-            ).SetParent<DepositItems>(this);
+            ).SetParent<DepositItem>(this);
 
             depositItemJob.onSuccessEndHook = async () =>
             {
@@ -77,7 +77,7 @@ public class ObtainItem : CharacterJob
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
 
-            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+            var depositItemJob = new DepositItem(Character, gameState, Code, Amount);
             await Character.QueueJob(depositItemJob, true);
         };
     }

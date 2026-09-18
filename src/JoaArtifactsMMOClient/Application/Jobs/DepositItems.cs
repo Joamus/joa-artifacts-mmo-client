@@ -6,11 +6,11 @@ using OneOf.Types;
 
 namespace Application.Jobs;
 
-public class DepositItems : CharacterJob
+public class DepositItem : CharacterJob
 {
     public bool DontFailIfItemNotThere { get; set; } = false;
 
-    public DepositItems(
+    public DepositItem(
         PlayerCharacter playerCharacter,
         GameState gameState,
         string code,

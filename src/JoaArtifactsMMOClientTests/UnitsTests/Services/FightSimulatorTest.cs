@@ -406,7 +406,11 @@ public class FightSimulatorTest
             monster
         );
 
-        Assert.True(bossResults.Exists(result => result.Outcome.ShouldFight));
+        Assert.True(
+            bossResults.Exists(result =>
+                result.Outcome.ShouldFight && result.ItemsToEquip.Count > 0
+            )
+        );
 
         foreach (var item in bankItems)
         {
@@ -505,7 +509,11 @@ public class FightSimulatorTest
             monster
         );
 
-        Assert.True(bossResults.Exists(result => result.Outcome.ShouldFight));
+        Assert.True(
+            bossResults.Exists(result =>
+                result.Outcome.ShouldFight && result.ItemsToEquip.Count > 0
+            )
+        );
 
         foreach (var item in bankItems)
         {

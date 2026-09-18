@@ -127,7 +127,7 @@ public class GatherMaterialsForItem : CharacterJob
         }
     }
 
-    private List<DepositItems> GetDepositAllMaterialsToBankJobs(
+    private List<DepositItem> GetDepositAllMaterialsToBankJobs(
         CraftItem lastJob
     // PlayerCharacter? crafter
     )
@@ -139,17 +139,17 @@ public class GatherMaterialsForItem : CharacterJob
             throw new Exception($"Should never happen - the item isn't craftable");
         }
 
-        List<DepositItems> depositItems = [];
+        List<DepositItem> depositItems = [];
 
         foreach (var material in materials)
         {
             // This could be a bit more efficient, if all of the queueing would only happen at once, the deposits should happen sequentially anyway
-            var job = new DepositItems(
+            var job = new DepositItem(
                 Character,
                 gameState,
                 material.Code,
                 material.Quantity * lastJob.Amount
-            ).SetParent<DepositItems>(this);
+            ).SetParent<DepositItem>(this);
 
             job.DontFailIfItemNotThere = true;
 

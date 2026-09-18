@@ -47,7 +47,7 @@ public class GatherResourceItem : CharacterJob
             logger.LogInformation(
                 $"{JobName}: [{Character.Schema.Name}] onSuccessEndHook: queueing job to deposit {Amount} x {Code} to the bank"
             );
-            var depositItemJob = new DepositItems(Character, gameState, Code, Amount);
+            var depositItemJob = new DepositItem(Character, gameState, Code, Amount);
 
             await Character.QueueJob(depositItemJob, true);
         };
@@ -100,67 +100,6 @@ public class GatherResourceItem : CharacterJob
             return new None();
         }
 
-        while (ProgressAmount < Amount)
-        {
-            if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
-            {
-                await Character.QueueJobsBefore(
-                    Id,
-                    [new DepositUnneededItems(Character, gameState, null, false)]
-                );
-                Status = JobStatus.Suspend;
-                return new None();
-            }
-
-            if (ShouldInterrupt)
-            {
-                Status = JobStatus.Suspend;
-                return new None();
-            }
-
-            var matchingItem = gameState.Items.Find(item => item.Code == Code);
-
-            if (matchingItem is null)
-            {
-                return new AppError($"Could not find item with code {Code} - could not gather it");
-            }
-
-            var result = await InnerJobAsync(matchingItem, resource, skill);
-
-            switch (result.Value)
-            {
-                case AppError jobError:
-                    Status = JobStatus.Failed;
-                    return jobError;
-                default:
-                    // Just continue
-                    break;
-            }
-
-            if (Status == JobStatus.Suspend)
-            {
-                // Queued other jobs before this job
-                return new None();
-            }
-        }
-
-        logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] completed for {Character.Schema.Name} - progress {Code} ({ProgressAmount}/{Amount})"
-        );
-
-        return new None();
-    }
-
-    protected async Task<OneOf<AppError, None>> InnerJobAsync(
-        ItemSchema matchingItem,
-        ResourceSchema resource,
-        Skill skill
-    )
-    {
-        logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] status for {Character.Schema.Name} - gathering {Code} ({ProgressAmount}/{Amount})"
-        );
-
         int characterSkillLevel = 0;
 
         switch (resource.Skill)
@@ -177,6 +116,12 @@ public class GatherResourceItem : CharacterJob
             case Skill.Woodcutting:
                 characterSkillLevel = Character.Schema.WoodcuttingLevel;
                 break;
+        }
+        var matchingItem = gameState.Items.Find(item => item.Code == Code);
+
+        if (matchingItem is null)
+        {
+            return new AppError($"Could not find item with code {Code} - could not gather it");
         }
 
         if (!CanGatherResource(resource, Character.Schema))
@@ -246,6 +191,60 @@ public class GatherResourceItem : CharacterJob
 
         await Character.PlayerActionService.EquipBestGatheringEquipment(skill);
         await Character.NavigateTo(resource.Code);
+
+        while (ProgressAmount < Amount)
+        {
+            if (DepositUnneededItems.ShouldInitDepositItems(Character, false))
+            {
+                await Character.QueueJobsBefore(
+                    Id,
+                    [new DepositUnneededItems(Character, gameState, null, false)]
+                );
+                Status = JobStatus.Suspend;
+                return new None();
+            }
+
+            if (ShouldInterrupt)
+            {
+                Status = JobStatus.Suspend;
+                return new None();
+            }
+
+            var result = await InnerJobAsync(matchingItem, resource, skill);
+
+            switch (result.Value)
+            {
+                case AppError jobError:
+                    Status = JobStatus.Failed;
+                    return jobError;
+                default:
+                    // Just continue
+                    break;
+            }
+
+            if (Status == JobStatus.Suspend)
+            {
+                // Queued other jobs before this job
+                return new None();
+            }
+        }
+
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] completed for {Character.Schema.Name} - progress {Code} ({ProgressAmount}/{Amount})"
+        );
+
+        return new None();
+    }
+
+    protected async Task<OneOf<AppError, None>> InnerJobAsync(
+        ItemSchema matchingItem,
+        ResourceSchema resource,
+        Skill skill
+    )
+    {
+        logger.LogInformation(
+            $"{JobName}: [{Character.Schema.Name}] status for {Character.Schema.Name} - gathering {Code} ({ProgressAmount}/{Amount})"
+        );
 
         var result = await Character.Gather();
 
@@ -383,7 +382,7 @@ public class GatherResourceItem : CharacterJob
                 return
                 [
                     new WithdrawItem(character, gameState, bestItemInBank.Code, 1),
-                    new DepositItems(character, gameState, bestItemOnCharacter.Code, 1),
+                    new DepositItem(character, gameState, bestItemOnCharacter.Code, 1),
                 ];
             }
         }
