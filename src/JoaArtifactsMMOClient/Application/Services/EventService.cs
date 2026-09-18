@@ -120,7 +120,7 @@ public class EventService
 
         logger.LogInformation($"Loading active events - events have changed - {eventsHaveChanged}");
 
-        if (eventsHaveChanged)
+        if (eventsHaveChanged && ActiveEvents.Count > 0)
         {
             await NotifyCharactersOnEventChange();
         }
