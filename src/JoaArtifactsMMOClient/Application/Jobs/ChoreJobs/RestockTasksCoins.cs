@@ -72,7 +72,7 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
         GameState gameState
     )
     {
-        while (
+        if (
             (
                 !await character.PlayerActionService.CanItemFromItemTaskBeObtained()
                 && await character.PlayerActionService.GetMonsterTaskJobIfPossible() is null
@@ -81,16 +81,29 @@ public class RestockTasksCoins : CharacterJob, ICharacterChoreJob
             && await CancelTaskJob.CanCancelTask(character, gameState)
         )
         {
-            await CancelTaskJob.DoCancelTask(character, gameState);
+            var cancelTaskJob = new CancelTaskJob(character, gameState)
+            {
+                onSuccessEndHook = async () =>
+                {
+                    var taskJob = await character.PlayerActionService.GetTaskJobIfPossible(
+                        PlayerAI.PREFER_MONSTER_TASK
+                    );
+
+                    if (taskJob is not null)
+                    {
+                        await character.QueueJob(taskJob, true);
+                    }
+                },
+            };
         }
 
-        var job = await character.PlayerActionService.GetTaskJobIfPossible(
+        var taskJob = await character.PlayerActionService.GetTaskJobIfPossible(
             PlayerAI.PREFER_MONSTER_TASK
         );
 
-        if (job is not null)
+        if (taskJob is not null)
         {
-            return job;
+            return taskJob;
         }
 
         return new AppError($"Cannot cancel the task for {character.Name} - job failed");
