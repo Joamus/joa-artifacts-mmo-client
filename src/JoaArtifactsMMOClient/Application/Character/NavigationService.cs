@@ -497,7 +497,7 @@ public class NavigationService
                     return false;
                 }
 
-                return gameState.MonstersDict.GetValueOrNull(map.Interactions.Content.Code)
+                return gameState.AvailableMonstersDict.GetValueOrNull(map.Interactions.Content.Code)
                     is not null;
             }),
         ];
@@ -531,7 +531,7 @@ public class NavigationService
 
         var closestMonsterCode = monsterMap.Interactions.Content.Code;
 
-        return (gameState.MonstersDict[closestMonsterCode], monsterMap);
+        return (gameState.AvailableMonstersDict[closestMonsterCode], monsterMap);
     }
 
     public static NavigationStep CreateMoveStep(
@@ -757,7 +757,9 @@ public class NavigationService
                     ShouldTransition = false,
                     BeforeMoveAction = async () =>
                     {
-                        string monsterCode = "sandwarden";
+                        var monsterCode = FindClosestMonster(
+                            gameState.MapsDict[character.Schema.MapId]
+                        )!.Value.monster.Code;
 
                         while (character.Schema.MapId != spawn.MapId)
                         {

@@ -451,14 +451,14 @@ public class GameState
         [
             .. monsters.Where(monster =>
             {
-                bool isOnMap = Maps.Exists(map => map.Interactions.Content?.Code == monster.Code);
-
-                if (isOnMap && monster.Type == MonsterType.RaidBoss)
+                if (monster.Type == MonsterType.RaidBoss)
                 {
                     // figure out if the boss still has more HP left, and is currently active
                     return RaidsMonsterDict.GetValueOrNull(monster.Code)?.ActiveInstance?.Status
                         == RaidStatus.Active;
                 }
+
+                bool isOnMap = Maps.Exists(map => map.Interactions.Content?.Code == monster.Code);
 
                 return isOnMap;
             }),

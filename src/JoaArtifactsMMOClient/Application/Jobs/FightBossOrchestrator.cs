@@ -1072,7 +1072,7 @@ public class FightBossOrchestrator
     {
         List<MonsterSchema> bossCandidates =
         [
-            .. gameState.Monsters.Where(monster =>
+            .. gameState.AvailableMonsters.Where(monster =>
             {
                 if (
                     (monster.Type != MonsterType.Boss && monster.Type != MonsterType.RaidBoss)
