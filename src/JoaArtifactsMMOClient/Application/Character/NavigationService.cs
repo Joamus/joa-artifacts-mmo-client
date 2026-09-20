@@ -196,8 +196,6 @@ public class NavigationService
             );
         }
 
-        // var currentMap = gameState.MapsDict[character.Schema.MapId];
-
         NavigationStepsAndRequirements result = CalculateStepsToDestination(
             currentMap,
             destinationMap

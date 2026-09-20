@@ -344,10 +344,6 @@ public class GameState
 
             pageNumber++;
         }
-        // FOR TESTING
-        var pixieRaid = raids.First(raid => raid.Monster == "pixie");
-
-        pixieRaid.NextStartAt = DateTime.UtcNow;
 
         bool isInitialRun = Raids.Count == 0;
 
