@@ -98,7 +98,6 @@ public class PlayerAI
             var job =
                 await GetDepositItemsJobIfNeeded()
                 ?? await WithdrawAllowance()
-                // Deposit all gold above threshold - shared economy
                 ?? DepositUnneededGold()
                 ?? await StartRaid()
                 ?? await GetEventJob()
@@ -1362,8 +1361,10 @@ public class PlayerAI
         }
 
         if (
-            upcomingRaid.ActiveInstance is not null
+            (
+                upcomingRaid.ActiveInstance is not null
                 && upcomingRaid.ActiveInstance.Status == RaidStatus.Active
+            )
             || (upcomingRaid.NextStartAt - DateTime.UtcNow).TotalSeconds
                 <= START_RAID_IF_WITHIN_SECONDS
         )

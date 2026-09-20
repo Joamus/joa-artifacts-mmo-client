@@ -121,6 +121,7 @@ public class GameState
         // Just reload achievements for now, for things that are limited by achievements
         await LoadAccountAchievements();
         await LoadMaps();
+        await LoadRaids();
         AvailableMonsters = GetAvailableMonsters(Monsters);
         AvailableMonstersDict = Monsters.ToDictionary(monster => monster.Code);
         AvailableNpcs = GetAvailableNpcs(Npcs);
@@ -343,12 +344,19 @@ public class GameState
 
             pageNumber++;
         }
+        // FOR TESTING
+        var pixieRaid = raids.First(raid => raid.Monster == "pixie");
+
+        pixieRaid.NextStartAt = DateTime.UtcNow;
+
+        bool isInitialRun = Raids.Count == 0;
+
         bool raidsHasChanged = EventService.RaidIsComingUp(Raids, raids);
 
         RaidsMonsterDict = raidSchema;
         Raids = raids;
 
-        if (raidsHasChanged)
+        if (!isInitialRun && raidsHasChanged)
         {
             // A bit cheating, since it's actual the raids that have changed, but oh well
             logger.LogInformation($"Raids have changed - notifying characters");
