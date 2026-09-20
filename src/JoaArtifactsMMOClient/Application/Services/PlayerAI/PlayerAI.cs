@@ -1349,9 +1349,7 @@ public class PlayerAI
     {
         var upcomingRaid = gameState
             .Raids.OrderBy(raid =>
-                raid.ActiveInstance is not null
-                    ? 0
-                    : (raid.NextStartAt - DateTime.UtcNow).TotalSeconds
+                EventService.RaidIsStartingSoon(raid) || EventService.RaidIsActive(raid)
             )
             .FirstOrDefault();
 

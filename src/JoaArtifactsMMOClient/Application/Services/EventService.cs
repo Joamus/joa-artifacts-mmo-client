@@ -207,17 +207,11 @@ public class EventService
         return true;
     }
 
-    public static bool RaidIsComingUp(List<RaidSchema> oldRaids, List<RaidSchema> newRaids)
+    public static bool NewRaidsAreComingUp(List<RaidSchema> oldRaids, List<RaidSchema> newRaids)
     {
-        static bool IsActive(RaidSchema raid) => raid.ActiveInstance is not null;
-
-        static bool IsComingUp(RaidSchema raid) =>
-            (raid.NextStartAt - DateTime.UtcNow).TotalSeconds
-            <= PlayerAI.START_RAID_IF_WITHIN_SECONDS;
-
         if (
-            !oldRaids.Exists(IsActive) && newRaids.Exists(IsActive)
-            || !oldRaids.Exists(IsComingUp) && newRaids.Exists(IsComingUp)
+            !oldRaids.Exists(RaidIsActive) && newRaids.Exists(RaidIsActive)
+            || !oldRaids.Exists(RaidIsStartingSoon) && newRaids.Exists(RaidIsStartingSoon)
         )
         {
             return true;
@@ -225,6 +219,14 @@ public class EventService
 
         return false;
     }
+
+    public static bool RaidIsStartingSoon(RaidSchema raid)
+    {
+        return (raid.NextStartAt - DateTime.UtcNow).TotalSeconds
+            <= PlayerAI.START_RAID_IF_WITHIN_SECONDS;
+    }
+
+    public static bool RaidIsActive(RaidSchema raid) => raid.ActiveInstance is not null;
 
     public static bool EventListsAreDifferent(
         List<ActiveEventSchema> oldEvents,

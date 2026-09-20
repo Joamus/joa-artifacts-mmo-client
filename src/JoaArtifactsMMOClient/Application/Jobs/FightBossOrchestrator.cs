@@ -1072,7 +1072,7 @@ public class FightBossOrchestrator
     {
         List<MonsterSchema> bossCandidates =
         [
-            .. gameState.AvailableMonsters.Where(monster =>
+            .. gameState.Monsters.Where(monster =>
             {
                 if (
                     (monster.Type != MonsterType.Boss && monster.Type != MonsterType.RaidBoss)
@@ -1082,6 +1082,23 @@ public class FightBossOrchestrator
                 )
                 {
                     return false;
+                }
+
+                if (monster.Type == MonsterType.RaidBoss)
+                {
+                    // figure out if the boss still has more HP left, and is currently active
+                    var raid = gameState.RaidsMonsterDict.GetValueOrNull(monster.Code);
+
+                    if (
+                        raid is null
+                        || (
+                            !EventService.RaidIsStartingSoon(raid)
+                            && !EventService.RaidIsActive(raid)
+                        )
+                    )
+                    {
+                        return false;
+                    }
                 }
 
                 int lowestLevelBound =

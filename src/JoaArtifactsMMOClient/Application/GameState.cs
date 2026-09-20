@@ -347,7 +347,7 @@ public class GameState
 
         bool isInitialRun = Raids.Count == 0;
 
-        bool raidsHasChanged = EventService.RaidIsComingUp(Raids, raids);
+        bool raidsHasChanged = EventService.NewRaidsAreComingUp(Raids, raids);
 
         RaidsMonsterDict = raidSchema;
         Raids = raids;
@@ -454,8 +454,9 @@ public class GameState
                 if (monster.Type == MonsterType.RaidBoss)
                 {
                     // figure out if the boss still has more HP left, and is currently active
-                    return RaidsMonsterDict.GetValueOrNull(monster.Code)?.ActiveInstance?.Status
-                        == RaidStatus.Active;
+                    var raid = RaidsMonsterDict.GetValueOrNull(monster.Code);
+
+                    return raid is not null && EventService.RaidIsActive(raid);
                 }
 
                 bool isOnMap = Maps.Exists(map => map.Interactions.Content?.Code == monster.Code);
