@@ -461,14 +461,11 @@ public class FightBossOrchestrator
         if (Monster.Type == MonsterType.RaidBoss)
         {
             // Wait for x time until the boss is ready
-            var raid = GameState.RaidsMonsterDict.GetValueOrNull(Monster.Code);
-
-            if (raid is null)
-            {
-                throw new AppError(
+            var raid =
+                GameState.RaidsMonsterDict.GetValueOrNull(Monster.Code)
+                ?? throw new AppError(
                     $"{JobName}: StartBossFight: Error - trying to fight RaidBoss, but cannot find boss - throwing error (fighting {Monster.Code})"
                 );
-            }
 
             double secondsUntilNextRaid = (DateTime.UtcNow - raid.NextStartAt).TotalSeconds;
 
@@ -479,7 +476,10 @@ public class FightBossOrchestrator
                 );
             }
 
-            await Task.Delay((int)Math.Ceiling(secondsUntilNextRaid) + 2);
+            if (secondsUntilNextRaid > 0)
+            {
+                await Task.Delay((int)Math.Ceiling(secondsUntilNextRaid * 1000));
+            }
         }
 
         await MainCharacter.Fight(OtherCharacters);
