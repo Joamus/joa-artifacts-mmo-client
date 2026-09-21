@@ -186,7 +186,7 @@ public static class ItemService
         return itemSlots;
     }
 
-    public static bool IsHealthPotion(ItemSchema item)
+    public static bool IsRestorePotion(ItemSchema item)
     {
         return item.Subtype == "potion"
             && item.Effects.Find(effect => effect.Code == "restore") is not null;

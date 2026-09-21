@@ -1069,7 +1069,32 @@ public class FightMonster : CharacterJob
         {
             return new ActionBeforeFightData { Action = ActionBeforeFight.None, Jobs = [] };
         }
-        if (character.Schema.Hp >= character.Schema.MaxHp * 0.75)
+
+        var hasRestorePotions = new List<string>
+        {
+            character.Schema.Utility1Slot,
+            character.Schema.Utility2Slot,
+        }.Exists(
+            (itemCode) =>
+            {
+                if (string.IsNullOrWhiteSpace(itemCode))
+                {
+                    return false;
+                }
+
+                var item = gameState.ItemsDict[itemCode];
+
+                return ItemService.IsRestorePotion(item);
+            }
+        );
+
+        // If we have restore potions, we always want to rest, since it might otherwise waste potions.
+        if (hasRestorePotions)
+        {
+            return new ActionBeforeFightData { Action = ActionBeforeFight.Heal, Jobs = [] };
+        }
+
+        if (character.Schema.Hp >= character.Schema.MaxHp * 0.75 && !hasRestorePotions)
         {
             var schemaWithoutNewPots = character.Schema with { };
 
