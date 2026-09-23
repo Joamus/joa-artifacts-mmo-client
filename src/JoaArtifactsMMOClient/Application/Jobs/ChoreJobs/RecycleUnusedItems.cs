@@ -161,13 +161,13 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 continue;
             }
 
-            if (
-                lowestCharacterLevel
-                <= Math.Min(matchingItem.Level + RECYCLE_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL)
-            )
-            {
-                continue;
-            }
+            // if (
+            //     lowestCharacterLevel
+            //     <= Math.Min(matchingItem.Level + RECYCLE_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL)
+            // )
+            // {
+            //     continue;
+            // }
 
             int amountToRecycle = item.Quantity;
 
@@ -269,18 +269,28 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 }
             }
 
-            int amountToKeepPerItem = Math.Min(
-                GetItemAmountMinimumNeeded(matchingItem) * amountOfCharacters,
-                item.Quantity
-            );
-
-            // We can recycle more in the bank, if the characters has a better item
-            amountToRecycle -= amountOfCharactersWithWorseItem * amountToKeepPerItem;
+            bool isItemAboveRecycleLevelThreshold =
+                lowestCharacterLevel
+                <= Math.Min(matchingItem.Level + RECYCLE_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL);
 
             if (amountToRecycle > item.Quantity)
             {
                 amountToRecycle = item.Quantity;
             }
+            /**
+            * If the item is high enough level be above recycle threshold, then we always want to
+            * keep at least the minimum required.
+            */
+            int amountOfCharactersThisItemIsRelevantFor = (
+                isItemAboveRecycleLevelThreshold
+                    ? gameState.Characters.Count
+                    : amountOfCharactersWithWorseItem
+            );
+
+            int minimumItemsToKeep =
+                amountOfCharactersThisItemIsRelevantFor * GetItemAmountMinimumNeeded(matchingItem);
+
+            amountToRecycle -= minimumItemsToKeep;
 
             if (amountToRecycle > 0)
             {

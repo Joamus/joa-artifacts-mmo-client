@@ -1094,7 +1094,7 @@ public class FightMonster : CharacterJob
             return new ActionBeforeFightData { Action = ActionBeforeFight.Heal, Jobs = [] };
         }
 
-        if (character.Schema.Hp >= character.Schema.MaxHp * 0.75 && !hasRestorePotions)
+        if (character.Schema.Hp >= character.Schema.MaxHp * 0.75)
         {
             var schemaWithoutNewPots = character.Schema with { };
 
