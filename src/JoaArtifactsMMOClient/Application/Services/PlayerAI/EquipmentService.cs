@@ -949,7 +949,7 @@ public class EquipmentService
             fightOutcomeWithItem.ShouldFight
             && fightOutcomeWithoutItem.ShouldFight
             && fightOutcomeWithoutItem.AllPlayerParticipants.All(player =>
-                player.OriginalHp / player.OriginalMaxHp >= CAN_EASILY_FIGHT_PLAYER_HP_PERCENTAGE
+                player.Entity.Hp / player.Entity.MaxHp >= CAN_EASILY_FIGHT_PLAYER_HP_PERCENTAGE
             );
 
         float improvementScoreToConsiderItem = canAlreadyEasilyFight
