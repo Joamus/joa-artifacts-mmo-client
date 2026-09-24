@@ -51,8 +51,6 @@ public class GameState
     public List<ResourceSchema> Resources { get; set; } = [];
     public List<NpcSchema> Npcs { get; set; } = [];
     public List<NpcSchema> AvailableNpcs { get; set; } = [];
-    public List<AccountAchievementSchema> AccountAchievements { get; set; } = [];
-    public Dictionary<string, AccountAchievementSchema> AccountAchievementsDict { get; set; } = [];
     public List<MonsterSchema> Monsters { get; set; } = [];
     public Dictionary<string, MonsterSchema> MonstersDict { get; set; } = [];
     public List<MonsterSchema> AvailableMonsters { get; set; } = [];

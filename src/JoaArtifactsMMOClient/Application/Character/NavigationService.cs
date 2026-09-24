@@ -121,7 +121,7 @@ public class NavigationService
             {
                 if (
                     condition.Operator == ItemConditionOperator.AchievementUnlocked
-                    && gameState.AccountAchievements.Find(achievement =>
+                    && gameState.Services.AchievementService.AccountAchievements.Find(achievement =>
                         achievement.Code == condition.Code
                     )
                         is null
@@ -549,7 +549,7 @@ public class NavigationService
                 Y = destinationMap.Y,
                 Layer = destinationMap.Layer,
                 ShouldTransition = false,
-                BeforeMoveAction = MoveAction,
+                AfterMoveAction = MoveAction,
             },
             NewMap = destinationMap,
         };
@@ -578,7 +578,7 @@ public class NavigationService
                 Y = currentMap.Y,
                 Layer = currentMap.Layer,
                 ShouldTransition = true,
-                BeforeMoveAction = MoveAction,
+                AfterMoveAction = MoveAction,
             },
             NewMap = destinationMap,
         };
@@ -593,9 +593,9 @@ public class NavigationService
             await character.Transition();
         }
 
-        if (move.BeforeMoveAction is not null)
+        if (move.AfterMoveAction is not null)
         {
-            await move.BeforeMoveAction();
+            await move.AfterMoveAction();
         }
     }
 
@@ -700,7 +700,7 @@ public class NavigationService
                         Y = currentMap.Y,
                         Layer = currentMap.Layer,
                         ShouldTransition = false,
-                        BeforeMoveAction = async () =>
+                        AfterMoveAction = async () =>
                         {
                             int secondsSaved =
                                 GetSecondsToMoveToMap(bestCandidate.teleportToDestinationDistance)
@@ -755,7 +755,7 @@ public class NavigationService
                     Y = currentMap.Y,
                     Layer = currentMap.Layer,
                     ShouldTransition = false,
-                    BeforeMoveAction = async () =>
+                    AfterMoveAction = async () =>
                     {
                         var monsterCode = FindClosestMonster(
                             gameState.MapsDict[character.Schema.MapId]
@@ -827,7 +827,7 @@ public record Move
     public required bool ShouldTransition { get; init; }
 
     /** An action that can be run, which will take the character to the destinationMap of a move. E.g. using a recall potion*/
-    public Func<Task>? BeforeMoveAction { get; init; }
+    public Func<Task>? AfterMoveAction { get; init; }
 }
 
 public record NavigationStepsAndRequirements

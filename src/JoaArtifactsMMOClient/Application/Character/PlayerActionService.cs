@@ -872,8 +872,6 @@ public class PlayerActionService
         return jobs;
     }
 
-    // public async void BuyItemFromNpc(string code, int quantity) { }
-
     public async Task DepositPotions(int utilitySlot, string itemCode, int amount)
     {
         int amountToUnequip = Math.Min(Character.GetAvailableInventorySpace() - 5, amount);
