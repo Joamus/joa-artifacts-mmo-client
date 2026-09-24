@@ -958,21 +958,10 @@ public class FightBossOrchestrator
         List<DropSchema> bankItems
     )
     {
-        // int maxCharactersInBossFight = 3;
-
-        // List<(List<PlayerCharacter> AllCharacters, int XpPerKill)> results = [];
-
-        // Hack until we feel like writing a recursive function.
-        // Note, this only works as long as boss fights is max 3 characters, and we have 5 characters in total
-        List<List<PlayerCharacter>> combinations =
-        [
-            [character, otherCharacters[0], otherCharacters[1]],
-            [character, otherCharacters[0], otherCharacters[2]],
-            [character, otherCharacters[0], otherCharacters[3]],
-            [character, otherCharacters[1], otherCharacters[2]],
-            [character, otherCharacters[1], otherCharacters[3]],
-            [character, otherCharacters[2], otherCharacters[3]],
-        ];
+        List<List<PlayerCharacter>> combinations = GetAllCharacterListCombinations(
+            character,
+            otherCharacters
+        );
 
         List<BossGrindDetails> results = [];
 
@@ -1026,40 +1015,6 @@ public class FightBossOrchestrator
                 );
             }
         }
-        // List<List<PlayerCharacter>> knownCombinations = [];
-
-        // bool IsCombinationKnown(List<PlayerCharacter> input)
-        // {
-        //     return knownCombinations.Exists(combination =>
-        //         combination.All(charInCombination =>
-        //             input.Exists(startListChar => startListChar.Name == charInCombination.Name)
-        //         )
-        //     );
-        // }
-
-        // foreach (var otherCharacter in otherCharacters)
-        // {
-        //     List<PlayerCharacter> startList = [character, otherCharacter];
-
-        //     if (IsCombinationKnown(startList))
-        //     {
-        //         continue;
-        //     }
-
-        //     knownCombinations.Add(startList);
-
-        //     int charactersNeeded = maxCharactersInBossFight - startList.Count;
-
-        //     while (charactersNeeded > 0)
-        //     {
-        //         List<PlayerCharacter> proposedList = [.. startList];
-
-        //         foreach (var otherCharacter2 in otherCharacters)
-        //         {
-        //             List<PlayerCharacter> proposedList = [.. startList, otherCharacter2];
-        //         }
-        //     }
-        // }
 
         return results.OrderByDescending(element => element.XpPerKill).FirstOrDefault();
     }
@@ -1070,6 +1025,19 @@ public class FightBossOrchestrator
         List<DropSchema> bankItems
     )
     {
+        List<PlayerCharacter> otherCharacters =
+        [
+            .. gameState.Characters.Where(gameStateChar => gameStateChar.Name != character.Name),
+        ];
+
+        List<int> characterAverageLevelCombinations =
+        [
+            .. GetAllCharacterListCombinations(character, otherCharacters)
+                .Select(characters =>
+                    characters.Sum(character => character.Schema.Level) / characters.Count
+                ),
+        ];
+
         List<MonsterSchema> bossCandidates =
         [
             .. gameState.Monsters.Where(monster =>
@@ -1101,22 +1069,20 @@ public class FightBossOrchestrator
                     }
                 }
 
-                int lowestLevelBound =
-                    character.Schema.Level - PlayerActionService.LEVEL_DIFF_NO_XP;
+                return characterAverageLevelCombinations.Exists(averageLevelCombination =>
+                {
+                    int lowestLevelBound =
+                        averageLevelCombination - PlayerActionService.LEVEL_DIFF_NO_XP;
 
-                int highestLevelBound =
-                    character.Schema.Level + PlayerActionService.LEVEL_DIFF_NO_XP;
+                    int highestLevelBound =
+                        averageLevelCombination + PlayerActionService.LEVEL_DIFF_NO_XP;
 
-                bool isInLevelRange =
-                    monster.Level >= lowestLevelBound && monster.Level <= highestLevelBound;
+                    bool isInLevelRange =
+                        monster.Level >= lowestLevelBound && monster.Level <= highestLevelBound;
 
-                return isInLevelRange;
+                    return isInLevelRange;
+                });
             }),
-        ];
-
-        List<PlayerCharacter> otherCharacters =
-        [
-            .. gameState.Characters.Where(gameStateChar => gameStateChar.Name != character.Name),
         ];
 
         List<BossGrindDetails> outcomes = [];
@@ -1151,6 +1117,26 @@ public class FightBossOrchestrator
     bool IsJobDone()
     {
         return Status == FightBossStatus.Failed || Status == FightBossStatus.Completed;
+    }
+
+    static List<List<PlayerCharacter>> GetAllCharacterListCombinations(
+        PlayerCharacter character,
+        List<PlayerCharacter> otherCharacters
+    )
+    {
+        // Hack until we feel like writing a recursive function.
+        // Note, this only works as long as boss fights is max 3 characters, and we have 5 characters in total
+        List<List<PlayerCharacter>> combinations =
+        [
+            [character, otherCharacters[0], otherCharacters[1]],
+            [character, otherCharacters[0], otherCharacters[2]],
+            [character, otherCharacters[0], otherCharacters[3]],
+            [character, otherCharacters[1], otherCharacters[2]],
+            [character, otherCharacters[1], otherCharacters[3]],
+            [character, otherCharacters[2], otherCharacters[3]],
+        ];
+
+        return combinations;
     }
 }
 
