@@ -26,9 +26,10 @@ public static class ItemService
         "bag",
         "utility",
     ];
-    public static readonly List<string> RecycableItemTypes = EquipmentItemTypes
-        .Where(item => item != "utility" && item != "rune")
-        .ToList();
+    public static readonly List<string> RecycableItemTypes =
+    [
+        .. EquipmentItemTypes.Where(item => item != "utility" && item != "rune"),
+    ];
 
     public const string TasksCoin = "tasks_coin";
 

@@ -1033,8 +1033,7 @@ public class FightMonster : CharacterJob
             character.Schema,
             [],
             monster,
-            gameState,
-            true
+            gameState
         );
 
         if (!fightSimWithCurrentOutcome.ShouldFight)
@@ -1058,11 +1057,24 @@ public class FightMonster : CharacterJob
                 fightSimResultWithPossibleItems
             );
 
-            return new ActionBeforeFightData
+            if (obtainPotionJobs.Count > 0)
             {
-                Action = ActionBeforeFight.AcquirePotions,
-                Jobs = obtainPotionJobs,
-            };
+                return new ActionBeforeFightData
+                {
+                    Action = ActionBeforeFight.AcquirePotions,
+                    Jobs = obtainPotionJobs,
+                };
+            }
+            else
+            {
+                logger.LogInformation(
+                    "{JobName}: [{Character.Schema.Name}] is fighting {Code}, but edge case happened that should not happen - no acquire potion jobs - just healing",
+                    JobName,
+                    Character.Schema.Name,
+                    Code
+                );
+                return new ActionBeforeFightData { Action = ActionBeforeFight.Heal, Jobs = [] };
+            }
         }
 
         if (character.Schema.Hp == character.Schema.MaxHp)

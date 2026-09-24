@@ -308,6 +308,9 @@ public static class FightSimulator
             characterSchema.Hp = characterSchema.MaxHp;
         }
 
+        int originalHp = characterSchema.Hp;
+        int originalMaxHp = characterSchema.MaxHp;
+
         // Add runes to this
         List<SimpleEffectSchema> runeEffects = [];
 
@@ -352,8 +355,8 @@ public static class FightSimulator
         return new FightSimParticipant
         {
             Entity = characterSchema,
-            OriginalHp = originalCharacterSchema.Hp,
-            OriginalMaxHp = originalCharacterSchema.MaxHp,
+            OriginalHp = originalHp,
+            OriginalMaxHp = originalMaxHp,
             CritCalculator = new DeterministicCritCalculator(
                 characterSchema.CriticalStrike,
                 addedCritChance

@@ -30,7 +30,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
         }
 
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] running - found {items.Count} different items to deposit"
+            $"{JobName}: [{Character.Schema.Name}] running - found {items.Count} different items to recycle"
         );
 
         // Just deposit everything, will give more room for recycling
@@ -126,7 +126,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
         Dictionary<string, List<ItemSchema>> toolsByEffect = [];
 
-        var itemsWeShouldNotRecycle = GetRelevantEquipment(
+        var itemsWeShouldNotRecycleAllOf = GetRelevantEquipment(
             gameState,
             [
                 .. bankItems
@@ -227,51 +227,54 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 amountOfCharactersWithWorseItem = amountWithWorseTool;
                 // Check characters' inventory/weapon slot, and see if they have a better tool
             }
-            else
-            {
-                var itemCouldBeRecycled = !itemsWeShouldNotRecycle.Contains(item.Code);
+            // else
+            // {
+            //     var itemCouldBeRecycled = !itemsWeShouldNotRecycleAllOf.Contains(item.Code);
 
-                if (itemCouldBeRecycled)
-                {
-                    /*
-                    ** Check if the item is a component of an item we don't want to recycle,
-                    ** for example skeleton_armor, which can be built into royal_skeleton_armor
-                    */
+            //     if (itemCouldBeRecycled)
+            //     {
+            //         /*
+            //         ** Check if the item is a component of an item we don't want to recycle,
+            //         ** for example skeleton_armor, which can be built into royal_skeleton_armor
+            //         */
 
-                    var matchingCraftItemLookup = gameState.CraftingLookupDict.GetValueOrNull(
-                        item.Code
-                    );
+            //         var matchingCraftItemLookup = gameState.CraftingLookupDict.GetValueOrNull(
+            //             item.Code
+            //         );
 
-                    if (
-                        matchingCraftItemLookup is not null
-                        && matchingCraftItemLookup.Exists(item =>
-                            itemsWeShouldNotRecycle.Contains(item.Code)
-                        )
-                    )
-                    {
-                        itemCouldBeRecycled = false;
-                    }
+            //         if (
+            //             matchingCraftItemLookup is not null
+            //             && matchingCraftItemLookup.Exists(item =>
+            //                 itemsWeShouldNotRecycleAllOf.Contains(item.Code)
+            //             )
+            //         )
+            //         {
+            //             itemCouldBeRecycled = false;
+            //         }
 
-                    if (itemCouldBeRecycled)
-                    {
-                        var matchingItemThatShouldNotBeRecycled = gameState.ItemsDict[item.Code];
+            //         if (itemCouldBeRecycled)
+            //         {
+            //             var matchingItemThatShouldNotBeRecycled = gameState.ItemsDict[item.Code];
 
-                        if (matchingItemThatShouldNotBeRecycled.Level < lowestCharacterLevel)
-                        {
-                            amountToRecycle = item.Quantity;
-                            amountOfCharactersWithWorseItem = 0;
-                        }
-                    }
-                }
-                else
-                {
-                    amountToRecycle = 0;
-                }
-            }
+            //             if (matchingItemThatShouldNotBeRecycled.Level < lowestCharacterLevel)
+            //             {
+            //                 amountToRecycle = item.Quantity;
+            //                 amountOfCharactersWithWorseItem = 0;
+            //             }
+            //         }
+            //     }
+            //     else
+            //     {
+            //         amountToRecycle = 0;
+            //     }
+            // }
 
-            bool isItemAboveRecycleLevelThreshold =
+            bool isItemRelevantDueToLevel =
                 lowestCharacterLevel
                 <= Math.Min(matchingItem.Level + RECYCLE_LEVEL_DIFF, PlayerCharacter.MAX_LEVEL);
+
+            var shouldNotRecycleAll =
+                itemsWeShouldNotRecycleAllOf.Contains(item.Code) || isItemRelevantDueToLevel;
 
             if (amountToRecycle > item.Quantity)
             {
@@ -282,9 +285,7 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
             * keep at least the minimum required.
             */
             int amountOfCharactersThisItemIsRelevantFor = (
-                isItemAboveRecycleLevelThreshold
-                    ? gameState.Characters.Count
-                    : amountOfCharactersWithWorseItem
+                shouldNotRecycleAll ? gameState.Characters.Count : amountOfCharactersWithWorseItem
             );
 
             int minimumItemsToKeep =
