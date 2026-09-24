@@ -845,6 +845,13 @@ public class ObtainItem : CharacterJob
         int requiredAmount
     )
     {
+        if (!gameState.Services.AchievementService.HasDoneItemTask)
+        {
+            return new AppError(
+                $"Cannot obtain task items - tasks_farmer achievement is not completed"
+            );
+        }
+
         List<CharacterJob> jobs = [];
 
         if (matchingItem.Code == ItemService.TasksCoin)

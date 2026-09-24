@@ -76,11 +76,7 @@ public class PlayerAI
                 return depositJob;
             }
 
-            hasDoneItemTask =
-                gameState.AccountAchievements.FirstOrDefault(achiev =>
-                    achiev.Code == "tasks_farmer" && achiev.CompletedAt is not null
-                )
-                    is not null;
+            hasDoneItemTask = gameState.Services.AchievementService.HasDoneItemTask;
 
             // Claim all the items that you can
             if (gameState.ShouldClaimPendingItems())
@@ -109,8 +105,8 @@ public class PlayerAI
                 ?? await EnsureBag()
                 ?? await GetRoleJob()
                 ?? await GetMonsterJobIfCanCertainlyBeDone()
-                ?? await GetIndividualHighPrioJob()
                 ?? await EnsureFightEquipment()
+                ?? await GetIndividualHighPrioJob()
                 ?? GetSkillJob()
                 ?? await GetChoreJob()
                 ?? await GetIndividualLowPrioJob();

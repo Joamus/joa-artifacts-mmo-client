@@ -52,6 +52,7 @@ public class GameState
     public List<NpcSchema> Npcs { get; set; } = [];
     public List<NpcSchema> AvailableNpcs { get; set; } = [];
     public List<AccountAchievementSchema> AccountAchievements { get; set; } = [];
+    public Dictionary<string, AccountAchievementSchema> AccountAchievementsDict { get; set; } = [];
     public List<MonsterSchema> Monsters { get; set; } = [];
     public Dictionary<string, MonsterSchema> MonstersDict { get; set; } = [];
     public List<MonsterSchema> AvailableMonsters { get; set; } = [];
@@ -74,6 +75,12 @@ public class GameState
                 this
             ),
             ChoreService = new CharacterChoreService(),
+
+            AchievementService = new AchievementService(
+                AppLogger.loggerFactory.CreateLogger<AchievementService>(),
+                accountRequester,
+                this
+            ),
         };
         logger = AppLogger.loggerFactory.CreateLogger<GameState>();
     }
@@ -90,7 +97,7 @@ public class GameState
         await LoadMonsters();
         await LoadRaids();
         await LoadPendingItems();
-        await LoadAccountAchievements();
+        await Services.AchievementService.LoadAccountAchievements();
         await LoadTasksList();
         await LoadTasksRewards();
         await Services.BankItemCache.GetBankItems(null);
@@ -119,7 +126,7 @@ public class GameState
         cacheReload = DateTime.UtcNow;
 
         // Just reload achievements for now, for things that are limited by achievements
-        await LoadAccountAchievements();
+        await Services.AchievementService.LoadAccountAchievements();
         await LoadMaps();
         await LoadRaids();
         AvailableMonsters = GetAvailableMonsters(Monsters);
@@ -466,43 +473,6 @@ public class GameState
         ];
     }
 
-    public async Task LoadAccountAchievements()
-    {
-        logger.LogInformation("Loading account achievements...");
-        bool doneLoading = false;
-        List<AccountAchievementSchema> accountAchievements = [];
-        int pageNumber = 1;
-
-        try
-        {
-            while (!doneLoading)
-            {
-                var result = await Services.AccountRequester.GetAccountAchievements(pageNumber);
-
-                foreach (var achievement in result.Data)
-                {
-                    if (!string.IsNullOrEmpty(achievement.CompletedAt))
-                    {
-                        accountAchievements.Add(achievement);
-                    }
-                }
-
-                if (result.Data.Count == 0)
-                {
-                    doneLoading = true;
-                }
-
-                pageNumber++;
-            }
-            AccountAchievements = accountAchievements;
-            logger.LogInformation("Loading account achievements - DONE;");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e.ToString());
-        }
-    }
-
     public async Task LoadMonsters()
     {
         logger.LogInformation("Loading monsters...");
@@ -616,4 +586,5 @@ public record GameStateServices
     public required BankItemCache BankItemCache { get; set; }
     public required EventService EventService { get; set; }
     public CharacterChoreService ChoreService { get; set; }
+    public required AchievementService AchievementService { get; set; }
 }
