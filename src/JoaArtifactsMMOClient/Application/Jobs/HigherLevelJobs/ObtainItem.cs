@@ -1170,12 +1170,17 @@ public class ObtainItem : CharacterJob
                     );
                 }
 
+                var bestOtherCharactersCandidates = FightBossOrchestrator.GetBestCandidatesToFight(
+                    character,
+                    gameState
+                );
+
                 monstersThatDropCurrency =
                 [
                     .. (
                         await GetDefeatableMonstersFromList(
                             character,
-                            [],
+                            bestOtherCharactersCandidates,
                             gameState,
                             monstersThatDropCurrency,
                             itemsInBank

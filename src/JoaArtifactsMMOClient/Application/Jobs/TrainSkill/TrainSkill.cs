@@ -5,6 +5,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Errors;
+using Application.Jobs.Orchestrators;
 using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
@@ -224,7 +225,7 @@ public class TrainSkill : CharacterJob
                         .Select(
                             (item) =>
                             {
-                                (bool CanObtain, int Cost) = (
+                                var result = (
                                     GetInconvenienceCostCraftItem(
                                         item,
                                         gameState,
@@ -232,9 +233,12 @@ public class TrainSkill : CharacterJob
                                             bankItemsResponse,
                                             gameState.ItemsDict
                                         ),
-                                        Character
+                                        Character,
+                                        []
                                     )
                                 );
+                                bool canObtain = result.CanObtain;
+                                int cost = result.Cost;
 
                                 // We want to bias toward the XP we would get.
                                 int xpForCrafting = CraftingService.GetXpForCraftingItem(
@@ -248,9 +252,9 @@ public class TrainSkill : CharacterJob
                                     (float)xpForCrafting / maxXpForLevel
                                 );
 
-                                int resultCost = (int)Math.Round(Cost / maxXpPotential);
+                                int resultCost = (int)Math.Round(cost / maxXpPotential);
 
-                                return (item, CanObtain, Cost: resultCost);
+                                return (item, CanObtain: canObtain, Cost: resultCost);
                             }
                         )
                         .Where((result) => result.CanObtain)
@@ -401,18 +405,19 @@ public class TrainSkill : CharacterJob
         );
     }
 
-    public static (bool CanObtain, int Score) GetInconvenienceCostCraftItem(
+    public static ItemCostCalculation GetInconvenienceCostCraftItem(
         ItemSchema item,
         GameState gameState,
         List<ItemInInventory> availableItems,
-        PlayerCharacter character
+        PlayerCharacter character,
+        List<PlayerCharacter> otherCharactersForBossFights
     )
     {
-        if (item.Craft is null)
-        {
-            // For now, we don't care about items that cannot be crafted - it's used to train skill
-            return (false, 0);
-        }
+        // if (item.Craft is null)
+        // {
+        //     // For now, we don't care about items that cannot be crafted - it's used to train skill
+        //     return new ItemCostCalculation { CanObtain = false, Cost = 0 };
+        // }
 
         var result = InnerGetInconvenienceCostCraftItem(
             item,
@@ -420,18 +425,20 @@ public class TrainSkill : CharacterJob
             gameState,
             availableItems,
             character,
+            otherCharactersForBossFights,
             true
         );
 
         return result;
     }
 
-    public static (bool CanObtain, int Score) InnerGetInconvenienceCostCraftItem(
+    public static ItemCostCalculation InnerGetInconvenienceCostCraftItem(
         ItemSchema item,
         int quantity,
         GameState gameState,
         List<ItemInInventory> availableItems,
         PlayerCharacter character,
+        List<PlayerCharacter> otherCharactersForBossFights,
         bool initialItem
     )
     {
@@ -457,7 +464,7 @@ public class TrainSkill : CharacterJob
             && !MostExpensiveItemSubtypes.Contains(matchingItem.Subtype)
         )
         {
-            return (true, 0);
+            return new ItemCostCalculation { CanObtain = true, Cost = 0 };
         }
 
         if (matchingItem.Subtype == "task")
@@ -509,6 +516,41 @@ public class TrainSkill : CharacterJob
 
                     qualifiedMonsters.Add((monster, fightOutcome, monsterCost));
                 }
+                else
+                {
+                    var bossFightResult = FightSimulator.SimulateBossFightOutcome(
+                        character,
+                        otherCharactersForBossFights,
+                        gameState,
+                        [
+                            .. availableItems.Select(item => new DropSchema
+                            {
+                                Code = item.Item.Code,
+                                Quantity = item.Quantity,
+                            }),
+                        ],
+                        monster
+                    );
+
+                    var bestOutcome = bossFightResult.FirstOrDefault(simResult =>
+                        simResult.Outcome.ShouldFight
+                    );
+
+                    if (bestOutcome is not null)
+                    {
+                        int monsterCost = CalculateMonsterCost(
+                            character,
+                            monster,
+                            isEventMonster,
+                            item,
+                            quantity,
+                            fightOutcome,
+                            eventCost
+                        );
+
+                        qualifiedMonsters.Add((monster, bestOutcome.Outcome, monsterCost));
+                    }
+                }
             }
 
             qualifiedMonsters.Sort((a, b) => a.Cost - b.Cost);
@@ -531,41 +573,70 @@ public class TrainSkill : CharacterJob
         {
             foreach (var subComponent in matchingItem.Craft.Items)
             {
-                var (CanObtain, Score) = InnerGetInconvenienceCostCraftItem(
+                var subComponentResult = InnerGetInconvenienceCostCraftItem(
                     gameState.ItemsDict[subComponent.Code],
                     subComponent.Quantity * quantity,
                     gameState,
                     availableItems,
                     character,
+                    otherCharactersForBossFights,
                     false
                 );
 
-                cost += Score;
+                cost += subComponentResult.Cost;
 
-                if (!CanObtain)
+                if (!subComponentResult.CanObtain)
                 {
-                    return (false, cost);
+                    return new ItemCostCalculation { CanObtain = false, Cost = cost };
                 }
             }
         }
         else
         {
-            var resource = ItemService
-                .FindBestResourceToGatherItem(character, gameState, item.Code, true)
-                ?.Resource;
-
-            if (resource is not null)
+            var matchingNpcItem = gameState.NpcItemsDict.GetValueOrNull(item.Code);
+            if (
+                matchingNpcItem is not null
+                && matchingNpcItem.BuyPrice is not null
+                && matchingNpcItem.Currency != "gold"
+            )
             {
-                bool isFromEvent = gameState.Services.EventService.IsEntityFromEvent(item.Code);
+                var subComponentResult = InnerGetInconvenienceCostCraftItem(
+                    gameState.ItemsDict[matchingNpcItem.Currency],
+                    (matchingNpcItem.BuyPrice ?? 0) * quantity,
+                    gameState,
+                    availableItems,
+                    character,
+                    otherCharactersForBossFights,
+                    false
+                );
 
-                var drop = resource.Drops.First(drop => drop.Code == item.Code)!;
+                cost += subComponentResult.Cost;
 
-                cost +=
-                    (isFromEvent ? eventCost : 1) * (int)Math.Floor(drop.Rate * (double)quantity);
+                if (!subComponentResult.CanObtain)
+                {
+                    return new ItemCostCalculation { CanObtain = false, Cost = cost };
+                }
+            }
+            else
+            {
+                var resource = ItemService
+                    .FindBestResourceToGatherItem(character, gameState, item.Code, true)
+                    ?.Resource;
+
+                if (resource is not null)
+                {
+                    bool isFromEvent = gameState.Services.EventService.IsEntityFromEvent(item.Code);
+
+                    var drop = resource.Drops.First(drop => drop.Code == item.Code)!;
+
+                    cost +=
+                        (isFromEvent ? eventCost : 1)
+                        * (int)Math.Floor(drop.Rate * (double)quantity);
+                }
             }
         }
 
-        return (canObtain, cost);
+        return new ItemCostCalculation { CanObtain = canObtain, Cost = cost };
     }
 
     static int CalculateMonsterCost(
@@ -601,4 +672,10 @@ public class TrainSkill : CharacterJob
 
         return score;
     }
+}
+
+public record ItemCostCalculation
+{
+    public required bool CanObtain { get; init; }
+    public required int Cost { get; init; }
 }

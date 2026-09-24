@@ -5,6 +5,7 @@ using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 using Application.Jobs;
+using Application.Jobs.Orchestrators;
 using Application.Records;
 using Applicaton.Services.FightSimulator;
 using Microsoft.AspNetCore.Mvc;
@@ -24,30 +25,30 @@ public class EquipmentService
     const float IMPROVEMENT_SCORE_MODIFIER_PER_LEVEL = 0.01f;
 
     public static List<EquipmentTypeMapping> CraftableEquipmentTypes { get; } =
-        [
-            new() { ItemType = "weapon", Slot = "WeaponSlot" },
-            new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-            new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-            new() { ItemType = "helmet", Slot = "HelmetSlot" },
-            new() { ItemType = "boots", Slot = "BootsSlot" },
-            new() { ItemType = "ring", Slot = "Ring1Slot" },
-            new() { ItemType = "ring", Slot = "Ring2Slot" },
-            new() { ItemType = "amulet", Slot = "AmuletSlot" },
-            new() { ItemType = "shield", Slot = "ShieldSlot" },
-            new() { ItemType = "utility", Slot = "Utility1Slot" },
-            new() { ItemType = "utility", Slot = "Utility2Slot" },
-        ];
+    [
+        new() { ItemType = "weapon", Slot = "WeaponSlot" },
+        new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+        new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+        new() { ItemType = "helmet", Slot = "HelmetSlot" },
+        new() { ItemType = "boots", Slot = "BootsSlot" },
+        new() { ItemType = "ring", Slot = "Ring1Slot" },
+        new() { ItemType = "ring", Slot = "Ring2Slot" },
+        new() { ItemType = "amulet", Slot = "AmuletSlot" },
+        new() { ItemType = "shield", Slot = "ShieldSlot" },
+        new() { ItemType = "utility", Slot = "Utility1Slot" },
+        new() { ItemType = "utility", Slot = "Utility2Slot" },
+    ];
 
     public static List<EquipmentTypeMapping> AllEquipmentTypes { get; } =
-        [
-            .. new List<EquipmentTypeMapping>
-            {
-                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
-                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
-                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
-                new() { ItemType = "rune", Slot = "RuneSlot" },
-            }.Union(CraftableEquipmentTypes),
-        ];
+    [
+        .. new List<EquipmentTypeMapping>
+        {
+            new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+            new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+            new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+            new() { ItemType = "rune", Slot = "RuneSlot" },
+        }.Union(CraftableEquipmentTypes),
+    ];
 
     static List<EquipmentTypeMapping>? _equipmentTypesForSim = null;
 
@@ -102,6 +103,24 @@ public class EquipmentService
 
         var bankItemsDict = bankItems.ToDictionary(item => item.Code);
 
+        var obtainablePotions = (
+            await character.PlayerActionService.GetObtainablePotions(character, gameState)
+        );
+
+        List<ItemInInventory> availableItems = ItemService.MergeItemEntries(
+            [
+                .. obtainablePotions.Union(
+                    bankItems
+                        .Where(item => !string.IsNullOrWhiteSpace(item.Code))
+                        .Select(item => new ItemInInventory
+                        {
+                            Item = gameState.ItemsDict[item.Code],
+                            Quantity = item.Quantity,
+                        })
+                ),
+            ]
+        );
+
         // We basically just want to take the first equipment type, and give one job, to get the best we can of that one
         List<(ItemSchema Item, int DesiredQuantity)> items = [];
 
@@ -115,14 +134,24 @@ public class EquipmentService
                 ? 0
                 : gameState.ItemsDict[equippedItemInSlot.Code].Level;
 
-            int itemLevelDiff =
+            int itemLevelDiffFromEquippedItem =
                 character.Schema.Level >= ITEM_LEVEL_BUFFER
                     ? ITEM_LEVEL_BUFFER
                     : character.Schema.Level;
 
+            int itemLevelDiff =
+                // character.Schema.Level >= RecycleUnusedItems.RECYCLE_LEVEL_DIFF
+                //     ? ITEM_LEVEL_BUFFER
+                //     : character.Schema.Level;
+                RecycleUnusedItems.RECYCLE_LEVEL_DIFF + ITEM_LEVEL_BUFFER;
+
             foreach (var item in gameState.Items)
             {
                 if (item.Subtype == "tool")
+                {
+                    continue;
+                }
+                if (!ItemService.CanUseItem(item, character.Schema, gameState))
                 {
                     continue;
                 }
@@ -141,7 +170,13 @@ public class EquipmentService
                     continue;
                 }
 
-                bool withinLevelRange = equippedItemInSlotLevel <= item.Level + itemLevelDiff;
+                // bool withinLevelRange = equippedItemInSlotLevel <= item.Level + itemLevelDiff;
+                // No
+                bool withinLevelRange =
+                    !isCraftable
+                    || item.Level + itemLevelDiffFromEquippedItem >= character.Schema.Level
+                    || equippedItemInSlotLevel <= item.Level + itemLevelDiff;
+                ;
 
                 bool correctItemType = item.Type == equipmentType.ItemType;
 
@@ -152,7 +187,7 @@ public class EquipmentService
                     && withinLevelRange
                     // For now, only craftable items, e.g. don't grind mobs for a certain item
                     && (!isCraftable || item.Craft is not null)
-                    && ItemService.CanUseItem(item, character.Schema, gameState)
+                    // && ItemService.CanUseItem(item, character.Schema, gameState)
                     && !character.ExistsInWishlist(item.Code)
                     && await character.PlayerActionService.CanObtainItem(item, 1)
                 )
@@ -163,16 +198,41 @@ public class EquipmentService
         }
         var relevantMonsters = FightSimulator.GetRelevantMonstersForCharacter(character, gameState);
 
-        var fightSimsForMonsters = FightSimulator.GetBestFightSimResultsForMonsters(
-            character,
-            gameState,
-            [
-                .. items.Select(item => new ItemInInventory
+        List<ItemInInventory> itemPoolForSims = ItemService.MergeItemEntries(
+            items
+                .Select(item => new ItemInInventory
                 {
                     Item = item.Item,
                     Quantity = item.DesiredQuantity,
-                }),
-            ],
+                })
+                .Union(availableItems)
+                .ToList()
+        );
+        // List<ItemInInventory> availableItems = ItemService.MergeItemEntries(
+        //     [
+        //         .. obtainablePotions.Union(
+        //             bankItems
+        //                 .Where(item => !string.IsNullOrWhiteSpace(item.Code))
+        //                 .Select(item => new ItemInInventory
+        //                 {
+        //                     Item = gameState.ItemsDict[item.Code],
+        //                     Quantity = item.Quantity,
+        //                 })
+        //         ),
+        //     ]
+        // );
+
+        var fightSimsForMonsters = FightSimulator.GetBestFightSimResultsForMonsters(
+            character,
+            gameState,
+            // [
+            //     .. items.Select(item => new ItemInInventory
+            //     {
+            //         Item = item.Item,
+            //         Quantity = item.DesiredQuantity,
+            //     }),
+            // ],
+            itemPoolForSims,
             false,
             relevantMonsters
         );
@@ -185,7 +245,12 @@ public class EquipmentService
 
             foreach (var item in bestFightItems)
             {
-                relevantItemsFromSimSet.Add(item.Code);
+                var matchingItem = gameState.ItemsDict[item.Code];
+
+                if (matchingItem.Type != "utility")
+                {
+                    relevantItemsFromSimSet.Add(item.Code);
+                }
             }
         }
 
@@ -259,29 +324,16 @@ public class EquipmentService
 
         List<ItemImprovement> allImprovements = [];
 
-        var obtainablePotions = (
-            await character.PlayerActionService.GetObtainablePotions(character, gameState)
-        );
-
-        List<ItemInInventory> availableItems = ItemService.MergeItemEntries(
-            [
-                .. obtainablePotions.Union(
-                    bankItems
-                        .Where(item => !string.IsNullOrWhiteSpace(item.Code))
-                        .Select(item => new ItemInInventory
-                        {
-                            Item = gameState.ItemsDict[item.Code],
-                            Quantity = item.Quantity,
-                        })
-                ),
-            ]
-        );
-
         foreach (var simWithItem in fightSimsForMonsters)
         {
             // int costWithoutItem = TotalSecondsCostForFight(simWithoutItem);
 
             var attackingPlayerSchema = simWithItem.Schema;
+
+            var otherCharactersForBossFights = FightBossOrchestrator.GetBestCandidatesToFight(
+                character,
+                gameState
+            );
 
             foreach (var equipmentSlot in simWithItem.ItemsToEquip)
             {
@@ -372,17 +424,19 @@ public class EquipmentService
                             simWithItem.Outcome,
                             simWithoutItem
                         ),
-                        InconvenienceCostForItem = TrainSkill
-                            .GetInconvenienceCostCraftItem(
-                                item,
-                                gameState,
-                                availableItems,
-                                character
-                            )
-                            .Score,
+                        InconvenienceCost = TrainSkill.GetInconvenienceCostCraftItem(
+                            item,
+                            gameState,
+                            availableItems,
+                            character,
+                            otherCharactersForBossFights
+                        ),
                     };
 
-                    improvementsForItemComparedToEquivalentItems.Add(improvementData);
+                    if (improvementData.FractionalImprovement > 0)
+                    {
+                        improvementsForItemComparedToEquivalentItems.Add(improvementData);
+                    }
                     // allImprovements.Add(improvementData);
                 }
 
@@ -398,7 +452,11 @@ public class EquipmentService
         }
 
         var sortedItemImprovements = SortItemImprovementsRelevantFirst(
-            [.. allImprovements.Where(IsItemBigEnoughImprovement)]
+            [
+                .. allImprovements.Where(item =>
+                    IsItemBigEnoughImprovement(item) && item.InconvenienceCost.CanObtain
+                ),
+            ]
         );
 
         var highestPriorityItem = sortedItemImprovements.FirstOrDefault()?.Item?.Code;
@@ -859,7 +917,7 @@ public class EquipmentService
         return
         [
             .. itemImprovements
-                .OrderBy((improvement) => improvement.InconvenienceCostForItem)
+                .OrderBy((improvement) => improvement.InconvenienceCost.Cost)
                 .ThenByDescending((improvement) => improvement.FractionalImprovement),
         ];
     }
@@ -869,11 +927,11 @@ public class EquipmentService
         var fightOutcomeWithItem = itemImprovementData.FightOutcomeWithItem;
         var fightOutcomeWithoutItem = itemImprovementData.FightOutcomeWithoutItem;
 
-        /**
-        ** We have the boss check, to not always buy every upgrade because we will basically
-        ** always lose 1-1 with a monster around or level. We still want to consider the upgrades,
-        ** but we shouldnt' take them too seriously
-        */
+        // /**
+        // ** We have the boss check, to not always buy every upgrade because we will basically
+        // ** always lose 1-1 with a monster around or level. We still want to consider the upgrades,
+        // ** but we shouldnt' take them too seriously
+        // */
         if (
             fightOutcomeWithItem.Monster.Type != MonsterType.Boss
                 && fightOutcomeWithItem.ShouldFight
@@ -906,7 +964,8 @@ public class EquipmentService
 
         float finalFactor = improvementScoreToConsiderItem / (1 + improvementFactor);
 
-        return itemImprovementData.FractionalImprovement >= finalFactor;
+        return itemImprovementData.FractionalImprovement >= finalFactor
+            && itemImprovementData.FractionalImprovement > 0.0f;
     }
 }
 
@@ -924,5 +983,7 @@ public record ItemImprovement
     public required ItemSchema Item { get; set; }
 
     public required float FractionalImprovement { get; set; }
-    public required int InconvenienceCostForItem { get; set; }
+
+    // public required int InconvenienceCostForItem { get; set; }
+    public required ItemCostCalculation InconvenienceCost { get; set; }
 }

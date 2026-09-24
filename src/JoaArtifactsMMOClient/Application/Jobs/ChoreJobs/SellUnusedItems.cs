@@ -11,7 +11,7 @@ namespace Application.Jobs;
 
 public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 {
-    public const int SELL_LEVEL_DIFF = 10;
+    public const int SELL_LEVEL_DIFF = RecycleUnusedItems.RECYCLE_LEVEL_DIFF;
 
     public const bool SELL_SMALL_PEARLS_IF_FULL_PERFECT_PEARLS = true;
 
