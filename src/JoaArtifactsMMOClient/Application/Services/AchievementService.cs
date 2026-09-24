@@ -62,7 +62,7 @@ public class AchievementService
             );
 
             HasDoneItemTask =
-                AccountAchievementsDict.GetValueOrNull("tasks_farmer")?.CompletedAt is null;
+                AccountAchievementsDict.GetValueOrNull("tasks_farmer")?.CompletedAt is not null;
 
             Logger.LogInformation("Loading account achievements - DONE;");
         }
