@@ -99,7 +99,9 @@ public class NavigationService
     {
         currentMap ??= gameState.MapsDict[character.Schema.MapId];
 
-        var possibleRaidCode = gameState.RaidsMonsterDict.GetValueOrNull(contentCode)?.Code;
+        var possibleRaidCode = gameState
+            .Services.RaidService.RaidsMonsterDict.GetValueOrNull(contentCode)
+            ?.Code;
 
         if (possibleRaidCode is not null)
         {

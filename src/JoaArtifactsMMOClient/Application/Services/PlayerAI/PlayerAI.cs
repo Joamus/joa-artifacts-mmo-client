@@ -1219,7 +1219,13 @@ public class PlayerAI
                             break;
                         case CharacterChoreKind.RestockPotions:
                             job = await ProcessChoreJob(
-                                new RestockPotions(Character, gameState, priority),
+                                new RestockPotions(
+                                    Character,
+                                    gameState,
+                                    priority,
+                                    gameState.Services.RaidService.RelevantRaidComingUpInSomeHours
+                                        is not null
+                                ),
                                 CharacterChoreKind.RestockPotions
                             );
                             break;
@@ -1344,8 +1350,8 @@ public class PlayerAI
     async Task<CharacterJob?> StartRaid()
     {
         var upcomingRaid = gameState
-            .Raids.OrderBy(raid =>
-                EventService.RaidIsStartingSoon(raid) || EventService.RaidIsActive(raid)
+            .Services.RaidService.Raids.OrderBy(raid =>
+                RaidService.RaidIsStartingInAFewMinutes(raid) || RaidService.RaidIsActive(raid)
             )
             .FirstOrDefault();
 
@@ -1400,7 +1406,8 @@ public class PlayerAI
         var result = await FightBossOrchestrator.FindBossMonsterCandidateForXp(
             Character,
             gameState,
-            bankItems
+            bankItems,
+            gameState.Services.RaidService.RelevantRaidComingUpInSomeHours
         );
 
         if (result is not null)

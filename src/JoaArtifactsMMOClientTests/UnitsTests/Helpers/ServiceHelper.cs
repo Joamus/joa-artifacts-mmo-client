@@ -140,7 +140,7 @@ public static class ServiceHelper
                 await gameState.LoadTasksList();
                 await gameState.LoadTasksRewards();
                 await gameState.Services.EventService.LoadEvents();
-                await gameState.Services.EventService.LoadActiveEvents();
+                await gameState.Services.EventService.LoadActiveEvents(false);
             })
             .Wait();
 

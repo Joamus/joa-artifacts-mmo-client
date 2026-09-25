@@ -18,11 +18,12 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
     public RestockPotions(
         PlayerCharacter playerCharacter,
         GameState gameState,
-        ChorePriority priority
+        ChorePriority priority,
+        bool isRaidComingUpInSomeHours
     )
         : base(playerCharacter, gameState)
     {
-        JobParams = GetJobParams(priority);
+        JobParams = GetJobParams(priority, isRaidComingUpInSomeHours);
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
@@ -73,37 +74,17 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         bestPotions =
         [
             .. bestPotions.OrderBy(
-                // (a, b) =>
-                // {
-                //     int aWinsValue = -1;
-                //     int bWinsValue = 1;
-
-                //     bool aIsRestoreHpPot = IsRestorePotion(a);
-                //     bool bIsRestoreHpPot = IsRestorePotion(b);
-
-                //     if (aIsRestoreHpPot && bIsRestoreHpPot)
-                //     {
-                //         return b.Level - a.Level;
-                //     }
-                //     else if (aIsRestoreHpPot)
-                //     {
-                //         return aWinsValue;
-                //     }
-                //     else if (bIsRestoreHpPot)
-                //     {
-                //         return bWinsValue;
-                //     }
-
-                //     return b.Level - a.Level;
-                // }
                 (a) =>
                 {
-                    if (IsRestorePotion(a))
+                    // Splash restore pots are currently something that we only restock here,
+                    // so by prefering them, we can ensnure that we always have some stock,
+                    // and the normal restore potions can be crafted by the characters when they need them.
+                    if (a.Effects.Exists(effect => effect.Code == Effect.SplashRestore))
                     {
                         return 0;
                     }
 
-                    if (a.Effects.Exists(effect => effect.Code == Effect.SplashRestore))
+                    if (IsRestorePotion(a))
                     {
                         return 1;
                     }
@@ -239,29 +220,39 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
         return JobParams.AmountToGather;
     }
 
-    static RestockPotionsParams GetJobParams(ChorePriority priority)
+    static RestockPotionsParams GetJobParams(ChorePriority priority, bool restockingForRaid)
     {
-        return priority switch
+        var jobParams = priority switch
         {
             ChorePriority.Low => new RestockPotionsParams
             {
                 MinimumAmountRestoreLikePotionsInBank = 400,
-                MinimumAmountOtherPotionsInBank = 80,
-                AmountToGather = 30,
+                MinimumAmountOtherPotionsInBank = 100,
+                AmountToGather = 100,
             },
             ChorePriority.Medium => new RestockPotionsParams
             {
                 MinimumAmountRestoreLikePotionsInBank = 300,
                 MinimumAmountOtherPotionsInBank = 50,
-                AmountToGather = 30,
+                AmountToGather = 100,
             },
             ChorePriority.High => new RestockPotionsParams
             {
                 MinimumAmountRestoreLikePotionsInBank = 200,
                 MinimumAmountOtherPotionsInBank = 50,
-                AmountToGather = 30,
+                AmountToGather = 100,
             },
             _ => throw new NotImplementedException(),
+        };
+
+        int restockingForRaidFactor = restockingForRaid ? 2 : 1;
+
+        return jobParams with
+        {
+            MinimumAmountRestoreLikePotionsInBank =
+                jobParams.MinimumAmountRestoreLikePotionsInBank * restockingForRaidFactor,
+            MinimumAmountOtherPotionsInBank =
+                jobParams.MinimumAmountOtherPotionsInBank * restockingForRaidFactor,
         };
     }
 

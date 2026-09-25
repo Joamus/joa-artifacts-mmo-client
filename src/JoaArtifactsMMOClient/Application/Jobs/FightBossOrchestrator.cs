@@ -462,7 +462,7 @@ public class FightBossOrchestrator
         {
             // Wait for x time until the boss is ready
             var raid =
-                GameState.RaidsMonsterDict.GetValueOrNull(Monster.Code)
+                GameState.Services.RaidService.RaidsMonsterDict.GetValueOrNull(Monster.Code)
                 ?? throw new AppError(
                     $"{JobName}: StartBossFight: Error - trying to fight RaidBoss, but cannot find boss - throwing error (fighting {Monster.Code})"
                 );
@@ -1022,7 +1022,8 @@ public class FightBossOrchestrator
     public static async Task<BossGrindDetails?> FindBossMonsterCandidateForXp(
         PlayerCharacter character,
         GameState gameState,
-        List<DropSchema> bankItems
+        List<DropSchema> bankItems,
+        RaidSchema? raidComingUpInSomeHours
     )
     {
         List<PlayerCharacter> otherCharacters =
@@ -1052,16 +1053,31 @@ public class FightBossOrchestrator
                     return false;
                 }
 
+                // Basically, if there is an upcoming raid, then the only bosses they are allowed to kill for XP (maybe drops),
+                // are bosses that come from an event, because those can be rare (e.g. duskworm). We want to ensure that we stockpile
+                // potions (especially splash potions) when a raid is coming up, so we can start fighting right away.
+                // Because of that, we want to avoid just grinding an "ordinary" boss for XP.
+                if (
+                    raidComingUpInSomeHours is not null
+                    && monster.Type == MonsterType.Boss
+                    && !gameState.Services.EventService.IsEntityFromEvent(monster.Code)
+                )
+                {
+                    return false;
+                }
+
                 if (monster.Type == MonsterType.RaidBoss)
                 {
                     // figure out if the boss still has more HP left, and is currently active
-                    var raid = gameState.RaidsMonsterDict.GetValueOrNull(monster.Code);
+                    var raid = gameState.Services.RaidService.RaidsMonsterDict.GetValueOrNull(
+                        monster.Code
+                    );
 
                     if (
                         raid is null
                         || (
-                            !EventService.RaidIsStartingSoon(raid)
-                            && !EventService.RaidIsActive(raid)
+                            !RaidService.RaidIsStartingInAFewMinutes(raid)
+                            && !RaidService.RaidIsActive(raid)
                         )
                     )
                     {

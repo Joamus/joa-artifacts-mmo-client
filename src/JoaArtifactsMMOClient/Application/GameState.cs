@@ -45,9 +45,6 @@ public class GameState
     public List<MapSchema> Maps { get; set; } = [];
 
     public Dictionary<int, MapSchema> MapsDict { get; set; } = [];
-    public List<RaidSchema> Raids { get; set; } = [];
-
-    public Dictionary<string, RaidSchema> RaidsMonsterDict { get; set; } = [];
     public List<ResourceSchema> Resources { get; set; } = [];
     public List<NpcSchema> Npcs { get; set; } = [];
     public List<NpcSchema> AvailableNpcs { get; set; } = [];
@@ -79,6 +76,12 @@ public class GameState
                 accountRequester,
                 this
             ),
+
+            RaidService = new RaidService(
+                AppLogger.loggerFactory.CreateLogger<RaidService>(),
+                accountRequester,
+                this
+            ),
         };
         logger = AppLogger.loggerFactory.CreateLogger<GameState>();
     }
@@ -93,14 +96,14 @@ public class GameState
         await LoadNpcItems();
         await LoadResources();
         await LoadMonsters();
-        await LoadRaids();
+        bool raidsChanged = await Services.RaidService.LoadRaids();
         await LoadPendingItems();
         await Services.AchievementService.LoadAccountAchievements();
         await LoadTasksList();
         await LoadTasksRewards();
         await Services.BankItemCache.GetBankItems(null);
         await Services.EventService.LoadEvents();
-        await Services.EventService.LoadActiveEvents();
+        await Services.EventService.LoadActiveEvents(raidsChanged);
         await LoadCharacters(characterConfigs);
     }
 
@@ -126,13 +129,13 @@ public class GameState
         // Just reload achievements for now, for things that are limited by achievements
         await Services.AchievementService.LoadAccountAchievements();
         await LoadMaps();
-        await LoadRaids();
+        bool raidsChanged = await Services.RaidService.LoadRaids();
         AvailableMonsters = GetAvailableMonsters(Monsters);
         AvailableMonstersDict = Monsters.ToDictionary(monster => monster.Code);
         AvailableNpcs = GetAvailableNpcs(Npcs);
         ShouldUpdatePendingItems = true;
 
-        await Services.EventService.LoadActiveEvents();
+        await Services.EventService.LoadActiveEvents(raidsChanged);
         // Loading these for when events update
     }
 
@@ -324,49 +327,6 @@ public class GameState
         logger.LogInformation("Loading maps - DONE;");
     }
 
-    public async Task LoadRaids()
-    {
-        logger.LogInformation("Loading raids...");
-        bool doneLoading = false;
-        List<RaidSchema> raids = [];
-        Dictionary<string, RaidSchema> raidSchema = [];
-        int pageNumber = 1;
-
-        while (!doneLoading)
-        {
-            var result = await Services.AccountRequester.GetRaids(pageNumber);
-
-            foreach (var map in result.Data)
-            {
-                raids.Add(map);
-                raidSchema.Add(map.Monster, map);
-            }
-
-            if (result.Data.Count == 0)
-            {
-                doneLoading = true;
-            }
-
-            pageNumber++;
-        }
-
-        bool isInitialRun = Raids.Count == 0;
-
-        bool raidsHasChanged = EventService.NewRaidsAreComingUp(Raids, raids);
-
-        RaidsMonsterDict = raidSchema;
-        Raids = raids;
-
-        if (!isInitialRun && raidsHasChanged)
-        {
-            // A bit cheating, since it's actual the raids that have changed, but oh well
-            logger.LogInformation($"Raids have changed - notifying characters");
-            await Services.EventService.NotifyCharactersOnEventChange();
-        }
-
-        logger.LogInformation("Loading raids - DONE;");
-    }
-
     public async Task LoadResources()
     {
         logger.LogInformation("Loading resources...");
@@ -459,9 +419,9 @@ public class GameState
                 if (monster.Type == MonsterType.RaidBoss)
                 {
                     // figure out if the boss still has more HP left, and is currently active
-                    var raid = RaidsMonsterDict.GetValueOrNull(monster.Code);
+                    var raid = Services.RaidService.RaidsMonsterDict.GetValueOrNull(monster.Code);
 
-                    return raid is not null && EventService.RaidIsActive(raid);
+                    return raid is not null && RaidService.RaidIsActive(raid);
                 }
 
                 bool isOnMap = Maps.Exists(map => map.Interactions.Content?.Code == monster.Code);
@@ -585,4 +545,5 @@ public record GameStateServices
     public required EventService EventService { get; set; }
     public CharacterChoreService ChoreService { get; set; }
     public required AchievementService AchievementService { get; set; }
+    public required RaidService RaidService { get; set; }
 }

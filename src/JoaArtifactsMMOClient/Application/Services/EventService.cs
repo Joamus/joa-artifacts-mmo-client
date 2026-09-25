@@ -84,7 +84,7 @@ public class EventService
         logger.LogInformation("Loading events - DONE;");
     }
 
-    public async Task LoadActiveEvents()
+    public async Task LoadActiveEvents(bool shouldNotifyCharacters)
     {
         logger.LogInformation("Loading active events");
         bool doneLoading = false;
@@ -120,7 +120,7 @@ public class EventService
 
         logger.LogInformation($"Loading active events - events have changed - {eventsHaveChanged}");
 
-        if (eventsHaveChanged && ActiveEvents.Count > 0)
+        if ((eventsHaveChanged && ActiveEvents.Count > 0) || shouldNotifyCharacters)
         {
             await NotifyCharactersOnEventChange();
         }
@@ -206,27 +206,6 @@ public class EventService
 
         return true;
     }
-
-    public static bool NewRaidsAreComingUp(List<RaidSchema> oldRaids, List<RaidSchema> newRaids)
-    {
-        if (
-            !oldRaids.Exists(RaidIsActive) && newRaids.Exists(RaidIsActive)
-            || !oldRaids.Exists(RaidIsStartingSoon) && newRaids.Exists(RaidIsStartingSoon)
-        )
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    public static bool RaidIsStartingSoon(RaidSchema raid)
-    {
-        return (raid.NextStartAt - DateTime.UtcNow).TotalSeconds
-            <= PlayerAI.START_RAID_IF_WITHIN_SECONDS;
-    }
-
-    public static bool RaidIsActive(RaidSchema raid) => raid.ActiveInstance is not null;
 
     public static bool EventListsAreDifferent(
         List<ActiveEventSchema> oldEvents,
