@@ -1105,8 +1105,11 @@ public class FightBossOrchestrator
                     int highestLevelBound =
                         averageLevelCombination + PlayerActionService.LEVEL_DIFF_NO_XP;
 
+                    int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
+
                     bool isInLevelRange =
-                        monster.Level >= lowestLevelBound && monster.Level <= highestLevelBound;
+                        monsterLevelToCompareTo >= lowestLevelBound
+                        && monsterLevelToCompareTo <= highestLevelBound;
 
                     return isInLevelRange;
                 });

@@ -82,9 +82,9 @@ public class RaidService
             var matchingMonster = GameState.MonstersDict[raid.Monster];
 
             // A monster/raid boss can be above max level
-            int monsterLevelOrMaxLevel = Math.Min(matchingMonster.Level, PlayerCharacter.MAX_LEVEL);
+            int monsterLevelToCompareTo = MonsterService.GetCappedLevel(matchingMonster.Level);
 
-            return levelRange.Highest >= monsterLevelOrMaxLevel;
+            return levelRange.Highest >= monsterLevelToCompareTo;
         });
 
         Logger.LogInformation("Loading raids - DONE;");

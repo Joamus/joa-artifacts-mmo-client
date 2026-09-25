@@ -98,9 +98,11 @@ public class TrainCombat : CharacterJob
         foreach (var monster in gameState.AvailableMonsters)
         {
             // Our character might be able to punch above their weight
+            int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
+
             if (
-                playerLevel > monster.Level + PlayerActionService.LEVEL_DIFF_NO_XP
-                || playerLevel + 5 < monster.Level
+                playerLevel > monsterLevelToCompareTo + PlayerActionService.LEVEL_DIFF_NO_XP
+                || playerLevel + 5 < monsterLevelToCompareTo
             )
             {
                 continue;

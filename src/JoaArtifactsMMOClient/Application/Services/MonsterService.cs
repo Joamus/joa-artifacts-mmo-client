@@ -49,4 +49,9 @@ public static class MonsterService
 
         return null;
     }
+
+    public static int GetCappedLevel(int level)
+    {
+        return Math.Min(PlayerCharacter.MAX_LEVEL, level);
+    }
 }
