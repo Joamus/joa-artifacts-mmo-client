@@ -429,6 +429,8 @@ public class PlayerAI
             return null;
         }
 
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Ensure bag");
+
         var bagItems = gameState.Items.FindAll(item => item.Type == "bag").ToList();
 
         // Take highest level first, and prioritize seeing if we can equip those
@@ -528,9 +530,13 @@ public class PlayerAI
                 await Character.SmartItemEquip(item.Code, 1);
             };
 
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: Ensure bag - found job to get \"{item.Code}\""
+            );
             return job;
         }
 
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: Ensure bag - found no job");
         return null;
     }
 
@@ -728,22 +734,6 @@ public class PlayerAI
 
     CharacterJob? GetSkillJob()
     {
-        // if (Character.Schema.FishingLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
-        // {
-        //     logger.LogInformation(
-        //         $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Fishing - current level is {Character.Schema.FishingLevel}, compared to character level {Character.Schema.Level}"
-        //     );
-        //     return new TrainSkill(Character, gameState, Skill.Fishing, 1, true);
-        // }
-
-        // if (Character.Schema.CookingLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
-        // {
-        //     logger.LogInformation(
-        //         $"{Name}: [{Character.Schema.Name}]: GetSkillJob: Training Cooking - current level is {Character.Schema.CookingLevel}, compared to character level {Character.Schema.Level}"
-        //     );
-        //     return new TrainSkill(Character, gameState, Skill.Cooking, 1, true);
-        // }
-
         if (Character.Schema.AlchemyLevel + SKILL_LEVEL_OFFSET <= Character.Schema.Level)
         {
             Logger.LogInformation(
@@ -759,6 +749,13 @@ public class PlayerAI
     {
         foreach (var role in Character.Roles)
         {
+            Logger.LogInformation(
+                "{Name}: [{Character.Schema.Name}]: GetRoleJob: Evaluating role: {Role}",
+                Name,
+                Character.Schema.Name,
+                role.GetDisplayName()
+            );
+
             var job = role switch
             {
                 Skill.Weaponcrafting => await GetCraftingTrainingJob(
@@ -778,6 +775,12 @@ public class PlayerAI
 
             if (job is not null)
             {
+                Logger.LogInformation(
+                    "{Name}: [{Character.Schema.Name}]: GetRoleJob: Evaluating role: {Role} - found job",
+                    Name,
+                    Character.Schema.Name,
+                    role.GetDisplayName()
+                );
                 return job;
             }
         }
@@ -787,6 +790,8 @@ public class PlayerAI
 
     async Task<CharacterJob> GetIndividualLowPrioJob()
     {
+        Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: GetIndividualLowPrioJob: Start");
+
         bool hasNoTask = string.IsNullOrWhiteSpace(Character.Schema.Task);
 
         // var newTask = await GetTaskJob(PREFER_MONSTER_TASK);
@@ -1077,6 +1082,12 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetMonsterJobIfCanCertainlyBeDone()
     {
+        Logger.LogInformation(
+            "{Name}: [{character.Schema.Name}]: GetMonsterJobIfCanCertainlyBeDone: Evaluating",
+            Name,
+            Character.Schema.Name
+        );
+
         if (PREFER_MONSTER_TASK)
         {
             var potentialMonsterTask =
@@ -1094,6 +1105,11 @@ public class PlayerAI
             }
         }
 
+        Logger.LogInformation(
+            "{Name}: [{character.Schema.Name}]: GetMonsterJobIfCanCertainlyBeDone: Found no job",
+            Name,
+            Character.Schema.Name
+        );
         return null;
     }
 

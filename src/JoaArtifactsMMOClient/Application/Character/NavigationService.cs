@@ -237,6 +237,8 @@ public class NavigationService
 
         List<CharacterJob> jobs = [];
 
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(character);
+
         foreach (var itemCondition in steps.ItemRequirements)
         {
             int amountOfItemOnCharacter =
@@ -244,29 +246,36 @@ public class NavigationService
                     .GetEquippedItemOrInInventory(itemCondition.Code)
                     ?.Sum(item => item.equipmentSlot.Quantity) ?? 0;
 
-            int amountToObtain =
+            int amountToWithdraw =
                 itemCondition.Quantity > amountOfItemOnCharacter
                     ? itemCondition.Quantity - amountOfItemOnCharacter
                     : 0;
 
-            if (amountToObtain > 0)
+            if (amountToWithdraw > 0)
             {
                 if (
-                    !await character.PlayerActionService.CanObtainItem(
-                        gameState.ItemsDict[itemCondition.Code],
-                        amountToObtain,
-                        false
+                    bankItems.Exists(bankItem =>
+                        bankItem.Code == itemCondition.Code
+                        && bankItem.Quantity >= itemCondition.Quantity
                     )
                 )
                 {
-                    return new AppError(
-                        $"GetJobsNeededForNavigation: Cannot obtain item {amountToObtain} x {itemCondition.Code} for {character.Name}"
+                    jobs.Add(
+                        new WithdrawItem(
+                            character,
+                            gameState,
+                            itemCondition.Code,
+                            amountToWithdraw,
+                            false
+                        )
                     );
                 }
-
-                jobs.Add(
-                    new ObtainOrFindItem(character, gameState, itemCondition.Code, amountToObtain)
-                );
+                else
+                {
+                    return new AppError(
+                        $"GetJobsNeededForNavigation: Cannot withdraw item {amountToWithdraw} x {itemCondition.Code} for {character.Name}"
+                    );
+                }
             }
         }
 
