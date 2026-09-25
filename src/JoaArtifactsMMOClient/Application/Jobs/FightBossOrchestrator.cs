@@ -601,7 +601,7 @@ public class FightBossOrchestrator
         return otherAvailablePlayers.GetRange(0, amountToRecruit);
     }
 
-    public static async Task<bool> CanFulfillRequirementsForFightingBoss(
+    public static async Task<CanFulfillRequirementsForFightingBossResult> CanFulfillRequirementsForFightingBoss(
         PlayerCharacter character,
         List<PlayerCharacter>? otherCharacters,
         GameState gameState,
@@ -614,7 +614,11 @@ public class FightBossOrchestrator
 
             if (bestCandidates is null)
             {
-                return false;
+                return new CanFulfillRequirementsForFightingBossResult
+                {
+                    ShouldFight = false,
+                    FightSimResults = [],
+                };
             }
 
             otherCharacters = bestCandidates;
@@ -629,8 +633,16 @@ public class FightBossOrchestrator
         );
 
         return result.Match(
-            appError => false,
-            fightSimResults => fightSimResults.Exists(result => result.Outcome.ShouldFight)
+            appError => new CanFulfillRequirementsForFightingBossResult
+            {
+                ShouldFight = false,
+                FightSimResults = [],
+            },
+            fightSimResults => new CanFulfillRequirementsForFightingBossResult
+            {
+                ShouldFight = true,
+                FightSimResults = fightSimResults,
+            }
         );
     }
 
@@ -654,6 +666,21 @@ public class FightBossOrchestrator
             );
         }
 
+        List<PlayerCharacter> allCharacters = [character, .. otherCharacters];
+
+        // Check requirements before fight sim for performance
+        var allReqItemsCanBeWithdrawn = await ValidateThatAllRequirementItemsCanBeWithdrawn(
+            allCharacters,
+            monster,
+            bankDetails,
+            bankItems
+        );
+
+        if (allReqItemsCanBeWithdrawn.IsT0)
+        {
+            return allReqItemsCanBeWithdrawn.AsT0;
+        }
+
         var result = FightSimulator.SimulateBossFightOutcome(
             character,
             otherCharacters,
@@ -665,20 +692,6 @@ public class FightBossOrchestrator
         if (result.All(simResult => !simResult.Outcome.ShouldFight))
         {
             return new AppError($"Should not fight boss {monster.Code}");
-        }
-
-        List<PlayerCharacter> allCharacters = [character, .. otherCharacters];
-
-        var allReqItemsCanBeWithdrawn = await ValidateThatAllRequirementItemsCanBeWithdrawn(
-            allCharacters,
-            monster,
-            bankDetails,
-            bankItems
-        );
-
-        if (allReqItemsCanBeWithdrawn.IsT0)
-        {
-            return allReqItemsCanBeWithdrawn.AsT0;
         }
 
         return result;
@@ -984,23 +997,22 @@ public class FightBossOrchestrator
                 continue;
             }
 
-            var fightSimResults = FightSimulator.SimulateBossFightOutcome(
+            // var fightSimResults = FightSimulator.SimulateBossFightOutcome(
+            //     character,
+            //     otherChars,
+            //     gameState,
+            //     bankItems,
+            //     monster
+            // );
+
+            var result = await CanFulfillRequirementsForFightingBoss(
                 character,
                 otherChars,
                 gameState,
-                bankItems,
                 monster
             );
 
-            if (
-                fightSimResults.All(simResult => simResult.Outcome.ShouldFight)
-                && await CanFulfillRequirementsForFightingBoss(
-                    character,
-                    otherChars,
-                    gameState,
-                    monster
-                )
-            )
+            if (result.ShouldFight)
             {
                 results.Add(
                     new BossGrindDetails
@@ -1009,7 +1021,7 @@ public class FightBossOrchestrator
                         MainCharacter = character,
                         OtherCharacters = otherChars,
                         Monster = monster,
-                        FightSimResults = fightSimResults,
+                        FightSimResults = result.FightSimResults,
                         XpPerKill = xpForKill,
                     }
                 );
@@ -1193,5 +1205,11 @@ public record BossGrindDetails
 
     public required MonsterSchema Monster { get; init; }
     public required int XpPerKill { get; init; }
+    public required List<FightSimResult> FightSimResults { get; init; }
+}
+
+public record CanFulfillRequirementsForFightingBossResult
+{
+    public required bool ShouldFight { get; init; }
     public required List<FightSimResult> FightSimResults { get; init; }
 }

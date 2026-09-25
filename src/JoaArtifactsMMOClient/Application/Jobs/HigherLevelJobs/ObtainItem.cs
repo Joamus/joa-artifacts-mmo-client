@@ -601,13 +601,14 @@ public class ObtainItem : CharacterJob
             }
             else if (monster.Type == MonsterType.Boss)
             {
-                bool canFightBoss =
+                bool canFightBoss = (
                     await FightBossOrchestrator.CanFulfillRequirementsForFightingBoss(
                         character,
                         otherCharacters,
                         gameState,
                         monster
-                    );
+                    )
+                ).ShouldFight;
 
                 if (canFightBoss)
                 {

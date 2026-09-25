@@ -20,12 +20,14 @@ public static class MonsterService
     {
         var bestCandidates = FightBossOrchestrator.GetBestCandidatesToFight(character, gameState);
 
-        bool canFight = await FightBossOrchestrator.CanFulfillRequirementsForFightingBoss(
-            character,
-            bestCandidates,
-            gameState,
-            monster
-        );
+        bool canFight = (
+            await FightBossOrchestrator.CanFulfillRequirementsForFightingBoss(
+                character,
+                bestCandidates,
+                gameState,
+                monster
+            )
+        ).ShouldFight;
 
         if (canFight)
         {
