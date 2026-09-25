@@ -847,6 +847,7 @@ public static class ItemService
     {
         return item.Subtype == "food"
             && item.Craft is not null
+            && item.Craft.Items.Count == 1
             && item.Craft.Items.Exists(item => gameState.ItemsDict[item.Code].Subtype == "fishing");
     }
 
@@ -854,6 +855,7 @@ public static class ItemService
     {
         return item.Subtype == "food"
             && item.Craft is not null
+            && item.Craft.Items.Count == 1
             && item.Craft.Items.Exists(material =>
             {
                 bool isFromMob = gameState.ItemsDict[material.Code].Subtype == "mob";

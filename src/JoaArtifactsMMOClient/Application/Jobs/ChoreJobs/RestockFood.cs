@@ -41,9 +41,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
     {
         var bankResponse = await gameState.Services.BankItemCache.GetBankItems(Character);
 
-        // var jobsToCookUncookedResources = await GetListToCookAllUncookedMeatOrFish(
-        //     bankResponse.Data
-        // );
+        // var jobsToCookUncookedResources = await GetListToCookAllUncookedMeatOrFish(bankResponse);
 
         // if (jobsToCookUncookedResources.Count > 0)
         // {
@@ -181,51 +179,37 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
                 .Select(item =>
                 {
                     var matchingItem = gameState.ItemsDict[item.Code];
-                    return (item, matchingItem);
+                    return (Item: item, MatchingItem: matchingItem);
                 })
                 .Where(item =>
                 {
-                    return IsItemUncookedMeatOrFish(item.matchingItem, gameState);
+                    return IsItemUncookedMeatOrFish(item.MatchingItem, gameState);
                 })
                 .Select(item =>
                 {
                     // For now, we always assume that if item is uncooked meat or fish, there should be a recipe with only 1 ingredient.
                     var cookedItem = gameState
-                        .CraftingLookupDict.GetValueOrNull(item.Item2.Code)!
+                        .CraftingLookupDict.GetValueOrNull(item.Item.Code)!
                         .First(recipe => recipe!.Craft!.Items.Count == 1);
 
-                    return (item.item, cookedItem);
+                    return (item.Item, cookedItem);
                 })
                 .Where((item) => Character.Schema.CookingLevel >= item.cookedItem.Craft!.Level),
         ];
 
         List<CharacterJob> jobs =
-            uncookedMeatOrFishInBank
-                .Select(lol =>
-                {
-                    (DropSchema drop, ItemSchema item) = lol;
+        [
+            .. uncookedMeatOrFishInBank.Select(uncookedItem =>
+            {
+                (DropSchema _, ItemSchema item) = uncookedItem;
 
-                    List<int> iterations = ObtainItem.CalculateObtainItemIterations(
-                        item,
-                        Character.GetAvailableInventorySpace(),
-                        JobParams.AmountToGather
-                    );
+                var job = new ObtainItem(Character, gameState, item.Code, JobParams.AmountToGather);
 
-                    List<CharacterJob> jobs = [];
+                job.ForBank();
 
-                    foreach (var iteration in iterations)
-                    {
-                        var job = new ObtainItem(Character, gameState, item.Code, iteration);
-
-                        job.ForBank();
-
-                        jobs.Add(job);
-                    }
-
-                    return jobs;
-                })
-                .FirstOrDefault()
-            ?? [];
+                return (CharacterJob)job;
+            }),
+        ];
 
         List<CharacterJob> possibleJobs = [];
 
@@ -285,7 +269,7 @@ public class RestockFood : CharacterJob, ICharacterChoreJob
                         )
                         || (
                             IsItemUncookedMeatOrFish(matchingItem, gameState)
-                            && matchingItem.Level > character.Schema.Level
+                            && matchingItem.Level <= character.Schema.Level
                         );
 
                     /**
