@@ -176,23 +176,23 @@ public class ObtainSuitablePotions : CharacterJob
         if (fightSimWithoutPotions.Outcome.ShouldFight)
         {
             // Mutating it back, very important
-            // List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
+            List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
 
-            // utilitySlots.Add(
-            //     (1, characterClone.Schema.Utility1Slot, characterClone.Schema.Utility1SlotQuantity)
-            // );
-            // utilitySlots.Add(
-            //     (2, characterClone.Schema.Utility2Slot, characterClone.Schema.Utility2SlotQuantity)
-            // );
+            utilitySlots.Add(
+                (1, characterClone.Schema.Utility1Slot, characterClone.Schema.Utility1SlotQuantity)
+            );
+            utilitySlots.Add(
+                (2, characterClone.Schema.Utility2Slot, characterClone.Schema.Utility2SlotQuantity)
+            );
 
-            // foreach (var util in utilitySlots)
-            // {
-            //     await character.PlayerActionService.DepositPotions(
-            //         util.Slot,
-            //         util.ItemCode,
-            //         util.Amount
-            //     );
-            // }
+            foreach (var util in utilitySlots)
+            {
+                await character.PlayerActionService.DepositPotions(
+                    util.Slot,
+                    util.ItemCode,
+                    util.Amount
+                );
+            }
 
             return [];
         }
