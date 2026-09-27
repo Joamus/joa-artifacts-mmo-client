@@ -598,13 +598,14 @@ public static class ItemService
         PlayerCharacter character,
         GameState gameState,
         ItemSchema item,
-        int amount
+        int amount,
+        List<string>? ignoreContentCodes = null
     )
     {
         CharacterJob job;
         if (item.Craft is null || character.Roles.Exists(role => role == item.Craft.Skill))
         {
-            job = new ObtainItem(character, gameState, item.Code, amount);
+            job = new ObtainItem(character, gameState, item.Code, amount, ignoreContentCodes);
         }
         else
         {

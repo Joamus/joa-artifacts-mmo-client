@@ -21,13 +21,21 @@ public class ObtainItem : CharacterJob
 
     public bool CanTriggerTraining { get; set; } = true;
 
-    protected int _progressAmount { get; set; } = 0;
+    protected int ProgressAmount { get; set; } = 0;
+    public List<string> IgnoreContentCodes { get; set; } = [];
 
-    public ObtainItem(PlayerCharacter playerCharacter, GameState gameState, string code, int amount)
+    public ObtainItem(
+        PlayerCharacter playerCharacter,
+        GameState gameState,
+        string code,
+        int amount,
+        List<string>? ignoreContentCodes = null
+    )
         : base(playerCharacter, gameState)
     {
         Code = code;
         Amount = amount;
+        IgnoreContentCodes = ignoreContentCodes ?? [];
     }
 
     public void ForCharacter(PlayerCharacter recipient)
@@ -97,7 +105,7 @@ public class ObtainItem : CharacterJob
 
         List<CharacterJob> jobs = [];
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({_progressAmount}/{Amount})"
+            $"{JobName}: [{Character.Schema.Name}] run started - progress {Code} ({ProgressAmount}/{Amount})"
         );
 
         // useItemIfInInventory is set to the job's value at first, so we can allow obtaining an item we already have.
@@ -115,6 +123,7 @@ public class ObtainItem : CharacterJob
                 AllowUsingItemFromInventory = AllowUsingMaterialsFromInventory,
                 CanTriggerTraining = CanTriggerTraining,
                 IgnoreInventoryFull = false,
+                IgnoreContentCodes = IgnoreContentCodes,
             }
         );
 
@@ -194,6 +203,7 @@ public class ObtainItem : CharacterJob
                 CanTriggerTraining = getJobsParams.CanTriggerTraining,
                 FirstIteration = true,
                 IgnoreInventoryFull = getJobsParams.IgnoreInventoryFull,
+                IgnoreContentCodes = getJobsParams.IgnoreContentCodes,
             }
         );
 
@@ -222,6 +232,7 @@ public class ObtainItem : CharacterJob
         var canTriggerTraining = jobParams.CanTriggerTraining;
         var firstIteration = jobParams.FirstIteration;
         var ignoreInventoryFull = jobParams.IgnoreInventoryFull;
+        var ignoreContentCodes = jobParams.IgnoreContentCodes;
 
         var matchingItem = gameState.Items.Find(item => item.Code == code);
 
@@ -373,7 +384,8 @@ public class ObtainItem : CharacterJob
                 matchingNpcItem,
                 itemsInBankClone,
                 code,
-                requiredAmount
+                requiredAmount,
+                ignoreContentCodes
             )
             : null;
 
@@ -404,7 +416,8 @@ public class ObtainItem : CharacterJob
             itemsInBankClone,
             code,
             requiredAmount,
-            !firstIteration
+            !firstIteration,
+            ignoreContentCodes
         );
 
         if (monsterDropsResult is not null)
@@ -500,7 +513,8 @@ public class ObtainItem : CharacterJob
         List<PlayerCharacter> otherCharacters,
         GameState gameState,
         List<MonsterSchema> monsters,
-        List<DropSchema> bankItems
+        List<DropSchema> bankItems,
+        List<string> ignoreContentCodes
     )
     {
         List<DefeatableMonsterDetails> monstersThatCanBeDefeated = [];
@@ -547,6 +561,10 @@ public class ObtainItem : CharacterJob
         foreach (var monster in monsters)
         {
             // For now, we assume that we cannot fight monsters a few levels above us.
+            if (ignoreContentCodes.Contains(monster.Code))
+            {
+                continue;
+            }
 
             int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
 
@@ -554,12 +572,6 @@ public class ObtainItem : CharacterJob
             {
                 continue;
             }
-
-            // // TODO: For now, assume that we cannot kill bosses
-            // if (monster.Type == MonsterType.Boss)
-            // {
-            //     continue;
-            // }
 
             var monsterIsFromEvent = gameState.Services.EventService.IsEntityFromEvent(
                 monster.Code
@@ -988,7 +1000,8 @@ public class ObtainItem : CharacterJob
         List<DropSchema> itemsInBank,
         string code,
         int requiredAmount,
-        bool isMaterialForCraftedItem
+        bool isMaterialForCraftedItem,
+        List<string> ignoreContentCodes
     )
     {
         List<MonsterSchema> suitableMonsters = [];
@@ -1024,7 +1037,8 @@ public class ObtainItem : CharacterJob
             otherCharacters,
             gameState,
             monstersThatDropTheItem,
-            itemsInBank
+            itemsInBank,
+            ignoreContentCodes
         );
 
         if (monstersWeCanDefeatThatDropTheItem.Count > 0)
@@ -1089,7 +1103,8 @@ public class ObtainItem : CharacterJob
         NpcItemSchema matchingNpcItem,
         List<DropSchema> itemsInBank,
         string code,
-        int requiredAmount
+        int requiredAmount,
+        List<string> ignoreContentCodes
     )
     {
         List<CharacterJob> jobs = [];
@@ -1194,7 +1209,8 @@ public class ObtainItem : CharacterJob
                             bestOtherCharactersCandidates,
                             gameState,
                             monstersThatDropCurrency,
-                            itemsInBank
+                            itemsInBank,
+                            ignoreContentCodes
                         )
                     ).Select((details) => details.Monster),
                 ];
@@ -1291,6 +1307,7 @@ public record ObtainItemGetJobsParams
     public bool AllowUsingItemFromInventory { get; init; } = false;
     public bool CanTriggerTraining { get; init; } = false;
     public bool IgnoreInventoryFull { get; init; } = false;
+    public List<string> IgnoreContentCodes { get; init; } = [];
 }
 
 public record InnerGetJobsParams
@@ -1307,6 +1324,7 @@ public record InnerGetJobsParams
     public bool CanTriggerTraining { get; set; } = false;
     public bool FirstIteration { get; set; } = true;
     public bool IgnoreInventoryFull { get; set; } = false;
+    public List<string> IgnoreContentCodes { get; init; } = [];
 }
 
 public record DefeatableMonsterDetails

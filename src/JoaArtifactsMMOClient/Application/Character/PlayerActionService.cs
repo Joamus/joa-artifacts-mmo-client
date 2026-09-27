@@ -702,7 +702,8 @@ public class PlayerActionService
     public async Task<bool> CanObtainItem(
         ItemSchema item,
         int Quantity = 1,
-        bool allowTriggerTraining = true
+        bool allowTriggerTraining = true,
+        List<string>? ignoreContentCodes = null
     )
     {
         var canObtainIt = await ObtainItem.GetJobsRequired(
@@ -716,6 +717,7 @@ public class PlayerActionService
                 AllowUsingItemFromInventory = true,
                 CanTriggerTraining = allowTriggerTraining,
                 IgnoreInventoryFull = true,
+                IgnoreContentCodes = ignoreContentCodes ?? [],
             }
         );
 

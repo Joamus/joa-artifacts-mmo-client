@@ -246,34 +246,36 @@ public class NavigationService
                     .GetEquippedItemOrInInventory(itemCondition.Code)
                     ?.Sum(item => item.equipmentSlot.Quantity) ?? 0;
 
-            int amountToWithdraw =
+            int amountToObtain =
                 itemCondition.Quantity > amountOfItemOnCharacter
                     ? itemCondition.Quantity - amountOfItemOnCharacter
                     : 0;
 
-            if (amountToWithdraw > 0)
+            if (amountToObtain > 0)
             {
                 if (
-                    bankItems.Exists(bankItem =>
-                        bankItem.Code == itemCondition.Code
-                        && bankItem.Quantity >= itemCondition.Quantity
+                    await character.PlayerActionService.CanObtainItem(
+                        gameState.ItemsDict[itemCondition.Code],
+                        amountToObtain,
+                        false,
+                        [contentCode]
                     )
                 )
                 {
                     jobs.Add(
-                        new WithdrawItem(
+                        new ObtainOrFindItem(
                             character,
                             gameState,
                             itemCondition.Code,
-                            amountToWithdraw,
-                            false
+                            amountToObtain,
+                            [contentCode]
                         )
                     );
                 }
                 else
                 {
                     return new AppError(
-                        $"GetJobsNeededForNavigation: Cannot withdraw item {amountToWithdraw} x {itemCondition.Code} for {character.Name}"
+                        $"GetJobsNeededForNavigation: Cannot obtain item {amountToObtain} x {itemCondition.Code} for {character.Name}"
                     );
                 }
             }

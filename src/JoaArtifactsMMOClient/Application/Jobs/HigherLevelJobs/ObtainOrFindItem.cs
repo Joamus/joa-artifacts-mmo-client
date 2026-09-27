@@ -13,17 +13,20 @@ public class ObtainOrFindItem : CharacterJob
     public bool AllowUsingMaterialsFromInventory { get; set; } = true;
 
     public bool CanTriggerTraining { get; set; } = true;
+    public List<string> IgnoreContentCodes { get; set; } = [];
 
     public ObtainOrFindItem(
         PlayerCharacter playerCharacter,
         GameState gameState,
         string code,
-        int amount
+        int amount,
+        List<string>? ignoreContentCodes = null
     )
         : base(playerCharacter, gameState)
     {
         Code = code;
         Amount = amount;
+        IgnoreContentCodes = ignoreContentCodes ?? [];
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
