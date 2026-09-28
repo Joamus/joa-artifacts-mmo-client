@@ -712,10 +712,10 @@ public static class FightSimulator
 
         float extraDamageBoostEffects =
             (
-                currentFrenzyValue + defender.BerserkerRage?.DamagePercentageEffect
-                ?? 0 + defender.Greed?.CurrentBoost
-                ?? 0
-            ) / 100;
+                currentFrenzyValue
+                + (defender.BerserkerRage?.DamagePercentageEffect ?? 0)
+                + (defender.Greed?.CurrentBoost ?? 0)
+            ) * 0.01f;
 
         if (extraDamageBoostEffects > 0)
         {
