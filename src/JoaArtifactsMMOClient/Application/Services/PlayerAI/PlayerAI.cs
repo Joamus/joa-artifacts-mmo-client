@@ -12,6 +12,7 @@ using Applicaton.Jobs;
 using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
 using Microsoft.OpenApi.Extensions;
+using OneOf.Types;
 
 namespace Application.Services;
 
@@ -1315,9 +1316,11 @@ public class PlayerAI
         }
 
         return a.Code == b.Code
-            || a.ParentJob?.Code == b.Code
-            || a.ParentJob?.Code == b.ParentJob?.Code
-            || a.Code == b.ParentJob?.Code;
+            || a.ParentJob is not null && a.ParentJob?.Code == b.Code
+            || a.ParentJob is not null
+                && b.ParentJob is not null
+                && a.ParentJob?.Code == b.ParentJob?.Code
+            || b.ParentJob is not null && a.Code == b.ParentJob?.Code;
     }
 
     async Task<CharacterJob?> GetCraftingTrainingJob(Skill skill, int skillLevel)
