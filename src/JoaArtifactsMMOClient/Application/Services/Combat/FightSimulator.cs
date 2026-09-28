@@ -726,7 +726,10 @@ public static class FightSimulator
                         Attack: new ElementalAttack
                         {
                             Damage = attack.Attack.Damage =
-                                (int)Math.Round(attack.Attack.Damage * 1 + extraDamageBoostEffects),
+                                (int)
+                                    Math.Round(
+                                        attack.Attack.Damage * (1 + extraDamageBoostEffects)
+                                    ),
                         },
                         attack.Elemental
                     )
