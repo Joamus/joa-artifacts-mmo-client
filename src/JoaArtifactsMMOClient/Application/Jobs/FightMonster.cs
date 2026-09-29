@@ -693,8 +693,10 @@ public class FightMonster : CharacterJob
         FightSimResult fightSimResult
     )
     {
-        // var potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(Character.Schema, monster);
-        List<string> potionEffectsToSkip = [];
+        List<string> potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(
+            Character.Schema,
+            monster
+        );
 
         // if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResult))
         // {
