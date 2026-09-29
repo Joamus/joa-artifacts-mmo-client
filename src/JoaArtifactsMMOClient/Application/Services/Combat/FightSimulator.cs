@@ -1867,7 +1867,7 @@ public static class FightSimulator
             }
             else
             {
-                primaryShouldFightDecision = amountOfPlayersWithEnoughHp >= 1;
+                primaryShouldFightDecision = amountOfPlayersWithEnoughHp >= 2;
             }
 
             /**

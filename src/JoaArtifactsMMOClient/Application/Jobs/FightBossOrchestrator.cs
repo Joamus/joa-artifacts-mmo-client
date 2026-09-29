@@ -693,12 +693,12 @@ public class FightBossOrchestrator
             monster
         );
 
-        if (result.All(simResult => !simResult.Outcome.ShouldFight))
+        if (result.Exists(simResult => simResult.Outcome.ShouldFight))
         {
-            return new AppError($"Should not fight boss {monster.Code}");
+            return result;
         }
 
-        return result;
+        return new AppError($"Should not fight boss {monster.Code}");
     }
 
     public static async Task<OneOf<AppError, None>> ValidateThatAllRequirementItemsCanBeWithdrawn(
