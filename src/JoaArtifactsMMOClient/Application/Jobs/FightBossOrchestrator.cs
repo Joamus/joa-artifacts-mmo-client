@@ -484,7 +484,11 @@ public class FightBossOrchestrator
 
         await MainCharacter.Fight(OtherCharacters);
 
-        Logger.LogInformation($"{JobName}: StartBossFight: Round against {Monster.Code} done");
+        Logger.LogInformation(
+            "{JobName}: StartBossFight: Round against {Monster.Code} done",
+            JobName,
+            Monster.Code
+        );
 
         // Try first without new bank items, to save time getting slight upgrades.
 
@@ -685,7 +689,7 @@ public class FightBossOrchestrator
             character,
             otherCharacters,
             gameState,
-            await gameState.Services.BankItemCache.GetBankItems(character),
+            bankItems,
             monster
         );
 
