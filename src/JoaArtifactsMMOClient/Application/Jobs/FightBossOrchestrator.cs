@@ -766,6 +766,13 @@ public class FightBossOrchestrator
             .First(simResult => simResult.Schema.Name == character.Name)
             .ItemsToEquip;
 
+        await PlayerActionService.DepositIrrelevantPotionsForFight(
+            character,
+            GameState,
+            character.Schema,
+            Monster
+        );
+
         var bankItems = await GameState.Services.BankItemCache.GetBankItems(character);
 
         var itemsToWithdraw = FightMonster.GetItemsToWithdrawFromItemsToEquip(

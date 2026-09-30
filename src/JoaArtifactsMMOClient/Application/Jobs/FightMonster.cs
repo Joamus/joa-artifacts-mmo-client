@@ -698,6 +698,13 @@ public class FightMonster : CharacterJob
             monster
         );
 
+        await PlayerActionService.DepositIrrelevantPotionsForFight(
+            Character,
+            gameState,
+            Character.Schema,
+            monster
+        );
+
         // if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResult))
         // {
         //     foreach (var effect in EffectService.preFightEffects)
@@ -711,22 +718,22 @@ public class FightMonster : CharacterJob
         utilitySlots.Add((1, Character.Schema.Utility1Slot, Character.Schema.Utility1SlotQuantity));
         utilitySlots.Add((2, Character.Schema.Utility2Slot, Character.Schema.Utility2SlotQuantity));
 
-        foreach (var utility in utilitySlots)
-        {
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(utility.ItemCode);
+        // foreach (var utility in utilitySlots)
+        // {
+        //     var matchingItem = gameState.ItemsDict.GetValueOrNull(utility.ItemCode);
 
-            if (
-                matchingItem is not null
-                && matchingItem.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
-            )
-            {
-                await Character.PlayerActionService.DepositPotions(
-                    utility.Slot,
-                    utility.ItemCode,
-                    utility.Amount
-                );
-            }
-        }
+        //     if (
+        //         matchingItem is not null
+        //         && matchingItem.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
+        //     )
+        //     {
+        //         await Character.PlayerActionService.DepositPotions(
+        //             utility.Slot,
+        //             utility.ItemCode,
+        //             utility.Amount
+        //         );
+        //     }
+        // }
 
         var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
             Character,

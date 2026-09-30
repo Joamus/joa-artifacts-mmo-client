@@ -874,6 +874,46 @@ public class PlayerActionService
         return jobs;
     }
 
+    public static async Task DepositIrrelevantPotionsForFight(
+        PlayerCharacter character,
+        GameState gameState,
+        CharacterSchema schema,
+        MonsterSchema monster
+    )
+    {
+        List<string> potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(schema, monster);
+
+        // if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResult))
+        // {
+        //     foreach (var effect in EffectService.preFightEffects)
+        //     {
+        //         potionEffectsToSkip.Add(effect);
+        //     }
+        // }
+
+        List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
+
+        utilitySlots.Add((1, character.Schema.Utility1Slot, character.Schema.Utility1SlotQuantity));
+        utilitySlots.Add((2, character.Schema.Utility2Slot, character.Schema.Utility2SlotQuantity));
+
+        foreach (var utility in utilitySlots)
+        {
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(utility.ItemCode);
+
+            if (
+                matchingItem is not null
+                && matchingItem.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
+            )
+            {
+                await character.PlayerActionService.DepositPotions(
+                    utility.Slot,
+                    utility.ItemCode,
+                    utility.Amount
+                );
+            }
+        }
+    }
+
     public async Task DepositPotions(int utilitySlot, string itemCode, int amount)
     {
         int amountToUnequip = Math.Min(Character.GetAvailableInventorySpace() - 5, amount);
