@@ -835,32 +835,6 @@ public static class FightSimulator
             }
         }
 
-        if (defender.Barrier > 0)
-        {
-            if (defender.Barrier >= damageToDeal)
-            {
-                defender.Barrier -= damageToDeal;
-                damageToDeal = 0;
-
-                combatLog.Log(
-                    individualTurn,
-                    attacker.Entity,
-                    defender.Entity,
-                    $"[{attacker.Entity.Name}] attacks the barrier of {defender.Entity.Name} - barrier value is now at {defender.Barrier}"
-                );
-            }
-            else
-            {
-                combatLog.Log(
-                    individualTurn,
-                    attacker.Entity,
-                    defender.Entity,
-                    $"[{attacker.Entity.Name}] attacks the barrier of {defender.Entity.Name} - barrier is now broken"
-                );
-                defender.Barrier = 0;
-            }
-        }
-
         var defenderTakeDamageResult = DefenderTakeDamage(
             attacker,
             defender,
