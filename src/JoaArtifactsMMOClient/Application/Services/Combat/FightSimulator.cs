@@ -358,8 +358,12 @@ public static class FightSimulator
             OriginalHp = originalHp,
             OriginalMaxHp = originalMaxHp,
             CritCalculator = new DeterministicCritCalculator(
-                characterSchema.CriticalStrike,
-                addedCritChance
+                new DeterministicCritCalculatorParams
+                {
+                    CritChance = characterSchema.CriticalStrike,
+                    AddedCritChance = addedCritChance,
+                    CritType = CritType.Player,
+                }
             ),
             Effects = runeEffects,
             IsPlayer = true,
@@ -1626,7 +1630,11 @@ public static class FightSimulator
         );
 
         ICritCalculator bossSwitchTargetCalculator = new DeterministicCritCalculator(
-            CHANCE_OF_BOSS_SWITCH_TARGET
+            new DeterministicCritCalculatorParams
+            {
+                CritChance = CHANCE_OF_BOSS_SWITCH_TARGET,
+                CritType = CritType.Other,
+            }
         );
 
         while (outcome is null)
@@ -1867,7 +1875,16 @@ public static class FightSimulator
             }
             else
             {
-                primaryShouldFightDecision = amountOfPlayersWithEnoughHp >= 2;
+                int amountOfPlayersLeftNormalBoss = 2;
+                int amountOfPlayersLeftRaidBoss = 1;
+
+                int requiredAmountOfPlayersWithEnougHp =
+                    monster.Type == MonsterType.Boss
+                        ? amountOfPlayersLeftNormalBoss
+                        : amountOfPlayersLeftRaidBoss;
+
+                primaryShouldFightDecision =
+                    amountOfPlayersWithEnoughHp >= requiredAmountOfPlayersWithEnougHp;
             }
 
             /**
@@ -3058,8 +3075,12 @@ public static class FightSimulator
                     OriginalHp = monsterClone.Hp,
                     OriginalMaxHp = monsterClone.MaxHp,
                     CritCalculator = new DeterministicCritCalculator(
-                        monsterClone.CriticalStrike,
-                        addedCritChance
+                        new DeterministicCritCalculatorParams
+                        {
+                            CritChance = monsterClone.CriticalStrike,
+                            AddedCritChance = addedCritChance,
+                            CritType = CritType.Monster,
+                        }
                     ),
                     Effects = monsterClone.Effects,
                     IsPlayer = false,
@@ -3109,7 +3130,8 @@ public static class FightSimulator
         individualTurns = (int)Math.Floor((double)individualTurns / fightSimulations);
         potionsUsed = (int)Math.Floor((double)potionsUsed / fightSimulations);
 
-        bool shouldFight = (amountShouldFight / fightSimulations) > PERCENTAGE_OF_SIMS_TO_WIN;
+        // bool shouldFight = (amountShouldFight / fightSimulations) > PERCENTAGE_OF_SIMS_TO_WIN;
+        bool shouldFight = amountShouldFight == fightSimulations;
 
         FightResult generallyWon =
             (amountWon / fightSimulations) > PERCENTAGE_OF_SIMS_TO_WIN

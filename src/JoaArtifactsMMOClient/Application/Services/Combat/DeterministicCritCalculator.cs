@@ -6,31 +6,37 @@ public class DeterministicCritCalculator : ICritCalculator
     public int CritChance { get; set; }
 
     public int AccCritChance { get; set; }
+    public bool KeepAccCritChance { get; init; }
     public int AddedCritChance { get; set; }
 
-    private bool isFirstRound { get; set; } = true;
+    private bool IsFirstRound { get; set; } = true;
 
-    public DeterministicCritCalculator(int critChance, int addedCritChance = 0)
+    // public DeterministicCritCalculator(int critChance, int addedCritChance = 0)
+    public DeterministicCritCalculator(DeterministicCritCalculatorParams critCalculatorParams)
     {
-        CritChance = critChance;
-        AccCritChance = critChance;
-        AddedCritChance = addedCritChance;
-        // Always use same seed, to make the RNG "deterministic"
-        Random = new Random(1);
+        CritChance = critCalculatorParams.CritChance;
+        AccCritChance = CritChance;
+        AddedCritChance = critCalculatorParams.AddedCritChance;
+        // Use different seeds for different participant types - still "deterministic", but a bit different
+        Random = new Random((int)critCalculatorParams.CritType);
+        KeepAccCritChance =
+            // Boss type not used atm
+            critCalculatorParams.CritType == CritType.Boss
+            || critCalculatorParams.CritType == CritType.Monster;
     }
 
     public void Reset()
     {
-        isFirstRound = true;
+        IsFirstRound = true;
         AccCritChance = CritChance;
     }
 
     public bool CalculateIsCriticalStrike()
     {
-        if (isFirstRound)
+        if (IsFirstRound)
         {
             AccCritChance += AddedCritChance;
-            isFirstRound = false;
+            IsFirstRound = false;
         }
 
         bool wasCrit = false;
@@ -41,10 +47,10 @@ public class DeterministicCritCalculator : ICritCalculator
         // if (AccCritChance >= 100)
         if (critRoll >= 100)
         {
-            // AccCritChance -= 100;
+            // We keep the accumulated chance for next roll
+            AccCritChance -= 100;
             // AccCritChance -= (int)critRoll;
-            // Just reset crit chance for now
-            AccCritChance = 0;
+            // AccCritChance = 0;
             wasCrit = true;
         }
 
@@ -52,4 +58,20 @@ public class DeterministicCritCalculator : ICritCalculator
 
         return wasCrit;
     }
+}
+
+public record DeterministicCritCalculatorParams
+{
+    public required int CritChance { get; init; }
+    public int AddedCritChance { get; init; } = 0;
+    public required CritType CritType { get; init; }
+}
+
+public enum CritType
+{
+    Player = 0,
+    Monster = 1,
+
+    Boss = 2,
+    Other = 3,
 }
