@@ -2,6 +2,7 @@ namespace Application.Services.Combat;
 
 public class DeterministicCritCalculator : ICritCalculator
 {
+    const int MAX_CRIT = 100;
     private Random Random { get; set; }
     public int CritChance { get; set; }
 
@@ -44,13 +45,19 @@ public class DeterministicCritCalculator : ICritCalculator
         double randomRoll = Random.NextDouble() * 100;
         double critRoll = randomRoll + AccCritChance;
 
-        // if (AccCritChance >= 100)
-        if (critRoll >= 100)
+        if (critRoll >= MAX_CRIT)
         {
-            // We keep the accumulated chance for next roll
-            AccCritChance -= 100;
+            // We keep the accumulated chance for next roll,
+            // this will bias toward critting multiple times in a row.
+            if (KeepAccCritChance && AccCritChance > MAX_CRIT)
+            {
+                AccCritChance -= MAX_CRIT;
+            }
+            else
+            {
+                AccCritChance = 0;
+            }
             // AccCritChance -= (int)critRoll;
-            // AccCritChance = 0;
             wasCrit = true;
         }
 
