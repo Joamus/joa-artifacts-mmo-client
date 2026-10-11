@@ -323,6 +323,17 @@ public class FightBossOrchestrator
             switch (GetCharacterStatus(character))
             {
                 case CharacterFightBossStatus.New:
+                    // Don't change the status or anything, just deposit
+                    if (DepositUnneededItems.ShouldInitDepositItems(character, true))
+                    {
+                        List<CharacterJob> jobs =
+                        [
+                            new DepositUnneededItems(character, GameState, null, true),
+                        ];
+
+                        return jobs;
+                    }
+
                     var nextPreparationJobResult = await GetPreparationJobAndItemsToEquip(
                         character
                     );
@@ -593,8 +604,8 @@ public class FightBossOrchestrator
                 .Characters.Where(otherCharacter =>
                     otherCharacter.Schema.Name != character.Schema.Name
                     && (otherCharacter.CurrentJobOrchestrator is null)
-                    // A bit wonky, but we should only take characters with us who have enough inventory space
-                    && (!DepositUnneededItems.ShouldInitDepositItems(otherCharacter, false))
+                // A bit wonky, but we should only take characters with us who have enough inventory space
+                // && (!DepositUnneededItems.ShouldInitDepositItems(otherCharacter, false))
                 )
                 .OrderByDescending((b) => b.Schema.Level),
         ];
