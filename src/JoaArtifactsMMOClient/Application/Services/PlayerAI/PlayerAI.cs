@@ -28,6 +28,7 @@ public class PlayerAI
 
     public const bool PREFER_MONSTER_TASK = true;
     public const int START_RAID_IF_WITHIN_SECONDS = 5 * 60;
+    public const int RAID_STARTING_WITHIN_SOME_HOURS = 6;
     public PlayerCharacter Character { get; init; }
 
     public bool Enabled { get; set; } = true;
@@ -1368,34 +1369,42 @@ public class PlayerAI
 
     async Task<CharacterJob?> StartRaid()
     {
-        var upcomingRaid = gameState
+        var nextUpcomingRaid = gameState
             .Services.RaidService.Raids.OrderBy(raid =>
                 RaidService.RaidIsStartingInAFewMinutes(raid) || RaidService.RaidIsActive(raid)
             )
             .FirstOrDefault();
 
-        if (upcomingRaid is null)
+        if (nextUpcomingRaid is null)
         {
             return null;
         }
-        var monster = gameState.MonstersDict[upcomingRaid.Monster];
 
-        Logger.LogInformation(
-            "{Name}: [{Character.Schema.Name}]: StartRaid: There is an upcoming raid for {Monster}",
-            Name,
-            Character.Schema.Name,
-            monster.Code
-        );
+        // var nextUpcomingRaid = gameState.Services.RaidService.Raids.First(raid =>
+        //     raid.Code == "enchanted_fairy"
+        // ) with
+        // {
+        //     NextStartAt = DateTime.UtcNow,
+        // };
+
+        var monster = gameState.MonstersDict[nextUpcomingRaid.Monster];
 
         if (
             (
-                upcomingRaid.ActiveInstance is not null
-                && upcomingRaid.ActiveInstance.Status == RaidStatus.Active
+                nextUpcomingRaid.ActiveInstance is not null
+                && nextUpcomingRaid.ActiveInstance.Status == RaidStatus.Active
             )
-            || (upcomingRaid.NextStartAt - DateTime.UtcNow).TotalSeconds
+            || (nextUpcomingRaid.NextStartAt - DateTime.UtcNow).TotalSeconds
                 <= START_RAID_IF_WITHIN_SECONDS
         )
         {
+            Logger.LogInformation(
+                "{Name}: [{Character.Schema.Name}]: StartRaid: There is an upcoming raid for {Monster}",
+                Name,
+                Character.Schema.Name,
+                monster.Code
+            );
+
             var job = await MonsterService.GetRaidBossJobIfPossible(Character, monster, gameState);
 
             if (job is not null)
