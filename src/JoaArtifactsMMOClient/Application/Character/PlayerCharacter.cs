@@ -1616,7 +1616,7 @@ public class PlayerCharacter
         Schema = character;
     }
 
-    public async Task<OneOf<AppError, None>> NavigateTo(string code)
+    public async Task<OneOf<AppError, NavigateToResult>> NavigateTo(string code)
     {
         return await PlayerActionService.NavigationService.NavigateTo(code);
     }

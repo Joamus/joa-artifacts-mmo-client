@@ -1378,6 +1378,14 @@ public class PlayerAI
         {
             return null;
         }
+        var monster = gameState.MonstersDict[upcomingRaid.Monster];
+
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: StartRaid: There is an upcoming raid for {Monster}",
+            Name,
+            Character.Schema.Name,
+            monster.Code
+        );
 
         if (
             (
@@ -1388,8 +1396,6 @@ public class PlayerAI
                 <= START_RAID_IF_WITHIN_SECONDS
         )
         {
-            var monster = gameState.MonstersDict[upcomingRaid.Monster];
-
             var job = await MonsterService.GetRaidBossJobIfPossible(Character, monster, gameState);
 
             if (job is not null)

@@ -1188,6 +1188,22 @@ public class PlayerActionService
 
         return skillLevel - resourceLevel > LEVEL_DIFF_NO_XP ? Effect.Prospecting : Effect.Wisdom;
     }
+
+    public async Task BeforeMoveHook(string goingToContentCode, MapSchema currentMap)
+    {
+        if (goingToContentCode != "bank" && currentMap.Interactions.Content?.Code == "bank")
+        {
+            await BuyBankSpaceIfNeeded();
+
+            if (
+                Character.GetAvailableInventorySpace() > 50
+                && Character.GetAvailableInventorySlots() > 10
+            )
+            {
+                await WithdrawTeleportPotions();
+            }
+        }
+    }
 }
 
 public record CharacterJobAndEquipmentSlot
