@@ -96,6 +96,7 @@ public class GameState
         await LoadNpcItems();
         await LoadResources();
         await LoadMonsters();
+        await LoadCharacters(characterConfigs);
         bool raidsChanged = await Services.RaidService.LoadRaids();
         await LoadPendingItems();
         await Services.AchievementService.LoadAccountAchievements();
@@ -104,7 +105,6 @@ public class GameState
         await Services.BankItemCache.GetBankItems(null);
         await Services.EventService.LoadEvents();
         await Services.EventService.LoadActiveEvents(raidsChanged);
-        await LoadCharacters(characterConfigs);
     }
 
     public bool ShouldReload()
@@ -525,8 +525,10 @@ public class GameState
 
     public LevelRange GetCharacterLevelRange()
     {
-        List<int> characterLevels = [.. Characters.Select((x) => x.Schema.Level)];
-        characterLevels.Sort((a, b) => a - b);
+        List<int> characterLevels =
+        [
+            .. Characters.Select((character) => character.Schema.Level).OrderBy((level) => level),
+        ];
 
         return new LevelRange
         {
