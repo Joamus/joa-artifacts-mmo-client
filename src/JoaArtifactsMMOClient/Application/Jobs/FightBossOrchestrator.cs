@@ -627,15 +627,6 @@ public class FightBossOrchestrator
         {
             var bestCandidates = GetBestCandidatesToFight(character, gameState);
 
-            if (bestCandidates is null)
-            {
-                return new CanFulfillRequirementsForFightingBossResult
-                {
-                    ShouldFight = false,
-                    FightSimResults = [],
-                };
-            }
-
             otherCharacters = bestCandidates;
         }
 
@@ -804,7 +795,8 @@ public class FightBossOrchestrator
         {
             var steps = character
                 .PlayerActionService.NavigationService.GetAllStepsToDestination("bank")
-                .AsT1.Steps;
+                .AsT1.First()
+                .Steps;
 
             if (steps.Count > 0)
             {

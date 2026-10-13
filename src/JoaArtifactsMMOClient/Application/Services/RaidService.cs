@@ -57,14 +57,12 @@ public class RaidService
 
         bool isInitialRun = Raids.Count == 0;
 
-        bool raidsHasChanged = NewRaidsAreComingUpInAFewMinutes(Raids, raids);
+        bool raidsHaveChanged = NewRaidsAreComingUpInAFewMinutes(Raids, raids);
 
         RaidsMonsterDict = raidSchema;
         Raids = raids;
 
-        bool raidsHaveChanged = false;
-
-        if (!isInitialRun && raidsHasChanged)
+        if (!isInitialRun && raidsHaveChanged)
         {
             Logger.LogInformation($"Raids have changed - notifying characters");
             raidsHaveChanged = true;
@@ -117,8 +115,8 @@ public class RaidService
 
     public static bool RaidIsStartingInSomeHours(RaidSchema raid)
     {
-        return (raid.NextStartAt - DateTime.UtcNow).TotalSeconds
-            <= PlayerAI.START_RAID_IF_WITHIN_SECONDS;
+        return (raid.NextStartAt - DateTime.UtcNow).TotalHours
+            <= PlayerAI.RAID_STARTING_WITHIN_SOME_HOURS;
     }
 
     public static bool RaidIsActive(RaidSchema raid) => raid.ActiveInstance is not null;

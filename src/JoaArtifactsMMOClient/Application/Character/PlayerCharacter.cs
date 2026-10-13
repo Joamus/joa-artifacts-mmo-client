@@ -831,7 +831,12 @@ public class PlayerCharacter
 
             await PlayerActionService.DepositAllItems();
 
-            await PlayerActionService.NavigationService.NavigateTo(currentContentCode);
+            var navigationResult = await NavigateTo(currentContentCode);
+
+            if (navigationResult.IsT0)
+            {
+                return navigationResult.AsT0;
+            }
 
             return await Gather();
         }
@@ -1150,7 +1155,12 @@ public class PlayerCharacter
 
                         if (matchingSlotToEquip is not null)
                         {
-                            await NavigateTo("bank");
+                            var navigationResult = await NavigateTo("bank");
+
+                            if (navigationResult.IsT0)
+                            {
+                                throw navigationResult.AsT0;
+                            }
 
                             var potionsWeAreTryingToEquip = new WithdrawOrDepositItemRequest
                             {
@@ -1509,7 +1519,13 @@ public class PlayerCharacter
 
             var currentMapCode = GameState.MapsDict[Schema.MapId].Interactions.Content!.Code;
             await PlayerActionService.DepositAllItems();
-            await PlayerActionService.NavigationService.NavigateTo(currentMapCode);
+            var navigationResult = await NavigateTo(currentMapCode);
+
+            if (navigationResult.IsT0)
+            {
+                throw navigationResult.AsT0;
+            }
+
             await NpcBuyItem(itemCode, quantity);
         }
         else
@@ -1616,7 +1632,7 @@ public class PlayerCharacter
         Schema = character;
     }
 
-    public async Task<OneOf<AppError, None>> NavigateTo(string code)
+    public async Task<OneOf<AppError, NavigateToResult>> NavigateTo(string code)
     {
         return await PlayerActionService.NavigationService.NavigateTo(code);
     }

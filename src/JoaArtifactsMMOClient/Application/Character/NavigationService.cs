@@ -1,3 +1,4 @@
+using System.Net;
 using System.Runtime.CompilerServices;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
@@ -36,9 +37,14 @@ public class NavigationService
         PathfindingService = PathfindingService.GetInstance(this.gameState.Maps);
     }
 
-    public async Task<OneOf<AppError, None>> NavigateTo(string contentCode)
+    public async Task<OneOf<AppError, NavigateToResult>> NavigateTo(
+        string contentCode,
+        MapSchema? currentMap = null,
+        bool dryRun = false,
+        bool allowObtaining = false
+    )
     {
-        var currentMap = gameState.MapsDict[character.Schema.MapId];
+        currentMap ??= gameState.MapsDict[character.Schema.MapId];
 
         var result = GetAllStepsToDestination(contentCode, currentMap);
 
@@ -52,47 +58,70 @@ public class NavigationService
         ** It's a bit dirty, but what the hell.
         */
 
-        if (
-            contentCode != "bank"
-            && gameState.MapsDict[currentMap.MapId].Interactions.Content?.Code == "bank"
-        )
+        if (!dryRun)
         {
-            await character.PlayerActionService.BuyBankSpaceIfNeeded();
-
-            if (
-                character.GetAvailableInventorySpace() > 50
-                && character.GetAvailableInventorySlots() > 10
-            )
-            {
-                await character.PlayerActionService.WithdrawTeleportPotions();
-            }
+            await character.PlayerActionService.BeforeMoveHook(contentCode, currentMap);
         }
 
-        await ExecuteNavigations(character, result.AsT1.Steps);
+        foreach (var navigationSteps in result.AsT1)
+        {
+            var jobsResult = await InnerGetJobsNeededForNavigation(
+                contentCode,
+                navigationSteps,
+                allowObtaining
+            );
 
-        return new None();
+            if (jobsResult.IsT0)
+            {
+                continue;
+            }
+
+            if (!dryRun)
+            {
+                // Goes against design principles a bit, but it's the most practical to just run the jobs here
+                foreach (var job in jobsResult.AsT1)
+                {
+                    var jobResult = await job.StartJobAsync();
+
+                    if (jobResult.IsT0)
+                    {
+                        return jobResult.AsT0;
+                    }
+                }
+
+                await ExecuteNavigations(character, navigationSteps.Steps);
+            }
+
+            return new NavigateToResult { NeededJobs = jobsResult.AsT1 };
+        }
+
+        return new AppError($"Could not navigate to {contentCode} for character {character.Name}");
     }
 
     public async ValueTask<bool> CanNavigateTo(string contentCode, MapSchema? currentMap = null)
     {
-        var result = GetAllStepsToDestination(contentCode, currentMap);
+        // var result = GetAllStepsToDestination(contentCode, currentMap);
 
-        if (result.IsT0)
-        {
-            return false;
-        }
+        // if (result.IsT0)
+        // {
+        //     return false;
+        // }
 
-        var jobsResult = await GetJobsNeededForNavigation(contentCode, currentMap);
+        // var jobsResult = await GetJobsNeededForNavigation(contentCode, currentMap);
 
-        if (jobsResult.IsT0)
-        {
-            return false;
-        }
+        // if (jobsResult.IsT0)
+        // {
+        //     return false;
+        // }
 
-        return true;
+        var navigationOutcome = await NavigateTo(contentCode, null, true);
+
+        return navigationOutcome.IsT0;
+
+        // return true;
     }
 
-    public OneOf<AppError, NavigationStepsAndRequirements> GetAllStepsToDestination(
+    public OneOf<AppError, List<NavigationStepsAndRequirements>> GetAllStepsToDestination(
         string contentCode,
         MapSchema? currentMap = null
     )
@@ -108,6 +137,97 @@ public class NavigationService
             contentCode = possibleRaidCode;
         }
 
+        var maps = GetMapsForContent(gameState, contentCode)
+            .Select(map =>
+            {
+                int distance = CalculationService.CalculateDistanceToMap(
+                    currentMap.X,
+                    currentMap.Y,
+                    map.X,
+                    map.Y
+                );
+
+                return new MapWithDistance { Map = map, Distance = distance };
+            })
+            .OrderBy(
+                (map) =>
+                {
+                    return map.Distance;
+                }
+            )
+            .ToList();
+
+        if (maps.Count == 0)
+        {
+            var map = gameState.Services.EventService.WhereIsEntityActive(contentCode);
+
+            if (map is null)
+            {
+                return new AppError($"Could not find map with code {contentCode}");
+            }
+        }
+
+        List<(
+            MapWithDistance mapWithDistance,
+            NavigationStepsAndRequirements stepsWithRequirements,
+            NavigationStepsAndRequirements? stepsWithPotion
+        )> MapWithMoves = [];
+
+        foreach (var map in maps)
+        {
+            NavigationStepsAndRequirements stepsWithRequirements = CalculateStepsToDestination(
+                currentMap,
+                map.Map
+            );
+
+            var stepsWithPotion = GetPotionOrOtherCheekyMove(
+                character,
+                gameState,
+                stepsWithRequirements,
+                currentMap,
+                map.Map
+            );
+
+            MapWithMoves.Add((mapWithDistance: map, stepsWithRequirements, stepsWithPotion));
+        }
+
+        List<NavigationStepsAndRequirements> sortedMoveCandidates =
+        [
+            .. MapWithMoves
+                .OrderBy(mapWithMove => mapWithMove.stepsWithPotion is not null ? 0 : 1)
+                .OrderBy(mapWithMove =>
+                {
+                    if (mapWithMove.stepsWithPotion is not null)
+                    {
+                        return mapWithMove.stepsWithPotion.ItemRequirements.Count
+                            + mapWithMove.stepsWithPotion.GoldRequirement;
+                    }
+
+                    return mapWithMove.stepsWithRequirements.ItemRequirements.Count
+                        + mapWithMove.stepsWithRequirements.GoldRequirement;
+                })
+                .ThenBy(mapWithMove => mapWithMove.mapWithDistance.Distance)
+                .Select(mapWithMove =>
+                {
+                    return mapWithMove.stepsWithPotion is not null
+                        ? mapWithMove.stepsWithPotion
+                        : mapWithMove.stepsWithRequirements;
+                }),
+        ];
+
+        if (sortedMoveCandidates.Count == 0)
+        {
+            return new AppError(
+                $"Could not find closest map to find \"{contentCode}\"",
+                ErrorStatus.NotFound
+            );
+        }
+
+        return sortedMoveCandidates;
+    }
+
+    static List<MapSchema> GetMapsForContent(GameState gameState, string contentCode)
+    {
         var maps = gameState.Maps.FindAll(map =>
         {
             bool matchesCode = map.Interactions.Content?.Code == contentCode;
@@ -123,10 +243,9 @@ public class NavigationService
             {
                 if (
                     condition.Operator == ItemConditionOperator.AchievementUnlocked
-                    && gameState.Services.AchievementService.AccountAchievements.Find(achievement =>
-                        achievement.Code == condition.Code
+                    && !gameState.Services.AchievementService.AccountAchievements.Exists(
+                        achievement => achievement.Code == condition.Code
                     )
-                        is null
                 )
                 {
                     return false;
@@ -136,87 +255,7 @@ public class NavigationService
             return true;
         });
 
-        MapSchema? destinationMap = null;
-        int closestCost = 0;
-
-        if (maps.Count == 0)
-        {
-            var map = gameState.Services.EventService.WhereIsEntityActive(contentCode);
-
-            if (map is null)
-            {
-                return new AppError($"Could not find map with code {contentCode}");
-            }
-
-            destinationMap = map;
-        }
-
-        foreach (var map in maps)
-        {
-            if (destinationMap is null)
-            {
-                destinationMap = map;
-                closestCost = CalculationService.CalculateDistanceToMap(
-                    currentMap.X,
-                    currentMap.Y,
-                    map.X,
-                    map.Y
-                );
-                continue;
-            }
-
-            int cost = CalculationService.CalculateDistanceToMap(
-                currentMap.X,
-                currentMap.Y,
-                map.X,
-                map.Y
-            );
-
-            if (
-                cost < closestCost
-                || destinationMap is not null
-                    && destinationMap.Access?.Conditions?.Count > 0
-                    && (map.Access?.Conditions ?? []).Count == 0
-            )
-            {
-                destinationMap = map;
-                closestCost = cost;
-            }
-
-            // We are already standing on the map, we won't get any closer :-)
-            if (cost == 0)
-            {
-                break;
-            }
-        }
-
-        if (destinationMap is null)
-        {
-            return new AppError(
-                $"Could not find closest map to find \"{contentCode}\"",
-                ErrorStatus.NotFound
-            );
-        }
-
-        NavigationStepsAndRequirements result = CalculateStepsToDestination(
-            currentMap,
-            destinationMap
-        );
-
-        var potionMove = GetPotionOrOtherCheekyMove(
-            character,
-            gameState,
-            result,
-            currentMap,
-            destinationMap
-        );
-
-        if (potionMove is not null)
-        {
-            return potionMove;
-        }
-
-        return result;
+        return maps;
     }
 
     public async Task<OneOf<AppError, List<CharacterJob>>> GetJobsNeededForNavigation(
@@ -224,20 +263,26 @@ public class NavigationService
         MapSchema? currentMap = null
     )
     {
-        currentMap ??= gameState.MapsDict[character.Schema.MapId];
+        var result = await NavigateTo(contentCode, currentMap, true, true);
 
-        var result = GetAllStepsToDestination(contentCode, currentMap);
-
-        if (result.Value is AppError)
+        if (result.IsT0)
         {
             return result.AsT0;
         }
 
-        var steps = result.AsT1;
+        return result.AsT1.NeededJobs;
+    }
+
+    async Task<OneOf<AppError, List<CharacterJob>>> InnerGetJobsNeededForNavigation(
+        string contentCode,
+        NavigationStepsAndRequirements steps,
+        bool allowObtaining
+    )
+    {
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(character);
+        var bankDetails = await gameState.Services.BankItemCache.GetBankDetails();
 
         List<CharacterJob> jobs = [];
-
-        var bankItems = await gameState.Services.BankItemCache.GetBankItems(character);
 
         foreach (var itemCondition in steps.ItemRequirements)
         {
@@ -253,44 +298,82 @@ public class NavigationService
 
             if (amountToObtain > 0)
             {
-                if (
-                    await character.PlayerActionService.CanObtainItem(
-                        gameState.ItemsDict[itemCondition.Code],
-                        amountToObtain,
-                        false,
-                        [contentCode]
-                    )
-                )
+                if (allowObtaining)
                 {
-                    jobs.Add(
-                        new ObtainOrFindItem(
-                            character,
-                            gameState,
-                            itemCondition.Code,
+                    if (
+                        await character.PlayerActionService.CanObtainItem(
+                            gameState.ItemsDict[itemCondition.Code],
                             amountToObtain,
+                            false,
                             [contentCode]
                         )
-                    );
+                    )
+                    {
+                        jobs.Add(
+                            new ObtainOrFindItem(
+                                character,
+                                gameState,
+                                itemCondition.Code,
+                                amountToObtain,
+                                [contentCode]
+                            )
+                        );
+                    }
+                    else
+                    {
+                        return new AppError(
+                            $"GetJobsNeededForNavigation: Cannot obtain item {amountToObtain} x {itemCondition.Code} for {character.Name}"
+                        );
+                    }
                 }
                 else
                 {
-                    return new AppError(
-                        $"GetJobsNeededForNavigation: Cannot obtain item {amountToObtain} x {itemCondition.Code} for {character.Name}"
-                    );
+                    if (
+                        bankItems.Exists(bankItem =>
+                            bankItem.Code == itemCondition.Code
+                            && bankItem.Quantity >= amountToObtain
+                        )
+                    )
+                    {
+                        jobs.Add(
+                            new WithdrawItem(
+                                character,
+                                gameState,
+                                itemCondition.Code,
+                                amountToObtain
+                            )
+                        );
+                    }
+                    else
+                    {
+                        return new AppError(
+                            $"GetJobsNeededForNavigation: Cannot withdraw item {amountToObtain} x {itemCondition.Code} for {character.Name}"
+                        );
+                    }
                 }
             }
         }
 
         // TODO: Should acquire gold if needed
+
         if (steps.GoldRequirement > character.Schema.Gold)
         {
-            jobs.Add(
-                new WithdrawGold(
-                    character,
-                    gameState,
-                    steps.GoldRequirement - character.Schema.Gold
-                )
-            );
+            if (bankDetails.Gold + character.Schema.Gold >= steps.GoldRequirement)
+            {
+                jobs.Add(
+                    new WithdrawGold(
+                        character,
+                        gameState,
+                        steps.GoldRequirement - character.Schema.Gold
+                    )
+                );
+            }
+            else
+            {
+                return new AppError(
+                    $"GetJobsNeededForNavigation: Cannot obtain gold {steps.GoldRequirement} for {character.Name} to withdraw"
+                );
+            }
         }
 
         return jobs;
@@ -848,4 +931,15 @@ public record NavigationStepsAndRequirements
     public required List<NavigationStep> Steps { get; set; } = [];
     public required List<DropSchema> ItemRequirements { get; set; } = [];
     public required int GoldRequirement { get; set; } = 0;
+}
+
+public record MapWithDistance
+{
+    public required MapSchema Map { get; init; }
+    public required int Distance { get; init; }
+}
+
+public record NavigateToResult
+{
+    public required List<CharacterJob> NeededJobs { get; init; }
 }
