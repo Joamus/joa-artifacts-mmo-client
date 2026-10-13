@@ -34,7 +34,7 @@ public class RaidService
         Logger.LogInformation("Loading raids...");
         bool doneLoading = false;
         List<RaidSchema> raids = [];
-        Dictionary<string, RaidSchema> raidSchema = [];
+        Dictionary<string, RaidSchema> raidMonstersDict = [];
         int pageNumber = 1;
 
         while (!doneLoading)
@@ -44,7 +44,7 @@ public class RaidService
             foreach (var map in result.Data)
             {
                 raids.Add(map);
-                raidSchema.Add(map.Monster, map);
+                raidMonstersDict.Add(map.Monster, map);
             }
 
             if (result.Data.Count == 0)
@@ -57,15 +57,14 @@ public class RaidService
 
         bool isInitialRun = Raids.Count == 0;
 
-        bool raidsHaveChanged = NewRaidsAreComingUpInAFewMinutes(Raids, raids);
+        bool raidsHaveChanged = !isInitialRun && NewRaidsAreComingUpInAFewMinutes(Raids, raids);
 
-        RaidsMonsterDict = raidSchema;
+        RaidsMonsterDict = raidMonstersDict;
         Raids = raids;
 
-        if (!isInitialRun && raidsHaveChanged)
+        if (raidsHaveChanged)
         {
             Logger.LogInformation($"Raids have changed - notifying characters");
-            raidsHaveChanged = true;
         }
 
         RelevantRaidComingUpInSomeHours = Raids.FirstOrDefault(raid =>
@@ -85,7 +84,7 @@ public class RaidService
             return levelRange.Highest >= monsterLevelToCompareTo;
         });
 
-        Logger.LogInformation("Loading raids - DONE;");
+        Logger.LogInformation("Loading raids - DONE");
 
         return raidsHaveChanged;
     }
