@@ -1369,57 +1369,43 @@ public class PlayerAI
 
     async Task<CharacterJob?> StartRaid()
     {
-        var nextUpcomingRaid = gameState
-            .Services.RaidService.Raids.OrderBy(raid =>
-                RaidService.RaidIsStartingInAFewMinutes(raid) || RaidService.RaidIsActive(raid)
-            )
-            .FirstOrDefault();
+        var nextUpcomingRaid = gameState.Services.RaidService.Raids.FirstOrDefault(raid =>
+            RaidService.RaidIsStartingInAFewMinutes(raid) || RaidService.RaidIsActive(raid)
+        );
 
-        if (nextUpcomingRaid is null)
+        // We can skip even considering the raid, if we know that it's not relevant for our party yet,
+        // i.e. the raid is too high level
+        if (
+            nextUpcomingRaid is null
+            || gameState.Services.RaidService.RelevantRaidComingUpInSomeHours?.Code
+                != nextUpcomingRaid.Code
+        )
         {
             return null;
         }
 
-        // var nextUpcomingRaid = gameState.Services.RaidService.Raids.First(raid =>
-        //     raid.Code == "enchanted_fairy"
-        // ) with
-        // {
-        //     NextStartAt = DateTime.UtcNow,
-        // };
-
         var monster = gameState.MonstersDict[nextUpcomingRaid.Monster];
 
-        if (
-            (
-                nextUpcomingRaid.ActiveInstance is not null
-                && nextUpcomingRaid.ActiveInstance.Status == RaidStatus.Active
-            )
-            || (nextUpcomingRaid.NextStartAt - DateTime.UtcNow).TotalSeconds
-                <= START_RAID_IF_WITHIN_SECONDS
-        )
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: StartRaid: There is an upcoming raid for {Monster}",
+            Name,
+            Character.Schema.Name,
+            monster.Code
+        );
+
+        var job = await MonsterService.GetRaidBossJobIfPossible(Character, monster, gameState);
+
+        if (job is not null)
         {
             Logger.LogInformation(
-                "{Name}: [{Character.Schema.Name}]: StartRaid: There is an upcoming raid for {Monster}",
+                "{Name}: [{Character.Schema.Name}]: StartRaid: Found job to start raid to fight {Monster}",
                 Name,
                 Character.Schema.Name,
                 monster.Code
             );
-
-            var job = await MonsterService.GetRaidBossJobIfPossible(Character, monster, gameState);
-
-            if (job is not null)
-            {
-                Logger.LogInformation(
-                    "{Name}: [{Character.Schema.Name}]: StartRaid: Found job to start raid to fight {Monster}",
-                    Name,
-                    Character.Schema.Name,
-                    monster.Code
-                );
-            }
-            return job;
         }
 
-        return null;
+        return job;
     }
 
     async Task<CharacterJob?> GetBossGrindingJob()

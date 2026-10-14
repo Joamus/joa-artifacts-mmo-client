@@ -29,7 +29,7 @@ public class RaidService
         GameState = gameState;
     }
 
-    public async Task<bool> LoadRaids()
+    public async Task<bool> LoadRaids(bool isInitialRun)
     {
         Logger.LogInformation("Loading raids...");
         bool doneLoading = false;
@@ -54,8 +54,6 @@ public class RaidService
 
             pageNumber++;
         }
-
-        bool isInitialRun = Raids.Count == 0;
 
         bool raidsHaveChanged = !isInitialRun && NewRaidsAreComingUpInAFewMinutes(Raids, raids);
 
@@ -84,7 +82,10 @@ public class RaidService
             return levelRange.Highest >= monsterLevelToCompareTo;
         });
 
-        Logger.LogInformation("Loading raids - DONE");
+        Logger.LogInformation(
+            "Loading raids - DONE. Relevant raid coming up: {raid}",
+            string.Join(", ", RelevantRaidComingUpInSomeHours?.Code ?? "n/a")
+        );
 
         return raidsHaveChanged;
     }
@@ -94,16 +95,11 @@ public class RaidService
         List<RaidSchema> newRaids
     )
     {
-        if (
-            !oldRaids.Exists(RaidIsActive) && newRaids.Exists(RaidIsActive)
-            || !oldRaids.Exists(RaidIsStartingInAFewMinutes)
+        return (!oldRaids.Exists(RaidIsActive) && newRaids.Exists(RaidIsActive))
+            || (
+                !oldRaids.Exists(RaidIsStartingInAFewMinutes)
                 && newRaids.Exists(RaidIsStartingInAFewMinutes)
-        )
-        {
-            return true;
-        }
-
-        return false;
+            );
     }
 
     public static bool RaidIsStartingInAFewMinutes(RaidSchema raid)

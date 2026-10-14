@@ -97,7 +97,7 @@ public class GameState
         await LoadResources();
         await LoadMonsters();
         await LoadCharacters(characterConfigs);
-        bool raidsChanged = await Services.RaidService.LoadRaids();
+        bool raidsChanged = await Services.RaidService.LoadRaids(true);
         await LoadPendingItems();
         await Services.AchievementService.LoadAccountAchievements();
         await LoadTasksList();
@@ -129,7 +129,7 @@ public class GameState
         // Just reload achievements for now, for things that are limited by achievements
         await Services.AchievementService.LoadAccountAchievements();
         await LoadMaps();
-        bool raidsChanged = await Services.RaidService.LoadRaids();
+        bool raidsChanged = await Services.RaidService.LoadRaids(false);
         AvailableMonsters = GetAvailableMonsters(Monsters);
         AvailableMonstersDict = Monsters.ToDictionary(monster => monster.Code);
         AvailableNpcs = GetAvailableNpcs(Npcs);

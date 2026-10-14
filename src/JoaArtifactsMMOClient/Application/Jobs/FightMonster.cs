@@ -134,7 +134,7 @@ public class FightMonster : CharacterJob
         if (itemsToEquip.Count > 0)
         {
             logger.LogInformation(
-                $"{JobName}: [{Character.Schema.Name}] found {itemsToEquip.Count} x jobs to withdraw better items to fight - {string.Join(",", itemsToEquip.Select(item => item.Code).ToList())}"
+                $"{JobName}: [{Character.Schema.Name}] found {itemsToEquip.Count} x jobs to withdraw better items to fight - {string.Join(", ", itemsToEquip.Select(item => item.Code).ToList())}"
             );
 
             foreach (var item in itemsToEquip)

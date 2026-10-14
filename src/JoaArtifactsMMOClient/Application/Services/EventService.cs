@@ -118,7 +118,10 @@ public class EventService
         bool eventsHaveChanged = EventListsAreDifferent(ActiveEvents, activeEvents);
         ActiveEvents = activeEvents;
 
-        logger.LogInformation($"Loading active events - events have changed - {eventsHaveChanged}");
+        logger.LogInformation(
+            "Loading active events - events have changed - {eventsHaveChanged}",
+            eventsHaveChanged
+        );
 
         if ((eventsHaveChanged && ActiveEvents.Count > 0) || shouldNotifyCharacters)
         {
