@@ -154,53 +154,61 @@ public class BankItemCache
     )
     {
         PreRun();
-        // Apply all reservations to the bank items
-        // Maybe lazy cleanup the cache? Do it on an interval of every 30 min or so
-        // Allow boolean parameter to get all anyway
+        try
+        {
+            await ReserveItemsLock.WaitAsync();
+            // Apply all reservations to the bank items
+            // Maybe lazy cleanup the cache? Do it on an interval of every 30 min or so
+            // Allow boolean parameter to get all anyway
 
-        BankItemsResponse bankItemsResponse = await LazyGetBankItems();
+            BankItemsResponse bankItemsResponse = await LazyGetBankItems();
 
-        List<DropSchema> items =
-        [
-            .. bankItemsResponse
-                .Data.Select(item =>
-                {
-                    int quantity = item.Quantity;
-
-                    var reservationsForItem = reservations.GetValueOrNull(item.Code);
-
-                    if (reservationsForItem is not null)
+            List<DropSchema> items =
+            [
+                .. bankItemsResponse
+                    .Data.Select(item =>
                     {
-                        foreach (var reservation in reservationsForItem)
-                        {
-                            if (
-                                playerCharacter is not null
-                                && reservation.CharacterName == playerCharacter.Schema.Name
-                                && !hideOwnReservations
-                            )
-                            {
-                                continue;
-                            }
-                            quantity -= reservation.Item.Quantity;
+                        int quantity = item.Quantity;
 
-                            if (quantity < 0)
+                        var reservationsForItem = reservations.GetValueOrNull(item.Code);
+
+                        if (reservationsForItem is not null)
+                        {
+                            foreach (var reservation in reservationsForItem)
                             {
-                                quantity = 0;
-                                break;
+                                if (
+                                    playerCharacter is not null
+                                    && reservation.CharacterName == playerCharacter.Schema.Name
+                                    && !hideOwnReservations
+                                )
+                                {
+                                    continue;
+                                }
+                                quantity -= reservation.Item.Quantity;
+
+                                if (quantity < 0)
+                                {
+                                    quantity = 0;
+                                    break;
+                                }
                             }
                         }
-                    }
 
-                    return item with
-                    {
-                        Code = item.Code,
-                        Quantity = quantity,
-                    };
-                })
-                .Where(item => item.Quantity > 0),
-        ];
+                        return item with
+                        {
+                            Code = item.Code,
+                            Quantity = quantity,
+                        };
+                    })
+                    .Where(item => item.Quantity > 0),
+            ];
 
-        return items;
+            return items;
+        }
+        finally
+        {
+            ReserveItemsLock.Release();
+        }
     }
 
     async Task<BankItemsResponse> LazyGetBankItems()

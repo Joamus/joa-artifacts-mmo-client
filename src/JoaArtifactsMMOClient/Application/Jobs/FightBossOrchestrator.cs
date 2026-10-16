@@ -1,6 +1,4 @@
-using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
-using Application;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
@@ -58,6 +56,8 @@ public class FightBossOrchestrator
     public required List<PlayerCharacter> OtherCharacters { get; set; }
     public required List<PlayerCharacter> AllCharacters { get; set; }
     public required List<BossFightCharacterStatus> AllCharactersStatuses { get; set; }
+
+    List<ItemReservation> Reservations { get; set; } = [];
 
     // [JsonIgnore]
     public required List<FightSimResult> LastFightSimResult { get; set; }
@@ -196,6 +196,17 @@ public class FightBossOrchestrator
             $"{JobName}: Disbanding group - status: {Status.GetDisplayName()} - reason {reason}"
         );
 
+        foreach (var reservation in Reservations)
+        {
+            GameState.Services.BankItemCache.RemoveReservation(
+                GameState.Characters.First(character =>
+                    character.Name == reservation.CharacterName
+                ),
+                reservation.Item.Code,
+                reservation.Item.Quantity
+            );
+        }
+
         foreach (var character in AllCharacters)
         {
             RemoveCharacterFromJob(character);
@@ -324,11 +335,11 @@ public class FightBossOrchestrator
             {
                 case CharacterFightBossStatus.New:
                     // Don't change the status or anything, just deposit
-                    if (DepositUnneededItems.ShouldInitDepositItems(character, true))
+                    if (DepositUnneededItems.ShouldInitDepositItems(character, false))
                     {
                         List<CharacterJob> jobs =
                         [
-                            new DepositUnneededItems(character, GameState, null, true),
+                            new DepositUnneededItems(character, GameState, null, false),
                         ];
 
                         return jobs;
@@ -604,8 +615,8 @@ public class FightBossOrchestrator
                 .Characters.Where(otherCharacter =>
                     otherCharacter.Schema.Name != character.Schema.Name
                     && (otherCharacter.CurrentJobOrchestrator is null)
-                // A bit wonky, but we should only take characters with us who have enough inventory space
-                // && (!DepositUnneededItems.ShouldInitDepositItems(otherCharacter, false))
+                    // A bit wonky, but we should only take characters with us who have enough inventory space
+                    && (!DepositUnneededItems.ShouldInitDepositItems(otherCharacter, false))
                 )
                 .OrderByDescending((b) => b.Schema.Level),
         ];
@@ -824,6 +835,20 @@ public class FightBossOrchestrator
             ),
         ];
 
+        foreach (var item in itemsToWithdraw)
+        {
+            GameState.Services.BankItemCache.ReserveItem(character, item.Code, item.Quantity);
+
+            Reservations.Add(
+                new ItemReservation
+                {
+                    Item = new DropSchema { Code = item.Code, Quantity = item.Quantity },
+                    CharacterName = character.Schema.Name,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+        }
+
         List<CharacterJob> jobs = BatchWithdrawJobsForEquipping(
                 character,
                 GameState,
@@ -831,9 +856,9 @@ public class FightBossOrchestrator
             )
             .ConvertAll(job => (CharacterJob)job);
 
-        // if (DepositUnneededItems.ShouldInitDepositItems(character, true))
+        // if (DepositUnneededItems.ShouldInitDepositItems(character, false))
         // {
-        //     jobs.Add(new DepositUnneededItems(character, GameState, null, true));
+        //     jobs.Add(new DepositUnneededItems(character, GameState, null, false));
         // }
 
         List<CharacterJob> resultJobs = [.. jobsNeededForNavigation.Union(jobs)];

@@ -97,6 +97,7 @@ public class GameState
         await LoadResources();
         await LoadMonsters();
         await LoadCharacters(characterConfigs);
+        // bool raidsChanged = await Services.RaidService.LoadRaids(false);
         bool raidsChanged = await Services.RaidService.LoadRaids(true);
         await LoadPendingItems();
         await Services.AchievementService.LoadAccountAchievements();

@@ -41,10 +41,16 @@ public class RaidService
         {
             var result = await AccountRequester.GetRaids(pageNumber);
 
-            foreach (var map in result.Data)
+            foreach (var raid in result.Data)
             {
-                raids.Add(map);
-                raidMonstersDict.Add(map.Monster, map);
+                // // FOR TESTING
+                // if (raid.Code == "enchanted_fairy")
+                // {
+                //     raid.NextStartAt = DateTime.UtcNow.AddMinutes(2);
+                // }
+
+                raids.Add(raid);
+                raidMonstersDict.Add(raid.Monster, raid);
             }
 
             if (result.Data.Count == 0)
