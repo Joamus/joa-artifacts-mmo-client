@@ -1241,7 +1241,10 @@ public class PlayerAI
                                     Character,
                                     gameState,
                                     priority,
-                                    gameState.Services.RaidService.RelevantRaidComingUpInSomeHours
+                                    gameState
+                                        .Services
+                                        .RaidService
+                                        .RelevantRaidComingUpInSomeHoursOrActive
                                         is not null
                                 ),
                                 CharacterChoreKind.RestockPotions
@@ -1369,16 +1372,16 @@ public class PlayerAI
 
     async Task<CharacterJob?> StartRaid()
     {
-        var nextUpcomingRaid = gameState.Services.RaidService.Raids.FirstOrDefault(raid =>
-            RaidService.RaidIsStartingInAFewMinutes(raid) || RaidService.RaidIsActive(raid)
-        );
+        var nextUpcomingRaid = gameState
+            .Services
+            .RaidService
+            .RelevantRaidComingUpInSomeHoursOrActive;
 
         // We can skip even considering the raid, if we know that it's not relevant for our party yet,
         // i.e. the raid is too high level
         if (
             nextUpcomingRaid is null
-            || gameState.Services.RaidService.RelevantRaidComingUpInSomeHours?.Code
-                != nextUpcomingRaid.Code
+            || !RaidService.RaidIsStartingInAFewMinutesOrActive(nextUpcomingRaid)
         )
         {
             return null;
@@ -1427,7 +1430,7 @@ public class PlayerAI
             Character,
             gameState,
             bankItems,
-            gameState.Services.RaidService.RelevantRaidComingUpInSomeHours
+            gameState.Services.RaidService.RelevantRaidComingUpInSomeHoursOrActive
         );
 
         if (result is not null)

@@ -16,7 +16,7 @@ public class RaidService
     private GameState GameState { get; set; }
     public List<RaidSchema> Raids { get; set; } = [];
     public Dictionary<string, RaidSchema> RaidsMonsterDict { get; set; } = [];
-    public RaidSchema? RelevantRaidComingUpInSomeHours { get; private set; }
+    public RaidSchema? RelevantRaidComingUpInSomeHoursOrActive { get; private set; }
 
     public RaidService(
         ILogger<RaidService> logger,
@@ -71,9 +71,9 @@ public class RaidService
             Logger.LogInformation($"Raids have changed - notifying characters");
         }
 
-        RelevantRaidComingUpInSomeHours = Raids.FirstOrDefault(raid =>
+        RelevantRaidComingUpInSomeHoursOrActive = Raids.FirstOrDefault(raid =>
         {
-            if (!RaidIsStartingInSomeHours(raid))
+            if (!RaidIsStartingInSomeHoursOrActive(raid))
             {
                 return false;
             }
@@ -90,7 +90,7 @@ public class RaidService
 
         Logger.LogInformation(
             "Loading raids - DONE. Relevant raid coming up: {raid}",
-            string.Join(", ", RelevantRaidComingUpInSomeHours?.Code ?? "n/a")
+            string.Join(", ", RelevantRaidComingUpInSomeHoursOrActive?.Code ?? "n/a")
         );
 
         return raidsHaveChanged;
@@ -101,23 +101,22 @@ public class RaidService
         List<RaidSchema> newRaids
     )
     {
-        return (!oldRaids.Exists(RaidIsActive) && newRaids.Exists(RaidIsActive))
-            || (
-                !oldRaids.Exists(RaidIsStartingInAFewMinutes)
-                && newRaids.Exists(RaidIsStartingInAFewMinutes)
-            );
+        return !oldRaids.Exists(RaidIsStartingInAFewMinutesOrActive)
+            && newRaids.Exists(RaidIsStartingInAFewMinutesOrActive);
     }
 
-    public static bool RaidIsStartingInAFewMinutes(RaidSchema raid)
+    public static bool RaidIsStartingInAFewMinutesOrActive(RaidSchema raid)
     {
         return (raid.NextStartAt - DateTime.UtcNow).TotalSeconds
-            <= PlayerAI.START_RAID_IF_WITHIN_SECONDS;
+                <= PlayerAI.START_RAID_IF_WITHIN_SECONDS
+            || RaidIsActive(raid);
     }
 
-    public static bool RaidIsStartingInSomeHours(RaidSchema raid)
+    public static bool RaidIsStartingInSomeHoursOrActive(RaidSchema raid)
     {
         return (raid.NextStartAt - DateTime.UtcNow).TotalHours
-            <= PlayerAI.RAID_STARTING_WITHIN_SOME_HOURS;
+                <= PlayerAI.RAID_STARTING_WITHIN_SOME_HOURS
+            || RaidIsActive(raid);
     }
 
     public static bool RaidIsActive(RaidSchema raid) => raid.ActiveInstance is not null;

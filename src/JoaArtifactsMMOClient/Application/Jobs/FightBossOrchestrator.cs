@@ -1127,7 +1127,7 @@ public class FightBossOrchestrator
                     if (
                         raid is null
                         || (
-                            !RaidService.RaidIsStartingInAFewMinutes(raid)
+                            !RaidService.RaidIsStartingInAFewMinutesOrActive(raid)
                             && !RaidService.RaidIsActive(raid)
                         )
                     )
