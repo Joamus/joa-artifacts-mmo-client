@@ -335,15 +335,15 @@ public class FightBossOrchestrator
             {
                 case CharacterFightBossStatus.New:
                     // Don't change the status or anything, just deposit
-                    if (DepositUnneededItems.ShouldInitDepositItems(character, false))
-                    {
-                        List<CharacterJob> jobs =
-                        [
-                            new DepositUnneededItems(character, GameState, null, false),
-                        ];
+                    // if (DepositUnneededItems.ShouldInitDepositItems(character, false))
+                    // {
+                    //     List<CharacterJob> jobs =
+                    //     [
+                    //         new DepositUnneededItems(character, GameState, null, false),
+                    //     ];
 
-                        return jobs;
-                    }
+                    //     return jobs;
+                    // }
 
                     var nextPreparationJobResult = await GetPreparationJobAndItemsToEquip(
                         character
