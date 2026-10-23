@@ -163,7 +163,7 @@ public class FightSimulatorTest
                 .FindBestFightEquipment(character, gameState, monster, itemsInInventory)
                 .SimResult;
 
-            Assert.Equal(itemsInInventory.Count, result.ItemsToEquip.Count - 1); // we are equipping rings, which is in two seperate entries here
+            Assert.Equal(itemsInInventory.Count, result.ItemsToEquip.Count); // we are equipping rings, which is in two seperate entries here
             Assert.True(result.ItemsToEquip.Exists(item => item.Code == weapon.Code));
             Assert.True(result.ItemsToEquip.Exists(item => item.Code == armor.Code));
             Assert.True(result.ItemsToEquip.Exists(item => item.Code == smallHealthPotion.Code));
@@ -534,5 +534,44 @@ public class FightSimulatorTest
 
             Assert.True(totalAmountOfItemOnCharacters <= item.Quantity);
         }
+    }
+
+    [Fact(DisplayName = "Should not win against baby_red_dragon")]
+    public void SimulateBossFightOutcome_ShouldWinAgainstBabyRedDragon()
+    {
+        GameState gameState = ServiceHelper.GetPopulatedGameState();
+
+        var mainCharacter = PlayerCharacterHelper.GetFighterCharacter(gameState, 50);
+
+        List<ItemInInventory> bankItems =
+        [
+            // Armor
+            new ItemInInventory { Item = gameState.ItemsDict["moonlight_staff"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["jester_hat"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["fire_shield"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["mithril_platebody"], Quantity = 1 },
+            new ItemInInventory
+            {
+                Item = gameState.ItemsDict["greater_sapphire_amulet"],
+                Quantity = 1,
+            },
+            new ItemInInventory { Item = gameState.ItemsDict["enchanter_pants"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["mithril_boots"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["mithril_ring"], Quantity = 2 },
+            new ItemInInventory { Item = gameState.ItemsDict["burn_rune"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["sapphire_book"], Quantity = 1 },
+            new ItemInInventory { Item = gameState.ItemsDict["novice_guide"], Quantity = 1 },
+        ];
+
+        var monster = gameState.MonstersDict["baby_red_dragon"];
+
+        var fightResults = FightSimulator.FindBestFightEquipment(
+            mainCharacter,
+            gameState,
+            monster,
+            bankItems
+        );
+
+        Assert.False(fightResults?.SimResult.Outcome.ShouldFight);
     }
 }
