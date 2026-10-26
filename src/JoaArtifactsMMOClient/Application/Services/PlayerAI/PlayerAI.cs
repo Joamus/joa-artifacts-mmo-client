@@ -105,10 +105,10 @@ public class PlayerAI
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
                 ?? await EnsureBag()
+                ?? await GetAchievementHuntingJob()
                 ?? await GetRoleJob()
                 ?? await GetMonsterJobIfCanCertainlyBeDone()
                 ?? await EnsureFightEquipment()
-                ?? await GetAchievementHuntingJob()
                 ?? await GetIndividualHighPrioJob()
                 ?? GetSkillJob()
                 ?? await GetChoreJob()
