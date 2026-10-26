@@ -1,12 +1,8 @@
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
-using Application.Dtos;
 using Application.Errors;
 using Application.Jobs.Chores;
-using Application.Services;
-using Applicaton.Jobs;
 using Applicaton.Jobs.Chores;
-using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -15,36 +11,36 @@ namespace Application.Jobs;
 public class ObtainCuratedItems : CharacterJob, ICharacterChoreJob
 {
     List<CuratedItem> CuratedItems { get; set; } =
-        [
-            new CuratedItem { Code = "healing_rune", Quantity = 5 },
-            new CuratedItem { Code = "lifesteal_rune", Quantity = 3 },
-            new CuratedItem { Code = "burn_rune", Quantity = 3 },
-            new CuratedItem { Code = "protection_rune", Quantity = 1 },
-            new CuratedItem { Code = "lost_world_map", Quantity = 5 },
-            new CuratedItem { Code = "perfect_pearl", Quantity = 5 },
-            new CuratedItem { Code = "cultist_cloak", Quantity = 5 },
-            new CuratedItem { Code = "healing_aura_rune", Quantity = 5 },
-            new CuratedItem { Code = "vampiric_rune", Quantity = 5 },
-            new CuratedItem
-            {
-                Code = "greater_healing_rune",
-                Quantity = 5,
-                Superseeds = ["healing_rune", "healing_aura_rune"],
-            },
-            new CuratedItem
-            {
-                Code = "greater_lifesteal_rune",
-                Quantity = 3,
-                Superseeds = ["lifesteal_rune"],
-            },
-            new CuratedItem
-            {
-                Code = "greater_protection_rune",
-                Quantity = 1,
+    [
+        new CuratedItem { Code = "healing_rune", Quantity = 5 },
+        new CuratedItem { Code = "lifesteal_rune", Quantity = 3 },
+        new CuratedItem { Code = "burn_rune", Quantity = 3 },
+        new CuratedItem { Code = "protection_rune", Quantity = 1 },
+        new CuratedItem { Code = "lost_world_map", Quantity = 5 },
+        new CuratedItem { Code = "perfect_pearl", Quantity = 5 },
+        // new CuratedItem { Code = "cultist_cloak", Quantity = 5 },
+        new CuratedItem { Code = "healing_aura_rune", Quantity = 5 },
+        new CuratedItem { Code = "vampiric_rune", Quantity = 5 },
+        new CuratedItem
+        {
+            Code = "greater_healing_rune",
+            Quantity = 5,
+            Superseeds = ["healing_rune", "healing_aura_rune"],
+        },
+        new CuratedItem
+        {
+            Code = "greater_lifesteal_rune",
+            Quantity = 3,
+            Superseeds = ["lifesteal_rune"],
+        },
+        new CuratedItem
+        {
+            Code = "greater_protection_rune",
+            Quantity = 1,
 
-                Superseeds = ["protection_rune"],
-            },
-        ];
+            Superseeds = ["protection_rune"],
+        },
+    ];
     GambleTasksCoinsParams JobParams { get; init; }
 
     public ObtainCuratedItems(
@@ -59,28 +55,95 @@ public class ObtainCuratedItems : CharacterJob, ICharacterChoreJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
-        logger.LogInformation($"{JobName}: [{Character.Schema.Name}] run started");
+        logger.LogInformation(
+            "{JobName}: [{Character.Schema.Name}] run started",
+            JobName,
+            Character.Schema.Name
+        );
 
-        var jobs = await GetJobs();
+        var job = await GetJob();
 
-        if (jobs is not null)
+        if (job is not null)
         {
-            await Character.QueueJobsAfter(Id, jobs);
+            await Character.QueueJobsAfter(Id, [job]);
         }
 
         return new None();
     }
 
-    public async Task<List<CharacterJob>> GetJobs()
+    public async Task<CharacterJob?> GetJob()
     {
-        return [];
+        foreach (var curatedItem in CuratedItems)
+        {
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(curatedItem.Code);
+
+            if (matchingItem is null)
+            {
+                continue;
+            }
+
+            int amountNeeded = await GetAmountNeededOfCuratedItem(matchingItem, curatedItem);
+
+            if (amountNeeded == 0)
+            {
+                continue;
+            }
+
+            var superSeededBy = CuratedItems.Where(otherCuratedItem =>
+                otherCuratedItem.Code != curatedItem.Code
+                && otherCuratedItem.Superseeds is not null
+                && otherCuratedItem.Superseeds.Contains(curatedItem.Code)
+            );
+
+            bool haveAllWeNeed = false;
+
+            // If we find any item that superseeds this item, and we have enough of that one, then we stop
+            foreach (var superSeedingItem in superSeededBy)
+            {
+                bool weHaveEnoughOfThisItem =
+                    await GetAmountNeededOfCuratedItem(matchingItem, curatedItem) == 0;
+
+                if (weHaveEnoughOfThisItem)
+                {
+                    haveAllWeNeed = true;
+                    break;
+                }
+            }
+
+            // Even if we e.g. don't have the amount of lifesteal runes we want, then it's OK if we have
+            if (haveAllWeNeed)
+            {
+                break;
+            }
+
+            if (
+                await Character.PlayerActionService.CanObtainItem(matchingItem, amountNeeded, false)
+            )
+            {
+                return new ObtainItem(Character, gameState, matchingItem.Code, amountNeeded, []);
+            }
+        }
+
+        return null;
+    }
+
+    async ValueTask<int> GetAmountNeededOfCuratedItem(
+        ItemSchema matchingItem,
+        CuratedItem curatedItem
+    )
+    {
+        int amountOfItem = await gameState.GetAmountOfItemFromAll(matchingItem.Code);
+
+        int amountNeeded = Math.Max(curatedItem.Quantity - amountOfItem, 0);
+
+        return amountNeeded;
     }
 
     public async Task<bool> NeedsToBeDone()
     {
-        var jobs = await GetJobs();
+        var job = await GetJob();
 
-        return jobs.Count > 0;
+        return job is not null;
     }
 
     static GambleTasksCoinsParams GetJobParams(ChorePriority priority)

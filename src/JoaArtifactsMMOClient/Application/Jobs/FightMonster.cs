@@ -200,9 +200,28 @@ public class FightMonster : CharacterJob
             );
         }
 
+        var characterCloneWithoutPotions = Character.Clone();
+
+        characterCloneWithoutPotions.Schema = characterCloneWithoutPotions.Schema with
+        {
+            Utility1Slot = "",
+            Utility1SlotQuantity = 0,
+            Utility2Slot = "",
+            Utility2SlotQuantity = 0,
+        };
+
+        var fightSimResultWithoutPotions = FightSimulator
+            .FindBestFightEquipmentIncludingInventory(
+                characterCloneWithoutPotions,
+                gameState,
+                monster,
+                [.. availableItems.Where(item => item.Item.Type != "utility")]
+            )
+            .SimResult;
+
         // Figure out if the bank has better fight items, if they have, withdraw them and rerun the job
 
-        var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResult);
+        var obtainPotionJobs = await HandlePotionsPreFight(monster, fightSimResultWithoutPotions);
 
         if (obtainPotionJobs.Count > 0)
         {
@@ -690,7 +709,7 @@ public class FightMonster : CharacterJob
 
     public async Task<List<CharacterJob>> HandlePotionsPreFight(
         MonsterSchema monster,
-        FightSimResult fightSimResult
+        FightSimResult fightSimResultWithoutPotions
     )
     {
         List<string> potionEffectsToSkip = EffectService.GetPotionEffectsToSkip(
@@ -705,35 +724,35 @@ public class FightMonster : CharacterJob
             monster
         );
 
-        // if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResult))
-        // {
-        //     foreach (var effect in EffectService.preFightEffects)
-        //     {
-        //         potionEffectsToSkip.Add(effect);
-        //     }
-        // }
+        if (!EffectService.SimpleIsPreFightPotionWorthUsing(fightSimResultWithoutPotions))
+        {
+            foreach (var effect in EffectService.preFightEffects)
+            {
+                potionEffectsToSkip.Add(effect);
+            }
+        }
 
         List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
 
         utilitySlots.Add((1, Character.Schema.Utility1Slot, Character.Schema.Utility1SlotQuantity));
         utilitySlots.Add((2, Character.Schema.Utility2Slot, Character.Schema.Utility2SlotQuantity));
 
-        // foreach (var utility in utilitySlots)
-        // {
-        //     var matchingItem = gameState.ItemsDict.GetValueOrNull(utility.ItemCode);
+        foreach (var utility in utilitySlots)
+        {
+            var matchingItem = gameState.ItemsDict.GetValueOrNull(utility.ItemCode);
 
-        //     if (
-        //         matchingItem is not null
-        //         && matchingItem.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
-        //     )
-        //     {
-        //         await Character.PlayerActionService.DepositPotions(
-        //             utility.Slot,
-        //             utility.ItemCode,
-        //             utility.Amount
-        //         );
-        //     }
-        // }
+            if (
+                matchingItem is not null
+                && matchingItem.Effects.Exists(effect => potionEffectsToSkip.Contains(effect.Code))
+            )
+            {
+                await Character.PlayerActionService.DepositPotions(
+                    utility.Slot,
+                    utility.ItemCode,
+                    utility.Amount
+                );
+            }
+        }
 
         var obtainPotionJobs = await ObtainSuitablePotions.GetAcquirePotionJobs(
             Character,
@@ -742,14 +761,15 @@ public class FightMonster : CharacterJob
             monster
         );
 
-        obtainPotionJobs = obtainPotionJobs
-            .Where(job =>
+        obtainPotionJobs =
+        [
+            .. obtainPotionJobs.Where(job =>
             {
                 var potion = gameState.ItemsDict[job.Code];
 
                 return potion.Effects.Exists(effect => !potionEffectsToSkip.Contains(effect.Code));
-            })
-            .ToList();
+            }),
+        ];
 
         bool samePotions = true;
 

@@ -244,7 +244,11 @@ public class NavigationService
                 if (
                     condition.Operator == ItemConditionOperator.AchievementUnlocked
                     && !gameState.Services.AchievementService.AccountAchievements.Exists(
-                        achievement => achievement.Code == condition.Code
+                        achievement =>
+                            achievement.Code == condition.Code
+                            && gameState.Services.AchievementService.AchievementIsCompleted(
+                                achievement
+                            )
                     )
                 )
                 {

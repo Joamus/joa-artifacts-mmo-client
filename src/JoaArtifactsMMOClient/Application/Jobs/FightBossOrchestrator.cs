@@ -30,6 +30,12 @@ public class FightBossOrchestrator
 
     [JsonIgnore]
     public const int WAIT_WHEN_NO_JOB_MS = 5_000;
+
+    [JsonIgnore]
+    const int MAX_LOST_IN_A_ROW = 3;
+
+    [JsonIgnore]
+    const int FOOD_AMOUNT_INV_SPACE_BUFFER = 10;
     public FightBossStatus Status = FightBossStatus.New;
 
     public DateTime CreatedAt = DateTime.UtcNow;
@@ -44,6 +50,7 @@ public class FightBossOrchestrator
     protected int Amount { get; set; } = 0;
     protected int ProgressAmount { get; set; } = 0;
     protected int InitialAmount { get; set; } = 0;
+    protected int LostInARow { get; set; } = 0;
 
     // Cancellation token source is for cancelling promises when the job completes
     [JsonIgnore]
@@ -237,6 +244,9 @@ public class FightBossOrchestrator
             {
                 var jobs = result.AsT1;
 
+                // Set this fight boss job as the parent collab job of all jobs we return.
+                jobs.ForEach(job => job.ParentCollabJobId = Id);
+
                 if (jobs.Count == 0 && Status != FightBossStatus.Failed)
                 {
                     // We do this outside of the lock, so other characters can get their next job
@@ -372,9 +382,6 @@ public class FightBossOrchestrator
                     {
                         await character.EquipItems(equipRequests);
                     }
-                    // Set this fight boss job as the parent collab job of all jobs we return.
-                    nextPreparationJobs.ForEach(job => job.ParentCollabJobId = Id);
-
                     /**
                     ** The character's status should be "New" here, and after they have done these jobs, they should be ready in preparing.
                     ** They reason that we have this Preparing state, is to prevent another character from just starting the fight, even though
@@ -504,7 +511,23 @@ public class FightBossOrchestrator
             }
         }
 
-        await MainCharacter.Fight(OtherCharacters);
+        var fightResponse = await MainCharacter.Fight(OtherCharacters);
+
+        if (fightResponse.IsT1 && fightResponse.AsT1.Data.Fight.result == FightResult.Loss)
+        {
+            LostInARow += 1;
+
+            if (LostInARow >= MAX_LOST_IN_A_ROW)
+            {
+                throw new AppError(
+                    $"{JobName}: StartBossFight: Error - lost {LostInARow} fights in a row sim - abandoning job"
+                );
+            }
+        }
+        else
+        {
+            LostInARow = 0;
+        }
 
         Logger.LogInformation(
             "{JobName}: StartBossFight: Round against {Monster.Code} done",
@@ -524,7 +547,23 @@ public class FightBossOrchestrator
             true
         );
 
-        if (fightSimResult.IsT0)
+        bool fightSimErrored = fightSimResult.IsT0;
+
+        bool lostFight =
+            fightResponse.IsT1 && fightResponse.AsT1.Data.Fight.result == FightResult.Loss;
+
+        if (lostFight)
+        {
+            LostInARow += 1;
+        }
+        else
+        {
+            LostInARow = 0;
+        }
+
+        bool keepsLosing = LostInARow >= MAX_LOST_IN_A_ROW;
+
+        if (fightSimErrored || keepsLosing)
         {
             var newFightSimResult = await GetLastFightSimAndRequirements(
                 MainCharacter,
@@ -862,6 +901,21 @@ public class FightBossOrchestrator
         // }
 
         List<CharacterJob> resultJobs = [.. jobsNeededForNavigation.Union(jobs)];
+
+        int foodAmountToObtain =
+            character.GetAvailableInventorySpace() - FOOD_AMOUNT_INV_SPACE_BUFFER;
+
+        if (foodAmountToObtain > 0)
+        {
+            var foodJob = new ObtainSuitableFood(
+                character,
+                GameState,
+                foodAmountToObtain,
+                Monster.Code
+            );
+
+            resultJobs.Add(foodJob);
+        }
 
         return (Jobs: resultJobs, ItemsToEquip: itemsToEquipButNotWithdraw);
     }

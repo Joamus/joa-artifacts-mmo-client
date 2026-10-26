@@ -1204,6 +1204,40 @@ public class PlayerActionService
             }
         }
     }
+
+    public async Task<CharacterJob?> GetJobToFightMonster(MonsterSchema monster, int amountToKill)
+    {
+        var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
+
+        var obtainablePotions = await Character.PlayerActionService.GetObtainablePotions(
+            Character,
+            gameState
+        );
+
+        var availableItems = ItemService.MergeItemEntries(
+            ItemService
+                .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
+                .Union(obtainablePotions)
+                .ToList()
+        );
+
+        var fightSim = FightSimulator.FindBestFightEquipmentIncludingInventory(
+            Character,
+            gameState,
+            monster,
+            availableItems
+        );
+
+        if (fightSim.SimResult.Outcome.ShouldFight)
+        {
+            Logger.LogInformation(
+                $"{Name}: [{Character.Schema.Name}]: GetMonsterEventjob: Can fight monster with items from bank - fighting {TrainCombat.AMOUNT_TO_KILL} x {monster.Code}"
+            );
+            return new FightMonster(Character, gameState, monster.Code, amountToKill);
+        }
+
+        return null;
+    }
 }
 
 public record CharacterJobAndEquipmentSlot

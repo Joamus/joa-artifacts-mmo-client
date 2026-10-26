@@ -15,8 +15,6 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
     public const bool SELL_SMALL_PEARLS_IF_FULL_PERFECT_PEARLS = true;
 
-    public static readonly string[] ItemsToKeep = ["wolf_ears"];
-
     public static readonly List<string> SellableEquipmentItemTypes =
     [
         .. ItemService.EquipmentItemTypes.Where(itemType => itemType != "utility"),
@@ -208,7 +206,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
             [
                 .. bankItems
                     .Select(item => gameState.ItemsDict[item.Code])
-                    .Where(item => item.Craft is not null),
+                    .Where(item => item.Craft is null),
             ]
         );
 

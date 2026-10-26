@@ -128,8 +128,9 @@ public static class ItemService
 
             if (
                 condition.Operator == ItemConditionOperator.AchievementUnlocked
-                && !gameState.Services.AchievementService.AccountAchievements.Exists(achievment =>
-                    achievment.Code == condition.Code
+                && !gameState.Services.AchievementService.AccountAchievements.Exists(achievement =>
+                    achievement.Code == condition.Code
+                    && gameState.Services.AchievementService.AchievementIsCompleted(achievement)
                 )
             )
             {

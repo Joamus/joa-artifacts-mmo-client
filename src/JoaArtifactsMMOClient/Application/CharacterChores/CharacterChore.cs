@@ -1,14 +1,9 @@
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-
 namespace Application.Jobs.Chores;
 
 public record CharacterChore
 {
-    // [JsonConverter(typeof(StringEnumConverter))]
     public required CharacterChoreKind Kind { get; set; }
 
-    // [JsonConverter(typeof(StringEnumConverter))]
     public required ChorePriority Priority { get; set; } = ChorePriority.High;
 
     public required DateTime StartedAt { get; set; }
@@ -32,4 +27,5 @@ public enum CharacterChoreKind
     RestockPotions,
     RestockResources,
     GambleTasksCoins,
+    ObtainCuratedItems,
 }
