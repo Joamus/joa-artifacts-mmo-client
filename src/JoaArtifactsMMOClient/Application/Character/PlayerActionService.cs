@@ -22,7 +22,7 @@ public class PlayerActionService
 {
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
     public static readonly int LEVEL_DIFF_NO_XP = 10;
-    public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
+    public const int QUANTIY_OF_EACH_TELEPORT_POTION = 2;
     private const int MIN_FREE_BANK_SLOTS = 10;
     private readonly GameState gameState;
 
@@ -1076,7 +1076,10 @@ public class PlayerActionService
 
             int amountNeeded = QUANTIY_OF_EACH_TELEPORT_POTION - quantityInInventory;
 
-            int amountToWithdraw = Math.Min(amountNeeded, item.Quantity);
+            int amountToWithdraw = Math.Min(
+                Math.Min(amountNeeded, item.Quantity),
+                Character.GetAvailableInventorySpace()
+            );
 
             if (amountToWithdraw > 0)
             {
