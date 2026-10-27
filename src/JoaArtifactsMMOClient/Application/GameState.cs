@@ -82,6 +82,10 @@ public class GameState
                 accountRequester,
                 this
             ),
+            AchievementHuntingService = new AchievementHuntingService(
+                AppLogger.loggerFactory.CreateLogger<AchievementHuntingService>(),
+                this
+            ),
         };
         logger = AppLogger.loggerFactory.CreateLogger<GameState>();
     }
@@ -100,6 +104,7 @@ public class GameState
         // bool raidsChanged = await Services.RaidService.LoadRaids(false);
         bool raidsChanged = await Services.RaidService.LoadRaids(true);
         await LoadPendingItems();
+        await Services.AchievementService.LoadAchievements();
         await Services.AchievementService.LoadAccountAchievements();
         await LoadTasksList();
         await LoadTasksRewards();
@@ -128,6 +133,7 @@ public class GameState
         cacheReload = DateTime.UtcNow;
 
         // Just reload achievements for now, for things that are limited by achievements
+        Services.AchievementHuntingService.FlushAchievementsAssignedCache();
         await Services.AchievementService.LoadAccountAchievements();
         await LoadMaps();
         bool raidsChanged = await Services.RaidService.LoadRaids(false);
@@ -549,4 +555,5 @@ public record GameStateServices
     public CharacterChoreService ChoreService { get; set; }
     public required AchievementService AchievementService { get; set; }
     public required RaidService RaidService { get; set; }
+    public required AchievementHuntingService AchievementHuntingService { get; set; }
 }

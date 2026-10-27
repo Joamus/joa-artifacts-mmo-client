@@ -14,6 +14,7 @@ public class AchievementService
     public AccountRequester AccountRequester { get; init; }
     private readonly ILogger<AchievementService> Logger;
     private GameState GameState { get; set; }
+    public List<AchievementSchema> Achievements { get; set; } = [];
     public List<AccountAchievementSchema> AccountAchievements { get; set; } = [];
     public Dictionary<string, AccountAchievementSchema> AccountAchievementsDict { get; set; } = [];
 
@@ -43,10 +44,7 @@ public class AchievementService
 
                 foreach (var achievement in result.Data)
                 {
-                    if (!string.IsNullOrEmpty(achievement.CompletedAt))
-                    {
-                        accountAchievements.Add(achievement);
-                    }
+                    accountAchievements.Add(achievement);
                 }
 
                 if (result.Data.Count == 0)
@@ -71,4 +69,42 @@ public class AchievementService
             Logger.LogError(e.ToString());
         }
     }
+
+    public async Task LoadAchievements()
+    {
+        Logger.LogInformation("Loading achievements...");
+        bool doneLoading = false;
+        List<AchievementSchema> achievements = [];
+        int pageNumber = 1;
+
+        try
+        {
+            while (!doneLoading)
+            {
+                var result = await AccountRequester.GetAchievements(pageNumber);
+
+                foreach (var achievement in result.Data)
+                {
+                    achievements.Add(achievement);
+                }
+
+                if (result.Data.Count == 0)
+                {
+                    doneLoading = true;
+                }
+
+                pageNumber++;
+            }
+
+            Achievements = achievements;
+            Logger.LogInformation("Loading achievements - DONE;");
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e.ToString());
+        }
+    }
+
+    public bool AchievementIsCompleted(AccountAchievementSchema achievementSchema) =>
+        !string.IsNullOrWhiteSpace(achievementSchema.CompletedAt);
 }

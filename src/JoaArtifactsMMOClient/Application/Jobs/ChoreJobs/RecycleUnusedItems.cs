@@ -1,3 +1,4 @@
+using System.Data;
 using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
@@ -339,7 +340,9 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
     public static HashSet<string> GetRelevantEquipment(GameState gameState, List<ItemSchema> items)
     {
-        HashSet<string> relevantItems = [.. SellUnusedItems.ItemsToKeep];
+        HashSet<string> relevantItems = [];
+
+        List<string> nonCombatEffects = [Effect.Wisdom, Effect.Prospecting];
 
         foreach (var character in gameState.Characters)
         {
@@ -358,9 +361,67 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                     gameState.ItemsDict[itemCode]
                 );
             }
+
+            foreach (var effect in nonCombatEffects)
+            {
+                var nonCombatItems = GetBestInSlotNonCombatEquipment(
+                    character,
+                    gameState,
+                    items,
+                    effect
+                );
+
+                foreach (var itemCode in nonCombatItems)
+                {
+                    relevantItems.Add(itemCode);
+                }
+            }
         }
 
         return relevantItems;
+    }
+
+    static HashSet<string> GetBestInSlotNonCombatEquipment(
+        PlayerCharacter character,
+        GameState gameState,
+        List<ItemSchema> items,
+        string effectName
+    )
+    {
+        Dictionary<string, ItemSchema> slotToItemsDict = [];
+
+        foreach (var item in items)
+        {
+            if (!ItemService.CanUseItem(item, character.Schema, gameState))
+            {
+                continue;
+            }
+
+            int? itemEffectValue =
+                item.Effects.FirstOrDefault(effect => effect.Code == effectName)?.Value ?? 0;
+
+            if (itemEffectValue == 0)
+            {
+                continue;
+            }
+
+            bool wasAdded = slotToItemsDict.TryAdd(item.Type, item);
+
+            if (!wasAdded)
+            {
+                var currentItem = slotToItemsDict[item.Type];
+
+                if (
+                    itemEffectValue
+                    > currentItem.Effects.First(effect => effect.Code == effectName).Value
+                )
+                {
+                    slotToItemsDict[item.Type] = item;
+                }
+            }
+        }
+
+        return [.. slotToItemsDict.Select(element => element.Value.Code)];
     }
 
     public async Task<bool> NeedsToBeDone()

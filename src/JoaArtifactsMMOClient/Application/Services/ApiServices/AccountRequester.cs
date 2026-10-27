@@ -260,9 +260,11 @@ public class AccountRequester
         )!;
     }
 
-    public async Task<GetAchievementsResponse> GetAchievements()
+    public async Task<GetAchievementsResponse> GetAchievements(int pageNumber = 1)
     {
-        var response = await _apiService.GetAsync($"/achievements");
+        var response = await _apiService.GetAsync(
+            $"/achievements?page={pageNumber}&size={MAX_SIZE_LIMIT}"
+        );
 
         var result = await response.Content.ReadAsStringAsync();
 

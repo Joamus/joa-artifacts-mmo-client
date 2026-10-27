@@ -27,7 +27,7 @@ public class PlayerAI
     public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
 
     public const bool PREFER_MONSTER_TASK = true;
-    public const int START_RAID_IF_WITHIN_SECONDS = 5 * 60;
+    public const int START_RAID_IF_WITHIN_SECONDS = 20 * 60;
     public const int RAID_STARTING_WITHIN_SOME_HOURS = 6;
     public PlayerCharacter Character { get; init; }
 
@@ -105,6 +105,7 @@ public class PlayerAI
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
                 ?? await EnsureBag()
+                ?? await GetAchievementHuntingJob()
                 ?? await GetRoleJob()
                 ?? await GetMonsterJobIfCanCertainlyBeDone()
                 ?? await EnsureFightEquipment()
@@ -980,39 +981,10 @@ public class PlayerAI
             && matchingMonster.Type != MonsterType.Boss
         )
         {
-            var bankItems = await gameState.Services.BankItemCache.GetBankItems(Character);
-
-            var obtainablePotions = await Character.PlayerActionService.GetObtainablePotions(
-                Character,
-                gameState
-            );
-
-            var availableItems = ItemService.MergeItemEntries(
-                ItemService
-                    .DropSchemaListToItemInInventoryList(bankItems, gameState.ItemsDict)
-                    .Union(obtainablePotions)
-                    .ToList()
-            );
-
-            var fightSim = FightSimulator.FindBestFightEquipmentIncludingInventory(
-                Character,
-                gameState,
+            return await Character.PlayerActionService.GetJobToFightMonster(
                 matchingMonster,
-                availableItems
+                TrainCombat.AMOUNT_TO_KILL
             );
-
-            if (fightSim.SimResult.Outcome.ShouldFight)
-            {
-                Logger.LogInformation(
-                    $"{Name}: [{Character.Schema.Name}]: GetMonsterEventjob: Can fight monster with items from bank - fighting {TrainCombat.AMOUNT_TO_KILL} x {matchingMonster.Code}"
-                );
-                return new FightMonster(
-                    Character,
-                    gameState,
-                    matchingMonster.Code,
-                    TrainCombat.AMOUNT_TO_KILL
-                );
-            }
         }
 
         return null;
@@ -1147,19 +1119,6 @@ public class PlayerAI
             Character.Schema.Name
         );
 
-        // var levelRange = GameState.GetCharacterLevelRange(gameState);
-
-        // if (levelRange.Highest >= Character.Schema.Level + CHORE_LEVEL_OFFSET)
-        // {
-        //     Logger.LogInformation(
-        //         "{Name}: [{Character.Schema.Name}]: Evaluating chore jobs - skipping chore jobs, because character is underlevelled",
-        //         Name,
-        //         Character.Schema.Name
-        //     );
-
-        //     return null;
-        // }
-
         List<ChorePriority> chorePriorities =
         [
             ChorePriority.High,
@@ -1193,20 +1152,20 @@ public class PlayerAI
                             isScheduledChore = true;
                             job = await ProcessChoreJob(
                                 new RecycleUnusedItems(Character, gameState),
-                                CharacterChoreKind.RecycleUnusedItems
+                                choreKind
                             );
                             break;
                         case CharacterChoreKind.SellUnusedItems:
                             isScheduledChore = true;
                             job = await ProcessChoreJob(
                                 new SellUnusedItems(Character, gameState),
-                                CharacterChoreKind.SellUnusedItems
+                                choreKind
                             );
                             break;
                         case CharacterChoreKind.RestockFood:
                             job = await ProcessChoreJob(
                                 new RestockFood(Character, gameState, priority),
-                                CharacterChoreKind.RestockFood
+                                choreKind
                             );
                             break;
                         case CharacterChoreKind.RestockTasksCoins:
@@ -1214,7 +1173,7 @@ public class PlayerAI
                             {
                                 job = await ProcessChoreJob(
                                     new RestockTasksCoins(Character, gameState, priority),
-                                    CharacterChoreKind.RestockTasksCoins
+                                    choreKind
                                 );
                             }
                             break;
@@ -1231,7 +1190,7 @@ public class PlayerAI
                             {
                                 job = await ProcessChoreJob(
                                     new RestockTasksCoins(Character, gameState, priority),
-                                    CharacterChoreKind.RestockTasksCoins
+                                    choreKind
                                 );
                             }
                             break;
@@ -1247,19 +1206,25 @@ public class PlayerAI
                                         .RelevantRaidComingUpInSomeHoursOrActive
                                         is not null
                                 ),
-                                CharacterChoreKind.RestockPotions
+                                choreKind
                             );
                             break;
                         case CharacterChoreKind.RestockResources:
                             job = await ProcessChoreJob(
                                 new RestockResources(Character, gameState, priority),
-                                CharacterChoreKind.RestockResources
+                                choreKind
                             );
                             break;
                         case CharacterChoreKind.GambleTasksCoins:
                             job = await ProcessChoreJob(
                                 new GambleTasksCoins(Character, gameState, priority),
-                                CharacterChoreKind.RestockResources
+                                choreKind
+                            );
+                            break;
+                        case CharacterChoreKind.ObtainCuratedItems:
+                            job = await ProcessChoreJob(
+                                new ObtainCuratedItems(Character, gameState, priority),
+                                choreKind
                             );
                             break;
                         default:
@@ -1461,5 +1426,20 @@ public class PlayerAI
         }
 
         return null;
+    }
+
+    async Task<CharacterJob?> GetAchievementHuntingJob()
+    {
+        if (Character.Schema.Level != PlayerCharacter.MAX_LEVEL)
+        {
+            return null;
+        }
+
+        var nextJob =
+            await gameState.Services.AchievementHuntingService.GetNextAchievementJobResult(
+                Character
+            );
+
+        return nextJob?.Job;
     }
 }
