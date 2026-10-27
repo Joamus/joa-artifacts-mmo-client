@@ -116,11 +116,26 @@ public class ObtainCuratedItems : CharacterJob, ICharacterChoreJob
                 break;
             }
 
+            // We only actually get one at a time, since in many cases we might not be able to afford multiple at a time.
+            // For example, if we need 3 burn runes, then we should just get 1 at a time, since the `CanObtainItem` call will
+            // return false, if we only have budget for e.g. 1 or 2.
+            int amountToObtainAtOnce = 1;
+
             if (
-                await Character.PlayerActionService.CanObtainItem(matchingItem, amountNeeded, false)
+                await Character.PlayerActionService.CanObtainItem(
+                    matchingItem,
+                    amountToObtainAtOnce,
+                    false
+                )
             )
             {
-                return new ObtainItem(Character, gameState, matchingItem.Code, amountNeeded, []);
+                return new ObtainItem(
+                    Character,
+                    gameState,
+                    matchingItem.Code,
+                    amountToObtainAtOnce,
+                    []
+                );
             }
         }
 
