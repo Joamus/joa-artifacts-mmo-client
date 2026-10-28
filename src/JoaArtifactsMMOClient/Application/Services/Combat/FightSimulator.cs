@@ -574,6 +574,7 @@ public static class FightSimulator
             }
         }
         InitGreed(attacker, defender, combatLog, turnNumber, individualTurn);
+        InitEnchantedMirror(attacker, defender, combatLog, turnNumber, individualTurn);
 
         HandleProtectiveBubble(attacker, defender, combatLog, turnNumber, individualTurn);
 
@@ -1315,10 +1316,9 @@ public static class FightSimulator
 
         defender.EnchantedMirror = defender.EnchantedMirror with
         {
-            NextTurnTrigger = ENCHANTED_MIRROR_ACTIVATE_EVERY_X_TURN + turnNumber,
+            // If it's every 3 turns, I assume it's on turn 1, 3, 5, 7, and not 1, 3, 6, 9.
+            NextTurnTrigger = ENCHANTED_MIRROR_ACTIVATE_EVERY_X_TURN - 1 + turnNumber,
         };
-
-        // returns damage that defender should take
 
         return (int)
             Math.Round(
@@ -3088,7 +3088,8 @@ public static class FightSimulator
         int damageToDeal,
         CombatLog combatLog,
         int turnNumber,
-        int individualTurn
+        int individualTurn,
+        bool allowReflectionDamage = true
     )
     {
         if (defender.Barrier > 0)
@@ -3122,12 +3123,9 @@ public static class FightSimulator
 
         HandleGreedWhenTakingDamage(attacker, defender, newDefenderHp, combatLog, individualTurn);
 
-        int reflectedDamage = HandleEnchantedMirrorWhenTakingDamage(
-            attacker,
-            defender,
-            damageToDeal,
-            turnNumber
-        );
+        int reflectedDamage = allowReflectionDamage
+            ? HandleEnchantedMirrorWhenTakingDamage(attacker, defender, damageToDeal, turnNumber)
+            : 0;
 
         if (reflectedDamage > 0)
         {
@@ -3135,10 +3133,18 @@ public static class FightSimulator
                 individualTurn,
                 attacker.Entity,
                 defender.Entity,
-                $"[{attacker.Entity.Name}] gets {reflectedDamage} damage reflected from enchatned mirror"
+                $"[{attacker.Entity.Name}] gets {reflectedDamage} damage reflected from enchanted mirror"
             );
 
-            attacker.Entity.Hp -= reflectedDamage;
+            DefenderTakeDamage(
+                defender,
+                attacker,
+                reflectedDamage,
+                combatLog,
+                turnNumber,
+                individualTurn,
+                false
+            );
         }
 
         defender.Entity.Hp = newDefenderHp;
