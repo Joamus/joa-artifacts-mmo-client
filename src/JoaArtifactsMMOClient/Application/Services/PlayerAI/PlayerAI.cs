@@ -24,6 +24,9 @@ public class PlayerAI
 
     private const int CHORE_LEVEL_OFFSET = 12;
 
+    // TODO: Improve, so it instead calculates it
+    private const bool END_OF_SEASON = true;
+
     public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
 
     public const bool PREFER_MONSTER_TASK = true;
@@ -102,10 +105,11 @@ public class PlayerAI
                 ?? await GetBossGrindingJob()
                 ?? await EnsureAccessories()
                 ?? await EnsureTools()
+                ?? (END_OF_SEASON ? await GetAchievementHuntingJob() : null)
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
                 ?? await EnsureBag()
-                ?? await GetAchievementHuntingJob()
+                ?? (!END_OF_SEASON ? await GetAchievementHuntingJob() : null)
                 ?? await GetRoleJob()
                 ?? await GetMonsterJobIfCanCertainlyBeDone()
                 ?? await EnsureFightEquipment()
