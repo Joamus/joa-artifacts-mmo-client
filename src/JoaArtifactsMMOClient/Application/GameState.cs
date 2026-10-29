@@ -110,7 +110,7 @@ public class GameState
         await LoadTasksRewards();
         await Services.BankItemCache.GetBankItems(null);
         await Services.EventService.LoadEvents();
-        await Services.EventService.LoadActiveEvents(raidsChanged);
+        await Services.EventService.LoadActiveEvents(true, raidsChanged);
     }
 
     public bool ShouldReload()
@@ -142,7 +142,8 @@ public class GameState
         AvailableNpcs = GetAvailableNpcs(Npcs);
         ShouldUpdatePendingItems = true;
 
-        await Services.EventService.LoadActiveEvents(raidsChanged);
+        await Services.EventService.LoadActiveEvents(false, raidsChanged);
+        Services.ApiRequester.ResetErrorRequestCounter();
         // Loading these for when events update
     }
 

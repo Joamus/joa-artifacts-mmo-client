@@ -903,7 +903,8 @@ public class FightBossOrchestrator
         List<CharacterJob> resultJobs = [.. jobsNeededForNavigation.Union(jobs)];
 
         int foodAmountToObtain =
-            character.GetAvailableInventorySpace() - FOOD_AMOUNT_INV_SPACE_BUFFER;
+            character.GetAvailableInventorySpace()
+            - (FOOD_AMOUNT_INV_SPACE_BUFFER + resultJobs.Sum(job => job.Amount));
 
         if (foodAmountToObtain > 0)
         {

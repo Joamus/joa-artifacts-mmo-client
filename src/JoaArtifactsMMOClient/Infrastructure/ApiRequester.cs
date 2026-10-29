@@ -44,6 +44,11 @@ public partial class ApiRequester
         return _jsonOptions;
     }
 
+    public void ResetErrorRequestCounter()
+    {
+        AMOUNT_OF_500_REQUESTS = 0;
+    }
+
     private static JsonSerializerOptions _jsonOptions;
 
     private HttpClient _httpClient { get; set; }
@@ -240,13 +245,26 @@ public partial class ApiRequester
             throw; // Never reached, but satisfies compiler
         }
 
+        // Concurrency issues can happen
         if (response is not null && (int)response.StatusCode >= 500)
         {
             string responseContent = await ReadErrorContentAsync(response);
-            logger.LogError(
-                $"POST Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - message: {responseContent} - terminating application"
-            );
-            Environment.Exit(1);
+            string errorMessage =
+                $"POST Request with uri \"{requestUri}\" failed with 5xx error - status code {response.StatusCode} - message: {responseContent} - terminating application";
+            logger.LogError(errorMessage);
+            AMOUNT_OF_500_REQUESTS += 1;
+
+            if (AMOUNT_OF_500_REQUESTS >= 10)
+            {
+                logger.LogError(
+                    $"Terminating application - {AMOUNT_OF_500_REQUESTS} x 500 requests reached"
+                );
+                Environment.Exit(1);
+            }
+            else
+            {
+                throw new Exception(errorMessage);
+            }
         }
 
         if (response is not null && (int)response.StatusCode == 429)

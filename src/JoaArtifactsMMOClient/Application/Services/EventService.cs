@@ -84,7 +84,7 @@ public class EventService
         logger.LogInformation("Loading events - DONE;");
     }
 
-    public async Task LoadActiveEvents(bool shouldNotifyCharacters)
+    public async Task LoadActiveEvents(bool isInitialRun, bool shouldNotifyCharacters)
     {
         logger.LogInformation("Loading active events");
         bool doneLoading = false;
@@ -123,7 +123,7 @@ public class EventService
             eventsHaveChanged
         );
 
-        if ((eventsHaveChanged && ActiveEvents.Count > 0) || shouldNotifyCharacters)
+        if (!isInitialRun && eventsHaveChanged && ActiveEvents.Count > 0 || shouldNotifyCharacters)
         {
             await NotifyCharactersOnEventChange();
         }

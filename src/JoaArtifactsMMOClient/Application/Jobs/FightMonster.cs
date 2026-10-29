@@ -387,7 +387,19 @@ public class FightMonster : CharacterJob
                 break;
         }
 
-        await Character.NavigateTo(Code);
+        var moveResult = await Character.NavigateTo(Code);
+
+        if (moveResult.IsT0)
+        {
+            logger.LogError(
+                "{JobName}: [{Character.Schema.Name}] cannot fight {Code} - could not navigate there",
+                JobName,
+                Character.Schema.Name,
+                Code
+            );
+
+            return moveResult.AsT0;
+        }
 
         var result = await Character.Fight();
 

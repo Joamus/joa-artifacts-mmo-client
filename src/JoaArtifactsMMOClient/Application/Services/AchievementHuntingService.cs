@@ -96,8 +96,8 @@ public class AchievementHuntingService
             {
                 var currentProgress =
                     achievementWithProgress
-                        .AccountAchievement?.Objectives.FirstOrDefault(objective =>
-                            objective.Target == objective.Target
+                        .AccountAchievement?.Objectives.FirstOrDefault(progressedObjective =>
+                            progressedObjective.Target == objective.Target
                         )
                         ?.Progress ?? 0;
 

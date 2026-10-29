@@ -387,8 +387,9 @@ public class PlayerCharacter
     public void DeleteJob(Guid id)
     {
         Busy = true;
-        Jobs = Jobs.Where(job => !job.Id.Equals(id)).ToList();
-        IdleJobs = IdleJobs.Where(job => !job.Id.Equals(id)).ToList();
+        Jobs = [.. Jobs.Where(job => !job.Id.Equals(id))];
+        IdleJobs = [.. IdleJobs.Where(job => !job.Id.Equals(id))];
+
         if (CurrentJob is not null && CurrentJob.Id.Equals(id))
         {
             CurrentJob.Interrupt();

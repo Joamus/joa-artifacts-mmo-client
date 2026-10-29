@@ -246,7 +246,20 @@ public class GatherResourceItem : CharacterJob
             $"{JobName}: [{Character.Schema.Name}] status for {Character.Schema.Name} - gathering {Code} ({ProgressAmount}/{Amount})"
         );
 
-        await Character.NavigateTo(resource.Code);
+        var moveResult = await Character.NavigateTo(resource.Code);
+
+        if (moveResult.IsT0)
+        {
+            logger.LogError(
+                "{JobName}: [{Character.Schema.Name}] cannot gather {Code} - could not navigate there",
+                JobName,
+                Character.Schema.Name,
+                Code
+            );
+
+            return moveResult.AsT0;
+        }
+
         var result = await Character.Gather();
 
         switch (result.Value)
