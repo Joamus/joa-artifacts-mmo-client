@@ -519,6 +519,11 @@ public class PlayerCharacter
 
             if (failed)
             {
+                if (CurrentJob?.onAfterFailHook is not null)
+                {
+                    await CurrentJob.onAfterFailHook.Invoke();
+                }
+
                 // Just reset all jobs - it's more fail safe
                 await ResetAfterJobFail();
             }

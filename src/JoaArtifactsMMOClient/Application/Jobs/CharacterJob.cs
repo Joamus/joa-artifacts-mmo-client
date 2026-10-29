@@ -39,6 +39,7 @@ public abstract class CharacterJob
     public JobHook? onAfterSuccessEndHook = null;
 
     public JobHook? onJobQueuedHook = null;
+    public JobHook? onAfterFailHook = null;
 
     public virtual CharacterJob Clone()
     {
@@ -74,6 +75,13 @@ public abstract class CharacterJob
         {
             case AppError appError:
                 Status = JobStatus.Failed;
+
+                if (onAfterFailHook is not null)
+                {
+                    await onAfterFailHook.Invoke();
+                }
+
+                onAfterFailHook = null;
                 onSuccessEndHook = null;
                 return appError;
         }
