@@ -263,6 +263,12 @@ public class AchievementHuntingService
             case AchievementObjective.Use:
                 var amountAvailable = await gameState.GetAmountOfItemFromAll(target);
 
+                // Could technically happen, if we haven't reloaded achievements
+                if (objective.Total <= amountAvailable)
+                {
+                    return null;
+                }
+
                 int actualNeeded = neededProgress - amountAvailable;
 
                 // We don't actually use them straight away, we just obtain enough of it, and assume that we'll use it.

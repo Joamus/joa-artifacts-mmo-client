@@ -513,13 +513,17 @@ public class GameState
 
     public async Task<int> GetAmountOfItemFromAll(string itemCode)
     {
+        // For optimization
+        static int SumFn((EquipmentSlot equipmentSlot, bool IsEquipped) input)
+        {
+            return input.equipmentSlot.Quantity;
+        }
+
         int amountOnCharacters = Characters.Sum(character =>
         {
             var equippedOrInventoryItem = character.GetEquippedItemOrInInventory(itemCode);
 
-            return equippedOrInventoryItem.Sum(equippedOrInventory =>
-                equippedOrInventory.equipmentSlot.Quantity
-            );
+            return equippedOrInventoryItem.Sum(SumFn);
         });
 
         var bankResponse = await Services.BankItemCache.GetBankItems(Characters.First(), false);
