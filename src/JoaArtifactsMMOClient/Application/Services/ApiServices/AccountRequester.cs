@@ -89,6 +89,20 @@ public class AccountRequester
         return JsonSerializer.Deserialize<MonstersResponse>(result, ApiRequester.getJsonOptions())!;
     }
 
+    public virtual async Task<DailySeasonalOfferingsResponse> GetDailySeasonalOfferings(
+        int pageNumber = 1
+    )
+    {
+        var response = await _apiService.GetAsync($"/seasonal_offerings?page={pageNumber}");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<DailySeasonalOfferingsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
     public async Task<PendingItemsResponse> GetPendingItems(int pageNumber = 1)
     {
         var response = await _apiService.GetAsync($"/my/pending_items?page={pageNumber}&size=100");

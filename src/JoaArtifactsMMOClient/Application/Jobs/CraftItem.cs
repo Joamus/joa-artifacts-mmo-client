@@ -174,10 +174,11 @@ public class CraftItem : CharacterJob
 
         if (bestEffect is not null)
         {
-            await EquipmentService.GetAndEquipAvailableNonCombatItems(
+            await EquipmentService.GetAndEquipAvailableNonCombatItemsForSkill(
                 Character,
                 gameState,
-                bestEffect
+                bestEffect,
+                matchingItem.Craft.Skill
             );
         }
 

@@ -182,10 +182,11 @@ public class GatherResourceItem : CharacterJob
 
         if (bestEffect is not null)
         {
-            await EquipmentService.GetAndEquipAvailableNonCombatItems(
+            await EquipmentService.GetAndEquipAvailableNonCombatItemsForSkill(
                 Character,
                 gameState,
-                bestEffect
+                bestEffect,
+                skill
             );
         }
 
@@ -312,7 +313,7 @@ public class GatherResourceItem : CharacterJob
             ? gameState.ItemsDict.GetValueOrNull(character.Schema.WeaponSlot)
             : null;
 
-        if (equippedItem is not null && ItemService.IsToolForSkill(equippedItem, skill))
+        if (equippedItem is not null && ItemService.IsToolForSkillGathering(equippedItem, skill))
         {
             availableToolsOnCharacter.Add(equippedItem);
         }
@@ -329,7 +330,7 @@ public class GatherResourceItem : CharacterJob
 
                 var matchingItem = gameState.ItemsDict[item.Code];
 
-                return ItemService.IsToolForSkill(matchingItem, skill)
+                return ItemService.IsToolForSkillGathering(matchingItem, skill)
                     && ItemService.CanUseItem(matchingItem, character.Schema, gameState);
             })
             .Select(item => gameState.ItemsDict[item.Code])
@@ -345,7 +346,7 @@ public class GatherResourceItem : CharacterJob
             var matchingItem = gameState.ItemsDict[item.Code];
 
             if (
-                ItemService.IsToolForSkill(matchingItem, skill)
+                ItemService.IsToolForSkillGathering(matchingItem, skill)
                 && ItemService.CanUseItem(matchingItem, character.Schema, gameState)
             )
             {

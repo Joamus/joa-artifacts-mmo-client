@@ -6,6 +6,7 @@ using Application.Errors;
 using Application.Jobs;
 using Application.Records;
 using Applicaton.Services.FightSimulator;
+using Microsoft.VisualBasic;
 
 namespace Application.Services;
 
@@ -502,9 +503,16 @@ public static class ItemService
 
         List<string> skillNames =
         [
-            .. SkillService
-                .GatheringSkills.Select(SkillService.GetSkillName)
-                .Where(skill => skill is not null),
+            .. SkillService.GatheringSkills.SelectMany(skill =>
+            {
+                var craftingSkill = SkillService.SkillToCraftingEffect(skill);
+                var gatheringSkill = SkillService.SkillToGatheringEffect(skill);
+
+                List<string> result = [craftingSkill.ToString(), gatheringSkill.ToString()];
+
+                return result;
+            }),
+            // .GatheringSkills.Select(SkillService.GetSkillName),
         ];
 
         var bankData = await gameState.Services.BankItemCache.GetBankItems(character);
@@ -544,16 +552,16 @@ public static class ItemService
                 continue;
             }
 
-            var gatheringEffect = matchingItem.Effects.FirstOrDefault(effect =>
+            var bestEffect = matchingItem.Effects.FirstOrDefault(effect =>
                 skillNames.Contains(effect.Code)
             );
 
-            if (gatheringEffect is null)
+            if (bestEffect is null)
             {
                 continue;
             }
 
-            var currentBestTool = relevantToolsDict.GetValueOrNull(gatheringEffect.Code);
+            var currentBestTool = relevantToolsDict.GetValueOrNull(bestEffect.Code);
             bool isInBank = bankData.Exists(bankItem =>
                 bankItem.Code == item.Code && item.Quantity > 0
             );
@@ -584,11 +592,11 @@ public static class ItemService
             // so we want to find effects with a lower effect, e.g. -20 is better than -10
             if (
                 currentBestTool is null
-                || currentBestTool.Effects.Exists(effect => effect.Value > gatheringEffect.Value)
+                || currentBestTool.Effects.Exists(effect => effect.Value > bestEffect.Value)
             )
             {
-                relevantToolsDict.Remove(gatheringEffect.Code);
-                relevantToolsDict.Add(gatheringEffect.Code, matchingItem);
+                relevantToolsDict.Remove(bestEffect.Code);
+                relevantToolsDict.Add(bestEffect.Code, matchingItem);
             }
         }
 
@@ -884,10 +892,17 @@ public static class ItemService
             && item.Effects.Exists(effect => effect.Code == "teleport");
     }
 
-    public static bool IsToolForSkill(ItemSchema item, Skill skill)
+    public static bool IsToolForSkillGathering(ItemSchema item, Skill skill)
     {
         return item.Subtype == "tool"
-            && item.Effects.Exists(effect => effect.Code == SkillService.GetSkillName(skill));
+            && item.Effects.Exists(effect =>
+            {
+                var skillGatheringEffect = SkillService.SkillToGatheringEffect(skill);
+
+                var effectGatheringEffect = SkillService.GatheringEffectToSkill(effect.Code);
+
+                return skillGatheringEffect == effectGatheringEffect;
+            });
     }
 
     public static bool IsItemFood(ItemSchema item)
@@ -1002,6 +1017,23 @@ public static class ItemService
     // {
     //     // XP = Round((XP_base + (item_level / player_level) × coefficient) × skill_multiplier × level_penalty × wisdom_bonus)
     // }
+    //
+
+    public static bool IsTool(ItemSchema item)
+    {
+        return GetFirstToolEffect(item) is not null;
+    }
+
+    public static SimpleEffectSchema? GetFirstToolEffect(ItemSchema item)
+    {
+        var toolEffect = item.Effects.FirstOrDefault(effect =>
+        {
+            return SkillService.GatheringEffectToSkill(effect.Code) is not null
+                || SkillService.CraftingEffectToSkill(effect.Code) is not null;
+        });
+
+        return toolEffect;
+    }
 }
 
 public record BestFightItemsResult

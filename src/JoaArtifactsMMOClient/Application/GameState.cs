@@ -52,6 +52,7 @@ public class GameState
     public Dictionary<string, MonsterSchema> MonstersDict { get; set; } = [];
     public List<MonsterSchema> AvailableMonsters { get; set; } = [];
     public Dictionary<string, MonsterSchema> AvailableMonstersDict { get; set; } = [];
+    public List<DailySeasonalOfferingSchema> DailyOfferings { get; set; } = [];
 
     public GameStateServices Services { get; set; }
 
@@ -509,6 +510,34 @@ public class GameState
         }
 
         return PendingItems.AsReadOnly();
+    }
+
+    public async Task LoadSeasonalOfferings()
+    {
+        logger.LogInformation("Loading daily seasonal offerings...");
+        bool doneLoading = false;
+        List<DailySeasonalOfferingSchema> dailySeasonalOfferings = [];
+        int pageNumber = 1;
+
+        while (!doneLoading)
+        {
+            var result = await Services.AccountRequester.GetDailySeasonalOfferings(pageNumber);
+
+            foreach (var offering in result.Data)
+            {
+                dailySeasonalOfferings.Add(offering);
+            }
+
+            if (result.Data.Count == 0)
+            {
+                doneLoading = true;
+            }
+
+            pageNumber++;
+        }
+
+        DailyOfferings = dailySeasonalOfferings;
+        logger.LogInformation("Loading daily seasonal offerings - DONE;");
     }
 
     public async Task<int> GetAmountOfItemFromAll(string itemCode)

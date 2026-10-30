@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Net;
+using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
@@ -553,10 +554,11 @@ public class EquipmentService
         return res == Effect.Wisdom ? Effect.Wisdom : null;
     }
 
-    public static async Task GetAndEquipAvailableNonCombatItems(
+    public static async Task GetAndEquipAvailableNonCombatItemsForSkill(
         PlayerCharacter character,
         GameState gameState,
-        string effectName
+        string effectName,
+        Skill skill
     )
     {
         var items = await GetItemsToEquipWithEffect(character, gameState, effectName);
