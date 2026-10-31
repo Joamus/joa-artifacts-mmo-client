@@ -87,6 +87,10 @@ public class GameState
                 AppLogger.loggerFactory.CreateLogger<AchievementHuntingService>(),
                 this
             ),
+            SeasonalOfferingService = new SeasonalOfferingService(
+                AppLogger.loggerFactory.CreateLogger<SeasonalOfferingService>(),
+                this
+            ),
         };
         logger = AppLogger.loggerFactory.CreateLogger<GameState>();
     }
@@ -159,18 +163,22 @@ public class GameState
 
         foreach (var characterSchema in result.Data)
         {
-            var matchingConfig = characterConfigs.FirstOrDefault(config =>
-                config.Name == characterSchema.Name
+            var matchingConfig =
+                characterConfigs.FirstOrDefault(config => config.Name == characterSchema.Name)
+                ?? throw new AppError(
+                    $"Could not find character config for ${characterSchema.Name}"
+                );
+
+            var offerings = await Services.AccountRequester.GetCharacterSeasonalOfferings(
+                characterSchema.Name
             );
-            if (matchingConfig is null)
-            {
-                throw new AppError($"Could not find character config for ${characterSchema.Name}");
-            }
+
             var character = new PlayerCharacter(
                 characterSchema,
                 this,
                 Services.ApiRequester,
-                matchingConfig
+                matchingConfig,
+                offerings.Data
             );
             characters.Add(character);
             characterAIs.Add(new PlayerAI(character, this, matchingConfig?.AI ?? true));
@@ -590,4 +598,5 @@ public record GameStateServices
     public required AchievementService AchievementService { get; set; }
     public required RaidService RaidService { get; set; }
     public required AchievementHuntingService AchievementHuntingService { get; set; }
+    public required SeasonalOfferingService SeasonalOfferingService { get; set; }
 }

@@ -384,7 +384,7 @@ public class DepositUnneededItems : CharacterJob
 
         itemsToDeposit.Sort((a, b) => a.Importance.CompareTo(b.Importance));
 
-        await Character.NavigateTo("bank");
+        await Character.NavigateTo(ContentCode.Bank);
 
         foreach (var item in itemsToDeposit)
         {

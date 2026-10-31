@@ -311,4 +311,47 @@ public class AccountRequester
             ApiRequester.getJsonOptions()
         )!;
     }
+
+    public virtual async Task<CharacterSeasonalOfferingsResponse> GetCharacterSeasonalOfferings(
+        string name
+    )
+    {
+        var response = await _apiService.GetAsync($"/my/{name}/offerings");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<CharacterSeasonalOfferingsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
+    public virtual async Task<GenericCharacterResponse> AcceptCharacterSeasonalOffering(
+        string name,
+        int pageNumber = 1
+    )
+    {
+        var response = await _apiService.PostAsync($"/my/{name}/action/offering/accept", null);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<GenericCharacterResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
+    public virtual async Task<GenericCharacterResponse> CompleteCharacterSeasonalOffering(
+        string name
+    )
+    {
+        var response = await _apiService.PostAsync($"/my/{name}/action/offering", null);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<GenericCharacterResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
 }

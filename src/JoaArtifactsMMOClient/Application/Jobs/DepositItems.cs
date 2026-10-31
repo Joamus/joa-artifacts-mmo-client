@@ -41,7 +41,7 @@ public class DepositItem : CharacterJob
             }
         }
 
-        await Character.NavigateTo("bank");
+        await Character.NavigateTo(ContentCode.Bank);
 
         // TODO: Handle that bank might be full
 

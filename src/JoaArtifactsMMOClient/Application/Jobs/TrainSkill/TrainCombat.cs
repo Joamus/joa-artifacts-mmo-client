@@ -148,7 +148,7 @@ public class TrainCombat : CharacterJob
     )
     {
         int xpForFight = CalculationService.GetXpForFight(
-            character.Schema,
+            character,
             [character.Schema.Level],
             monster
         );

@@ -656,8 +656,7 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value
-                            ?? 0;
+                                ?.Value ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -926,7 +925,7 @@ public class PlayerActionService
             {
                 break;
             }
-            await Character.NavigateTo("bank");
+            await Character.NavigateTo(ContentCode.Bank);
             await Character.UnequipItem(
                 new UnequipRequest
                 {
@@ -1001,7 +1000,7 @@ public class PlayerActionService
 
             if (tasksCoinsInBank >= ItemService.CancelTaskPrice)
             {
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
 
                 await Character.WithdrawBankItem(
                     new List<WithdrawOrDepositItemRequest>
@@ -1034,7 +1033,7 @@ public class PlayerActionService
             return;
         }
 
-        await Character.NavigateTo("bank");
+        await Character.NavigateTo(ContentCode.Bank);
 
         await Character.DepositBankItem(
             [
@@ -1083,7 +1082,7 @@ public class PlayerActionService
 
             if (amountToWithdraw > 0)
             {
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
                 await Character.WithdrawBankItem(
                     [
                         new WithdrawOrDepositItemRequest
@@ -1117,7 +1116,7 @@ public class PlayerActionService
                 && Character.GetAvailableInventorySlots() > 0
             )
             {
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
                 await Character.WithdrawBankItem(
                     [
                         new WithdrawOrDepositItemRequest
@@ -1168,7 +1167,7 @@ public class PlayerActionService
                     Logger.LogInformation(
                         $"[{Character.Schema.Name}] withdrawing {amountNeededToWithdraw} to buy bank expansions"
                     );
-                    await Character.NavigateTo("bank");
+                    await Character.NavigateTo(ContentCode.Bank);
                     await Character.WithdrawBankGold(amountNeededToWithdraw);
                 }
 
@@ -1176,7 +1175,7 @@ public class PlayerActionService
                     $"[{Character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got {Character.Schema.Gold} gold, next expansion costs {result.NextExpansionCost}"
                 );
                 // Buy bank expansion
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
                 await Character.BuyBankExpansion(Character.Schema.Name);
             }
         }

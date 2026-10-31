@@ -22,6 +22,18 @@ public record SeasonalOfferingSchema
     public required OfferingFavorSchema Favor { get; set; }
 }
 
+public record SelectedOfferingSchema
+{
+    public required string OfferingId { get; set; }
+    public required SeasonalOfferingCategory Category { get; set; }
+    public required DateTime AcceptedAt { get; set; }
+    public required DateTime? CompletedAt { get; set; }
+    public required SeasonalOfferingStatus Status { get; set; }
+    public required OfferingRequirementSchema Requirement { get; set; }
+    public required OfferingFavorSchema Favor { get; set; }
+    public required DateTime ExpiresAt { get; set; }
+}
+
 public enum SeasonalOfferingCategory
 {
     Combat,
@@ -42,6 +54,12 @@ public enum SeasonalOfferingType
     Craft,
 }
 
+public enum SeasonalOfferingStatus
+{
+    Accepted,
+    Completed,
+}
+
 public record OfferingRequirementSchema
 {
     public required string Code { get; set; }
@@ -52,6 +70,6 @@ public record OfferingFavorSchema
 {
     public required SeasonalOfferingType TargetType { get; set; }
     public required string TargetCode { get; set; }
-    public required int XpMultiplier { get; set; }
-    public required int DropMultiplier { get; set; }
+    public required float XpMultiplier { get; set; }
+    public required float DropMultiplier { get; set; }
 }

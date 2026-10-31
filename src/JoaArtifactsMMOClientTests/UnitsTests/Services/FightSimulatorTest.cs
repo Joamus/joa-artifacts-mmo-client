@@ -130,7 +130,7 @@ public class FightSimulatorTest
     }
 
     [Fact(
-        DisplayName = "Should use 'small_health_potion' and 'air_boost_potion', because the outcome ends up using less potions"
+        DisplayName = "Should use 'small_health_potion' and 'earth_boost_potion', because the outcome ends up using less potions"
     )]
     public void FindBestFightEquipment_ShouldUseHpPotionAndBoost()
     {
@@ -140,10 +140,10 @@ public class FightSimulatorTest
 
         var character = PlayerCharacterHelper.GetFighterCharacter(gameState, 10);
 
-        var weapon = gameState.ItemsDict["sticky_dagger"];
+        var weapon = gameState.ItemsDict["iron_sword"];
         var armor = gameState.ItemsDict["feather_coat"];
         var smallHealthPotion = gameState.ItemsDict["small_health_potion"];
-        var airBoostPotion = gameState.ItemsDict["air_boost_potion"];
+        var airBoostPotion = gameState.ItemsDict["earth_boost_potion"];
 
         int SimWithBoost()
         {
@@ -163,7 +163,7 @@ public class FightSimulatorTest
                 .FindBestFightEquipment(character, gameState, monster, itemsInInventory)
                 .SimResult;
 
-            Assert.Equal(itemsInInventory.Count, result.ItemsToEquip.Count); // we are equipping rings, which is in two seperate entries here
+            Assert.Equal(itemsInInventory.Count + 1, result.ItemsToEquip.Count); // we are equipping rings, which is in two seperate entries here
             Assert.True(result.ItemsToEquip.Exists(item => item.Code == weapon.Code));
             Assert.True(result.ItemsToEquip.Exists(item => item.Code == armor.Code));
             Assert.True(result.ItemsToEquip.Exists(item => item.Code == smallHealthPotion.Code));
@@ -199,6 +199,8 @@ public class FightSimulatorTest
 
         int potionsUsedWithBoost = SimWithBoost();
         int potionsUsedWithoutBoost = SimWithoutBoost();
+
+        Assert.True(potionsUsedWithBoost < potionsUsedWithoutBoost);
     }
 
     [Fact(

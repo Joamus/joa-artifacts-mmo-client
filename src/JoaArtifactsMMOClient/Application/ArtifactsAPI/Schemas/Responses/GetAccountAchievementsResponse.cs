@@ -16,23 +16,8 @@ public record AccountAchievementSchema
 
 public record AccountAchievementObjectiveSchema
 {
-    public AchievementObjectiveType Type { get; set; }
+    public AchievementObjective Type { get; set; }
     public string? Target { get; set; }
     public required int Progress { get; set; }
     public required int Total { get; set; }
-}
-
-public enum AchievementObjectiveType
-{
-    CombatKill,
-    CombatDrop,
-    CombatLevel,
-    Gathering,
-    Crafting,
-    Recycling,
-    Task,
-    Other,
-    Use,
-    NpcBuy,
-    NpcSell,
 }

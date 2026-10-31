@@ -844,7 +844,7 @@ public class FightBossOrchestrator
         if (goingBackToBank)
         {
             var steps = character
-                .PlayerActionService.NavigationService.GetAllStepsToDestination("bank")
+                .PlayerActionService.NavigationService.GetAllStepsToDestination(ContentCode.Bank)
                 .AsT1.First()
                 .Steps;
 
@@ -1081,8 +1081,8 @@ public class FightBossOrchestrator
             int averageLevel = otherChars.Sum(player => player.Schema.Level) / otherChars.Count;
 
             int xpForKill = CalculationService.GetXpForFight(
-                character.Schema,
-                otherChars.Select(player => player.Schema.Level).ToList(),
+                character,
+                [.. otherChars.Select(player => player.Schema.Level)],
                 monster
             );
 

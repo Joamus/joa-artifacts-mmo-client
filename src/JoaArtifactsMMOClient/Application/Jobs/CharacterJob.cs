@@ -39,6 +39,7 @@ public abstract class CharacterJob
     public JobHook? onAfterSuccessEndHook = null;
 
     public JobHook? onJobQueuedHook = null;
+    public JobHook? onJobStartHook = null;
     public JobHook? onAfterFailHook = null;
 
     public virtual CharacterJob Clone()
@@ -69,6 +70,11 @@ public abstract class CharacterJob
     */
     public async Task<OneOf<AppError, None>> StartJobAsync()
     {
+        if (onJobStartHook is not null)
+        {
+            await onJobStartHook.Invoke();
+        }
+
         var result = await ExecuteAsync();
 
         switch (result.Value)

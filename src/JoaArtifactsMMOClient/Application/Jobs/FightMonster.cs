@@ -147,7 +147,7 @@ public class FightMonster : CharacterJob
                     item.Quantity
                 );
 
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
 
                 await Character.WithdrawBankItem(
                     [

@@ -68,7 +68,7 @@ public static class CalculationService
     }
 
     public static int GetXpForFight(
-        CharacterSchema character,
+        PlayerCharacter character,
         List<int> allFightingCharacterLevels,
         MonsterSchema monster
     )
@@ -77,7 +77,7 @@ public static class CalculationService
             (float)allFightingCharacterLevels.Sum(level => level) / allFightingCharacterLevels.Count
         );
 
-        float wisdomBonus = 1 + (character.Wisdom / 100);
+        float wisdomBonus = 1 + (character.Schema.Wisdom / 100);
 
         if (averagePlayerLevel > monster.Level + PlayerActionService.LEVEL_DIFF_NO_XP)
         {
@@ -104,12 +104,17 @@ public static class CalculationService
             _ => throw new AppError($"Invalid monster type {monster.Type}"),
         };
 
+        float favorXpMultiplier =
+            SeasonalOfferingService.GetFavorFromCharacter(character, monster.Code)?.XpMultiplier
+            ?? 1.0f;
+
         int xp = (int)
             Math.Round(
                 ((monster.Level / averagePlayerLevel) * 20 + monster.Hp * 0.04)
                     * levelPenalty
                     * monsterMultiplier
                     * wisdomBonus
+                    * favorXpMultiplier
             );
 
         return xp;

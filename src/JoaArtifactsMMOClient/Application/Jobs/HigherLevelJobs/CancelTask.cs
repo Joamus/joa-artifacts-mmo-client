@@ -55,7 +55,7 @@ public class CancelTaskJob : CharacterJob
 
             if (tasksCoinsInBank >= ItemService.CancelTaskPrice)
             {
-                await character.NavigateTo("bank");
+                await character.NavigateTo(ContentCode.Bank);
 
                 await character.WithdrawBankItem(
                     new List<WithdrawOrDepositItemRequest>

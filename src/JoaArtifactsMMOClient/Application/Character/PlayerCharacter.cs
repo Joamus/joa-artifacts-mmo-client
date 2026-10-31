@@ -11,6 +11,7 @@ using Application.Jobs.Chores;
 using Application.Jobs.Orchestrators;
 using Application.Records;
 using Application.Services;
+using Application.Services.ApiServices;
 using Infrastructure;
 using Microsoft.OpenApi.Extensions;
 using OneOf;
@@ -88,6 +89,8 @@ public class PlayerCharacter
     [JsonIgnore]
     public ILogger Logger { get; init; }
 
+    public CharacterSeasonalOfferingsSchema OfferingData { get; set; }
+
     public bool Idle
     {
         get { return CurrentJob is null && Busy == false && Suspended == false; }
@@ -114,7 +117,8 @@ public class PlayerCharacter
         CharacterSchema characterSchema,
         GameState gameState,
         ApiRequester apiRequester,
-        CharacterConfig characterConfig
+        CharacterConfig characterConfig,
+        CharacterSeasonalOfferingsSchema offerings
     )
     {
         Schema = characterSchema;
@@ -123,6 +127,7 @@ public class PlayerCharacter
         ApiRequester = apiRequester;
         Logger = AppLogger.loggerFactory.CreateLogger<PlayerCharacter>();
 
+        // Default roles that all chars have
         List<Skill> roles =
         [
             Skill.Cooking,
@@ -154,6 +159,7 @@ public class PlayerCharacter
         CharacterConfig = characterConfig!;
         Roles = roles;
         Chores = chores;
+        OfferingData = offerings;
 
         PlayerActionService = new PlayerActionService(
             AppLogger.loggerFactory.CreateLogger<PlayerActionService>(),
@@ -248,7 +254,14 @@ public class PlayerCharacter
 
     public PlayerCharacter Clone()
     {
-        return new PlayerCharacter(Schema with { }, GameState, ApiRequester, CharacterConfig);
+        return new PlayerCharacter(
+            Schema with
+            { },
+            GameState,
+            ApiRequester,
+            CharacterConfig,
+            OfferingData
+        );
     }
 
     public bool ExistsInWishlist(string itemCode)
@@ -639,7 +652,6 @@ public class PlayerCharacter
     {
         try
         {
-            // await ActionLock.WaitAsync();
             if (Schema.X == x && Schema.Y == y)
             {
                 return;
@@ -1161,7 +1173,7 @@ public class PlayerCharacter
 
                         if (matchingSlotToEquip is not null)
                         {
-                            var navigationResult = await NavigateTo("bank");
+                            var navigationResult = await NavigateTo(ContentCode.Bank);
 
                             if (navigationResult.IsT0)
                             {
@@ -1964,6 +1976,36 @@ public class PlayerCharacter
         var allowedWithdrawAmount = await GetAllowedWithdrawAmount();
 
         return allowedWithdrawAmount + Schema.Gold;
+    }
+
+    public async Task AcceptOffering(string Id)
+    {
+        var response = await GameState.Services.AccountRequester.AcceptCharacterSeasonalOffering(
+            Name
+        );
+
+        await PostTaskHandler(response.Data.Cooldown, response.Data.Character);
+
+        var newOfferings = await GameState.Services.AccountRequester.GetCharacterSeasonalOfferings(
+            Name
+        );
+
+        OfferingData = newOfferings.Data;
+    }
+
+    public async Task CompleteOffering(string Id)
+    {
+        var response = await GameState.Services.AccountRequester.CompleteCharacterSeasonalOffering(
+            Name
+        );
+
+        await PostTaskHandler(response.Data.Cooldown, response.Data.Character);
+
+        var newOfferings = await GameState.Services.AccountRequester.GetCharacterSeasonalOfferings(
+            Name
+        );
+
+        OfferingData = newOfferings.Data;
     }
 }
 
