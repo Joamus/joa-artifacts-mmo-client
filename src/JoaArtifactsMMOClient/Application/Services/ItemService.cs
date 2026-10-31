@@ -508,7 +508,11 @@ public static class ItemService
                 var craftingSkill = SkillService.SkillToCraftingEffect(skill);
                 var gatheringSkill = SkillService.SkillToGatheringEffect(skill);
 
-                List<string> result = [craftingSkill.ToString(), gatheringSkill.ToString()];
+                List<string> result =
+                [
+                    craftingSkill.ToString().FromPascalToSnakeCase(),
+                    gatheringSkill.ToString().FromPascalToSnakeCase(),
+                ];
 
                 return result;
             }),
@@ -600,7 +604,7 @@ public static class ItemService
             }
         }
 
-        return relevantToolsDict.Select(candidate => candidate.Value).ToList();
+        return [.. relevantToolsDict.Select(candidate => candidate.Value)];
     }
 
     public static CharacterJob GetObtainOrCraftForJob(
@@ -878,8 +882,7 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
-                    ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
 
                 return isOnlyUsedForFood;
             });
