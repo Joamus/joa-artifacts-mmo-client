@@ -145,6 +145,11 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
 
             var gatheringEffect = EffectService.GetSkillEffectFromItem(item);
 
+            if (gatheringEffect is null)
+            {
+                continue;
+            }
+
             if (toolsByEffect.GetValueOrNull(gatheringEffect!.Code) is null)
             {
                 toolsByEffect.Add(gatheringEffect.Code, []);

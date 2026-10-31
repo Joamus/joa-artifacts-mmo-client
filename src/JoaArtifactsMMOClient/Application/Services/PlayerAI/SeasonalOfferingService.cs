@@ -91,7 +91,7 @@ public class SeasonalOfferingService
 
         int amountToAcquire = offering.Requirement.Quantity;
 
-        return new ObtainItem(character, gameState, item.Code, amountToAcquire)
+        return new ObtainOrFindItem(character, gameState, item.Code, amountToAcquire)
         {
             onJobStartHook = async () =>
             {
