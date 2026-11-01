@@ -101,6 +101,7 @@ public class PlayerAI
                 ?? await WithdrawAllowance()
                 ?? DepositUnneededGold()
                 ?? await StartRaid()
+                ?? await GetMonsterJobIfCanCertainlyBeDone(false)
                 ?? await GetEventJob()
                 ?? await GetBossGrindingJob()
                 ?? await EnsureAccessories()
@@ -112,7 +113,7 @@ public class PlayerAI
                 ?? await EnsureBag()
                 ?? (!END_OF_SEASON ? await GetAchievementHuntingJob() : null)
                 ?? await GetRoleJob()
-                ?? await GetMonsterJobIfCanCertainlyBeDone()
+                ?? await GetMonsterJobIfCanCertainlyBeDone(true)
                 ?? await EnsureFightEquipment()
                 ?? await GetIndividualHighPrioJob()
                 ?? GetSkillJob()
@@ -1059,8 +1060,13 @@ public class PlayerAI
         return null;
     }
 
-    async Task<CharacterJob?> GetMonsterJobIfCanCertainlyBeDone()
+    async Task<CharacterJob?> GetMonsterJobIfCanCertainlyBeDone(bool runTaskNow)
     {
+        if (!runTaskNow && !string.IsNullOrWhiteSpace(Character.Schema.TaskType))
+        {
+            return null;
+        }
+
         Logger.LogInformation(
             "{Name}: [{character.Schema.Name}]: GetMonsterJobIfCanCertainlyBeDone: Evaluating",
             Name,
@@ -1080,7 +1086,14 @@ public class PlayerAI
                     Character.Schema.Name
                 );
 
-                return new MonsterTask(Character, gameState);
+                if (runTaskNow)
+                {
+                    return new MonsterTask(Character, gameState);
+                }
+                else
+                {
+                    return new AcceptNewTask(Character, gameState, TaskType.monsters);
+                }
             }
         }
 
