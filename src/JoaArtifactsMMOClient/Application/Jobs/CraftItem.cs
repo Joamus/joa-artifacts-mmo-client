@@ -2,6 +2,7 @@ using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Errors;
 using Application.Services;
+using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -9,6 +10,7 @@ namespace Application.Jobs;
 
 public class CraftItem : CharacterJob
 {
+    const int AMOUNT_OF_ITEMS_TO_CRAFT_BEFORE_USE_CRAFTING_SKILL = 5;
     protected int ProgressAmount { get; set; } = 0;
 
     public bool CanTriggerTraining { get; set; } = true;
@@ -167,6 +169,28 @@ public class CraftItem : CharacterJob
             }
         }
 
+        // if (bestEffect is not null)
+        // {
+        //     await EquipmentService.GetAndEquipAvailableItemsWithEffect(
+        //         Character,
+        //         gameState,
+        //         bestEffect
+        //     );
+        // }
+        List<string> effectNamesToPrioritze = [];
+
+        // Don't bother if it doesn't take that long, it's mostly useful for alchemy and cooking
+        //
+        if (Amount >= AMOUNT_OF_ITEMS_TO_CRAFT_BEFORE_USE_CRAFTING_SKILL)
+        {
+            string craftingEffectName = SkillService
+                .SkillToCraftingEffect(matchingItem.Craft.Skill)
+                .GetDisplayName()
+                .FromPascalToSnakeCase();
+
+            effectNamesToPrioritze.Add(craftingEffectName);
+        }
+
         var bestEffect = EquipmentService.GetBestNonCombatEffectForCrafting(
             Character,
             matchingItem
@@ -174,10 +198,15 @@ public class CraftItem : CharacterJob
 
         if (bestEffect is not null)
         {
-            await EquipmentService.GetAndEquipAvailableNonCombatItems(
+            effectNamesToPrioritze.Add(bestEffect);
+        }
+
+        foreach (var effectName in effectNamesToPrioritze)
+        {
+            await EquipmentService.GetAndEquipAvailableItemsWithEffect(
                 Character,
                 gameState,
-                bestEffect
+                effectName
             );
         }
 

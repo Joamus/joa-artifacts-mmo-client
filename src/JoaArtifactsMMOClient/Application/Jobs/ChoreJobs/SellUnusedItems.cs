@@ -84,7 +84,7 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
                     if (amountToWithdraw > 0)
                     {
-                        await Character.NavigateTo("bank");
+                        await Character.NavigateTo(ContentCode.Bank);
 
                         await Character.WithdrawBankItem(
                             new List<WithdrawOrDepositItemRequest>

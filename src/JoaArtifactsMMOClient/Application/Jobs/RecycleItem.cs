@@ -116,4 +116,40 @@ public class RecycleItem : CharacterJob
 
         return RECYCLABLE_ITEM_KINDS.Contains(item.Craft.Skill);
     }
+
+    public static int GetCostOfEnhancedRecycle(ItemSchema item)
+    {
+        if (item.Craft is null)
+        {
+            return 0;
+        }
+
+        return item.Craft.Items.Sum(material =>
+            material.Quantity * GetRecycleCostPerMaterialForItem(item)
+        );
+    }
+
+    public static int GetRecycleCostPerMaterialForItem(ItemSchema item)
+    {
+        if (item.Level <= 20)
+        {
+            return 5;
+        }
+        else if (item.Level <= 30)
+        {
+            return 10;
+        }
+        else if (item.Level <= 40)
+        {
+            return 15;
+        }
+        else if (item.Level <= 45)
+        {
+            return 20;
+        }
+        else
+        {
+            return 25;
+        }
+    }
 }

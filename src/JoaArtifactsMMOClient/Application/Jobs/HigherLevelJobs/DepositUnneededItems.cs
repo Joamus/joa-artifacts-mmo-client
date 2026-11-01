@@ -311,9 +311,7 @@ public class DepositUnneededItems : CharacterJob
 
             if (matchingItem.Subtype == "tool")
             {
-                var toolEffect = matchingItem.Effects.Find(effect =>
-                    SkillService.GetSkillFromName(effect.Code) is not null
-                );
+                var toolEffect = ItemService.GetFirstToolEffect(matchingItem);
 
                 if (toolEffect is null)
                 {
@@ -344,10 +342,7 @@ public class DepositUnneededItems : CharacterJob
 
                     bestToolDictionary.Add(toolEffect.Code, item);
 
-                    if (currentBest is not null)
-                    {
-                        currentBest.Importance = ItemImportance.None;
-                    }
+                    currentBest?.Importance = ItemImportance.None;
                 }
                 else
                 {
@@ -389,7 +384,7 @@ public class DepositUnneededItems : CharacterJob
 
         itemsToDeposit.Sort((a, b) => a.Importance.CompareTo(b.Importance));
 
-        await Character.NavigateTo("bank");
+        await Character.NavigateTo(ContentCode.Bank);
 
         foreach (var item in itemsToDeposit)
         {

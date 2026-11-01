@@ -1,7 +1,10 @@
+using System.Text;
 using System.Text.Json;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
+using Application.Character;
 using Infrastructure;
+using Microsoft.AspNetCore.Mvc.Formatters;
 
 namespace Application.Services.ApiServices;
 
@@ -9,6 +12,7 @@ public class AccountRequester
 {
     readonly ApiRequester _apiService;
     readonly string _accountName;
+    private const string MediaType = "application/json";
 
     const int MAX_SIZE_LIMIT = 10000;
 
@@ -87,6 +91,20 @@ public class AccountRequester
         var result = await response.Content.ReadAsStringAsync();
 
         return JsonSerializer.Deserialize<MonstersResponse>(result, ApiRequester.getJsonOptions())!;
+    }
+
+    public virtual async Task<DailySeasonalOfferingsResponse> GetDailySeasonalOfferings(
+        int pageNumber = 1
+    )
+    {
+        var response = await _apiService.GetAsync($"/seasonal_offerings?page={pageNumber}");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<DailySeasonalOfferingsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
     }
 
     public async Task<PendingItemsResponse> GetPendingItems(int pageNumber = 1)
@@ -293,6 +311,56 @@ public class AccountRequester
         var result = await response.Content.ReadAsStringAsync();
 
         return JsonSerializer.Deserialize<GetActiveEventsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
+    public virtual async Task<CharacterSeasonalOfferingsResponse> GetCharacterSeasonalOfferings(
+        string name
+    )
+    {
+        var response = await _apiService.GetAsync($"/my/{name}/offerings");
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<CharacterSeasonalOfferingsResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
+    public virtual async Task<GenericCharacterResponse> AcceptCharacterSeasonalOffering(
+        string name,
+        string id
+    )
+    {
+        var _body = JsonSerializer.Serialize(new { offering_id = id });
+        StringContent body = new(_body, Encoding.UTF8, MediaType);
+
+        var response = await _apiService.PostAsync($"/my/{name}/action/offering/accept", body);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<GenericCharacterResponse>(
+            result,
+            ApiRequester.getJsonOptions()
+        )!;
+    }
+
+    public virtual async Task<GenericCharacterResponse> CompleteCharacterSeasonalOffering(
+        string name,
+        string id
+    )
+    {
+        var _body = JsonSerializer.Serialize(new { offering_id = id });
+        StringContent body = new(_body, Encoding.UTF8, MediaType);
+
+        var response = await _apiService.PostAsync($"/my/{name}/action/offering", body);
+
+        var result = await response.Content.ReadAsStringAsync();
+
+        return JsonSerializer.Deserialize<GenericCharacterResponse>(
             result,
             ApiRequester.getJsonOptions()
         )!;

@@ -42,7 +42,11 @@ public class FightMonster : CharacterJob
 
     protected int ProgressAmount { get; set; } = 0;
 
+    // protected int AmountBeforePause { get; set; } = 0;
+
     bool IsHighPrioMonster { get; set; } = false;
+
+    bool FirstTimeRunning { get; set; } = true;
 
     public FightMonster(
         PlayerCharacter playerCharacter,
@@ -87,6 +91,35 @@ public class FightMonster : CharacterJob
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
     {
+        // if (AmountBeforePause > 0)
+        // {
+        //     ProgressAmount += AmountBeforePause;
+
+        //     if (Amount <= 0)
+        //     {
+        //         return new None();
+        //     }
+        // }
+
+        var result = await MainJob();
+
+        // If we are pausing the job, because we need to deposit the items,
+        // we would like to know how far we were, so we don't keep re-gathering.
+        // An experienced case, is a character that keeps e.g. getting 3/6 feathers,
+        // and then comes back and starts over again from 0
+        // if (result.IsT0 && Status == JobStatus.Suspend && Mode == JobMode.Gather)
+        // {
+        //     AmountBeforePause = Character.GetItemFromInventory(ItemCode ?? "")?.Quantity ?? 0;
+        // }
+
+        // No matter if done or suspending, we know that it's not the first time anymore
+        FirstTimeRunning = false;
+
+        return result;
+    }
+
+    protected async Task<OneOf<AppError, None>> MainJob()
+    {
         // In case of resuming a task
         ShouldInterrupt = false;
 
@@ -126,8 +159,16 @@ public class FightMonster : CharacterJob
             return new None();
         }
 
-        int initialAmount =
-            Mode == JobMode.Gather ? Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0 : 0;
+        if (AllowUsingMaterialsFromInventory && Mode == JobMode.Gather && FirstTimeRunning)
+        {
+            int amountInInventory = Character.GetItemFromInventory(Code)?.Quantity ?? 0;
+
+            ProgressAmount = amountInInventory;
+
+            logger.LogInformation(
+                $"{JobName}: [{Character.Schema.Name}] found {amountInInventory} in inventory - progress {Code} ({ProgressAmount}/{Amount})"
+            );
+        }
 
         var itemsToEquip = await GetBetterItemsToWithdraw(Character, gameState, monster);
 
@@ -147,7 +188,7 @@ public class FightMonster : CharacterJob
                     item.Quantity
                 );
 
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
 
                 await Character.WithdrawBankItem(
                     [
@@ -285,20 +326,6 @@ public class FightMonster : CharacterJob
                 // Queued other jobs before this job
                 return new None();
             }
-
-            if (Mode == JobMode.Gather)
-            {
-                int amountInInventory = Character.GetItemFromInventory(ItemCode!)?.Quantity ?? 0;
-
-                if (AllowUsingMaterialsFromInventory)
-                {
-                    ProgressAmount = amountInInventory;
-                }
-                else
-                {
-                    ProgressAmount = amountInInventory - initialAmount;
-                }
-            }
         }
 
         logger.LogInformation(
@@ -415,6 +442,18 @@ public class FightMonster : CharacterJob
             if (Mode == JobMode.Kill)
             {
                 ProgressAmount++;
+            }
+            else if (Mode == JobMode.Gather)
+            {
+                var dropAmount =
+                    fightResponse
+                        .Data.Fight.Characters.First(character =>
+                            character.CharacterName == Character.Name
+                        )
+                        .Drops.Find(item => item.Code == ItemCode)
+                        ?.Quantity ?? 0;
+
+                ProgressAmount += dropAmount;
             }
         }
 

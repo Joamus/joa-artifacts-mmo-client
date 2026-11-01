@@ -57,7 +57,7 @@ public class WithdrawItem : CharacterJob
 
         if (amountToWithdraw > 0)
         {
-            await Character.NavigateTo("bank");
+            await Character.NavigateTo(ContentCode.Bank);
             var withdrawResult = await Character.WithdrawBankItem(
                 [new WithdrawOrDepositItemRequest { Code = Code!, Quantity = amountToWithdraw }]
             );

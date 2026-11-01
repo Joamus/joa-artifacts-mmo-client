@@ -5,6 +5,7 @@ using Application.Character;
 using Application.Errors;
 using Application.Services;
 using Applicaton.Jobs;
+using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -178,18 +179,39 @@ public class GatherResourceItem : CharacterJob
             return new None();
         }
 
+        string gatheringEffectName = SkillService
+            .SkillToGatheringEffect(skill)
+            .GetDisplayName()
+            .FromPascalToSnakeCase();
+
+        List<string> effectNamesToPrioritze = [gatheringEffectName];
+
         var bestEffect = EquipmentService.GetBestNonCombatEffectForResource(Character, resource);
 
         if (bestEffect is not null)
         {
-            await EquipmentService.GetAndEquipAvailableNonCombatItems(
+            effectNamesToPrioritze.Add(bestEffect);
+        }
+
+        // string gatheringEffectName = SkillService
+        //     .SkillToGatheringEffect(skill)
+        //     .GetDisplayName()
+        //     .FromPascalToSnakeCase();
+
+        // await EquipmentService.EquipItemsWithHighestEffect(
+        //     Character,
+        //     gameState,
+        //     gatheringEffectName
+        // );
+        foreach (var effectName in effectNamesToPrioritze)
+        {
+            await EquipmentService.GetAndEquipAvailableItemsWithEffect(
                 Character,
                 gameState,
-                bestEffect
+                effectName
             );
         }
 
-        await Character.PlayerActionService.EquipBestGatheringEquipment(skill);
         await Character.NavigateTo(resource.Code);
 
         while (ProgressAmount < Amount)
@@ -312,7 +334,7 @@ public class GatherResourceItem : CharacterJob
             ? gameState.ItemsDict.GetValueOrNull(character.Schema.WeaponSlot)
             : null;
 
-        if (equippedItem is not null && ItemService.IsToolForSkill(equippedItem, skill))
+        if (equippedItem is not null && ItemService.IsToolForSkillGathering(equippedItem, skill))
         {
             availableToolsOnCharacter.Add(equippedItem);
         }
@@ -329,7 +351,7 @@ public class GatherResourceItem : CharacterJob
 
                 var matchingItem = gameState.ItemsDict[item.Code];
 
-                return ItemService.IsToolForSkill(matchingItem, skill)
+                return ItemService.IsToolForSkillGathering(matchingItem, skill)
                     && ItemService.CanUseItem(matchingItem, character.Schema, gameState);
             })
             .Select(item => gameState.ItemsDict[item.Code])
@@ -345,7 +367,7 @@ public class GatherResourceItem : CharacterJob
             var matchingItem = gameState.ItemsDict[item.Code];
 
             if (
-                ItemService.IsToolForSkill(matchingItem, skill)
+                ItemService.IsToolForSkillGathering(matchingItem, skill)
                 && ItemService.CanUseItem(matchingItem, character.Schema, gameState)
             )
             {

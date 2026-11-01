@@ -52,6 +52,7 @@ public class GameState
     public Dictionary<string, MonsterSchema> MonstersDict { get; set; } = [];
     public List<MonsterSchema> AvailableMonsters { get; set; } = [];
     public Dictionary<string, MonsterSchema> AvailableMonstersDict { get; set; } = [];
+    public List<DailySeasonalOfferingSchema> DailyOfferings { get; set; } = [];
 
     public GameStateServices Services { get; set; }
 
@@ -84,6 +85,10 @@ public class GameState
             ),
             AchievementHuntingService = new AchievementHuntingService(
                 AppLogger.loggerFactory.CreateLogger<AchievementHuntingService>(),
+                this
+            ),
+            SeasonalOfferingService = new SeasonalOfferingService(
+                AppLogger.loggerFactory.CreateLogger<SeasonalOfferingService>(),
                 this
             ),
         };
@@ -158,18 +163,22 @@ public class GameState
 
         foreach (var characterSchema in result.Data)
         {
-            var matchingConfig = characterConfigs.FirstOrDefault(config =>
-                config.Name == characterSchema.Name
+            var matchingConfig =
+                characterConfigs.FirstOrDefault(config => config.Name == characterSchema.Name)
+                ?? throw new AppError(
+                    $"Could not find character config for ${characterSchema.Name}"
+                );
+
+            var offerings = await Services.AccountRequester.GetCharacterSeasonalOfferings(
+                characterSchema.Name
             );
-            if (matchingConfig is null)
-            {
-                throw new AppError($"Could not find character config for ${characterSchema.Name}");
-            }
+
             var character = new PlayerCharacter(
                 characterSchema,
                 this,
                 Services.ApiRequester,
-                matchingConfig
+                matchingConfig,
+                offerings.Data
             );
             characters.Add(character);
             characterAIs.Add(new PlayerAI(character, this, matchingConfig?.AI ?? true));
@@ -511,6 +520,34 @@ public class GameState
         return PendingItems.AsReadOnly();
     }
 
+    public async Task LoadSeasonalOfferings()
+    {
+        logger.LogInformation("Loading daily seasonal offerings...");
+        bool doneLoading = false;
+        List<DailySeasonalOfferingSchema> dailySeasonalOfferings = [];
+        int pageNumber = 1;
+
+        while (!doneLoading)
+        {
+            var result = await Services.AccountRequester.GetDailySeasonalOfferings(pageNumber);
+
+            foreach (var offering in result.Data)
+            {
+                dailySeasonalOfferings.Add(offering);
+            }
+
+            if (result.Data.Count == 0)
+            {
+                doneLoading = true;
+            }
+
+            pageNumber++;
+        }
+
+        DailyOfferings = dailySeasonalOfferings;
+        logger.LogInformation("Loading daily seasonal offerings - DONE;");
+    }
+
     public async Task<int> GetAmountOfItemFromAll(string itemCode)
     {
         // For optimization
@@ -561,4 +598,5 @@ public record GameStateServices
     public required AchievementService AchievementService { get; set; }
     public required RaidService RaidService { get; set; }
     public required AchievementHuntingService AchievementHuntingService { get; set; }
+    public required SeasonalOfferingService SeasonalOfferingService { get; set; }
 }

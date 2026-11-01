@@ -9,6 +9,7 @@ using Application.Jobs.Orchestrators;
 using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
+using Microsoft.AspNetCore.Mvc;
 using OneOf;
 using OneOf.Types;
 
@@ -247,6 +248,14 @@ public class TrainSkill : CharacterJob
                                     Character.Schema.Wisdom
                                 );
 
+                                float xpModifierFromOffering =
+                                    SeasonalOfferingService
+                                        .GetFavorFromCharacter(Character, item.Code)
+                                        ?.XpMultiplier ?? 1.0f;
+
+                                xpForCrafting = (int)
+                                    Math.Round(xpForCrafting * xpModifierFromOffering);
+
                                 float maxXpPotential = Math.Min(
                                     1.0f,
                                     (float)xpForCrafting / maxXpForLevel
@@ -432,7 +441,7 @@ public class TrainSkill : CharacterJob
         return result;
     }
 
-    public static ItemCostCalculation InnerGetInconvenienceCostCraftItem(
+    static ItemCostCalculation InnerGetInconvenienceCostCraftItem(
         ItemSchema item,
         int quantity,
         GameState gameState,

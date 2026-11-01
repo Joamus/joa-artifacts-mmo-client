@@ -32,6 +32,9 @@ public class FightBossOrchestrator
     public const int WAIT_WHEN_NO_JOB_MS = 5_000;
 
     [JsonIgnore]
+    public const int MAX_FOOD_TO_GET_FOR_BOSS = 40;
+
+    [JsonIgnore]
     const int MAX_LOST_IN_A_ROW = 3;
 
     [JsonIgnore]
@@ -844,7 +847,7 @@ public class FightBossOrchestrator
         if (goingBackToBank)
         {
             var steps = character
-                .PlayerActionService.NavigationService.GetAllStepsToDestination("bank")
+                .PlayerActionService.NavigationService.GetAllStepsToDestination(ContentCode.Bank)
                 .AsT1.First()
                 .Steps;
 
@@ -902,9 +905,11 @@ public class FightBossOrchestrator
 
         List<CharacterJob> resultJobs = [.. jobsNeededForNavigation.Union(jobs)];
 
-        int foodAmountToObtain =
+        int foodAmountToObtain = Math.Min(
             character.GetAvailableInventorySpace()
-            - (FOOD_AMOUNT_INV_SPACE_BUFFER + resultJobs.Sum(job => job.Amount));
+                - (FOOD_AMOUNT_INV_SPACE_BUFFER + resultJobs.Sum(job => job.Amount)),
+            MAX_FOOD_TO_GET_FOR_BOSS
+        );
 
         if (foodAmountToObtain > 0)
         {
@@ -1081,8 +1086,8 @@ public class FightBossOrchestrator
             int averageLevel = otherChars.Sum(player => player.Schema.Level) / otherChars.Count;
 
             int xpForKill = CalculationService.GetXpForFight(
-                character.Schema,
-                otherChars.Select(player => player.Schema.Level).ToList(),
+                character,
+                [.. otherChars.Select(player => player.Schema.Level)],
                 monster
             );
 

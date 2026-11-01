@@ -1295,7 +1295,7 @@ public static class FightSimulator
             individualTurn,
             attacker.Entity,
             defender.Entity,
-            $"[{defender.Entity.Name}] had enchanted mirror effect activated"
+            $"[{defender.Entity.Name}] activated enchanted mirror effect"
         );
     }
 
@@ -1303,7 +1303,9 @@ public static class FightSimulator
         FightSimParticipant attacker,
         FightSimParticipant defender,
         int damageToDeal,
-        int turnNumber
+        CombatLog combatLog,
+        int turnNumber,
+        int individualTurn
     )
     {
         if (
@@ -1320,10 +1322,12 @@ public static class FightSimulator
             NextTurnTrigger = ENCHANTED_MIRROR_ACTIVATE_EVERY_X_TURN - 1 + turnNumber,
         };
 
-        return (int)
+        int damage = (int)
             Math.Round(
-                (double)damageToDeal * (defender.EnchantedMirror.DamagePercentageEffect / 100)
+                damageToDeal * ((double)defender.EnchantedMirror.DamagePercentageEffect / 100)
             );
+
+        return damage;
     }
 
     static void HandleProtectiveBubble(
@@ -3124,7 +3128,14 @@ public static class FightSimulator
         HandleGreedWhenTakingDamage(attacker, defender, newDefenderHp, combatLog, individualTurn);
 
         int reflectedDamage = allowReflectionDamage
-            ? HandleEnchantedMirrorWhenTakingDamage(attacker, defender, damageToDeal, turnNumber)
+            ? HandleEnchantedMirrorWhenTakingDamage(
+                attacker,
+                defender,
+                damageToDeal,
+                combatLog,
+                turnNumber,
+                individualTurn
+            )
             : 0;
 
         if (reflectedDamage > 0)

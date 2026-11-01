@@ -1,5 +1,6 @@
 using Application;
 using Application.ArtifactsApi.Schemas;
+using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
 
 namespace JoaArtifactsMMOClientTests.Helpers;
@@ -46,7 +47,18 @@ public static class PlayerCharacterHelper
             schema,
             gameState,
             apiRequester,
-            new CharacterConfig { }
+            new CharacterConfig { },
+            new CharacterSeasonalOfferingsSchema
+            {
+                Date = DateTime.Now,
+                ExpiresAt = DateTime.Now,
+                Skills = [],
+                XpRewardPercent = 100,
+                Offerings = [],
+                SelectedOfferings = [],
+                CompletedCategories = [],
+                ActiveFavors = [],
+            }
         );
         return character;
     }

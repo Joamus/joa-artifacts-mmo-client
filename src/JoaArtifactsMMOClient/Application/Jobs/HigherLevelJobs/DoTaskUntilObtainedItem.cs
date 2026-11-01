@@ -69,7 +69,7 @@ public class DoTaskUntilObtainedItem : CharacterJob
                 if (tasksCoinsInInventory < priceToBuyItem)
                 {
                     int amountNeededFromBank = priceToBuyItem - tasksCoinsInInventory;
-                    await Character.NavigateTo("bank");
+                    await Character.NavigateTo(ContentCode.Bank);
 
                     // Just to be careful
                     gameState.Services.BankItemCache.ReserveItem(

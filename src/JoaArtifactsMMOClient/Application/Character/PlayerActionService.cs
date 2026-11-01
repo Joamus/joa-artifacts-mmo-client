@@ -8,6 +8,7 @@ using Application.Jobs;
 using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
+using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -481,9 +482,7 @@ public class PlayerActionService
 
         if (isValuable && item.Craft is not null)
         {
-            int costToEnhanceRecycle = item.Craft.Items.Sum(material =>
-                material.Quantity + GetRecycleCostPerMaterialForItem(item)
-            );
+            int costToEnhanceRecycle = RecycleItem.GetCostOfEnhancedRecycle(item) * quantity;
 
             shouldEnhanceRecycle = Character.Schema.Gold >= costToEnhanceRecycle;
         }
@@ -595,7 +594,10 @@ public class PlayerActionService
             return new AppError($"Skill \"{skill}\" is not a valid gathering skill");
         }
 
-        var skillName = SkillService.GetSkillName(skill)!;
+        var skillName = SkillService
+            .SkillToGatheringEffect(skill)
+            .GetDisplayName()
+            .FromPascalToSnakeCase();
 
         foreach (var item in Character.Schema.Inventory)
         {
@@ -603,27 +605,20 @@ public class PlayerActionService
             {
                 continue;
             }
-            var matchingItemInInventory = gameState.ItemsDict.ContainsKey(item.Code)
-                ? gameState.ItemsDict[item.Code]
-                : null;
+            var matchingItemInInventory = gameState.ItemsDict[item.Code];
 
             // Should really never happen that matchingItem is null
-            if (
-                matchingItemInInventory is not null
-                && ItemService.IsEquipment(matchingItemInInventory.Type)
-                && matchingItemInInventory.Effects.Find(effect => effect.Code == skillName)
-                    is not null
-            )
+            var itemInInventoryEffect = matchingItemInInventory.Effects.FirstOrDefault(effect =>
+                effect.Code == skillName
+            );
+
+            if (itemInInventoryEffect is null)
             {
-                var itemInInventoryEffect = matchingItemInInventory.Effects.Find(effect =>
-                    effect.Code == skillName
-                );
+                continue;
+            }
 
-                if (itemInInventoryEffect is null)
-                {
-                    continue;
-                }
-
+            if (ItemService.IsEquipment(matchingItemInInventory.Type))
+            {
                 var itemSlotsTheItemFits = ItemService.GetItemSlotsFromItemType(
                     matchingItemInInventory.Type
                 );
@@ -632,7 +627,7 @@ public class PlayerActionService
                 // It would be cool to be able to handle it, but it will mean that we have to swap around items potentially, etc.
                 // e.g. Ring 1 and 2 both have a bonus to alchemy, then we want to make sure that we only swap out the ring with the
                 // lowest bonus, if the ring we are evaluating has higher than any of the other.
-                if (itemSlotsTheItemFits.Count() > 0)
+                if (itemSlotsTheItemFits.Length > 0)
                 {
                     var equipmentSlot = Character.GetEquipmentSlot(itemSlotsTheItemFits[0]);
 
@@ -656,8 +651,7 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value
-                            ?? 0;
+                                ?.Value ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -926,7 +920,7 @@ public class PlayerActionService
             {
                 break;
             }
-            await Character.NavigateTo("bank");
+            await Character.NavigateTo(ContentCode.Bank);
             await Character.UnequipItem(
                 new UnequipRequest
                 {
@@ -1001,7 +995,7 @@ public class PlayerActionService
 
             if (tasksCoinsInBank >= ItemService.CancelTaskPrice)
             {
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
 
                 await Character.WithdrawBankItem(
                     new List<WithdrawOrDepositItemRequest>
@@ -1034,7 +1028,7 @@ public class PlayerActionService
             return;
         }
 
-        await Character.NavigateTo("bank");
+        await Character.NavigateTo(ContentCode.Bank);
 
         await Character.DepositBankItem(
             [
@@ -1083,7 +1077,7 @@ public class PlayerActionService
 
             if (amountToWithdraw > 0)
             {
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
                 await Character.WithdrawBankItem(
                     [
                         new WithdrawOrDepositItemRequest
@@ -1117,7 +1111,7 @@ public class PlayerActionService
                 && Character.GetAvailableInventorySlots() > 0
             )
             {
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
                 await Character.WithdrawBankItem(
                     [
                         new WithdrawOrDepositItemRequest
@@ -1168,7 +1162,7 @@ public class PlayerActionService
                     Logger.LogInformation(
                         $"[{Character.Schema.Name}] withdrawing {amountNeededToWithdraw} to buy bank expansions"
                     );
-                    await Character.NavigateTo("bank");
+                    await Character.NavigateTo(ContentCode.Bank);
                     await Character.WithdrawBankGold(amountNeededToWithdraw);
                 }
 
@@ -1176,7 +1170,7 @@ public class PlayerActionService
                     $"[{Character.Schema.Name}] buying bank expansions, free bank slots is {amountFree} - got {Character.Schema.Gold} gold, next expansion costs {result.NextExpansionCost}"
                 );
                 // Buy bank expansion
-                await Character.NavigateTo("bank");
+                await Character.NavigateTo(ContentCode.Bank);
                 await Character.BuyBankExpansion(Character.Schema.Name);
             }
         }
@@ -1252,4 +1246,10 @@ public record CharacterJobAndEquipmentSlot
 public record NextJobToFightResult
 {
     public required CharacterJob? Job;
+}
+
+public record ItemWithMatchingEffect
+{
+    public required ItemSchema Item { get; init; }
+    public required SimpleEffectSchema MatchingEffect { get; init; }
 }

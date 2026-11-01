@@ -24,8 +24,8 @@ public class PlayerAI
 
     private const int CHORE_LEVEL_OFFSET = 12;
 
-    // TODO: Improve, so it instead calculates it
-    private const bool END_OF_SEASON = true;
+    // TODO: Improve, so it instead calculates it, or fetches from config
+    private const bool END_OF_SEASON = false;
 
     public const int QUANTIY_OF_EACH_TELEPORT_POTION = 1;
 
@@ -105,6 +105,7 @@ public class PlayerAI
                 ?? await GetBossGrindingJob()
                 ?? await EnsureAccessories()
                 ?? await EnsureTools()
+                ?? await GetSeasonalOfferingJob()
                 ?? (END_OF_SEASON ? await GetAchievementHuntingJob() : null)
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
@@ -1445,5 +1446,15 @@ public class PlayerAI
             );
 
         return nextJob?.Job;
+    }
+
+    async Task<CharacterJob?> GetSeasonalOfferingJob()
+    {
+        if (!await SeasonalOfferingJob.CanDoJob(Character, gameState))
+        {
+            return null;
+        }
+
+        return new SeasonalOfferingJob(Character, gameState);
     }
 }

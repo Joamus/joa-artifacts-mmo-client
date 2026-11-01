@@ -33,4 +33,5 @@ public enum AchievementObjective
     Use,
     NpcBuy,
     NpcSell,
+    Favor,
 }

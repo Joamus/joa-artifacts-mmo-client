@@ -242,6 +242,21 @@ public static class EffectService
             )
         );
     }
+
+    //
+    // Returns:
+    //     Returns true if effect a is better than effect b.
+    public static bool IsFirstEffectBetter(SimpleEffectSchema a, SimpleEffectSchema b)
+    {
+        // Use absolute values, since gathering/crafting effects are negative
+        return a.Code == b.Code && IsFirstEffectValueBetter(a.Value, b.Value);
+    }
+
+    public static bool IsFirstEffectValueBetter(int a, int b)
+    {
+        // Use absolute values, since gathering/crafting effects are negative
+        return Math.Abs(a) >= Math.Abs(b);
+    }
 }
 
 public static class Effect
