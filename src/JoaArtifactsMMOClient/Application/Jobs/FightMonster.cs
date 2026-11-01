@@ -41,6 +41,7 @@ public class FightMonster : CharacterJob
     JobMode Mode { get; set; } = JobMode.Kill;
 
     protected int ProgressAmount { get; set; } = 0;
+    protected int AmountBeforePause { get; set; } = 0;
 
     bool IsHighPrioMonster { get; set; } = false;
 
@@ -86,6 +87,34 @@ public class FightMonster : CharacterJob
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
+    {
+        if (AmountBeforePause > 0)
+        {
+            int currentAmount = Character.GetItemFromInventory(ItemCode ?? "")?.Quantity ?? 0;
+
+            Amount -= AmountBeforePause - currentAmount;
+
+            if (Amount < 0)
+            {
+                return new None();
+            }
+        }
+
+        var result = await MainJob();
+
+        // If we are pausing the job, because we need to deposit the items,
+        // we would like to know how far we were, so we don't keep re-gathering.
+        // An experienced case, is a character that keeps e.g. getting 3/6 feathers,
+        // and then comes back and starts over again from 0
+        if (result.IsT0 && Status == JobStatus.Suspend && Mode == JobMode.Gather)
+        {
+            AmountBeforePause = Character.GetItemFromInventory(ItemCode ?? "")?.Quantity ?? 0;
+        }
+
+        return result;
+    }
+
+    protected async Task<OneOf<AppError, None>> MainJob()
     {
         // In case of resuming a task
         ShouldInterrupt = false;

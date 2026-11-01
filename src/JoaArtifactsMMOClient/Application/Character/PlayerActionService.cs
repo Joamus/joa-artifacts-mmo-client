@@ -8,6 +8,7 @@ using Application.Jobs;
 using Application.Records;
 using Application.Services;
 using Applicaton.Services.FightSimulator;
+using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -595,7 +596,10 @@ public class PlayerActionService
             return new AppError($"Skill \"{skill}\" is not a valid gathering skill");
         }
 
-        var skillName = SkillService.GetSkillName(skill)!;
+        var skillName = SkillService
+            .SkillToGatheringEffect(skill)
+            .GetDisplayName()
+            .FromPascalToSnakeCase();
 
         foreach (var item in Character.Schema.Inventory)
         {

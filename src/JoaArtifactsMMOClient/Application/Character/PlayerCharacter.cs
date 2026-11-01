@@ -89,6 +89,7 @@ public class PlayerCharacter
     [JsonIgnore]
     public ILogger Logger { get; init; }
 
+    [JsonIgnore]
     public CharacterSeasonalOfferingsSchema OfferingData { get; set; }
 
     public bool Idle
