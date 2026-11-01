@@ -158,8 +158,8 @@ public class SeasonalOfferingService
             int level = GetCharacterLevelForOffering(character, offering);
 
             if (
-                !HighEnoughLevelForOffering(level, offering)
-                || !await CanDoOffering(character, offering)
+                // !HighEnoughLevelForOffering(level, offering) ||
+                !await CanDoOffering(character, offering)
             )
             {
                 continue;
