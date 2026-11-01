@@ -1979,10 +1979,11 @@ public class PlayerCharacter
         return allowedWithdrawAmount + Schema.Gold;
     }
 
-    public async Task AcceptOffering(string Id)
+    public async Task AcceptOffering(string id)
     {
         var response = await GameState.Services.AccountRequester.AcceptCharacterSeasonalOffering(
-            Name
+            Name,
+            id
         );
 
         await PostTaskHandler(response.Data.Cooldown, response.Data.Character);
@@ -1994,10 +1995,11 @@ public class PlayerCharacter
         OfferingData = newOfferings.Data;
     }
 
-    public async Task CompleteOffering(string Id)
+    public async Task CompleteOffering(string id)
     {
         var response = await GameState.Services.AccountRequester.CompleteCharacterSeasonalOffering(
-            Name
+            Name,
+            id
         );
 
         await PostTaskHandler(response.Data.Cooldown, response.Data.Character);

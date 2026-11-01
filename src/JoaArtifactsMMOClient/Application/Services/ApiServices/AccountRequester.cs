@@ -1,7 +1,10 @@
+using System.Text;
 using System.Text.Json;
 using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Responses;
+using Application.Character;
 using Infrastructure;
+using Microsoft.AspNetCore.Mvc.Formatters;
 
 namespace Application.Services.ApiServices;
 
@@ -9,6 +12,7 @@ public class AccountRequester
 {
     readonly ApiRequester _apiService;
     readonly string _accountName;
+    private const string MediaType = "application/json";
 
     const int MAX_SIZE_LIMIT = 10000;
 
@@ -328,10 +332,13 @@ public class AccountRequester
 
     public virtual async Task<GenericCharacterResponse> AcceptCharacterSeasonalOffering(
         string name,
-        int pageNumber = 1
+        string id
     )
     {
-        var response = await _apiService.PostAsync($"/my/{name}/action/offering/accept", null);
+        var _body = JsonSerializer.Serialize(new { offering_id = id });
+        StringContent body = new(_body, Encoding.UTF8, MediaType);
+
+        var response = await _apiService.PostAsync($"/my/{name}/action/offering/accept", body);
 
         var result = await response.Content.ReadAsStringAsync();
 
@@ -342,10 +349,14 @@ public class AccountRequester
     }
 
     public virtual async Task<GenericCharacterResponse> CompleteCharacterSeasonalOffering(
-        string name
+        string name,
+        string id
     )
     {
-        var response = await _apiService.PostAsync($"/my/{name}/action/offering", null);
+        var _body = JsonSerializer.Serialize(new { offering_id = id });
+        StringContent body = new(_body, Encoding.UTF8, MediaType);
+
+        var response = await _apiService.PostAsync($"/my/{name}/action/offering", body);
 
         var result = await response.Content.ReadAsStringAsync();
 
