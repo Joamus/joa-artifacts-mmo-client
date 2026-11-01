@@ -5,6 +5,7 @@ using Application.Character;
 using Application.Errors;
 using Application.Services;
 using Applicaton.Jobs;
+using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -178,19 +179,39 @@ public class GatherResourceItem : CharacterJob
             return new None();
         }
 
+        string gatheringEffectName = SkillService
+            .SkillToGatheringEffect(skill)
+            .GetDisplayName()
+            .FromPascalToSnakeCase();
+
+        List<string> effectNamesToPrioritze = [gatheringEffectName];
+
         var bestEffect = EquipmentService.GetBestNonCombatEffectForResource(Character, resource);
 
         if (bestEffect is not null)
         {
-            await EquipmentService.GetAndEquipAvailableNonCombatItemsForSkill(
+            effectNamesToPrioritze.Add(bestEffect);
+        }
+
+        // string gatheringEffectName = SkillService
+        //     .SkillToGatheringEffect(skill)
+        //     .GetDisplayName()
+        //     .FromPascalToSnakeCase();
+
+        // await EquipmentService.EquipItemsWithHighestEffect(
+        //     Character,
+        //     gameState,
+        //     gatheringEffectName
+        // );
+        foreach (var effectName in effectNamesToPrioritze)
+        {
+            await EquipmentService.GetAndEquipAvailableItemsWithEffect(
                 Character,
                 gameState,
-                bestEffect,
-                skill
+                effectName
             );
         }
 
-        await Character.PlayerActionService.EquipBestGatheringEquipment(skill);
         await Character.NavigateTo(resource.Code);
 
         while (ProgressAmount < Amount)

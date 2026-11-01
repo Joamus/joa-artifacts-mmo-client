@@ -32,6 +32,9 @@ public class FightBossOrchestrator
     public const int WAIT_WHEN_NO_JOB_MS = 5_000;
 
     [JsonIgnore]
+    public const int MAX_FOOD_TO_GET_FOR_BOSS = 40;
+
+    [JsonIgnore]
     const int MAX_LOST_IN_A_ROW = 3;
 
     [JsonIgnore]
@@ -902,9 +905,11 @@ public class FightBossOrchestrator
 
         List<CharacterJob> resultJobs = [.. jobsNeededForNavigation.Union(jobs)];
 
-        int foodAmountToObtain =
+        int foodAmountToObtain = Math.Min(
             character.GetAvailableInventorySpace()
-            - (FOOD_AMOUNT_INV_SPACE_BUFFER + resultJobs.Sum(job => job.Amount));
+                - (FOOD_AMOUNT_INV_SPACE_BUFFER + resultJobs.Sum(job => job.Amount)),
+            MAX_FOOD_TO_GET_FOR_BOSS
+        );
 
         if (foodAmountToObtain > 0)
         {

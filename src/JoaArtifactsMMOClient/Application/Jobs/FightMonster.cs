@@ -41,7 +41,8 @@ public class FightMonster : CharacterJob
     JobMode Mode { get; set; } = JobMode.Kill;
 
     protected int ProgressAmount { get; set; } = 0;
-    protected int AmountBeforePause { get; set; } = 0;
+
+    // protected int AmountBeforePause { get; set; } = 0;
 
     bool IsHighPrioMonster { get; set; } = false;
 
@@ -444,11 +445,15 @@ public class FightMonster : CharacterJob
             }
             else if (Mode == JobMode.Gather)
             {
-                ProgressAmount +=
+                var dropAmount =
                     fightResponse
-                        .Data.Fight.Characters[0]
-                        .Drops.Find(item => item.Code == Code)
+                        .Data.Fight.Characters.First(character =>
+                            character.CharacterName == Character.Name
+                        )
+                        .Drops.Find(item => item.Code == ItemCode)
                         ?.Quantity ?? 0;
+
+                ProgressAmount += dropAmount;
             }
         }
 

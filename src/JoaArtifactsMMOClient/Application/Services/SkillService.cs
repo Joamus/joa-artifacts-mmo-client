@@ -15,7 +15,6 @@ public static class SkillService
         Skill.Woodcutting,
     ];
 
-    // public static readonly string[] GatheringSkills = ["fishing", "mining", "woodcutting"];
     public static readonly List<Skill> CraftingSkills =
     [
         Skill.Weaponcrafting,
@@ -24,6 +23,7 @@ public static class SkillService
         Skill.Cooking,
         Skill.Alchemy,
     ];
+    public static readonly List<Skill> AllSkills = [.. CraftingSkills, .. GatheringSkills];
 
     public static string GetSkillName(Skill skill)
     {

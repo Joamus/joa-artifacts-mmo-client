@@ -482,9 +482,7 @@ public class PlayerActionService
 
         if (isValuable && item.Craft is not null)
         {
-            int costToEnhanceRecycle = item.Craft.Items.Sum(material =>
-                material.Quantity + GetRecycleCostPerMaterialForItem(item)
-            );
+            int costToEnhanceRecycle = RecycleItem.GetCostOfEnhancedRecycle(item) * quantity;
 
             shouldEnhanceRecycle = Character.Schema.Gold >= costToEnhanceRecycle;
         }
@@ -607,27 +605,20 @@ public class PlayerActionService
             {
                 continue;
             }
-            var matchingItemInInventory = gameState.ItemsDict.ContainsKey(item.Code)
-                ? gameState.ItemsDict[item.Code]
-                : null;
+            var matchingItemInInventory = gameState.ItemsDict[item.Code];
 
             // Should really never happen that matchingItem is null
-            if (
-                matchingItemInInventory is not null
-                && ItemService.IsEquipment(matchingItemInInventory.Type)
-                && matchingItemInInventory.Effects.Find(effect => effect.Code == skillName)
-                    is not null
-            )
+            var itemInInventoryEffect = matchingItemInInventory.Effects.FirstOrDefault(effect =>
+                effect.Code == skillName
+            );
+
+            if (itemInInventoryEffect is null)
             {
-                var itemInInventoryEffect = matchingItemInInventory.Effects.Find(effect =>
-                    effect.Code == skillName
-                );
+                continue;
+            }
 
-                if (itemInInventoryEffect is null)
-                {
-                    continue;
-                }
-
+            if (ItemService.IsEquipment(matchingItemInInventory.Type))
+            {
                 var itemSlotsTheItemFits = ItemService.GetItemSlotsFromItemType(
                     matchingItemInInventory.Type
                 );
@@ -636,7 +627,7 @@ public class PlayerActionService
                 // It would be cool to be able to handle it, but it will mean that we have to swap around items potentially, etc.
                 // e.g. Ring 1 and 2 both have a bonus to alchemy, then we want to make sure that we only swap out the ring with the
                 // lowest bonus, if the ring we are evaluating has higher than any of the other.
-                if (itemSlotsTheItemFits.Count() > 0)
+                if (itemSlotsTheItemFits.Length > 0)
                 {
                     var equipmentSlot = Character.GetEquipmentSlot(itemSlotsTheItemFits[0]);
 
@@ -1255,4 +1246,10 @@ public record CharacterJobAndEquipmentSlot
 public record NextJobToFightResult
 {
     public required CharacterJob? Job;
+}
+
+public record ItemWithMatchingEffect
+{
+    public required ItemSchema Item { get; init; }
+    public required SimpleEffectSchema MatchingEffect { get; init; }
 }

@@ -2008,6 +2008,24 @@ public class PlayerCharacter
 
         OfferingData = newOfferings.Data;
     }
+
+    public List<ItemSchema> GetItemsFromInventory()
+    {
+        return
+        [
+            .. Schema
+                .Inventory.Select(item =>
+                {
+                    if (string.IsNullOrWhiteSpace(item.Code))
+                    {
+                        return null;
+                    }
+
+                    return GameState.ItemsDict[item.Code];
+                })
+                .OfType<ItemSchema>(),
+        ];
+    }
 }
 
 public record FightBody

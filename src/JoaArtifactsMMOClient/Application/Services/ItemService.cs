@@ -503,7 +503,7 @@ public static class ItemService
 
         List<string> skillNames =
         [
-            .. SkillService.GatheringSkills.SelectMany(skill =>
+            .. SkillService.AllSkills.SelectMany(skill =>
             {
                 var craftingSkill = SkillService.SkillToCraftingEffect(skill);
                 var gatheringSkill = SkillService.SkillToGatheringEffect(skill);
@@ -516,7 +516,6 @@ public static class ItemService
 
                 return result;
             }),
-            // .GatheringSkills.Select(SkillService.GetSkillName),
         ];
 
         var bankData = await gameState.Services.BankItemCache.GetBankItems(character);
@@ -658,7 +657,7 @@ public static class ItemService
         bool highLevelItemHasAllEffectsOfLowLevelItem = lowestLevelItem.Effects.All(lowEffect =>
             highestLevelItem.Effects.Exists(highEffect =>
                 highEffect.Code == lowEffect.Code
-                && Math.Abs(highEffect.Value) >= Math.Abs(lowEffect.Value)
+                && EffectService.IsFirstEffectBetter(highEffect, lowEffect)
             )
         );
 

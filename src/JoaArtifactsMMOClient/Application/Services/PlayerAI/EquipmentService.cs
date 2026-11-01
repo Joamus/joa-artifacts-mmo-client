@@ -5,11 +5,14 @@ using Application.ArtifactsApi.Schemas;
 using Application.ArtifactsApi.Schemas.Requests;
 using Application.ArtifactsApi.Schemas.Responses;
 using Application.Character;
+using Application.Errors;
 using Application.Jobs;
 using Application.Jobs.Orchestrators;
 using Application.Records;
 using Applicaton.Services.FightSimulator;
 using Microsoft.AspNetCore.Mvc;
+using OneOf;
+using OneOf.Types;
 
 namespace Application.Services;
 
@@ -554,33 +557,39 @@ public class EquipmentService
         return res == Effect.Wisdom ? Effect.Wisdom : null;
     }
 
-    public static async Task GetAndEquipAvailableNonCombatItemsForSkill(
+    public static async Task GetAndEquipAvailableItemsWithEffect(
         PlayerCharacter character,
         GameState gameState,
-        string effectName,
-        Skill skill
+        string effectName
     )
     {
-        var items = await GetItemsToEquipWithEffect(character, gameState, effectName);
+        List<ItemToEquipEnriched> results = await GetItemsToEquipWithEffect(
+            character,
+            gameState,
+            effectName
+        );
 
-        foreach (var (item, slot) in items)
+        foreach (var result in results)
         {
-            var alreadyHasItemEquipped = character.GetEquippedItem(item.Item.Code).Count > 0;
+            var item = result.Item;
+            var slot = result.Slot;
 
-            if (alreadyHasItemEquipped && item.Item.Type == "artifact")
+            var alreadyHasItemEquipped = character.GetEquippedItem(item.Code).Count > 0;
+
+            if (alreadyHasItemEquipped && item.Type == "artifact")
             {
                 continue;
             }
 
-            if (!item.IsInInventory)
+            if (!result.IsInInventory)
             {
                 await character.NavigateTo(ContentCode.Bank);
                 await character.WithdrawBankItem(
                     [
                         new WithdrawOrDepositItemRequest
                         {
-                            Code = item.Item.Code,
-                            Quantity = item.Quantity,
+                            Code = item.Code,
+                            Quantity = result.Quantity,
                         },
                     ]
                 );
@@ -591,8 +600,8 @@ public class EquipmentService
             await character.EquipItem(
                 new EquipRequest
                 {
-                    Code = item.Item.Code,
-                    Quantity = item.Quantity,
+                    Code = item.Code,
+                    Quantity = result.Quantity,
                     Slot = slot,
                 }
             );
@@ -607,9 +616,11 @@ public class EquipmentService
         }
     }
 
-    public static async Task<
-        List<(ItemToEquipNeedsBetterName item, string Slot)>
-    > GetItemsToEquipWithEffect(PlayerCharacter character, GameState gameState, string effectName)
+    public static async Task<List<ItemToEquipEnriched>> GetItemsToEquipWithEffect(
+        PlayerCharacter character,
+        GameState gameState,
+        string effectName
+    )
     {
         bool IsItemWithEffect(DropSchema item)
         {
@@ -623,7 +634,7 @@ public class EquipmentService
             return matchingItem.Effects.Exists(effect => effect.Code == effectName);
         }
 
-        List<ItemToEquipNeedsBetterName> bankItems =
+        List<ItemToEquipWithIsInInventory> bankItems =
         [
             .. (await gameState.Services.BankItemCache.GetBankItems(character))
                 .Where(IsItemWithEffect)
@@ -631,7 +642,7 @@ public class EquipmentService
                 {
                     var matchingItem = gameState.ItemsDict[item.Code];
 
-                    return new ItemToEquipNeedsBetterName
+                    return new ItemToEquipWithIsInInventory
                     {
                         Item = matchingItem,
                         Quantity = item.Quantity,
@@ -640,7 +651,7 @@ public class EquipmentService
                 }),
         ];
 
-        List<ItemToEquipNeedsBetterName> inventoryItems =
+        List<ItemToEquipWithIsInInventory> inventoryItems =
         [
             .. character
                 .Schema.Inventory.Where(
@@ -653,7 +664,7 @@ public class EquipmentService
                 {
                     var matchingItem = gameState.ItemsDict[item.Code];
 
-                    return new ItemToEquipNeedsBetterName
+                    return new ItemToEquipWithIsInInventory
                     {
                         Item = matchingItem,
                         Quantity = item.Quantity,
@@ -662,32 +673,36 @@ public class EquipmentService
                 }),
         ];
 
-        List<ItemToEquipNeedsBetterName> allItems = [.. inventoryItems.Union(bankItems)];
+        List<ItemToEquipWithIsInInventory> allItems = [.. inventoryItems.Union(bankItems)];
 
-        Dictionary<string, List<ItemToEquipNeedsBetterName>> typeToItemsDict = [];
+        Dictionary<string, List<ItemToEquipWithIsInInventory>> typeToItemsDict = [];
 
         foreach (var item in allItems)
         {
-            if (!typeToItemsDict.ContainsKey(item.Item.Type))
+            if (
+                !typeToItemsDict.TryGetValue(
+                    item.Item.Type,
+                    out List<ItemToEquipWithIsInInventory>? currentItems
+                )
+            )
             {
-                typeToItemsDict.Add(item.Item.Type, []);
+                currentItems = [];
+                typeToItemsDict.Add(item.Item.Type, currentItems);
             }
-
-            List<ItemToEquipNeedsBetterName> currentItems = typeToItemsDict[item.Item.Type]!;
 
             currentItems.Add(item);
         }
 
         foreach (var element in typeToItemsDict)
         {
-            // Put item with highest effect first in teh list
+            // Put item with highest effect first in the list
             element.Value.Sort(
                 (a, b) =>
                 {
                     var aEffect = GetEffectValue(a.Item, effectName);
                     var bEffect = GetEffectValue(b.Item, effectName);
 
-                    return bEffect - aEffect;
+                    return Math.Abs(bEffect) - Math.Abs(aEffect);
                 }
             );
         }
@@ -695,7 +710,8 @@ public class EquipmentService
         var originalSlots = character
             .GetAllEquipmentSlots()
             .Where(slot =>
-                !new List<string> { "weapon", "utility1", "utility2", "bag" }.Contains(slot.Slot)
+                // !new List<string> { "weapon", "utility1", "utility2", "bag" }.Contains(slot.Slot)
+                !new List<string> { "utility1", "utility2", "bag" }.Contains(slot.Slot)
             )
             .ToList();
 
@@ -705,66 +721,80 @@ public class EquipmentService
 
         var newSlots = character.GetAllEquipmentSlots();
 
-        List<(ItemToEquipNeedsBetterName item, string Slot)> chosenItems = [];
-
-        foreach (var slot in originalSlots)
-        {
-            var equipmentType = slotToEquipmentType[slot.Slot];
-
-            var isItemSlotForUniqueItems = equipmentType.ItemType == "artifact";
-
-            var candidates = typeToItemsDict.GetValueOrNull(equipmentType.ItemType) ?? [];
-
-            var currentItem = gameState.ItemsDict.GetValueOrNull(slot.Code);
-
-            var currentEffect = currentItem is null ? 0 : GetEffectValue(currentItem, effectName);
-
-            var bestCandidate = candidates.FirstOrDefault(candidate =>
-                candidate.Quantity > 0
-                && ItemService.CanUseItem(candidate.Item, character.Schema, gameState)
-                && GetEffectValue(candidate.Item, effectName) > currentEffect
-                && (
-                    !isItemSlotForUniqueItems
-                    || !ItemIsNotInOtherSlotOrWillBe(candidate.Item.Code, newSlots)
-                )
-            );
-
-            if (bestCandidate is not null)
-            {
-                if (!bestCandidate.IsInInventory)
+        List<ItemToEquipEnriched> chosenItems =
+        [
+            .. originalSlots
+                .Select(slot =>
                 {
-                    var candidateFromInventory = candidates.FirstOrDefault(candidate =>
-                        candidate.Item.Code == bestCandidate.Item.Code
-                    );
+                    var equipmentType = slotToEquipmentType[slot.Slot];
+                    var isItemSlotForUniqueItems = equipmentType.ItemType == "artifact";
+                    var candidates = typeToItemsDict.GetValueOrNull(equipmentType.ItemType) ?? [];
+                    var currentItem = gameState.ItemsDict.GetValueOrNull(slot.Code);
 
-                    if (candidateFromInventory is not null)
+                    SimpleEffectSchema? currentEffect = currentItem is null
+                        ? null
+                        : GetEffect(currentItem, effectName);
+
+                    var bestCandidate = candidates.FirstOrDefault(candidate =>
                     {
-                        bestCandidate = candidateFromInventory;
+                        var candidateEffect = GetEffect(candidate.Item, effectName);
+
+                        if (candidateEffect is null)
+                        {
+                            return false;
+                        }
+
+                        return candidate.Quantity > 0
+                            && ItemService.CanUseItem(candidate.Item, character.Schema, gameState)
+                            && (
+                                currentEffect is null
+                                || EffectService.IsFirstEffectBetter(candidateEffect, currentEffect)
+                            )
+                            && (
+                                !isItemSlotForUniqueItems
+                                || !ItemIsNotInOtherSlotOrWillBe(candidate.Item.Code, newSlots)
+                            );
+                    });
+
+                    if (bestCandidate is null)
+                    {
+                        return null;
                     }
-                }
 
-                int amountThatCanBeEquippedInASlot = 1;
+                    if (!bestCandidate.IsInInventory)
+                    {
+                        var candidateFromInventory = candidates.FirstOrDefault(candidate =>
+                            candidate.Item.Code == bestCandidate.Item.Code
+                        );
 
-                var matchingNewSlot = newSlots.First(newSlot => newSlot.Slot == slot.Slot);
+                        if (candidateFromInventory is not null)
+                        {
+                            bestCandidate = candidateFromInventory;
+                        }
+                    }
 
-                matchingNewSlot.Code = bestCandidate.Item.Code;
-                matchingNewSlot.Quantity = amountThatCanBeEquippedInASlot;
+                    int amountThatCanBeEquippedInASlot = 1;
 
-                bestCandidate.Quantity -= amountThatCanBeEquippedInASlot;
+                    var matchingNewSlot = newSlots.First(newSlot => newSlot.Slot == slot.Slot);
 
-                (ItemToEquipNeedsBetterName item, string Slot) result = (
-                    new ItemToEquipNeedsBetterName
+                    matchingNewSlot.Code = bestCandidate.Item.Code;
+                    matchingNewSlot.Quantity = amountThatCanBeEquippedInASlot;
+
+                    bestCandidate.Quantity -= amountThatCanBeEquippedInASlot;
+
+                    ItemToEquipEnriched result = new()
                     {
                         Item = bestCandidate.Item,
                         IsInInventory = bestCandidate.IsInInventory,
                         Quantity = amountThatCanBeEquippedInASlot,
-                    },
-                    slot.Slot
-                );
+                        Slot = slot.Slot,
+                    };
 
-                chosenItems.Add(result);
-            }
-        }
+                    return result;
+                })
+                .OfType<ItemToEquipEnriched>()
+                .ToList(),
+        ];
 
         return chosenItems;
     }
@@ -780,6 +810,11 @@ public class EquipmentService
                 // chosenItems.Exists(item => item.Item.Code == itemCode)
                 newSlots.Exists(slot => slot.Code == itemCode)
             );
+    }
+
+    public static SimpleEffectSchema? GetEffect(ItemSchema item, string effectName)
+    {
+        return item?.Effects.FirstOrDefault(effect => effect.Code == effectName);
     }
 
     public static int GetEffectValue(ItemSchema item, string effectName)
@@ -969,13 +1004,106 @@ public class EquipmentService
         return itemImprovementData.FractionalImprovement >= finalFactor
             && itemImprovementData.FractionalImprovement > 0.0f;
     }
+
+    public static async Task<OneOf<AppError, None>> EquipItemsWithHighestEffect(
+        PlayerCharacter character,
+        GameState gameState,
+        string skillName
+    )
+    {
+        var items = character
+            .GetItemsFromInventory()
+            .Select(item =>
+            {
+                if (!ItemService.IsEquipment(item.Type))
+                {
+                    return null;
+                }
+                // Should really never happen that matchingItem is null
+                var matchingEffect = item.Effects.FirstOrDefault(effect =>
+                    effect.Code == skillName
+                );
+
+                if (matchingEffect is null)
+                {
+                    return null;
+                }
+
+                return new ItemWithMatchingEffect { Item = item, MatchingEffect = matchingEffect };
+            })
+            .OfType<ItemWithMatchingEffect>()
+            .ToList();
+
+        foreach (var item in items)
+        {
+            var itemInInventory = item.Item;
+
+            var itemInInventoryEffect = item.MatchingEffect;
+
+            var itemSlotsTheItemFits = ItemService.GetItemSlotsFromItemType(itemInInventory.Type);
+
+            // For now we assume that items that can fit in multiple slots, e.g. ring 1, 2, 3, etc won't have these effects.
+            // It would be cool to be able to handle it, but it will mean that we have to swap around items potentially, etc.
+            // e.g. Ring 1 and 2 both have a bonus to alchemy, then we want to make sure that we only swap out the ring with the
+            // lowest bonus, if the ring we are evaluating has higher than any of the other.
+            if (
+                itemSlotsTheItemFits.Length == 0
+                || itemInInventory.Type == "artifact"
+                    && ItemService.AreArtifactsOverlapping(item.Item.Code, character.Schema)
+            )
+            {
+                continue;
+            }
+
+            var equipmentSlot = character.GetEquipmentSlot(itemSlotsTheItemFits[0]);
+
+            if (equipmentSlot.Code == "")
+            {
+                await character.SmartItemEquip(itemInInventory.Code);
+            }
+            else
+            {
+                var equippedItemInSlot = gameState.ItemsDict.GetValueOrNull(equipmentSlot.Code);
+
+                if (equippedItemInSlot is null)
+                {
+                    return new AppError(
+                        $"Matching item in inventory is null for code \"{equipmentSlot.Code}\""
+                    );
+                }
+
+                var equippedItemValue = equippedItemInSlot.Effects.Find(effect =>
+                    effect.Code == skillName
+                );
+
+                // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
+                if (
+                    equippedItemValue is null
+                    || EffectService.IsFirstEffectBetter(itemInInventoryEffect, equippedItemValue)
+                )
+                {
+                    await character.SmartItemEquip(itemInInventory.Code);
+                }
+            }
+        }
+
+        return new None();
+    }
 }
 
-public record ItemToEquipNeedsBetterName
+public record ItemToEquipWithIsInInventory
 {
     public required ItemSchema Item { get; set; }
     public required int Quantity { get; set; }
     public required bool IsInInventory { get; set; }
+}
+
+public record ItemToEquipEnriched
+{
+    public required ItemSchema Item { get; set; }
+    public required int Quantity { get; set; }
+    public required bool IsInInventory { get; set; }
+    public required string Slot { get; set; }
 }
 
 public record ItemImprovement
@@ -988,4 +1116,10 @@ public record ItemImprovement
 
     // public required int InconvenienceCostForItem { get; set; }
     public required ItemCostCalculation InconvenienceCost { get; set; }
+}
+
+public record ItemWithMatchingEffect
+{
+    public required ItemSchema Item { get; init; }
+    public required SimpleEffectSchema MatchingEffect { get; init; }
 }
