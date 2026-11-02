@@ -12,6 +12,8 @@ public class SeasonalOfferingService
     ILogger Logger { get; init; }
     const int MAX_OFFERINGS = 3;
 
+    const string AFavoredChampion = "a_favored_champion";
+
     public SeasonalOfferingService(ILogger logger, GameState gameState)
     {
         Logger = logger;
@@ -79,6 +81,22 @@ public class SeasonalOfferingService
 
         int amountToAcquire = offering.Requirement.Quantity;
 
+        // We want to
+        if (item.Craft is not null)
+        {
+            var potentialCrafter = ItemService.GetCharacterForSkill(
+                character,
+                item.Craft.Skill,
+                item.Craft.Level,
+                gameState
+            );
+
+            if (potentialCrafter is null)
+            {
+                return false;
+            }
+        }
+
         return await character.PlayerActionService.CanObtainItem(item, amountToAcquire, false);
     }
 
@@ -129,21 +147,10 @@ public class SeasonalOfferingService
             .. character.OfferingData.Offerings.Select(offering => offering.Category),
         ];
 
-        HashSet<SeasonalOfferingCategory> availableCategories =
-        [
-            .. allCategories.Where(category =>
-                !character.OfferingData.SelectedOfferings.Exists(selectedOffering =>
-                    selectedOffering.Category == category
-                    && (
-                        category == SeasonalOfferingCategory.Combat
-                        || character.Roles.Exists(role =>
-                            // Categories are basically just skills, but with "combat" added
-                            role.GetDisplayName() == category.GetDisplayName()
-                        )
-                    )
-                )
-            ),
-        ];
+        HashSet<SeasonalOfferingCategory> availableCategories = GetAllowedCategories(
+            allCategories,
+            character
+        );
 
         var orderedPossibleOfferingsToAccept = character
             .OfferingData.Offerings.Where(offering =>
@@ -157,18 +164,80 @@ public class SeasonalOfferingService
         {
             int level = GetCharacterLevelForOffering(character, offering);
 
-            if (
-                // !HighEnoughLevelForOffering(level, offering) ||
-                !await CanDoOffering(character, offering)
-            )
+            if (await CanDoOffering(character, offering))
             {
-                continue;
+                offeringsToAccept.Add(offering);
             }
-
-            offeringsToAccept.Add(offering);
         }
 
         return offeringsToAccept;
+    }
+
+    HashSet<SeasonalOfferingCategory> GetAllowedCategories(
+        IEnumerable<SeasonalOfferingCategory> allCategories,
+        PlayerCharacter character
+    )
+    {
+        HashSet<SeasonalOfferingCategory> allowedCategories =
+        [
+            .. allCategories.Where(category =>
+                character.OfferingData.SelectedOfferings.Exists(selectedOffering =>
+                {
+                    if (
+                        selectedOffering.Category == category
+                        && selectedOffering.CompletedAt is not null
+                    )
+                    {
+                        return false;
+                    }
+
+                    return CategoryIsInSkillOrAllowed(character, category);
+                })
+            ),
+        ];
+
+        return allowedCategories;
+    }
+
+    bool CategoryIsInSkillOrAllowed(PlayerCharacter character, SeasonalOfferingCategory category)
+    {
+        if (category == SeasonalOfferingCategory.Combat)
+        {
+            return true;
+        }
+
+        var skill = SkillService.GetSkillFromName(
+            category.GetDisplayName().FromPascalToSnakeCase()
+        );
+
+        // Should not happen
+        if (skill is null)
+        {
+            return false;
+        }
+
+        if (character.Roles.Exists(role => role == skill))
+        {
+            return true;
+        }
+        // If we haven't completed the achievement, we will request other characters to make the item for us,
+        // so we can hand it in. This means that we will accept offerings, that are outside of our skill range
+        //
+        // If we have completed the achievement, then we are not as "desperate", and then the favors are basically pointless,
+        // since we cannot use them for anything for that character.
+        bool achievementIsCompleted =
+            gameState.Services.AchievementService.IsAchievementCompletedFromCode(AFavoredChampion);
+
+        // If we have gotten this far, it's not a skill we have or need, so return false
+        if (achievementIsCompleted)
+        {
+            return false;
+        }
+
+        // Return true if we find any character with the role, since we have not completed the achievement.
+        return gameState.Characters.Exists(character =>
+            character.Roles.Exists(role => role == skill)
+        );
     }
 
     static int GetCharacterLevelForOffering(

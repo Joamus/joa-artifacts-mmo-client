@@ -246,9 +246,7 @@ public class NavigationService
                     && !gameState.Services.AchievementService.AccountAchievements.Exists(
                         achievement =>
                             achievement.Code == condition.Code
-                            && gameState.Services.AchievementService.AchievementIsCompleted(
-                                achievement
-                            )
+                            && AchievementService.IsAchievementCompleted(achievement)
                     )
                 )
                 {

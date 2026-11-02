@@ -135,9 +135,7 @@ public class AchievementHuntingService
 
                     bool shouldComplete =
                         matchingAccountAchievement is null
-                        || !gameState.Services.AchievementService.AchievementIsCompleted(
-                            matchingAccountAchievement
-                        );
+                        || !AchievementService.IsAchievementCompleted(matchingAccountAchievement);
 
                     if (!shouldComplete)
                     {

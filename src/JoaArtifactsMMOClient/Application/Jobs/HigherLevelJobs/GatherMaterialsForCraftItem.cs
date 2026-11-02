@@ -25,17 +25,20 @@ public class GatherMaterialsForItem : CharacterJob
     public bool IsForBank { get; set; }
 
     public PlayerCharacter? Crafter { get; set; }
+    public List<string> IgnoreContentCodes { get; set; } = [];
 
     public GatherMaterialsForItem(
         PlayerCharacter playerCharacter,
         GameState gameState,
         string code,
-        int amount
+        int amount,
+        List<string>? ignoreContentCodes = null
     )
         : base(playerCharacter, gameState)
     {
         Code = code;
         Amount = amount;
+        IgnoreContentCodes = ignoreContentCodes ?? [];
     }
 
     private async Task SetupMakeCharacterCraftEvents(
@@ -86,7 +89,8 @@ public class GatherMaterialsForItem : CharacterJob
                 crafter,
                 gameState,
                 lastJob.Code,
-                lastJob.Amount
+                lastJob.Amount,
+                IgnoreContentCodes
             ).SetParent<ObtainItem>(this);
 
             job.AllowUsingMaterialsFromBank = true;

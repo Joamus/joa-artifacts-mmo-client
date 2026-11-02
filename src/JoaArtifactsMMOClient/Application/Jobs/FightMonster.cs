@@ -462,49 +462,26 @@ public class FightMonster : CharacterJob
 
     private static FoodCandidate? GetFoodToEat(PlayerCharacter character, GameState gameState)
     {
-        var relevantFoodItems = gameState.Items.FindAll(item =>
-            item.Type == "consumable"
-            && item.Level <= character.Schema.Level
-            && item.Subtype == "food"
-        );
-        Dictionary<string, ItemSchema> relevantFoodItemsDict = new();
-
-        foreach (var item in relevantFoodItems)
-        {
-            relevantFoodItemsDict.Add(item.Code, item);
-        }
-
-        List<ItemInInventory> foodInInventory = [];
-
-        foreach (var item in character.Schema.Inventory)
-        {
-            if (string.IsNullOrEmpty(item.Code))
-            {
-                continue;
-            }
-            var existsInDict = relevantFoodItemsDict.ContainsKey(item.Code);
-            if (existsInDict)
-            {
-                ItemInInventory _item = new ItemInInventory
-                {
-                    Item = relevantFoodItemsDict[item.Code],
-                    Quantity = item.Quantity,
-                };
-                _item.Quantity = item.Quantity;
-                foodInInventory.Add(_item);
-            }
-        }
-
-        // We want to eat the worst food first, so we clear up our inventory, assuming that we usually have more bad food than good food
-        CalculationService.SortItemsBasedOnEffect(foodInInventory, "heal", true);
+        var foodInInventory = character
+            .GetItemsFromInventoryWithType("consumable")
+            .Where(item =>
+                item.Item.Type == "consumable"
+                && item.Item.Level <= character.Schema.Level
+                && item.Item.Subtype == "food"
+            )
+            // If the item is used in crafting, e.g. apples, we don't want to eat them.
+            .Where(item => gameState.CraftingLookupDict.GetValueOrNull(item.Item.Code) is null)
+            // We want to eat the worst food first, so we clear up our inventory, assuming that we usually have more bad food than good food
+            .OrderBy(item => ItemService.GetEffect(item.Item, "heal"))
+            .ToList();
 
         // Basically take the last one we looped through
         FoodCandidate? candidate = null;
 
+        int hpToHeal = character.Schema.MaxHp - character.Schema.Hp;
+
         foreach (var food in foodInInventory)
         {
-            var hpToHeal = character.Schema.MaxHp - character.Schema.Hp;
-
             var foodHealValue = food.Item.Effects.Find(effect => effect.Code == "heal")?.Value ?? 0;
 
             for (int i = 1; i <= food.Quantity; i++)
