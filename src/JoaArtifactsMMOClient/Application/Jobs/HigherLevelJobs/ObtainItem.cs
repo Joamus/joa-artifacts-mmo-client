@@ -781,6 +781,16 @@ public class ObtainItem : CharacterJob
 
         int totalIngredientsForCrafting = 0;
 
+        if (
+            !canTriggerTraining
+            && character.GetSkillLevel(matchingItem.Craft.Skill) < matchingItem.Craft.Level
+        )
+        {
+            return new AppError(
+                "Could not craft skill, because skill level is below character's skill level, and triggering training is not allowed"
+            );
+        }
+
         /**
         ** E.g. if we are trying to craft 10 potions, requiredAmount would be 10,
         ** but if we item.Craft.Quantity is 2, then we only need to craft 5 times to get 10 potions.
