@@ -84,22 +84,22 @@ public class SeasonalOfferingService
         bool pretendWeAreAllowedToTrainSkill = false;
 
         // We want to
-        if (item.Craft is not null)
-        {
-            var potentialCrafter = ItemService.GetCharacterForSkill(
-                character,
-                item.Craft.Skill,
-                item.Craft.Level,
-                gameState
-            );
+        // if (item.Craft is not null)
+        // {
+        //     var potentialCrafter = ItemService.GetCharacterForSkill(
+        //         character,
+        //         item.Craft.Skill,
+        //         item.Craft.Level,
+        //         gameState
+        //     );
 
-            if (potentialCrafter is null)
-            {
-                return false;
-            }
+        //     if (potentialCrafter is null)
+        //     {
+        //         return false;
+        //     }
 
-            pretendWeAreAllowedToTrainSkill = true;
-        }
+        //     pretendWeAreAllowedToTrainSkill = true;
+        // }
 
         return await character.PlayerActionService.CanObtainItem(
             item,
@@ -233,19 +233,21 @@ public class SeasonalOfferingService
         //
         // If we have completed the achievement, then we are not as "desperate", and then the favors are basically pointless,
         // since we cannot use them for anything for that character.
-        bool achievementIsCompleted =
-            gameState.Services.AchievementService.IsAchievementCompletedFromCode(AFavoredChampion);
 
-        // If we have gotten this far, it's not a skill we have or need, so return false
-        if (achievementIsCompleted)
-        {
-            return false;
-        }
+        return false;
+        // bool achievementIsCompleted =
+        //     gameState.Services.AchievementService.IsAchievementCompletedFromCode(AFavoredChampion);
 
-        // Return true if we find any character with the role, since we have not completed the achievement.
-        return gameState.Characters.Exists(character =>
-            character.Roles.Exists(role => role == skill)
-        );
+        // // If we have gotten this far, it's not a skill we have or need, so return false
+        // if (achievementIsCompleted)
+        // {
+        //     return false;
+        // }
+
+        // // Return true if we find any character with the role, since we have not completed the achievement.
+        // return gameState.Characters.Exists(character =>
+        //     character.Roles.Exists(role => role == skill)
+        // );
     }
 
     static int GetCharacterLevelForOffering(
