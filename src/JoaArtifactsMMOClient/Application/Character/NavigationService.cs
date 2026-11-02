@@ -100,25 +100,9 @@ public class NavigationService
 
     public async ValueTask<bool> CanNavigateTo(string contentCode, MapSchema? currentMap = null)
     {
-        // var result = GetAllStepsToDestination(contentCode, currentMap);
-
-        // if (result.IsT0)
-        // {
-        //     return false;
-        // }
-
-        // var jobsResult = await GetJobsNeededForNavigation(contentCode, currentMap);
-
-        // if (jobsResult.IsT0)
-        // {
-        //     return false;
-        // }
-
         var navigationOutcome = await NavigateTo(contentCode, null, true);
 
-        return navigationOutcome.IsT0;
-
-        // return true;
+        return navigationOutcome.IsT1;
     }
 
     public OneOf<AppError, List<NavigationStepsAndRequirements>> GetAllStepsToDestination(
