@@ -81,6 +81,8 @@ public class SeasonalOfferingService
 
         int amountToAcquire = offering.Requirement.Quantity;
 
+        bool pretendWeAreAllowedToTrainSkill = false;
+
         // We want to
         if (item.Craft is not null)
         {
@@ -95,9 +97,15 @@ public class SeasonalOfferingService
             {
                 return false;
             }
+
+            pretendWeAreAllowedToTrainSkill = true;
         }
 
-        return await character.PlayerActionService.CanObtainItem(item, amountToAcquire, false);
+        return await character.PlayerActionService.CanObtainItem(
+            item,
+            amountToAcquire,
+            pretendWeAreAllowedToTrainSkill
+        );
     }
 
     async Task<CharacterJob> GetOfferingJob(
