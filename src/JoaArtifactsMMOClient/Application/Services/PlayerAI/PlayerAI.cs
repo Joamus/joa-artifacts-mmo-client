@@ -112,8 +112,8 @@ public class PlayerAI
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
                 ?? await EnsureBag()
                 ?? (!END_OF_SEASON ? await GetAchievementHuntingJob() : null)
-                ?? await GetRoleJob()
                 ?? await GetMonsterJobIfCanCertainlyBeDone(true)
+                ?? await GetRoleJob()
                 ?? await EnsureFightEquipment()
                 ?? await GetIndividualHighPrioJob()
                 ?? GetSkillJob()
@@ -613,14 +613,7 @@ public class PlayerAI
     {
         Logger.LogInformation($"{Name}: [{Character.Schema.Name}]: EnsureTools: Start");
 
-        var bestTools = await ItemService.GetBestTools(Character, gameState, null, hasDoneItemTask);
-
-        if (!hasDoneItemTask)
-        {
-            Logger.LogInformation(
-                $"{Name}: [{Character.Schema.Name}]: EnsureTools: Tasks farmer achievement is not completed yet - evaluating best tools, which don't require task materials"
-            );
-        }
+        var bestTools = await ItemService.GetBestTools(Character, gameState, null);
 
         ItemSchema? equippedWeapon = gameState.ItemsDict.GetValueOrNull(
             Character.Schema.WeaponSlot

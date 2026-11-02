@@ -483,8 +483,7 @@ public static class ItemService
     public static async Task<List<ItemSchema>> GetBestTools(
         PlayerCharacter character,
         GameState gameState,
-        List<InventorySlot>? allItemCandidates = null,
-        bool allowUsingTaskMaterials = true
+        List<InventorySlot>? allItemCandidates = null
     )
     {
         if (allItemCandidates is null)
@@ -527,27 +526,6 @@ public static class ItemService
             if (matchingItem.Subtype != "tool")
             {
                 continue;
-            }
-
-            if (!allowUsingTaskMaterials)
-            {
-                if (
-                    matchingItem.Craft is not null
-                    && matchingItem.Craft.Items.Exists(material =>
-                    {
-                        var matchingMaterial = gameState.ItemsDict.GetValueOrNull(material.Code);
-
-                        if (matchingMaterial?.Subtype == "task")
-                        {
-                            return true;
-                        }
-
-                        return false;
-                    })
-                )
-                {
-                    continue;
-                }
             }
 
             if (!CanUseItem(matchingItem, character.Schema, gameState))
@@ -881,7 +859,8 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
+                    ?? true;
 
                 return isOnlyUsedForFood;
             });
