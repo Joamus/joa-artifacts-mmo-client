@@ -5,6 +5,7 @@ using Application.Character;
 using Application.Errors;
 using Application.Records;
 using Application.Services.ApiServices;
+using Microsoft.VisualBasic;
 
 namespace Application.Services;
 
@@ -105,6 +106,13 @@ public class AchievementService
         }
     }
 
-    public bool AchievementIsCompleted(AccountAchievementSchema achievementSchema) =>
+    public static bool IsAchievementCompleted(AccountAchievementSchema achievementSchema) =>
         !string.IsNullOrWhiteSpace(achievementSchema.CompletedAt);
+
+    public bool IsAchievementCompletedFromCode(string code)
+    {
+        var foundAchievement = AccountAchievementsDict.GetValueOrNull(code);
+
+        return foundAchievement is not null && IsAchievementCompleted(foundAchievement);
+    }
 }
