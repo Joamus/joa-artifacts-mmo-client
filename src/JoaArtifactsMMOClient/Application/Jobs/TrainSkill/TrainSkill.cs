@@ -215,7 +215,7 @@ public class TrainSkill : CharacterJob
 
                 int maxXpForLevel = CraftingService.InnerGetXpForCraftingItem(
                     skillLevel,
-                    19,
+                    skillLevel,
                     skill,
                     Character.Schema.Wisdom
                 );
