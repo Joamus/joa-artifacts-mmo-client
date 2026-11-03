@@ -60,6 +60,31 @@ public static class CraftingService
         };
     }
 
+    static float GetCraftingMultiplier(Skill skill, ItemSchema item)
+    {
+        switch (skill)
+        {
+            case Skill.Weaponcrafting:
+            case Skill.Gearcrafting:
+            case Skill.Jewelrycrafting:
+            case Skill.Cooking:
+            case Skill.Alchemy:
+                int ingredientCount = GetMaterialCount(item);
+
+                double initialResult = 0.2832 + 0.2171 * Math.Sqrt(Math.Max(1, ingredientCount));
+
+                return (float)Math.Clamp(initialResult, 0.50, 1.55);
+            default:
+                return 0.1f;
+        }
+        ;
+    }
+
+    static int GetMaterialCount(ItemSchema item)
+    {
+        return item.Craft?.Items.Sum(item => item.Quantity) ?? 0;
+    }
+
     public static int GetXpForCraftingItem(int skillLevel, ItemSchema item, int wisdom = 0)
     {
         if (item.Craft is null)
@@ -67,30 +92,34 @@ public static class CraftingService
             return 0;
         }
 
-        return InnerGetXpForCraftingItem(skillLevel, item.Level, item.Craft.Skill, wisdom);
+        return InnerGetXpForCraftingItem(skillLevel, item, item.Craft.Skill, wisdom);
     }
 
-    public static int InnerGetXpForCraftingItem(
+    static int InnerGetXpForCraftingItem(
         int skillLevel,
-        int itemLevel,
+        ItemSchema item,
         Skill skill,
         int wisdom = 0
     )
     {
-        if (skillLevel > itemLevel + PlayerActionService.LEVEL_DIFF_NO_XP)
+        if (skillLevel > item.Level + PlayerActionService.LEVEL_DIFF_NO_XP)
         {
             return 0;
         }
 
-        (int xpBase, int xpCoefficient) = GetBaseXpItem(itemLevel);
+        (int xpBase, int xpCoefficient) = GetBaseXpItem(item.Level);
 
-        float skillMultiplier = GetSkillMultiplier(skill);
+        // float skillMultiplier = GetSkillMultiplier(skill);
+        float craftingMultiplier = GetCraftingMultiplier(skill, item);
 
         float wisdomBonus = 1 + (wisdom / 100);
 
         int result = (int)
             Math.Round(
-                (xpBase + (itemLevel / skillLevel) * xpCoefficient) * skillMultiplier * wisdomBonus
+                // (xpBase + (item.Level / skillLevel) * xpCoefficient) * skillMultiplier * wisdomBonus
+                (xpBase + (item.Level / skillLevel) * xpCoefficient)
+                    * craftingMultiplier
+                    * wisdomBonus
             );
 
         return result;

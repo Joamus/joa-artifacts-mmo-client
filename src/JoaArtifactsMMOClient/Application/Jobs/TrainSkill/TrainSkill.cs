@@ -213,14 +213,14 @@ public class TrainSkill : CharacterJob
 
                 // The difference in skill level is essentially a cost, because we get less XP.
 
-                int maxXpForLevel = CraftingService.InnerGetXpForCraftingItem(
-                    skillLevel,
-                    skillLevel,
-                    skill,
-                    Character.Schema.Wisdom
-                );
+                // int maxXpForLevel = CraftingService.InnerGetXpForCraftingItem(
+                //     skillLevel,
+                //     skillLevel,
+                //     skill,
+                //     Character.Schema.Wisdom
+                // );
 
-                List<(ItemSchema Item, int Cost)> itemsWithCost =
+                List<(ItemSchema Item, float XpPerCost)> itemsWithCost =
                 [
                     .. itemToCraftCandidates
                         .Select(
@@ -239,7 +239,8 @@ public class TrainSkill : CharacterJob
                                     )
                                 );
                                 bool canObtain = result.CanObtain;
-                                int cost = result.Cost;
+                                // Makes our division calculations easier
+                                int cost = result.Cost > 0 ? result.Cost : 1;
 
                                 // We want to bias toward the XP we would get.
                                 int xpForCrafting = CraftingService.GetXpForCraftingItem(
@@ -256,19 +257,20 @@ public class TrainSkill : CharacterJob
                                 xpForCrafting = (int)
                                     Math.Round(xpForCrafting * xpModifierFromOffering);
 
-                                float maxXpPotential = Math.Min(
-                                    1.0f,
-                                    (float)xpForCrafting / maxXpForLevel
-                                );
+                                // float maxXpPotential = Math.Min(
+                                //     1.0f,
+                                //     (float)xpForCrafting / maxXpForLevel
+                                // );
 
-                                int resultCost = (int)Math.Round(cost / maxXpPotential);
+                                // int resultCost = (int)Math.Round(cost / maxXpPotential);
+                                float resultXpPerCost = (float)xpForCrafting / cost;
 
-                                return (item, CanObtain: canObtain, Cost: resultCost);
+                                return (item, CanObtain: canObtain, XpPerCost: resultXpPerCost);
                             }
                         )
                         .Where((result) => result.CanObtain)
-                        .Select((result) => (result.item, result.Cost))
-                        .OrderBy((result) => result.Cost),
+                        .Select((result) => (result.item, result.XpPerCost))
+                        .OrderByDescending((result) => result.XpPerCost),
                 ];
 
                 bestItemToCraft = itemsWithCost.FirstOrDefault().Item;
@@ -677,7 +679,7 @@ public class TrainSkill : CharacterJob
         }
 
         int score =
-            monsterCost + (int)Math.Round((float)fightOutcome!.TotalTurns / 10) * dropRateFactor;
+            monsterCost + (int)Math.Round((float)fightOutcome!.TotalTurns / 10 * dropRateFactor);
 
         return score;
     }
