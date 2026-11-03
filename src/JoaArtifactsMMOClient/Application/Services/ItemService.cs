@@ -131,7 +131,7 @@ public static class ItemService
                 condition.Operator == ItemConditionOperator.AchievementUnlocked
                 && !gameState.Services.AchievementService.AccountAchievements.Exists(achievement =>
                     achievement.Code == condition.Code
-                    && gameState.Services.AchievementService.AchievementIsCompleted(achievement)
+                    && AchievementService.IsAchievementCompleted(achievement)
                 )
             )
             {
@@ -592,35 +592,38 @@ public static class ItemService
         List<string>? ignoreContentCodes = null
     )
     {
-        CharacterJob job;
-        if (item.Craft is null || character.Roles.Exists(role => role == item.Craft.Skill))
+        var crafter = item.Craft?.Skill is not null
+            ? GetCharacterForSkill(character, item.Craft.Skill, item.Craft.Level, gameState)
+            : null;
+
+        if (crafter is null || crafter.Name == character.Name)
         {
-            job = new ObtainItem(character, gameState, item.Code, amount, ignoreContentCodes);
+            return new ObtainItem(character, gameState, item.Code, amount, ignoreContentCodes);
         }
-        else
+
+        var gatherMaterialsJob = new GatherMaterialsForItem(character, gameState, item.Code, amount)
         {
-            var crafter = gameState.Characters.FirstOrDefault(character =>
-                character.Roles.Exists(role => role == item.Craft.Skill)
+            Crafter = crafter,
+        };
+
+        return gatherMaterialsJob;
+    }
+
+    public static PlayerCharacter? GetCharacterForSkill(
+        PlayerCharacter requestingCharacter,
+        Skill skill,
+        int skillLevel,
+        GameState gameState
+    )
+    {
+        var crafter = gameState
+            .Characters.OrderBy(character => character.Name == requestingCharacter.Name)
+            .FirstOrDefault(character =>
+                character.Roles.Exists(role => role == skill)
+                && character.GetSkillLevel(skill) >= skillLevel
             );
 
-            if (crafter is null)
-            {
-                throw new Exception($"No crafter that has role {item.Craft.Skill}");
-            }
-
-            var gatherMaterialsJob = new GatherMaterialsForItem(
-                character,
-                gameState,
-                item.Code,
-                amount
-            )
-            {
-                Crafter = crafter,
-            };
-
-            job = gatherMaterialsJob;
-        }
-        return job;
+        return crafter;
     }
 
     public static ItemSchema? GetBestItemIfUpgrade(ItemSchema a, ItemSchema b)
@@ -859,11 +862,15 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
-                    ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
 
                 return isOnlyUsedForFood;
             });
+    }
+
+    public static bool IsItemCookedFishOrMeat(ItemSchema item, GameState gameState)
+    {
+        return IsItemCookedFish(item, gameState) || IsItemCookedMeat(item, gameState);
     }
 
     public static bool IsTeleportPotion(ItemSchema item)

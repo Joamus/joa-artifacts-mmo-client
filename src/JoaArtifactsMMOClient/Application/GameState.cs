@@ -223,11 +223,18 @@ public class GameState
                 {
                     foreach (var ingredient in item.Craft.Items)
                     {
-                        if (!craftingLookupDict.ContainsKey(ingredient.Code))
+                        if (
+                            !craftingLookupDict.TryGetValue(
+                                ingredient.Code,
+                                out List<ItemSchema>? value
+                            )
+                        )
                         {
-                            craftingLookupDict.Add(ingredient.Code, []);
+                            value = [];
+                            craftingLookupDict.Add(ingredient.Code, value);
                         }
-                        craftingLookupDict[ingredient.Code].Add(item);
+
+                        value.Add(item);
                     }
                 }
             }
