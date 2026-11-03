@@ -183,7 +183,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
                     continue;
                 }
 
-                if (!await character.PlayerActionService.CanObtainItem(potion, 100, false))
+                if (!await Character.PlayerActionService.CanObtainItem(potion, 100, false))
                 {
                     continue;
                 }
@@ -193,10 +193,7 @@ public class RestockPotions : CharacterJob, ICharacterChoreJob
 
             foreach (var potion in potionsForCharacter)
             {
-                if (!result.ContainsKey(potion.Code))
-                {
-                    result.Add(potion.Code, potion);
-                }
+                result.TryAdd(potion.Code, potion);
             }
         }
 
