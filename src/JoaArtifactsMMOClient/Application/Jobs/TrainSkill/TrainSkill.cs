@@ -17,13 +17,15 @@ namespace Application.Jobs;
 
 public class TrainSkill : CharacterJob
 {
-    const int MONSTER_COST = 5;
+    const int MONSTER_COST = 2;
     const int MONSTER_BOSS_COST = MONSTER_COST * 5;
     const int CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST = 15;
     const int TASKS_COINS_COST = 150;
     const int EVENT_COST = 50;
     const int EVENT_COST_IF_HAS_ENOUGH_QUANTITY = 20;
     const int ENOUGH_EVENT_ITEMS = 1500;
+
+    const float COMBAT_TURN_COST = 1.0f / 6.0f;
 
     static readonly ReadOnlyCollection<string> MostExpensiveItemSubtypes = ["task", "event"];
 
@@ -660,7 +662,7 @@ public class TrainSkill : CharacterJob
         int eventCost
     )
     {
-        int dropRateFactor =
+        int fightsToGetItems =
             monster.Drops.FirstOrDefault(drop => drop.Code == itemDrop.Code)!.Rate * itemAmount;
 
         int baseMonsterCost =
@@ -669,7 +671,7 @@ public class TrainSkill : CharacterJob
                 : MONSTER_COST;
 
         int monsterCost =
-            monster.Level < character.Schema.Level + CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST
+            monster.Level < character.Schema.Level - CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST
                 ? 0
                 : baseMonsterCost;
 
@@ -678,8 +680,10 @@ public class TrainSkill : CharacterJob
             monsterCost += eventCost;
         }
 
-        int score =
-            monsterCost + (int)Math.Round((float)fightOutcome!.TotalTurns / 10 * dropRateFactor);
+        float turnCost =
+            ((float)fightOutcome!.TotalTurns * COMBAT_TURN_COST) * monsterCost * fightsToGetItems;
+
+        int score = (int)Math.Round(turnCost);
 
         return score;
     }
