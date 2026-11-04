@@ -451,7 +451,8 @@ public class FightMonster : CharacterJob
                             character.CharacterName == Character.Name
                         )
                         .Drops.Find(item => item.Code == ItemCode)
-                        ?.Quantity ?? 0;
+                        ?.Quantity
+                    ?? 0;
 
                 ProgressAmount += dropAmount;
             }
@@ -504,7 +505,7 @@ public class FightMonster : CharacterJob
                 {
                     return new FoodCandidate
                     {
-                        Code = food.Item.Code,
+                        Item = food.Item,
                         Quantity = i,
                         TotalHealAmount = foodHealWithQuantity,
                     };
@@ -526,7 +527,7 @@ public class FightMonster : CharacterJob
                         {
                             return new FoodCandidate
                             {
-                                Code = food.Item.Code,
+                                Item = food.Item,
                                 Quantity = i - 1,
                                 TotalHealAmount = previousFoodHealWithQuantity,
                             };
@@ -535,7 +536,7 @@ public class FightMonster : CharacterJob
 
                     return new FoodCandidate
                     {
-                        Code = food.Item.Code,
+                        Item = food.Item,
                         Quantity = i,
                         TotalHealAmount = foodHealWithQuantity,
                     };
@@ -543,7 +544,7 @@ public class FightMonster : CharacterJob
 
                 candidate = new FoodCandidate
                 {
-                    Code = food.Item.Code,
+                    Item = food.Item,
                     Quantity = i,
                     TotalHealAmount = foodHealWithQuantity,
                 };
@@ -907,7 +908,7 @@ public class FightMonster : CharacterJob
                 if (
                     isHighPrioMonster
                     || ItemService.IsItemCookedMeat(
-                        gameState.ItemsDict[bestFoodCandidate.Code],
+                        gameState.ItemsDict[bestFoodCandidate.Item.Code],
                         gameState
                     )
                 )
@@ -917,8 +918,10 @@ public class FightMonster : CharacterJob
 
                 if (!shouldEatFood)
                 {
-                    int opportunityCostForFoodSeconds =
-                        OPPORTUNITY_COST_PER_FOOD_SECONDS * bestFoodCandidate.Quantity;
+                    int opportunityCostForFoodSeconds = GetOpportunityCostFood(
+                        character,
+                        bestFoodCandidate
+                    );
 
                     int timeToRestSeconds = FightSimulator.GetTimeToRest(
                         character.Schema.MaxHp,
@@ -931,7 +934,10 @@ public class FightMonster : CharacterJob
 
                 if (shouldEatFood)
                 {
-                    await character.UseItem(bestFoodCandidate.Code, bestFoodCandidate.Quantity);
+                    await character.UseItem(
+                        bestFoodCandidate.Item.Code,
+                        bestFoodCandidate.Quantity
+                    );
                 }
             }
 
@@ -940,6 +946,22 @@ public class FightMonster : CharacterJob
                 await character.Rest();
             }
         }
+    }
+
+    static int GetOpportunityCostFood(PlayerCharacter character, FoodCandidate foodCandidate)
+    {
+        // Math.max is not needed, since we cannot eat food above our level, but what the hell
+        float levelDiffCharacterToFood = Math.Max(
+            character.Schema.Level / foodCandidate.Item.Level,
+            0f
+        );
+
+        float opportunityCostFactor = OPPORTUNITY_COST_PER_FOOD_SECONDS / levelDiffCharacterToFood;
+
+        int opportunityCostForFoodSeconds = (int)
+            Math.Round(opportunityCostFactor * foodCandidate.Quantity);
+
+        return opportunityCostForFoodSeconds;
     }
 
     public static async Task<List<EquipmentSlot>> GetBetterItemsToWithdraw(
@@ -1204,7 +1226,7 @@ public record ActionBeforeFightData
 
 record FoodCandidate
 {
-    public string Code = "";
+    public required ItemSchema Item { get; set; }
     public int Quantity;
     public int TotalHealAmount;
 }

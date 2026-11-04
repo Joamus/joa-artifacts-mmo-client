@@ -620,7 +620,7 @@ public static class ItemService
             .Characters.OrderBy(character => character.Name == requestingCharacter.Name)
             .FirstOrDefault(character =>
                 character.Roles.Exists(role => role == skill)
-                && character.GetSkillLevel(skill) >= skillLevel
+            // && character.GetSkillLevel(skill) >= skillLevel
             );
 
         return crafter;
@@ -862,7 +862,8 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
+                    ?? true;
 
                 return isOnlyUsedForFood;
             });
