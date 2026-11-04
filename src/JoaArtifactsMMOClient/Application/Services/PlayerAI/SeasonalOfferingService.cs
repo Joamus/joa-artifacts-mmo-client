@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Application.Artifacts.Schemas;
 using Application.ArtifactsApi.Schemas;
 using Application.Character;
 using Application.Jobs;
@@ -82,6 +83,16 @@ public class SeasonalOfferingService
         int amountToAcquire = offering.Requirement.Quantity;
 
         bool pretendWeAreAllowedToTrainSkill = false;
+
+        Skill? skill = SkillService.GetSkillFromName(
+            offering.Category.GetDisplayName().FromPascalToSnakeCase()
+        );
+
+        // Needed for things like mining/woodcutting, where CanObtainItem currently doesn't respect the "AllowTraining"
+        if (skill is not null && character.GetSkillLevel((Skill)skill) < item.Craft?.Level)
+        {
+            return false;
+        }
 
         // We want to
         // if (item.Craft is not null)
