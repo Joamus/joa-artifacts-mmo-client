@@ -651,8 +651,7 @@ public class PlayerActionService
                         var equippedItemValue =
                             equippedItemInSlot
                                 .Effects.Find(effect => effect.Code == skillName)
-                                ?.Value
-                            ?? 0;
+                                ?.Value ?? 0;
 
                         // For gathering skills, the lower value, the better, e.g. -10 alchemy means 10% faster gathering
                         if (equippedItemValue > itemInInventoryEffect.Value)
@@ -921,6 +920,7 @@ public class PlayerActionService
             {
                 break;
             }
+
             await Character.NavigateTo(ContentCode.Bank);
             await Character.UnequipItem(
                 new UnequipRequest
@@ -941,6 +941,19 @@ public class PlayerActionService
             );
 
             amountToUnequip = Character.GetEquipmentSlot($"Utility{utilitySlot}Slot").Quantity;
+        }
+    }
+
+    public async Task UnequipAndDepositPotions()
+    {
+        List<(int Slot, string ItemCode, int Amount)> utilitySlots = [];
+
+        utilitySlots.Add((1, Character.Schema.Utility1Slot, Character.Schema.Utility1SlotQuantity));
+        utilitySlots.Add((2, Character.Schema.Utility2Slot, Character.Schema.Utility2SlotQuantity));
+
+        foreach (var (Slot, ItemCode, Amount) in utilitySlots)
+        {
+            await Character.PlayerActionService.DepositPotions(Slot, ItemCode, Amount);
         }
     }
 

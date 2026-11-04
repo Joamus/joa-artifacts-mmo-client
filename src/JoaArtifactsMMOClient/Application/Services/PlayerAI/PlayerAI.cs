@@ -90,6 +90,7 @@ public class PlayerAI
                 await ClaimPendingItems();
             }
 
+            await Character.PlayerActionService.UnequipAndDepositPotions();
             await Character.PlayerActionService.WithdrawTeleportPotions();
             await Character.PlayerActionService.WithdrawAndUseConsumableBags();
 

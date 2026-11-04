@@ -90,7 +90,7 @@ public static class CalculationService
         {
             levelPenalty = 1.0f;
         }
-        else if (averagePlayerLevel >= monster.Level + 5)
+        else if (averagePlayerLevel + 5 >= monster.Level)
         {
             levelPenalty = 0.7f;
         }
