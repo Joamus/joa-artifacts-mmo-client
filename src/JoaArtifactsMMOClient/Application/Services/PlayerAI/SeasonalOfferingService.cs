@@ -190,23 +190,18 @@ public class SeasonalOfferingService
         [
             .. allCategories.Where(category =>
             {
-                var matchingOffering = character.OfferingData.SelectedOfferings.FirstOrDefault(
-                    selectedOffering => selectedOffering.Category == category
-                );
+                bool isAllowedCategory = CategoryIsInSkillOrAllowed(character, category);
 
-                if (matchingOffering is null)
-                {
-                    return true;
-                }
-                if (
-                    matchingOffering.Category == category
-                    && matchingOffering.CompletedAt is not null
-                )
+                if (!isAllowedCategory)
                 {
                     return false;
                 }
 
-                return CategoryIsInSkillOrAllowed(character, category);
+                var matchingOffering = character.OfferingData.SelectedOfferings.FirstOrDefault(
+                    selectedOffering => selectedOffering.Category == category
+                );
+
+                return matchingOffering is null || matchingOffering.CompletedAt is null;
             }),
         ];
 
