@@ -189,19 +189,25 @@ public class SeasonalOfferingService
         HashSet<SeasonalOfferingCategory> allowedCategories =
         [
             .. allCategories.Where(category =>
-                character.OfferingData.SelectedOfferings.Exists(selectedOffering =>
-                {
-                    if (
-                        selectedOffering.Category == category
-                        && selectedOffering.CompletedAt is not null
-                    )
-                    {
-                        return false;
-                    }
+            {
+                var matchingOffering = character.OfferingData.SelectedOfferings.FirstOrDefault(
+                    selectedOffering => selectedOffering.Category == category
+                );
 
-                    return CategoryIsInSkillOrAllowed(character, category);
-                })
-            ),
+                if (matchingOffering is null)
+                {
+                    return true;
+                }
+                if (
+                    matchingOffering.Category == category
+                    && matchingOffering.CompletedAt is not null
+                )
+                {
+                    return false;
+                }
+
+                return CategoryIsInSkillOrAllowed(character, category);
+            }),
         ];
 
         return allowedCategories;
