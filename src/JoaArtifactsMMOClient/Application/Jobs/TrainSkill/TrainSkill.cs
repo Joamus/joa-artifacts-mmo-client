@@ -665,27 +665,11 @@ public class TrainSkill : CharacterJob
         int fightsToGetItems =
             monster.Drops.FirstOrDefault(drop => drop.Code == itemDrop.Code)!.Rate * itemAmount;
 
-        int baseMonsterCost =
-            (monster.Type == MonsterType.Boss || monster.Type == MonsterType.RaidBoss)
-                ? MONSTER_BOSS_COST
-                : MONSTER_COST;
+        int monsterFightDuration = EquipmentService.FightLengthInSeconds(fightOutcome);
 
-        int monsterCost =
-            monster.Level < character.Schema.Level - CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST
-                ? 0
-                : baseMonsterCost;
+        int secondsSpentToGetItems = monsterFightDuration * fightsToGetItems;
 
-        if (isEventMonster)
-        {
-            monsterCost += eventCost;
-        }
-
-        float turnCost =
-            ((float)fightOutcome!.TotalTurns * COMBAT_TURN_COST) * monsterCost * fightsToGetItems;
-
-        int score = (int)Math.Round(turnCost);
-
-        return score;
+        return secondsSpentToGetItems;
     }
 }
 
