@@ -576,4 +576,51 @@ public class FightSimulatorTest
 
         Assert.False(fightResults?.SimResult.Outcome.ShouldFight);
     }
+
+    [Fact(DisplayName = "Should not allow any potions used at level 10")]
+    public void GetAllowedAmountOfPotionsUsed_NoPotionsBelow10()
+    {
+        int result = FightSimulator.GetAllowedAmountOfPotionsUsed(
+            CreateMockMonster(9, MonsterType.Normal)
+        );
+
+        Assert.Equal(0, result);
+    }
+
+    [Fact(DisplayName = "Should only allow 1 potion used at level 19")]
+    public void GetAllowedAmountOfPotionsUsed_1PotionBelow19()
+    {
+        int result = FightSimulator.GetAllowedAmountOfPotionsUsed(
+            CreateMockMonster(19, MonsterType.Normal)
+        );
+        Assert.Equal(1, result);
+    }
+
+    [Fact(DisplayName = "Should only allow 2 potions used at level 29")]
+    public void GetAllowedAmountOfPotionsUsed_2PotionBelow19()
+    {
+        int result = FightSimulator.GetAllowedAmountOfPotionsUsed(
+            CreateMockMonster(29, MonsterType.Normal)
+        );
+        Assert.Equal(2, result);
+    }
+
+    [Fact(DisplayName = "Should only allow 3 potions used at level 29")]
+    public void GetAllowedAmountOfPotionsUsed_3PotionBelow19()
+    {
+        int result = FightSimulator.GetAllowedAmountOfPotionsUsed(
+            CreateMockMonster(39, MonsterType.Normal)
+        );
+        Assert.Equal(3, result);
+    }
+
+    static MonsterSchema CreateMockMonster(int level, MonsterType monsterType)
+    {
+        return new MonsterSchema
+        {
+            Name = "Mobby",
+            Type = monsterType,
+            Level = level,
+        };
+    }
 }

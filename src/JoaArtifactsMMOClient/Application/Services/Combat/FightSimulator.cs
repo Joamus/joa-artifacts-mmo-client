@@ -15,22 +15,23 @@ public static class FightSimulator
 {
     private static readonly int MAX_LEVEL = 50;
     public const double PERCENTAGE_OF_SIMS_TO_WIN = 0.85;
-    private const float SHOULD_FIGHT_MAX_HP_PLAYER_THRESHOLD = 0.35f;
-    private const int MAX_AMOUNT_OF_USED_POTIONS = 6;
-    private const double CRIT_DAMAGE_MODIFIER = 0.5;
-    private const double RESTORE_EFFECT_MAX_HP_THRESHOLD = 0.50;
-    private const double LOSE_AFTER_TURNS = 100;
-    private const int CHANCE_OF_BOSS_SWITCH_TARGET = 10;
+    const float SHOULD_FIGHT_MAX_HP_PLAYER_THRESHOLD = 0.35f;
+    const int MAX_AMOUNT_OF_USED_POTIONS = 6;
+    const float POTION_USAGE_PER_LEVEL_FACTOR = 0.1f;
+    const double CRIT_DAMAGE_MODIFIER = 0.5;
+    const double RESTORE_EFFECT_MAX_HP_THRESHOLD = 0.50;
+    const double LOSE_AFTER_TURNS = 100;
+    const int CHANCE_OF_BOSS_SWITCH_TARGET = 10;
 
-    private const int SHELL_EFFECT_DURATION = 3;
-    private const int VAMPIRIC_STRIKE_COOLDOWN_TURNS = 3;
-    private const int SHELL_ACTIVATION_THRESHOLD_HP_PERCENTAGE = 40;
+    const int SHELL_EFFECT_DURATION = 3;
+    const int VAMPIRIC_STRIKE_COOLDOWN_TURNS = 3;
+    const int SHELL_ACTIVATION_THRESHOLD_HP_PERCENTAGE = 40;
     public const float BERSERKER_RAGE_MAX_HP_ACTIVATION_THRESHOLD = 0.25f;
     public const float GREED_HP_PERCENTAGE_ACTIVATION = 0.10f;
     public const int ENCHANTED_MIRROR_ACTIVATE_EVERY_X_TURN = 3;
     public const int RECONSTITUION_ACTIVATION_EVERY_TURN = 20;
 
-    private static ILogger Logger = AppLogger.GetLogger();
+    static ILogger Logger = AppLogger.GetLogger();
 
     /**
      * This function assumes all potions can be acquired
@@ -1841,7 +1842,7 @@ public static class FightSimulator
                 PlayerHasEnoughHpAfterFight
             );
 
-            int maxAllowedPotionsUsed = MAX_AMOUNT_OF_USED_POTIONS * totalPlayers;
+            int maxAllowedPotionsUsed = GetAllowedAmountOfPotionsUsed(monster) * totalPlayers;
 
             bool primaryShouldFightDecision;
 
@@ -1882,7 +1883,7 @@ public static class FightSimulator
 
         return attackerHasEnoughHp
             && !otherPlayerParticipants.Exists(participant => participant.Entity.Hp <= 0)
-            && attackingPlayerPotionsUsed <= MAX_AMOUNT_OF_USED_POTIONS;
+            && attackingPlayerPotionsUsed <= GetAllowedAmountOfPotionsUsed(monster);
     }
 
     static bool PlayerHasEnoughHpAfterFight(FightSimParticipant attacker)
@@ -3161,6 +3162,23 @@ public static class FightSimulator
         defender.Entity.Hp = newDefenderHp;
 
         return new DefenderDamageResult { IsDefenderDead = defender.Entity.Hp <= 0 };
+    }
+
+    public static int GetAllowedAmountOfPotionsUsed(MonsterSchema monster)
+    {
+        if (
+            monster.Level == MAX_LEVEL
+            || monster.Type == MonsterType.Boss
+            || monster.Type == MonsterType.RaidBoss
+        )
+        {
+            return MAX_AMOUNT_OF_USED_POTIONS;
+        }
+
+        int result = (int)
+            Math.Min(monster.Level * POTION_USAGE_PER_LEVEL_FACTOR, MAX_AMOUNT_OF_USED_POTIONS);
+
+        return result;
     }
 }
 

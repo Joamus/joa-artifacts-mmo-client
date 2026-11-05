@@ -97,12 +97,13 @@ public class TrainCombat : CharacterJob
 
         foreach (var monster in gameState.AvailableMonsters)
         {
-            // Our character might be able to punch above their weight
+            // We don't allow fighting mobs above the character level, since it rarely makes sense.
+            // They can end up spending too many potions, and the drops are usually not relevant until higher level.
             int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
 
             if (
                 playerLevel > monsterLevelToCompareTo + PlayerActionService.LEVEL_DIFF_NO_XP
-                || playerLevel + 5 < monsterLevelToCompareTo
+                || playerLevel < monsterLevelToCompareTo
             )
             {
                 continue;
