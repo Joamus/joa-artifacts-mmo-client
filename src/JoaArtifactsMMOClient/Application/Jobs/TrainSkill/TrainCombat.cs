@@ -82,8 +82,6 @@ public class TrainCombat : CharacterJob
             return null;
         }
 
-        List<(FightOutcome Outcome, MonsterSchema Monster)> monsterCandidates = [];
-
         var bankItems = await FightSimulator.GetBankItemsForFightSim(character, gameState);
 
         var obtainablePotions = await character.PlayerActionService.GetObtainablePotions(
@@ -95,40 +93,46 @@ public class TrainCombat : CharacterJob
             bankItems.Union(obtainablePotions).ToList()
         );
 
-        foreach (var monster in gameState.AvailableMonsters)
-        {
-            // We don't allow fighting mobs above the character level, since it rarely makes sense.
-            // They can end up spending too many potions, and the drops are usually not relevant until higher level.
-            int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
+        List<MonsterCandidate> monsterCandidates =
+        [
+            .. gameState
+                .AvailableMonsters.Where(monster =>
+                {
+                    int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
 
-            if (
-                playerLevel > monsterLevelToCompareTo + PlayerActionService.LEVEL_DIFF_NO_XP
-                || playerLevel < monsterLevelToCompareTo
-            )
-            {
-                continue;
-            }
+                    if (
+                        playerLevel > monsterLevelToCompareTo + PlayerActionService.LEVEL_DIFF_NO_XP
+                        || playerLevel < monsterLevelToCompareTo
+                    )
+                    {
+                        return false;
+                    }
 
-            var outcome = FightSimulator
-                .FindBestFightEquipmentIncludingInventory(
-                    character,
-                    gameState,
-                    monster,
-                    availableItems
-                )
-                .SimResult.Outcome;
+                    return true;
+                })
+                .Select(monster =>
+                {
+                    // Our character might be able to punch above their weight
 
-            if (outcome.ShouldFight)
-            {
-                monsterCandidates.Add((outcome, monster));
-            }
-        }
+                    var outcome = FightSimulator
+                        .FindBestFightEquipmentIncludingInventory(
+                            character,
+                            gameState,
+                            monster,
+                            availableItems
+                        )
+                        .SimResult.Outcome;
 
-        monsterCandidates.Sort(
-            (a, b) =>
-                GetKillMonsterScore(character, b.Monster, b.Outcome)
-                - GetKillMonsterScore(character, a.Monster, a.Outcome)
-        );
+                    if (outcome.ShouldFight)
+                    {
+                        return new MonsterCandidate { Outcome = outcome, Monster = monster };
+                    }
+
+                    return null;
+                })
+                .OfType<MonsterCandidate>()
+                .OrderByDescending((a) => GetKillMonsterScore(character, a.Monster, a.Outcome)),
+        ];
 
         var bestMonsterCandidate = monsterCandidates
             .Select(candidate => candidate.Monster)
@@ -154,20 +158,20 @@ public class TrainCombat : CharacterJob
             monster
         );
 
-        float costForUsingPotions = outcome.PotionsUsed * 0.05f;
+        float costForUsingPotions = outcome.PotionsUsed * 0.10f;
 
         float costForTurns = outcome.TotalTurns * 0.002f;
 
         float totalCostFactor = 1 + (costForUsingPotions + costForTurns);
 
-        return (int)Math.Floor(xpForFight / totalCostFactor);
+        int result = (int)Math.Floor(xpForFight / totalCostFactor);
+
+        return result;
     }
 }
 
-record OutcomeCandidate
+record MonsterCandidate
 {
-    public required FightOutcome FightOutcome;
-    public required string MonsterCode;
-    public required int LevelDifference;
-    public required int MonsterLevel;
+    public required FightOutcome Outcome { get; init; }
+    public required MonsterSchema Monster { get; init; }
 }
