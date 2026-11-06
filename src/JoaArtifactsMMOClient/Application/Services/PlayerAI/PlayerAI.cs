@@ -1423,18 +1423,27 @@ public class PlayerAI
                 result.Monster.Code
             );
 
-            return new InitializeFightBoss(
-                new InitializeFightBossJobParams
-                {
-                    Character = Character,
-                    GameState = gameState,
-                    Amount = TrainCombat.AMOUNT_TO_KILL_BOSS,
-                    AllowUsingMaterialsFromInventory = true,
-                    ItemCode = null,
-                    Monster = result.Monster,
-                    OtherCharacters = result.OtherCharacters,
-                }
+            bool shouldBossGrind = await FightEfficiencyCalculator.IsBossGrindingWorthIt(
+                Character,
+                gameState,
+                result
             );
+
+            if (shouldBossGrind)
+            {
+                return new InitializeFightBoss(
+                    new InitializeFightBossJobParams
+                    {
+                        Character = Character,
+                        GameState = gameState,
+                        Amount = TrainCombat.AMOUNT_TO_KILL_BOSS,
+                        AllowUsingMaterialsFromInventory = true,
+                        ItemCode = null,
+                        Monster = result.Monster,
+                        OtherCharacters = result.OtherCharacters,
+                    }
+                );
+            }
         }
 
         return null;

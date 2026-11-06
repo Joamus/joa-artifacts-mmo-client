@@ -832,30 +832,6 @@ public class EquipmentService
         return itemType == "ring" ? 2 : 1;
     }
 
-    public static int FightLengthInSeconds(FightOutcome outcome)
-    {
-        return Math.Min(FightMonster.SECONDS_PER_TURN * outcome.TotalTurns, 5);
-    }
-
-    public static int TotalSecondsCostForFight(FightOutcome outcome)
-    {
-        int secondsToFight = FightLengthInSeconds(outcome);
-
-        int secondsPerPotion = FightMonster.ESTIMATED_SECOND_COST_PER_POTION * outcome.PotionsUsed;
-
-        int secondsToRest = outcome.AllPlayerParticipants.Sum(player =>
-        {
-            int timeToRestSeconds = FightSimulator.GetTimeToRest(
-                player.OriginalMaxHp,
-                player.Entity.Hp
-            );
-
-            return timeToRestSeconds;
-        });
-
-        return secondsToFight + secondsPerPotion + secondsToRest;
-    }
-
     public static float GetEfficiencyDifference(
         FightOutcome outcomeWithItem,
         FightOutcome outcomeWithoutItem
@@ -904,11 +880,11 @@ public class EquipmentService
 
     public static int CombatCostIfWinning(FightOutcome outcome)
     {
-        int combatLength = FightLengthInSeconds(outcome);
+        int combatLength = FightEfficiencyCalculator.FightLengthInSeconds(outcome);
 
         int secondsToRest = outcome.AllPlayerParticipants.Sum(player =>
         {
-            int timeToRestSeconds = FightSimulator.GetTimeToRest(
+            int timeToRestSeconds = FightEfficiencyCalculator.GetTimeToRest(
                 player.OriginalMaxHp,
                 player.Entity.Hp
             );
@@ -921,7 +897,7 @@ public class EquipmentService
 
     public static int CombatCostIfLosing(FightOutcome outcome)
     {
-        int combatLength = FightLengthInSeconds(outcome);
+        int combatLength = FightEfficiencyCalculator.FightLengthInSeconds(outcome);
 
         float monsterHpLostPercentage = Math.Max(1, (float)outcome.MonsterHp / outcome.Monster.Hp);
 

@@ -517,15 +517,7 @@ public class TrainSkill : CharacterJob
 
                 if (fightOutcome.ShouldFight)
                 {
-                    int monsterCost = CalculateMonsterCost(
-                        character,
-                        monster,
-                        isEventMonster,
-                        item,
-                        quantity,
-                        fightOutcome,
-                        eventCost
-                    );
+                    int monsterCost = CalculateMonsterCost(monster, item, quantity, fightOutcome);
 
                     qualifiedMonsters.Add((monster, fightOutcome, monsterCost));
                 }
@@ -552,13 +544,10 @@ public class TrainSkill : CharacterJob
                     if (bestOutcome is not null)
                     {
                         int monsterCost = CalculateMonsterCost(
-                            character,
                             monster,
-                            isEventMonster,
                             item,
                             quantity,
-                            fightOutcome,
-                            eventCost
+                            fightOutcome
                         );
 
                         qualifiedMonsters.Add((monster, bestOutcome.Outcome, monsterCost));
@@ -653,19 +642,16 @@ public class TrainSkill : CharacterJob
     }
 
     static int CalculateMonsterCost(
-        PlayerCharacter character,
         MonsterSchema monster,
-        bool isEventMonster,
         ItemSchema itemDrop,
         int itemAmount,
-        FightOutcome fightOutcome,
-        int eventCost
+        FightOutcome fightOutcome
     )
     {
         int fightsToGetItems =
             monster.Drops.FirstOrDefault(drop => drop.Code == itemDrop.Code)!.Rate * itemAmount;
 
-        int monsterFightDuration = EquipmentService.FightLengthInSeconds(fightOutcome);
+        int monsterFightDuration = FightEfficiencyCalculator.FightLengthInSeconds(fightOutcome);
 
         int secondsSpentToGetItems = monsterFightDuration * fightsToGetItems;
 

@@ -925,7 +925,7 @@ public class FightMonster : CharacterJob
                         bestFoodCandidate
                     );
 
-                    int timeToRestSeconds = FightSimulator.GetTimeToRest(
+                    int timeToRestSeconds = FightEfficiencyCalculator.GetTimeToRest(
                         character.Schema.MaxHp,
                         character.Schema.Hp
                     );

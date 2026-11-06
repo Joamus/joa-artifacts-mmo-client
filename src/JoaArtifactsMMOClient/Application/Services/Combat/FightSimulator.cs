@@ -18,6 +18,7 @@ public static class FightSimulator
     const float SHOULD_FIGHT_MAX_HP_PLAYER_THRESHOLD = 0.35f;
     const int MAX_AMOUNT_OF_USED_POTIONS = 6;
     const float POTION_USAGE_PER_LEVEL_FACTOR = 0.1f;
+    const float EXTRA_ALLOWED_POTIONS_FOR_BOSS_FIGHTS_PERCENTAGE = 0.20f;
     const double CRIT_DAMAGE_MODIFIER = 0.5;
     const double RESTORE_EFFECT_MAX_HP_THRESHOLD = 0.50;
     const double LOSE_AFTER_TURNS = 100;
@@ -1874,7 +1875,7 @@ public static class FightSimulator
             bool isBelowMaxPotionsUsed =
                 monster.Type == MonsterType.RaidBoss
                 || attackingPlayerPotionsUsed + otherAttackingPlayersPotionsUsed
-                    <= (maxAllowedPotionsUsed * 1.5);
+                    <= maxAllowedPotionsUsed;
 
             return primaryShouldFightDecision && isBelowMaxPotionsUsed;
         }
@@ -3077,16 +3078,6 @@ public static class FightSimulator
         };
     }
 
-    public static int GetTimeToRest(int maxHp, int hp)
-    {
-        double percentageHpMissing = (1 - (double)hp / maxHp) * 100;
-
-        int timeToRestSeconds = (int)
-            Math.Ceiling(percentageHpMissing / FightMonster.REST_HP_PERCENTAGE_PER_SEC);
-
-        return timeToRestSeconds;
-    }
-
     static DefenderDamageResult DefenderTakeDamage(
         FightSimParticipant attacker,
         FightSimParticipant defender,
@@ -3166,17 +3157,19 @@ public static class FightSimulator
 
     public static int GetAllowedAmountOfPotionsUsed(MonsterSchema monster)
     {
-        if (
-            monster.Level == MAX_LEVEL
-            || monster.Type == MonsterType.Boss
-            || monster.Type == MonsterType.RaidBoss
-        )
+        if (monster.Level == MAX_LEVEL || monster.Type == MonsterType.RaidBoss)
         {
             return MAX_AMOUNT_OF_USED_POTIONS;
         }
 
         int result = (int)
             Math.Min(monster.Level * POTION_USAGE_PER_LEVEL_FACTOR, MAX_AMOUNT_OF_USED_POTIONS);
+
+        if (monster.Type == MonsterType.Boss)
+        {
+            result = (int)
+                Math.Round(result * (1 + EXTRA_ALLOWED_POTIONS_FOR_BOSS_FIGHTS_PERCENTAGE));
+        }
 
         return result;
     }

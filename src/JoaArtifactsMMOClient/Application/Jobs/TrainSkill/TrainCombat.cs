@@ -132,7 +132,12 @@ public class TrainCombat : CharacterJob
                 })
                 .OfType<MonsterCandidate>()
                 .OrderByDescending(
-                    (a) => GetXpPerSecondForMonster(character, a.Monster, a.Outcome)
+                    (a) =>
+                        FightEfficiencyCalculator.GetXpPerHourForMonster(
+                            character,
+                            a.Monster,
+                            a.Outcome
+                        )
                 ),
         ];
 
@@ -146,25 +151,6 @@ public class TrainCombat : CharacterJob
         }
 
         return new FightMonster(character, gameState, bestMonsterCandidate.Code, AMOUNT_TO_KILL);
-    }
-
-    static double GetXpPerSecondForMonster(
-        PlayerCharacter character,
-        MonsterSchema monster,
-        FightOutcome outcome
-    )
-    {
-        int xpForFight = CalculationService.GetXpForFight(
-            character,
-            [character.Schema.Level],
-            monster
-        );
-
-        int fightLength = EquipmentService.FightLengthInSeconds(outcome);
-
-        double result = (double)xpForFight / fightLength;
-
-        return result;
     }
 }
 
