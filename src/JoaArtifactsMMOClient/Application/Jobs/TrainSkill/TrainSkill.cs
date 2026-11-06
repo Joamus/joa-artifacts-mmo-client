@@ -651,7 +651,7 @@ public class TrainSkill : CharacterJob
         int fightsToGetItems =
             monster.Drops.FirstOrDefault(drop => drop.Code == itemDrop.Code)!.Rate * itemAmount;
 
-        int monsterFightDuration = FightEfficiencyCalculator.FightLengthInSeconds(fightOutcome);
+        int monsterFightDuration = FightEfficiencyCalculator.TotalSecondsCostForFight(fightOutcome);
 
         int secondsSpentToGetItems = monsterFightDuration * fightsToGetItems;
 
