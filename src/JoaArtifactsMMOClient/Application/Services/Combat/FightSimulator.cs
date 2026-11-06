@@ -1552,8 +1552,7 @@ public static class FightSimulator
     {
         bool switchesTarget =
             !attacker.IsPlayer
-            && (monsterType == MonsterType.Boss)
-            && (monsterType == MonsterType.RaidBoss)
+            && (monsterType == MonsterType.Boss || monsterType == MonsterType.RaidBoss)
             && switchTargetCalculator.CalculateIsCriticalStrike();
 
         List<FightSimParticipant> defenderCandidates =
@@ -1563,23 +1562,51 @@ public static class FightSimulator
             ),
         ];
 
-        defenderCandidates.Sort(
-            (a, b) =>
+        var highestThreatFirstCandidates = defenderCandidates.OrderByDescending(
+            (a) =>
             {
-                if (switchesTarget)
-                {
-                    // Bosses have an x% chance to switch target to the lowest HP defender
-                    return a.Entity.Hp - b.Entity.Hp;
-                }
-                else
-                {
-                    // Bosses' default behaviour is to attack the defender with the highest threat
-                    return b.Entity.Threat - a.Entity.Threat;
-                }
+                // Bosses' default behaviour is to attack the defender with the highest threat
+                return a.Entity.Threat;
             }
         );
 
-        return defenderCandidates.FirstOrDefault();
+        if (switchesTarget)
+        {
+            var candidatesWithoutHighestThreat = highestThreatFirstCandidates.Skip(0);
+
+            var sortedLowestHpFirstCandidates = candidatesWithoutHighestThreat.OrderBy(
+                (a) => a.Entity.Hp
+            );
+
+            if (!sortedLowestHpFirstCandidates.Any())
+            {
+                return highestThreatFirstCandidates.FirstOrDefault();
+            }
+
+            var hpOfFirstCandidate =
+                candidatesWithoutHighestThreat.FirstOrDefault()?.Entity?.Hp ?? 0;
+
+            // If switching target, we prioritize the character with the lowest HP first.
+            if (
+                sortedLowestHpFirstCandidates.All(candidate =>
+                    candidate.Entity.Hp == hpOfFirstCandidate
+                )
+            )
+            {
+                // Bosses have an x% chance to switch target to the lowest HP defender
+                // In this case, there should only be two elements in the list, since you can only be 3 in a boss fight,
+                // so using first/last should be safe
+                var randomCandidatePick = switchTargetCalculator.CalculateIsCriticalStrike()
+                    ? sortedLowestHpFirstCandidates.FirstOrDefault()
+                    : sortedLowestHpFirstCandidates.LastOrDefault();
+
+                return randomCandidatePick;
+            }
+
+            return candidatesWithoutHighestThreat.FirstOrDefault();
+        }
+
+        return highestThreatFirstCandidates.FirstOrDefault();
     }
 
     public static int GetAmountToHeal(int healEffect, int entityHp, int entityMaxHp)
