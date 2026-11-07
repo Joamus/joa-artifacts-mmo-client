@@ -18,6 +18,7 @@ public class GambleTasksCoins : CharacterJob, ICharacterChoreJob
 {
     const int BASE_AMOUNT_TO_RESTOCK = 10;
     const float LEVEL_MULTIPLIER = 0.1f;
+    const int MIN_THRESHOLD_WHEN_ITEM_TASK_IS_NOT_DONE = 20;
     GambleTasksCoinsParams JobParams { get; init; }
 
     public GambleTasksCoins(
@@ -28,6 +29,14 @@ public class GambleTasksCoins : CharacterJob, ICharacterChoreJob
         : base(playerCharacter, gameState)
     {
         JobParams = GetJobParams(priority);
+
+        if (!gameState.Services.AchievementService.HasDoneItemTask)
+        {
+            JobParams = JobParams with
+            {
+                MinimumCoinsThreshold = MIN_THRESHOLD_WHEN_ITEM_TASK_IS_NOT_DONE,
+            };
+        }
     }
 
     protected override async Task<OneOf<AppError, None>> ExecuteAsync()
