@@ -12,7 +12,7 @@ namespace Application.Jobs;
 
 public class RestockResources : CharacterJob, ICharacterChoreJob
 {
-    const int RELEVANT_MIN_LEVEL_OFFSET = 12;
+    const int RELEVANT_MIN_LEVEL_OFFSET = 7;
 
     // We don't want to keep gathering resources to get low drop rate items
     const float RESTOCK_ITEM_DROP_RATE_THRESHOLD = 0.1f;
@@ -98,8 +98,6 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
                     bool relevantResource =
                         matchingItem.Type == "resource"
                         && ItemIsRelevantToRestock(matchingItem, levelRange)
-                        // && matchingItem.Level >= levelRange.Lowest
-                        // && matchingItem.Level <= levelRange.Highest
                         // We could do alchemy and fishing too, but those are covered by restocking food and potions
                         && (
                             matchingItem.Subtype == "woodcutting"
@@ -157,10 +155,10 @@ public class RestockResources : CharacterJob, ICharacterChoreJob
 
     static bool ItemIsRelevantToRestock(ItemSchema item, LevelRange levelRange)
     {
-        // Rough estimate, e.g. copper ore is relevant up to level 12ish - could be improved
+        // Rough estimate, e.g. copper ore is used up to lvl 5 items, which which should then be relevant for around a lvl 10-12 character
         int minRelevantLevel = Math.Min(
             item.Level + RELEVANT_MIN_LEVEL_OFFSET,
-            PlayerCharacter.MAX_LEVEL + 2
+            PlayerCharacter.MAX_LEVEL
         );
 
         return minRelevantLevel >= levelRange.Lowest && item.Level <= levelRange.Highest;
