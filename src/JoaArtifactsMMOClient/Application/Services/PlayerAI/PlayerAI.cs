@@ -104,10 +104,10 @@ public class PlayerAI
                 ?? await StartRaid()
                 ?? await GetMonsterJobIfCanCertainlyBeDone(false)
                 ?? await GetEventJob()
+                ?? await GetSeasonalOfferingJob()
                 ?? await GetBossGrindingJob()
                 ?? await EnsureAccessories()
                 ?? await EnsureTools()
-                ?? await GetSeasonalOfferingJob()
                 ?? (END_OF_SEASON ? await GetAchievementHuntingJob() : null)
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
