@@ -1466,11 +1466,26 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetSeasonalOfferingJob()
     {
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: GetSeasonalOfferingJob: Looking for seasonal offering job",
+            Name,
+            Character.Schema.Name
+        );
         if (!await SeasonalOfferingJob.CanDoJob(Character, gameState))
         {
+            Logger.LogInformation(
+                "{Name}: [{Character.Schema.Name}]: GetSeasonalOfferingJob: Looking for seasonal offering job - did not find a job",
+                Name,
+                Character.Schema.Name
+            );
             return null;
         }
 
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: GetSeasonalOfferingJob: Looking for seasonal offering job - found job",
+            Name,
+            Character.Schema.Name
+        );
         return new SeasonalOfferingJob(Character, gameState);
     }
 }
