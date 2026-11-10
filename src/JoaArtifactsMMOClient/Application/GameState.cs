@@ -148,6 +148,7 @@ public class GameState
         ShouldUpdatePendingItems = true;
 
         await Services.EventService.LoadActiveEvents(false, raidsChanged);
+        await ReloadCharacterData();
         Services.ApiRequester.ResetErrorRequestCounter();
         // Loading these for when events update
     }
@@ -187,6 +188,28 @@ public class GameState
         Characters = characters;
         CharacterAIs = characterAIs;
         logger.LogInformation("Loading characters - DONE;");
+    }
+
+    public async Task ReloadCharacterData()
+    {
+        // Bind the "Characters" section to a list of CharacterConfig
+        logger.LogInformation("Reloading character data...");
+
+        foreach (var character in Characters)
+        {
+            await LoadAndUpdateOffering(character);
+        }
+
+        logger.LogInformation("Reloading character data - DONE;");
+    }
+
+    public async Task LoadAndUpdateOffering(PlayerCharacter character)
+    {
+        var offerings = await Services.AccountRequester.GetCharacterSeasonalOfferings(
+            character.Name
+        );
+
+        character.OfferingData = offerings.Data;
     }
 
     public async Task LoadItems()
