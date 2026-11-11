@@ -84,18 +84,18 @@ public class SeasonalOfferingService
 
         bool pretendWeAreAllowedToTrainSkill = false;
 
-        Skill? skill = SkillService.GetSkillFromName(
-            offering.Category.GetDisplayName().FromPascalToSnakeCase()
-        );
+        // Skill? skill = SkillService.GetSkillFromName(
+        //     offering.Category.GetDisplayName().FromPascalToSnakeCase()
+        // );
 
         // Needed for things like mining/woodcutting, where CanObtainItem currently doesn't respect the "AllowTraining"
-        if (
-            skill is not null
-            && character.GetSkillLevel((Skill)skill) < (item.Craft?.Level ?? item.Level)
-        )
-        {
-            return false;
-        }
+        // if (
+        //     skill is not null
+        //     && character.GetSkillLevel((Skill)skill) < (item.Craft?.Level ?? item.Level)
+        // )
+        // {
+        //     return false;
+        // }
 
         // We want to
         // if (item.Craft is not null)
