@@ -89,7 +89,10 @@ public class SeasonalOfferingService
         );
 
         // Needed for things like mining/woodcutting, where CanObtainItem currently doesn't respect the "AllowTraining"
-        if (skill is not null && character.GetSkillLevel((Skill)skill) < item.Craft?.Level)
+        if (
+            skill is not null
+            && character.GetSkillLevel((Skill)skill) < (item.Craft?.Level ?? item.Level)
+        )
         {
             return false;
         }
