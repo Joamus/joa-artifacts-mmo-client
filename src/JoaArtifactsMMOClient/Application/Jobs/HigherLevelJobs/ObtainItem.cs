@@ -560,7 +560,6 @@ public class ObtainItem : CharacterJob
 
         foreach (var monster in monsters)
         {
-            // For now, we assume that we cannot fight monsters a few levels above us.
             if (ignoreContentCodes.Contains(monster.Code))
             {
                 continue;
@@ -568,7 +567,8 @@ public class ObtainItem : CharacterJob
 
             int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
 
-            if (monsterLevelToCompareTo > character.Schema.Level + 5)
+            // For now, we assume that we cannot fight monsters a few levels above us.
+            if (monsterLevelToCompareTo > character.Schema.Level)
             {
                 continue;
             }

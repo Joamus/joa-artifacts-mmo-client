@@ -104,10 +104,10 @@ public class PlayerAI
                 ?? await StartRaid()
                 ?? await GetMonsterJobIfCanCertainlyBeDone(false)
                 ?? await GetEventJob()
+                ?? await GetSeasonalOfferingJob()
                 ?? await GetBossGrindingJob()
                 ?? await EnsureAccessories()
                 ?? await EnsureTools()
-                ?? await GetSeasonalOfferingJob()
                 ?? (END_OF_SEASON ? await GetAchievementHuntingJob() : null)
                 // Support characters should have the chores higher up in their prio list
                 ?? (Character.CharacterConfig.SupportRole ? await GetChoreJob() : null)
@@ -1423,18 +1423,27 @@ public class PlayerAI
                 result.Monster.Code
             );
 
-            return new InitializeFightBoss(
-                new InitializeFightBossJobParams
-                {
-                    Character = Character,
-                    GameState = gameState,
-                    Amount = TrainCombat.AMOUNT_TO_KILL_BOSS,
-                    AllowUsingMaterialsFromInventory = true,
-                    ItemCode = null,
-                    Monster = result.Monster,
-                    OtherCharacters = result.OtherCharacters,
-                }
+            bool shouldBossGrind = await FightEfficiencyCalculator.IsBossGrindingWorthIt(
+                Character,
+                gameState,
+                result
             );
+
+            if (shouldBossGrind)
+            {
+                return new InitializeFightBoss(
+                    new InitializeFightBossJobParams
+                    {
+                        Character = Character,
+                        GameState = gameState,
+                        Amount = TrainCombat.AMOUNT_TO_KILL_BOSS,
+                        AllowUsingMaterialsFromInventory = true,
+                        ItemCode = null,
+                        Monster = result.Monster,
+                        OtherCharacters = result.OtherCharacters,
+                    }
+                );
+            }
         }
 
         return null;
@@ -1457,11 +1466,26 @@ public class PlayerAI
 
     async Task<CharacterJob?> GetSeasonalOfferingJob()
     {
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: GetSeasonalOfferingJob: Looking for seasonal offering job",
+            Name,
+            Character.Schema.Name
+        );
         if (!await SeasonalOfferingJob.CanDoJob(Character, gameState))
         {
+            Logger.LogInformation(
+                "{Name}: [{Character.Schema.Name}]: GetSeasonalOfferingJob: Looking for seasonal offering job - did not find a job",
+                Name,
+                Character.Schema.Name
+            );
             return null;
         }
 
+        Logger.LogInformation(
+            "{Name}: [{Character.Schema.Name}]: GetSeasonalOfferingJob: Looking for seasonal offering job - found job",
+            Name,
+            Character.Schema.Name
+        );
         return new SeasonalOfferingJob(Character, gameState);
     }
 }

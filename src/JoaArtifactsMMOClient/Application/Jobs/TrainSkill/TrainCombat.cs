@@ -102,7 +102,7 @@ public class TrainCombat : CharacterJob
 
                     if (
                         playerLevel > monsterLevelToCompareTo + PlayerActionService.LEVEL_DIFF_NO_XP
-                        || playerLevel + 5 < monsterLevelToCompareTo
+                        || playerLevel < monsterLevelToCompareTo
                     )
                     {
                         return false;
@@ -131,7 +131,14 @@ public class TrainCombat : CharacterJob
                     return null;
                 })
                 .OfType<MonsterCandidate>()
-                .OrderByDescending((a) => GetKillMonsterScore(character, a.Monster, a.Outcome)),
+                .OrderByDescending(
+                    (a) =>
+                        FightEfficiencyCalculator.GetXpPerHourForMonster(
+                            character,
+                            a.Monster,
+                            a.Outcome
+                        )
+                ),
         ];
 
         var bestMonsterCandidate = monsterCandidates
@@ -144,29 +151,6 @@ public class TrainCombat : CharacterJob
         }
 
         return new FightMonster(character, gameState, bestMonsterCandidate.Code, AMOUNT_TO_KILL);
-    }
-
-    static int GetKillMonsterScore(
-        PlayerCharacter character,
-        MonsterSchema monster,
-        FightOutcome outcome
-    )
-    {
-        int xpForFight = CalculationService.GetXpForFight(
-            character,
-            [character.Schema.Level],
-            monster
-        );
-
-        float costForUsingPotions = outcome.PotionsUsed * 0.10f;
-
-        float costForTurns = outcome.TotalTurns * 0.002f;
-
-        float totalCostFactor = 1 + (costForUsingPotions + costForTurns);
-
-        int result = (int)Math.Floor(xpForFight / totalCostFactor);
-
-        return result;
     }
 }
 

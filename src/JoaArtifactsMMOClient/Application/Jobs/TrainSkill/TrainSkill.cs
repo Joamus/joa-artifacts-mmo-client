@@ -517,15 +517,7 @@ public class TrainSkill : CharacterJob
 
                 if (fightOutcome.ShouldFight)
                 {
-                    int monsterCost = CalculateMonsterCost(
-                        character,
-                        monster,
-                        isEventMonster,
-                        item,
-                        quantity,
-                        fightOutcome,
-                        eventCost
-                    );
+                    int monsterCost = CalculateMonsterCost(monster, item, quantity, fightOutcome);
 
                     qualifiedMonsters.Add((monster, fightOutcome, monsterCost));
                 }
@@ -552,13 +544,10 @@ public class TrainSkill : CharacterJob
                     if (bestOutcome is not null)
                     {
                         int monsterCost = CalculateMonsterCost(
-                            character,
                             monster,
-                            isEventMonster,
                             item,
                             quantity,
-                            fightOutcome,
-                            eventCost
+                            fightOutcome
                         );
 
                         qualifiedMonsters.Add((monster, bestOutcome.Outcome, monsterCost));
@@ -653,39 +642,20 @@ public class TrainSkill : CharacterJob
     }
 
     static int CalculateMonsterCost(
-        PlayerCharacter character,
         MonsterSchema monster,
-        bool isEventMonster,
         ItemSchema itemDrop,
         int itemAmount,
-        FightOutcome fightOutcome,
-        int eventCost
+        FightOutcome fightOutcome
     )
     {
         int fightsToGetItems =
             monster.Drops.FirstOrDefault(drop => drop.Code == itemDrop.Code)!.Rate * itemAmount;
 
-        int baseMonsterCost =
-            (monster.Type == MonsterType.Boss || monster.Type == MonsterType.RaidBoss)
-                ? MONSTER_BOSS_COST
-                : MONSTER_COST;
+        int monsterFightDuration = FightEfficiencyCalculator.TotalSecondsCostForFight(fightOutcome);
 
-        int monsterCost =
-            monster.Level < character.Schema.Level - CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST
-                ? 0
-                : baseMonsterCost;
+        int secondsSpentToGetItems = monsterFightDuration * fightsToGetItems;
 
-        if (isEventMonster)
-        {
-            monsterCost += eventCost;
-        }
-
-        float turnCost =
-            ((float)fightOutcome!.TotalTurns * COMBAT_TURN_COST) * monsterCost * fightsToGetItems;
-
-        int score = (int)Math.Round(turnCost);
-
-        return score;
+        return secondsSpentToGetItems;
     }
 }
 

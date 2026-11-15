@@ -84,22 +84,22 @@ public class GatherResourceItem : CharacterJob
 
         Skill skill = resource.Skill;
 
-        List<CharacterJob> itemJobs = await GetItemJobsIfBetterToolInBank(
-            Character,
-            gameState,
-            skill
-        );
+        // List<CharacterJob> itemJobs = await GetItemJobsIfBetterToolInBank(
+        //     Character,
+        //     gameState,
+        //     skill
+        // );
 
-        if (itemJobs.Count > 0)
-        {
-            logger.LogInformation(
-                $"{JobName}: [{Character.Schema.Name}] found job to withdraw better tool to gather {resource.Name}"
-            );
+        // if (itemJobs.Count > 0)
+        // {
+        //     logger.LogInformation(
+        //         $"{JobName}: [{Character.Schema.Name}] found job to withdraw better tool to gather {resource.Name}"
+        //     );
 
-            await Character.QueueJobsBefore(Id, itemJobs);
-            Status = JobStatus.Suspend;
-            return new None();
-        }
+        //     await Character.QueueJobsBefore(Id, itemJobs);
+        //     Status = JobStatus.Suspend;
+        //     return new None();
+        // }
 
         int characterSkillLevel = 0;
 
@@ -375,12 +375,15 @@ public class GatherResourceItem : CharacterJob
             }
         }
 
-        string skillName = SkillService.GetSkillName(skill);
+        string effectName = SkillService
+            .SkillToGatheringEffect(skill)
+            .GetDisplayName()
+            .FromPascalToSnakeCase();
 
         // Remember, a -10 gather effect is worse than a -20
 
-        CalculationService.SortItemsBasedOnEffect(availableToolsOnCharacter, skillName, true);
-        CalculationService.SortItemsBasedOnEffect(toolsFromBank, skillName, true);
+        CalculationService.SortItemsBasedOnEffect(availableToolsOnCharacter, effectName, true);
+        CalculationService.SortItemsBasedOnEffect(toolsFromBank, effectName, true);
 
         var bestItemOnCharacter = availableToolsOnCharacter.FirstOrDefault();
         var bestItemInBank = toolsFromBank.FirstOrDefault();
@@ -406,11 +409,11 @@ public class GatherResourceItem : CharacterJob
         if (bestItemOnCharacter.Code != bestItemInBank.Code)
         {
             int bestItemOnCharacterEffect = bestItemOnCharacter
-                .Effects.First(effect => effect.Code == skillName)
+                .Effects.First(effect => effect.Code == effectName)
                 .Value;
 
             int bestItemInBankEffect = bestItemInBank
-                .Effects.First(effect => effect.Code == skillName)
+                .Effects.First(effect => effect.Code == effectName)
                 .Value;
 
             if (bestItemInBankEffect < bestItemOnCharacterEffect)
