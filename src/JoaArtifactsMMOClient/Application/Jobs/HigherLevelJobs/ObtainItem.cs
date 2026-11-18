@@ -15,6 +15,10 @@ namespace Application.Jobs;
 
 public class ObtainItem : CharacterJob
 {
+    static readonly List<string> ALLOWED_LOW_LEVEL_TASK_ITEMS = ["satchel"];
+
+    const int MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS = 30;
+
     public bool AllowUsingMaterialsFromBank { get; set; } = true;
 
     public bool AllowUsingMaterialsFromInventory { get; set; } = true;
@@ -239,6 +243,11 @@ public class ObtainItem : CharacterJob
         if (matchingItem is null)
         {
             return new AppError($"Could not find item with code {code} - could not gather it");
+        }
+
+        if (!IsItemAllowedToBeCrafted(matchingItem, gameState.ItemsDict))
+        {
+            return new AppError($"Item is qualified to spend task items on - it's too low level");
         }
 
         // We have the item already, no need to get it again
@@ -1304,6 +1313,20 @@ public class ObtainItem : CharacterJob
                 }
             );
         }
+    }
+
+    static bool IsItemAllowedToBeCrafted(ItemSchema item, Dictionary<string, ItemSchema> allItems)
+    {
+        static bool IsAllowed(ItemSchema item)
+        {
+            // A bit hacky,
+            return ALLOWED_LOW_LEVEL_TASK_ITEMS.Contains(item.Code)
+                || item.Subtype != "task"
+                || item.Level >= MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS;
+        }
+
+        return IsAllowed(item)
+            && (item.Craft is null || item.Craft.Items.All(item => IsAllowed(allItems[item.Code])));
     }
 }
 
