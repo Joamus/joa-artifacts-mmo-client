@@ -381,12 +381,7 @@ public static class ItemService
             }
         }
 
-        if (resourceWithDropRate is not null)
-        {
-            return resourceWithDropRate;
-        }
-
-        return null;
+        return resourceWithDropRate;
     }
 
     public static bool ArePotionEffectsOverlapping(
@@ -862,7 +857,8 @@ public static class ItemService
                 bool isOnlyUsedForFood =
                     gameState
                         .CraftingLookupDict.GetValueOrDefault(material.Code)
-                        ?.All(otherRecipe => otherRecipe.Subtype == "food") ?? true;
+                        ?.All(otherRecipe => otherRecipe.Subtype == "food")
+                    ?? true;
 
                 return isOnlyUsedForFood;
             });

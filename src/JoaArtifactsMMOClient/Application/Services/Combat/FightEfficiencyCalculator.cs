@@ -8,7 +8,7 @@ namespace Application.Services;
 
 public static class FightEfficiencyCalculator
 {
-    const float PERCENTAGE_IMPROVEMENT_BOSS_FIGHT_SHOULD_BE = 0.10f;
+    const float PERCENTAGE_IMPROVEMENT_BOSS_FIGHT_SHOULD_BE = 0.40f;
     public const int SECONDS_PER_TURN = 2;
     public const int ESTIMATED_SECOND_COST_PER_POTION = 60;
     public const int MINIMUM_FIGHT_DURATION = 5;
