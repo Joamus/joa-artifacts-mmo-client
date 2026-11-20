@@ -522,8 +522,6 @@ public class PlayerActionService
     )
     {
         var schemaWithNewItem = characterSchema with { };
-        var type = schemaWithNewItem.GetType();
-
         ItemSchema? equippedItem = currentItem;
 
         int initialHp = schemaWithNewItem.Hp;
@@ -532,12 +530,14 @@ public class PlayerActionService
         {
             foreach (var effect in equippedItem!.Effects)
             {
-                var matchingProperty = type.GetProperty(effect.Code.FromSnakeToPascalCase());
+                string effectName = effect.Code;
 
-                if (matchingProperty is not null)
+                var currentValue = GetStatValue(schemaWithNewItem, effectName);
+
+                // Happens if an item isn't directly a stat, e.g. heal, boost_dmg.
+                if (currentValue is not null)
                 {
-                    int currentValue = (int)matchingProperty.GetValue(schemaWithNewItem)!;
-                    matchingProperty.SetValue(schemaWithNewItem, currentValue - effect.Value);
+                    SetStatValue(schemaWithNewItem, effectName, (int)currentValue - effect.Value);
                 }
             }
         }
@@ -546,28 +546,31 @@ public class PlayerActionService
         {
             foreach (var effect in newItem.Effects)
             {
-                var matchingProperty = type.GetProperty(effect.Code.FromSnakeToPascalCase());
+                string effectName = effect.Code;
 
-                if (matchingProperty is not null)
+                var currentValue = GetStatValue(schemaWithNewItem, effectName);
+
+                if (currentValue is not null)
                 {
-                    int currentValue = (int)matchingProperty.GetValue(schemaWithNewItem)!;
-                    matchingProperty.SetValue(schemaWithNewItem, currentValue + effect.Value);
+                    SetStatValue(schemaWithNewItem, effectName, (int)currentValue + effect.Value);
                 }
             }
         }
 
-        /**
-        * Change the equipped item in the schema, both for good measure, so we can read the schema to see which items we have equipped,
-        * but also so items like potions and runes will be simulated correctly, because the effects are not stat boosts, but need to be "calculated".
-        * TODO: Should probably find a better way to do this, than to use reflection, for performance reasons
-        */
-        type.GetProperty(itemSlot)!
-            .SetValue(schemaWithNewItem, newItem is not null ? newItem.Code : "");
+        SetItemSlot(schemaWithNewItem, itemSlot, newItem?.Code ?? "");
 
         // For utility items
         if (amount is not null && newItem?.Type == "utility")
         {
-            type.GetProperty(itemSlot + "Quantity")!.SetValue(schemaWithNewItem, amount);
+            switch (itemSlot)
+            {
+                case "Utility1Slot":
+                    schemaWithNewItem.Utility1SlotQuantity = (int)amount;
+                    break;
+                case "Utility2Slot":
+                    schemaWithNewItem.Utility2SlotQuantity = (int)amount;
+                    break;
+            }
         }
 
         /**
@@ -1250,6 +1253,319 @@ public class PlayerActionService
         }
 
         return null;
+    }
+
+    public static int? GetStatValue(CharacterSchema characterSchema, string snakeCasedPropertyName)
+    {
+        int? value = snakeCasedPropertyName switch
+        {
+            SnakeCasedCharacterProperties.Xp => characterSchema.Xp,
+            SnakeCasedCharacterProperties.MaxXp => characterSchema.MaxXp,
+            SnakeCasedCharacterProperties.Gold => characterSchema.Gold,
+            SnakeCasedCharacterProperties.Speed => characterSchema.Speed,
+            SnakeCasedCharacterProperties.MiningLevel => characterSchema.MiningLevel,
+            SnakeCasedCharacterProperties.MiningXp => characterSchema.MiningXp,
+            SnakeCasedCharacterProperties.MiningMaxXp => characterSchema.MiningMaxXp,
+            SnakeCasedCharacterProperties.WoodcuttingLevel => characterSchema.WoodcuttingLevel,
+            SnakeCasedCharacterProperties.WoodcuttingXp => characterSchema.WoodcuttingXp,
+            SnakeCasedCharacterProperties.WoodcuttingMaxXp => characterSchema.WoodcuttingMaxXp,
+            SnakeCasedCharacterProperties.FishingLevel => characterSchema.FishingLevel,
+            SnakeCasedCharacterProperties.FishingXp => characterSchema.FishingXp,
+            SnakeCasedCharacterProperties.FishingMaxXp => characterSchema.FishingMaxXp,
+            SnakeCasedCharacterProperties.WeaponcraftingLevel =>
+                characterSchema.WeaponcraftingLevel,
+            SnakeCasedCharacterProperties.WeaponcraftingXp => characterSchema.WeaponcraftingXp,
+            SnakeCasedCharacterProperties.WeaponcraftingMaxXp =>
+                characterSchema.WeaponcraftingMaxXp,
+            SnakeCasedCharacterProperties.GearcraftingLevel => characterSchema.GearcraftingLevel,
+            SnakeCasedCharacterProperties.GearcraftingXp => characterSchema.GearcraftingXp,
+            SnakeCasedCharacterProperties.GearcraftingMaxXp => characterSchema.GearcraftingMaxXp,
+            SnakeCasedCharacterProperties.CookingLevel => characterSchema.CookingLevel,
+            SnakeCasedCharacterProperties.CookingXp => characterSchema.CookingXp,
+            SnakeCasedCharacterProperties.CookingMaxXp => characterSchema.CookingMaxXp,
+            SnakeCasedCharacterProperties.AlchemyLevel => characterSchema.AlchemyLevel,
+            SnakeCasedCharacterProperties.AlchemyXp => characterSchema.AlchemyXp,
+            SnakeCasedCharacterProperties.AlchemyMaxXp => characterSchema.AlchemyMaxXp,
+            SnakeCasedCharacterProperties.JewelrycraftingLevel =>
+                characterSchema.JewelrycraftingLevel,
+            SnakeCasedCharacterProperties.JewelrycraftingXp => characterSchema.JewelrycraftingXp,
+            SnakeCasedCharacterProperties.JewelrycraftingMaxXp =>
+                characterSchema.JewelrycraftingMaxXp,
+            SnakeCasedCharacterProperties.Haste => characterSchema.Haste,
+            SnakeCasedCharacterProperties.Wisdom => characterSchema.Wisdom,
+            SnakeCasedCharacterProperties.Prospecting => characterSchema.Prospecting,
+            SnakeCasedCharacterProperties.Level => characterSchema.Level,
+            SnakeCasedCharacterProperties.Hp => characterSchema.Hp,
+            SnakeCasedCharacterProperties.MaxHp => characterSchema.MaxHp,
+            SnakeCasedCharacterProperties.AttackFire => characterSchema.AttackFire,
+            SnakeCasedCharacterProperties.AttackEarth => characterSchema.AttackEarth,
+            SnakeCasedCharacterProperties.AttackWater => characterSchema.AttackWater,
+            SnakeCasedCharacterProperties.AttackAir => characterSchema.AttackAir,
+            SnakeCasedCharacterProperties.ResFire => characterSchema.ResFire,
+            SnakeCasedCharacterProperties.ResEarth => characterSchema.ResEarth,
+            SnakeCasedCharacterProperties.ResWater => characterSchema.ResWater,
+            SnakeCasedCharacterProperties.ResAir => characterSchema.ResAir,
+            SnakeCasedCharacterProperties.Dmg => characterSchema.Dmg,
+            SnakeCasedCharacterProperties.DmgFire => characterSchema.DmgFire,
+            SnakeCasedCharacterProperties.DmgEarth => characterSchema.DmgEarth,
+            SnakeCasedCharacterProperties.DmgWater => characterSchema.DmgWater,
+            SnakeCasedCharacterProperties.DmgAir => characterSchema.DmgAir,
+            SnakeCasedCharacterProperties.CriticalStrike => characterSchema.CriticalStrike,
+            SnakeCasedCharacterProperties.Initiative => characterSchema.Initiative,
+            SnakeCasedCharacterProperties.Threat => characterSchema.Threat,
+            _ => null,
+        };
+
+        return value;
+    }
+
+    public static void SetStatValue(
+        CharacterSchema characterSchema,
+        string snakeCasedPropertyName,
+        int value
+    )
+    {
+        switch (snakeCasedPropertyName)
+        {
+            case SnakeCasedCharacterProperties.Xp:
+                characterSchema.Xp = value;
+                break;
+            case SnakeCasedCharacterProperties.MaxXp:
+                characterSchema.MaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.Gold:
+                characterSchema.Gold = value;
+                break;
+            case SnakeCasedCharacterProperties.Speed:
+                characterSchema.Speed = value;
+                break;
+            case SnakeCasedCharacterProperties.MiningLevel:
+                characterSchema.MiningLevel = value;
+                break;
+            case SnakeCasedCharacterProperties.MiningXp:
+                characterSchema.MiningXp = value;
+                break;
+            case SnakeCasedCharacterProperties.MiningMaxXp:
+                characterSchema.MiningMaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.WoodcuttingLevel:
+                characterSchema.WoodcuttingLevel = value;
+                break;
+            case SnakeCasedCharacterProperties.WoodcuttingXp:
+                characterSchema.WoodcuttingXp = value;
+                break;
+            case SnakeCasedCharacterProperties.WoodcuttingMaxXp:
+                characterSchema.WoodcuttingMaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.FishingLevel:
+                characterSchema.FishingLevel = value;
+                break;
+            case SnakeCasedCharacterProperties.FishingXp:
+                characterSchema.FishingXp = value;
+                break;
+            case SnakeCasedCharacterProperties.FishingMaxXp:
+                characterSchema.FishingMaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.WeaponcraftingLevel:
+                characterSchema.WeaponcraftingLevel = value;
+                break;
+            case SnakeCasedCharacterProperties.WeaponcraftingXp:
+                characterSchema.WeaponcraftingXp = value;
+                break;
+            case SnakeCasedCharacterProperties.WeaponcraftingMaxXp:
+                characterSchema.WeaponcraftingMaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.GearcraftingLevel:
+                characterSchema.GearcraftingLevel = value;
+                break;
+            case SnakeCasedCharacterProperties.GearcraftingXp:
+                characterSchema.GearcraftingXp = value;
+                break;
+            case SnakeCasedCharacterProperties.GearcraftingMaxXp:
+                characterSchema.GearcraftingMaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.CookingLevel:
+                characterSchema.CookingLevel = value;
+                break;
+            case SnakeCasedCharacterProperties.CookingXp:
+                characterSchema.CookingXp = value;
+                break;
+            case SnakeCasedCharacterProperties.CookingMaxXp:
+                characterSchema.CookingMaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.AlchemyLevel:
+                characterSchema.AlchemyLevel = value;
+                break;
+            case SnakeCasedCharacterProperties.AlchemyXp:
+                characterSchema.AlchemyXp = value;
+                break;
+            case SnakeCasedCharacterProperties.AlchemyMaxXp:
+                characterSchema.AlchemyMaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.JewelrycraftingLevel:
+                characterSchema.JewelrycraftingLevel = value;
+                break;
+            case SnakeCasedCharacterProperties.JewelrycraftingXp:
+                characterSchema.JewelrycraftingXp = value;
+                break;
+            case SnakeCasedCharacterProperties.JewelrycraftingMaxXp:
+                characterSchema.JewelrycraftingMaxXp = value;
+                break;
+            case SnakeCasedCharacterProperties.Haste:
+                characterSchema.Haste = value;
+                break;
+            case SnakeCasedCharacterProperties.Wisdom:
+                characterSchema.Wisdom = value;
+                break;
+            case SnakeCasedCharacterProperties.Prospecting:
+                characterSchema.Prospecting = value;
+                break;
+            case SnakeCasedCharacterProperties.Level:
+                characterSchema.Level = value;
+                break;
+            case SnakeCasedCharacterProperties.Hp:
+                characterSchema.Hp = value;
+                break;
+            case SnakeCasedCharacterProperties.MaxHp:
+                characterSchema.MaxHp = value;
+                break;
+            case SnakeCasedCharacterProperties.AttackFire:
+                characterSchema.AttackFire = value;
+                break;
+            case SnakeCasedCharacterProperties.AttackEarth:
+                characterSchema.AttackEarth = value;
+                break;
+            case SnakeCasedCharacterProperties.AttackWater:
+                characterSchema.AttackWater = value;
+                break;
+            case SnakeCasedCharacterProperties.AttackAir:
+                characterSchema.AttackAir = value;
+                break;
+            case SnakeCasedCharacterProperties.ResFire:
+                characterSchema.ResFire = value;
+                break;
+            case SnakeCasedCharacterProperties.ResEarth:
+                characterSchema.ResEarth = value;
+                break;
+            case SnakeCasedCharacterProperties.ResWater:
+                characterSchema.ResWater = value;
+                break;
+            case SnakeCasedCharacterProperties.ResAir:
+                characterSchema.ResAir = value;
+                break;
+            case SnakeCasedCharacterProperties.Dmg:
+                characterSchema.Dmg = value;
+                break;
+            case SnakeCasedCharacterProperties.DmgFire:
+                characterSchema.DmgFire = value;
+                break;
+            case SnakeCasedCharacterProperties.DmgEarth:
+                characterSchema.DmgEarth = value;
+                break;
+            case SnakeCasedCharacterProperties.DmgWater:
+                characterSchema.DmgWater = value;
+                break;
+            case SnakeCasedCharacterProperties.DmgAir:
+                characterSchema.DmgAir = value;
+                break;
+            case SnakeCasedCharacterProperties.CriticalStrike:
+                characterSchema.CriticalStrike = value;
+                break;
+            case SnakeCasedCharacterProperties.Initiative:
+                characterSchema.Initiative = value;
+                break;
+            case SnakeCasedCharacterProperties.Threat:
+                characterSchema.Threat = value;
+                break;
+        }
+    }
+
+    public static string GetItemSlotContent(
+        CharacterSchema characterSchema,
+        string pascalCasedPropertyName
+    )
+    {
+        string value = pascalCasedPropertyName switch
+        {
+            "WeaponSlot" => characterSchema.WeaponSlot,
+            "RuneSlot" => characterSchema.RuneSlot,
+            "ShieldSlot" => characterSchema.ShieldSlot,
+            "HelmetSlot" => characterSchema.HelmetSlot,
+            "BodyArmorSlot" => characterSchema.BodyArmorSlot,
+            "LegArmorSlot" => characterSchema.LegArmorSlot,
+            "BootsSlot" => characterSchema.BootsSlot,
+            "Ring1Slot" => characterSchema.Ring1Slot,
+            "Ring2Slot" => characterSchema.Ring2Slot,
+            "AmuletSlot" => characterSchema.AmuletSlot,
+            "Artifact1Slot" => characterSchema.Artifact1Slot,
+            "Artifact2Slot" => characterSchema.Artifact2Slot,
+            "Artifact3Slot" => characterSchema.Artifact3Slot,
+            "Utility1Slot" => characterSchema.Utility1Slot,
+            "Utility2Slot" => characterSchema.Utility2Slot,
+            _ => "",
+        };
+
+        return value;
+    }
+
+    public static void SetItemSlot(
+        CharacterSchema characterSchema,
+        string pascalCasedPropertyName,
+        string newItem
+    )
+    {
+        switch (pascalCasedPropertyName)
+        {
+            case "WeaponSlot":
+                characterSchema.WeaponSlot = newItem;
+                break;
+            case "RuneSlot":
+                characterSchema.RuneSlot = newItem;
+                break;
+            case "ShieldSlot":
+                characterSchema.ShieldSlot = newItem;
+                break;
+            case "HelmetSlot":
+                characterSchema.HelmetSlot = newItem;
+                break;
+            case "BodyArmorSlot":
+                characterSchema.BodyArmorSlot = newItem;
+                break;
+            case "LegArmorSlot":
+                characterSchema.LegArmorSlot = newItem;
+                break;
+            case "BootsSlot":
+                characterSchema.BootsSlot = newItem;
+                break;
+            case "Ring1Slot":
+                characterSchema.Ring1Slot = newItem;
+                break;
+            case "Ring2Slot":
+                characterSchema.Ring2Slot = newItem;
+                break;
+            case "AmuletSlot":
+                characterSchema.AmuletSlot = newItem;
+                break;
+            case "Artifact1Slot":
+                characterSchema.Artifact1Slot = newItem;
+                break;
+            case "Artifact2Slot":
+                characterSchema.Artifact2Slot = newItem;
+                break;
+            case "Artifact3Slot":
+                characterSchema.Artifact3Slot = newItem;
+                break;
+            case "Utility1Slot":
+                characterSchema.Utility1Slot = newItem;
+                break;
+            case "Utility2Slot":
+                characterSchema.Utility2Slot = newItem;
+                break;
+            default:
+                throw new AppError(
+                    $"Could not find slot {pascalCasedPropertyName} - could not set item slot"
+                );
+        }
     }
 }
 
