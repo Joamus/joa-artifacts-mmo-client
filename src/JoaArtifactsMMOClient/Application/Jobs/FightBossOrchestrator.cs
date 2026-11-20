@@ -7,6 +7,7 @@ using Application.Errors;
 using Application.Services;
 using Applicaton.Jobs;
 using Applicaton.Services.FightSimulator;
+using Microsoft.AspNetCore.DataProtection.KeyManagement.Internal;
 using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
@@ -1199,16 +1200,20 @@ public class FightBossOrchestrator
                 return characterAverageLevelCombinations.Exists(averageLevelCombination =>
                 {
                     int lowestLevelBound =
-                        averageLevelCombination - PlayerActionService.LEVEL_DIFF_NO_XP;
+                        averageLevelCombination - CalculationService.LEVEL_DIFF_NO_XP;
 
                     int highestLevelBound =
-                        averageLevelCombination + PlayerActionService.LEVEL_DIFF_NO_XP;
+                        averageLevelCombination + CalculationService.LEVEL_DIFF_NO_XP;
 
                     int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
 
                     bool isInLevelRange =
                         monsterLevelToCompareTo >= lowestLevelBound
-                        && monsterLevelToCompareTo <= highestLevelBound;
+                        && monsterLevelToCompareTo <= highestLevelBound
+                        && CalculationService.DoesActivityGiveXp(
+                            averageLevelCombination,
+                            monsterLevelToCompareTo
+                        );
 
                     return isInLevelRange;
                 });

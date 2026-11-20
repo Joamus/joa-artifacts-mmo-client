@@ -22,7 +22,6 @@ namespace Application.Character;
 public class PlayerActionService
 {
     public static readonly int MAX_AMOUNT_UTILITY_SLOT = 100;
-    public static readonly int LEVEL_DIFF_NO_XP = 10;
     public const int QUANTIY_OF_EACH_TELEPORT_POTION = 2;
     private const int MIN_FREE_BANK_SLOTS = 10;
     private readonly GameState gameState;
@@ -1198,7 +1197,9 @@ public class PlayerActionService
             return Effect.Prospecting;
         }
 
-        return skillLevel - resourceLevel > LEVEL_DIFF_NO_XP ? Effect.Prospecting : Effect.Wisdom;
+        return CalculationService.DoesActivityGiveXp(skillLevel, resourceLevel)
+            ? Effect.Wisdom
+            : Effect.Prospecting;
     }
 
     public async Task BeforeMoveHook(string goingToContentCode, MapSchema currentMap)

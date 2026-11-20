@@ -824,12 +824,7 @@ public static class ItemService
             );
         }
 
-        if (characterLevel > entityLevel + PlayerActionService.LEVEL_DIFF_NO_XP)
-        {
-            return Effect.Prospecting;
-        }
-
-        return Effect.Wisdom;
+        return PlayerActionService.GetBestNonCombatEffectWithLevelDiff(characterLevel, entityLevel);
     }
 
     public static bool IsItemCookedFish(ItemSchema item, GameState gameState)

@@ -13,6 +13,7 @@ public static class FightEfficiencyCalculator
     public const int ESTIMATED_SECOND_COST_PER_POTION = 60;
     public const int MINIMUM_FIGHT_DURATION = 5;
     public const int REST_HP_PERCENTAGE_PER_SEC = 1;
+    public const int MIN_REST_TIME_SECONDS = 3;
 
     public static async ValueTask<bool> IsBossGrindingWorthIt(
         PlayerCharacter character,
@@ -88,11 +89,16 @@ public static class FightEfficiencyCalculator
 
     public static int GetTimeToRest(int maxHp, int hp)
     {
+        if (hp >= maxHp)
+        {
+            return 0;
+        }
+
         double percentageHpMissing = (1 - (double)hp / maxHp) * 100;
 
         int timeToRestSeconds = (int)Math.Ceiling(percentageHpMissing / REST_HP_PERCENTAGE_PER_SEC);
 
-        return timeToRestSeconds;
+        return Math.Max(timeToRestSeconds, MIN_REST_TIME_SECONDS);
     }
 
     public static int TotalSecondsCostForFight(FightOutcome outcome)

@@ -102,7 +102,7 @@ public static class CraftingService
         int wisdom = 0
     )
     {
-        if (skillLevel > item.Level + PlayerActionService.LEVEL_DIFF_NO_XP)
+        if (!CalculationService.DoesActivityGiveXp(skillLevel, item.Level))
         {
             return 0;
         }

@@ -97,19 +97,9 @@ public class TrainCombat : CharacterJob
         [
             .. gameState
                 .AvailableMonsters.Where(monster =>
-                {
-                    int monsterLevelToCompareTo = MonsterService.GetCappedLevel(monster.Level);
-
-                    if (
-                        playerLevel > monsterLevelToCompareTo + PlayerActionService.LEVEL_DIFF_NO_XP
-                        || playerLevel < monsterLevelToCompareTo
-                    )
-                    {
-                        return false;
-                    }
-
-                    return true;
-                })
+                    monster.Level <= playerLevel
+                    && CalculationService.DoesActivityGiveXp(playerLevel, monster.Level)
+                )
                 .Select(monster =>
                 {
                     // Our character might be able to punch above their weight

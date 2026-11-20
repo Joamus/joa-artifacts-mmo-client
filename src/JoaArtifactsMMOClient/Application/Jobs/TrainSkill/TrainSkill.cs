@@ -29,8 +29,6 @@ public class TrainSkill : CharacterJob
 
     static readonly ReadOnlyCollection<string> MostExpensiveItemSubtypes = ["task", "event"];
 
-    public static int LEVEL_DIFF_FOR_NO_XP = 10;
-
     public Skill Skill { get; init; }
 
     private string SkillName { get; set; }
@@ -191,8 +189,8 @@ public class TrainSkill : CharacterJob
                     if (
                         item.Craft is not null
                         && item.Craft.Skill == skill
-                        && item.Level <= skillLevel
-                        && (skillLevel - item.Craft.Level) <= LEVEL_DIFF_FOR_NO_XP
+                        && item.Craft.Level <= skillLevel
+                        && CalculationService.DoesActivityGiveXp(skillLevel, item.Craft.Level)
                     )
                     {
                         if (!await Character.PlayerActionService.CanObtainItem(item))

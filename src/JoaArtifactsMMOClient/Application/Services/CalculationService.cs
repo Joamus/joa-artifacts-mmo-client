@@ -8,6 +8,8 @@ namespace Application.Services;
 
 public static class CalculationService
 {
+    public static readonly int LEVEL_DIFF_NO_XP = 10;
+
     public static int CalculateDistanceToMap(int originX, int originY, int mapX, int mapY)
     {
         int xDiff = Math.Max(mapX, originX) - Math.Min(mapX, originX);
@@ -77,9 +79,10 @@ public static class CalculationService
             (float)allFightingCharacterLevels.Sum(level => level) / allFightingCharacterLevels.Count
         );
 
-        float wisdomBonus = 1 + (character.Schema.Wisdom / 100);
+        // Each wisdom point gives +0.1% XP
+        float wisdomBonus = 1 + character.Schema.Wisdom * 0.001f;
 
-        if (averagePlayerLevel > monster.Level + PlayerActionService.LEVEL_DIFF_NO_XP)
+        if (!DoesActivityGiveXp((int)averagePlayerLevel, monster.Level))
         {
             return 0;
         }
@@ -118,5 +121,15 @@ public static class CalculationService
             );
 
         return xp;
+    }
+
+    public static bool DoesActivityGiveXp(int playerLevel, int activityLevel)
+    {
+        if (activityLevel > playerLevel)
+        {
+            return true;
+        }
+
+        return playerLevel - activityLevel <= LEVEL_DIFF_NO_XP;
     }
 }
