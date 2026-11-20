@@ -880,7 +880,7 @@ public class EquipmentService
 
     public static int CombatCostIfWinning(FightOutcome outcome)
     {
-        int combatLength = FightEfficiencyCalculator.FightLengthInSeconds(outcome);
+        int combatLength = FightEfficiencyCalculator.TotalSecondsCostForFight(outcome);
 
         int secondsToRest = outcome.AllPlayerParticipants.Sum(player =>
         {
@@ -897,7 +897,7 @@ public class EquipmentService
 
     public static int CombatCostIfLosing(FightOutcome outcome)
     {
-        int combatLength = FightEfficiencyCalculator.FightLengthInSeconds(outcome);
+        int combatLength = FightEfficiencyCalculator.TotalSecondsCostForFight(outcome);
 
         float monsterHpLostPercentage = Math.Max(1, (float)outcome.MonsterHp / outcome.Monster.Hp);
 

@@ -20,7 +20,6 @@ public class FightMonster : CharacterJob
 
     public const int SECONDS_PER_TURN = 2;
     public const int ESTIMATED_SECOND_COST_PER_POTION = 60;
-    public const int MINIMUM_FIGHT_DURATION = 5;
     public const int REST_HP_PERCENTAGE_PER_SEC = 1;
 
     /**

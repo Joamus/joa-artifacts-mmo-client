@@ -83,7 +83,7 @@ public static class FightEfficiencyCalculator
 
     public static int FightLengthInSeconds(FightOutcome outcome)
     {
-        return Math.Min(SECONDS_PER_TURN * outcome.IndividualTurns, 5);
+        return Math.Max(SECONDS_PER_TURN * outcome.IndividualTurns, MINIMUM_FIGHT_DURATION);
     }
 
     public static int GetTimeToRest(int maxHp, int hp)
@@ -123,7 +123,7 @@ public static class FightEfficiencyCalculator
             monster
         );
 
-        int fightLength = FightLengthInSeconds(outcome);
+        int fightLength = TotalSecondsCostForFight(outcome);
 
         double result = (double)xpForFight / fightLength * 3600;
 
