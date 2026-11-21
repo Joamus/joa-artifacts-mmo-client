@@ -17,13 +17,16 @@ namespace Application.Jobs;
 
 public class TrainSkill : CharacterJob
 {
-    const int MONSTER_COST = 2;
-    const int MONSTER_BOSS_COST = MONSTER_COST * 5;
-    const int CHARACTER_ABOVE_MONSTER_NEGATE_MONSTER_COST = 15;
     const int TASKS_COINS_COST = 250;
     const int EVENT_COST = 50;
     const int EVENT_COST_IF_HAS_ENOUGH_QUANTITY = 20;
     const int ENOUGH_EVENT_ITEMS = 1500;
+
+    /**
+    ** The cost of getting an item is sort of scaled down, so a cost of 1 is for gathering 1 item, that has a 100% drop rate.
+    ** This means that we have to scale down the cost of killing monsters a little bit
+    */
+    const int MONSTER_COST_FACTOR = 15;
 
     const float COMBAT_TURN_COST = 1.0f / 6.0f;
 
@@ -653,7 +656,7 @@ public class TrainSkill : CharacterJob
 
         int secondsSpentToGetItems = monsterFightDuration * fightsToGetItems;
 
-        return secondsSpentToGetItems;
+        return secondsSpentToGetItems / MONSTER_COST_FACTOR;
     }
 }
 

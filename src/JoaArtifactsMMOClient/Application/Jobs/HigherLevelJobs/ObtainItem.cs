@@ -17,7 +17,7 @@ public class ObtainItem : CharacterJob
 {
     static readonly List<string> ALLOWED_LOW_LEVEL_TASK_ITEMS = ["satchel"];
 
-    const int MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS = 30;
+    const int MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS = 25;
 
     public bool AllowUsingMaterialsFromBank { get; set; } = true;
 

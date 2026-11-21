@@ -29,30 +29,30 @@ public class EquipmentService
     const float IMPROVEMENT_SCORE_MODIFIER_PER_LEVEL = 0.01f;
 
     public static List<EquipmentTypeMapping> CraftableEquipmentTypes { get; } =
-    [
-        new() { ItemType = "weapon", Slot = "WeaponSlot" },
-        new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
-        new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
-        new() { ItemType = "helmet", Slot = "HelmetSlot" },
-        new() { ItemType = "boots", Slot = "BootsSlot" },
-        new() { ItemType = "ring", Slot = "Ring1Slot" },
-        new() { ItemType = "ring", Slot = "Ring2Slot" },
-        new() { ItemType = "amulet", Slot = "AmuletSlot" },
-        new() { ItemType = "shield", Slot = "ShieldSlot" },
-        new() { ItemType = "utility", Slot = "Utility1Slot" },
-        new() { ItemType = "utility", Slot = "Utility2Slot" },
-    ];
+        [
+            new() { ItemType = "weapon", Slot = "WeaponSlot" },
+            new() { ItemType = "body_armor", Slot = "BodyArmorSlot" },
+            new() { ItemType = "leg_armor", Slot = "LegArmorSlot" },
+            new() { ItemType = "helmet", Slot = "HelmetSlot" },
+            new() { ItemType = "boots", Slot = "BootsSlot" },
+            new() { ItemType = "ring", Slot = "Ring1Slot" },
+            new() { ItemType = "ring", Slot = "Ring2Slot" },
+            new() { ItemType = "amulet", Slot = "AmuletSlot" },
+            new() { ItemType = "shield", Slot = "ShieldSlot" },
+            new() { ItemType = "utility", Slot = "Utility1Slot" },
+            new() { ItemType = "utility", Slot = "Utility2Slot" },
+        ];
 
     public static List<EquipmentTypeMapping> AllEquipmentTypes { get; } =
-    [
-        .. new List<EquipmentTypeMapping>
-        {
-            new() { ItemType = "artifact", Slot = "Artifact1Slot" },
-            new() { ItemType = "artifact", Slot = "Artifact2Slot" },
-            new() { ItemType = "artifact", Slot = "Artifact3Slot" },
-            new() { ItemType = "rune", Slot = "RuneSlot" },
-        }.Union(CraftableEquipmentTypes),
-    ];
+        [
+            .. new List<EquipmentTypeMapping>
+            {
+                new() { ItemType = "artifact", Slot = "Artifact1Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact2Slot" },
+                new() { ItemType = "artifact", Slot = "Artifact3Slot" },
+                new() { ItemType = "rune", Slot = "RuneSlot" },
+            }.Union(CraftableEquipmentTypes),
+        ];
 
     static List<EquipmentTypeMapping>? _equipmentTypesForSim = null;
 
@@ -212,30 +212,9 @@ public class EquipmentService
                 .Union(availableItems)
                 .ToList()
         );
-        // List<ItemInInventory> availableItems = ItemService.MergeItemEntries(
-        //     [
-        //         .. obtainablePotions.Union(
-        //             bankItems
-        //                 .Where(item => !string.IsNullOrWhiteSpace(item.Code))
-        //                 .Select(item => new ItemInInventory
-        //                 {
-        //                     Item = gameState.ItemsDict[item.Code],
-        //                     Quantity = item.Quantity,
-        //                 })
-        //         ),
-        //     ]
-        // );
-
         var fightSimsForMonsters = FightSimulator.GetBestFightSimResultsForMonsters(
             character,
             gameState,
-            // [
-            //     .. items.Select(item => new ItemInInventory
-            //     {
-            //         Item = item.Item,
-            //         Quantity = item.DesiredQuantity,
-            //     }),
-            // ],
             itemPoolForSims,
             false,
             relevantMonsters
