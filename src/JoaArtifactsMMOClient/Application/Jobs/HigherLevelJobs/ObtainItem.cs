@@ -245,9 +245,11 @@ public class ObtainItem : CharacterJob
             return new AppError($"Could not find item with code {code} - could not gather it");
         }
 
-        if (!IsItemAllowedToBeCrafted(matchingItem, gameState.ItemsDict))
+        if (firstIteration && !IsItemAllowedToBeCrafted(matchingItem, gameState.ItemsDict))
         {
-            return new AppError($"Item is qualified to spend task items on - it's too low level");
+            return new AppError(
+                $"Item is not qualified to spend task items on - it's too low level"
+            );
         }
 
         // We have the item already, no need to get it again
@@ -1325,8 +1327,9 @@ public class ObtainItem : CharacterJob
                 || item.Level >= MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS;
         }
 
-        return IsAllowed(item)
-            && (item.Craft is null || item.Craft.Items.All(item => IsAllowed(allItems[item.Code])));
+        return IsAllowed(item);
+        // && (item.Craft is null || item.Craft.Items.All(item => IsAllowed(allItems[item.Code])));
+        // && (item.Craft is null || item.Craft.Items.All(item => IsAllowed(allItems[item.Code])));
     }
 }
 
