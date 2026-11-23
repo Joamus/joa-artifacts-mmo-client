@@ -17,7 +17,7 @@ public class ObtainItem : CharacterJob
 {
     static readonly List<string> ALLOWED_LOW_LEVEL_TASK_ITEMS = ["satchel"];
 
-    const int MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS = 30;
+    const int MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS = 25;
 
     public bool AllowUsingMaterialsFromBank { get; set; } = true;
 
@@ -238,16 +238,18 @@ public class ObtainItem : CharacterJob
         var ignoreInventoryFull = jobParams.IgnoreInventoryFull;
         var ignoreContentCodes = jobParams.IgnoreContentCodes;
 
-        var matchingItem = gameState.Items.Find(item => item.Code == code);
+        var matchingItem = gameState.ItemsDict.GetValueOrNull(code);
 
         if (matchingItem is null)
         {
             return new AppError($"Could not find item with code {code} - could not gather it");
         }
 
-        if (!IsItemAllowedToBeCrafted(matchingItem, gameState.ItemsDict))
+        if (firstIteration && !IsItemAllowedToBeCrafted(matchingItem, gameState.ItemsDict))
         {
-            return new AppError($"Item is qualified to spend task items on - it's too low level");
+            return new AppError(
+                $"Item is not qualified to spend task items on - it's too low level"
+            );
         }
 
         // We have the item already, no need to get it again
@@ -1317,16 +1319,29 @@ public class ObtainItem : CharacterJob
 
     static bool IsItemAllowedToBeCrafted(ItemSchema item, Dictionary<string, ItemSchema> allItems)
     {
-        static bool IsAllowed(ItemSchema item)
+        static bool IsTaskItem(ItemSchema item)
         {
             // A bit hacky,
-            return ALLOWED_LOW_LEVEL_TASK_ITEMS.Contains(item.Code)
-                || item.Subtype != "task"
-                || item.Level >= MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS;
+            return item.Subtype == "task";
         }
 
-        return IsAllowed(item)
-            && (item.Craft is null || item.Craft.Items.All(item => IsAllowed(allItems[item.Code])));
+        // Doesn't matter if we are using task coins or anything
+        // the item is "qualified"
+        if (
+            ALLOWED_LOW_LEVEL_TASK_ITEMS.Contains(item.Code)
+            || item.Level >= MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS
+        )
+        {
+            return true;
+        }
+
+        bool usesTaskItems =
+            IsTaskItem(item)
+            || (
+                item.Craft is null || item.Craft.Items.All(item => IsTaskItem(allItems[item.Code]))
+            );
+
+        return !usesTaskItems;
     }
 }
 
