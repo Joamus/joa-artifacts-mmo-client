@@ -582,7 +582,8 @@ public class FightSimulatorTest
     public void GetAllowedAmountOfPotionsUsed_NoPotionsBelow10()
     {
         int result = FightSimulator.GetAllowedAmountOfPotionsUsed(
-            CreateMockMonster(9, MonsterType.Normal)
+            CreateMockMonster(9, MonsterType.Normal),
+            false
         );
 
         Assert.Equal(0, result);
@@ -592,7 +593,8 @@ public class FightSimulatorTest
     public void GetAllowedAmountOfPotionsUsed_1PotionBelow19()
     {
         int result = FightSimulator.GetAllowedAmountOfPotionsUsed(
-            CreateMockMonster(19, MonsterType.Normal)
+            CreateMockMonster(19, MonsterType.Normal),
+            false
         );
         Assert.Equal(1, result);
     }
@@ -601,7 +603,8 @@ public class FightSimulatorTest
     public void GetAllowedAmountOfPotionsUsed_2PotionBelow19()
     {
         int result = FightSimulator.GetAllowedAmountOfPotionsUsed(
-            CreateMockMonster(29, MonsterType.Normal)
+            CreateMockMonster(29, MonsterType.Normal),
+            false
         );
         Assert.Equal(2, result);
     }
@@ -610,7 +613,7 @@ public class FightSimulatorTest
     public void GetAllowedAmountOfPotionsUsed_3PotionBelow19()
     {
         int result = FightSimulator.GetAllowedAmountOfPotionsUsed(
-            CreateMockMonster(39, MonsterType.Normal)
+            CreateMockMonster(39, MonsterType.Normal), false
         );
         Assert.Equal(3, result);
     }

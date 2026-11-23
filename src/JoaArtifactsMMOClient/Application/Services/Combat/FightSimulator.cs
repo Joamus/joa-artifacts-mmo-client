@@ -19,6 +19,8 @@ public static class FightSimulator
     const int MAX_AMOUNT_OF_USED_POTIONS = 6;
     const float POTION_USAGE_PER_LEVEL_FACTOR = 0.1f;
     const float EXTRA_ALLOWED_POTIONS_FOR_BOSS_FIGHTS_PERCENTAGE = 0.20f;
+    // Monsters like event monsters, task monsters
+    const float EXTRA_ALLOWED_POTIONS_FOR_HIGH_PRIO_FIGHTS_PERCENTAGE = 0.50f;
     const double CRIT_DAMAGE_MODIFIER = 0.5;
     const double RESTORE_EFFECT_MAX_HP_THRESHOLD = 0.50;
     const double LOSE_AFTER_TURNS = 100;
@@ -1616,11 +1618,12 @@ public static class FightSimulator
         return amountToHeal;
     }
 
-    public static FightOutcome InnerRunFightSim(
+    static FightOutcome InnerRunFightSim(
         MonsterSchema monster,
         MonsterType monsterType,
         List<FightSimParticipant> participants,
-        string attackingPlayerName
+        string attackingPlayerName,
+        bool highPrioMonster
     )
     {
         participants = [.. participants.OrderByDescending((a) => a.Entity.Initiative)];
@@ -1824,7 +1827,8 @@ public static class FightSimulator
                 turnNumber,
                 attackingPlayerPotionsUsed,
                 otherAttackingPlayersPotionsUsed,
-                otherPlayerParticipants
+                otherPlayerParticipants,
+                highPrioMonster
             ),
             PotionsUsed = attackingPlayerPotionsUsed,
             OtherPlayersPotionsUsed = otherAttackingPlayersPotionsUsed,
@@ -1838,14 +1842,15 @@ public static class FightSimulator
         return attacker.IsPlayer ? FightResult.Win : FightResult.Loss;
     }
 
-    public static bool GetShouldFight(
+    static bool GetShouldFight(
         FightResult fightResult,
         FightSimParticipant attackingPlayer,
         MonsterSchema monster,
         int totalRounds,
         int attackingPlayerPotionsUsed,
         int otherAttackingPlayersPotionsUsed,
-        List<FightSimParticipant> otherPlayerParticipants
+        List<FightSimParticipant> otherPlayerParticipants,
+        bool highPrioMonster 
     )
     {
         if (fightResult != FightResult.Win)
@@ -1870,7 +1875,7 @@ public static class FightSimulator
                 PlayerHasEnoughHpAfterFight
             );
 
-            int maxAllowedPotionsUsed = GetAllowedAmountOfPotionsUsed(monster) * totalPlayers;
+            int maxAllowedPotionsUsed = GetAllowedAmountOfPotionsUsed(monster, highPrioMonster) * totalPlayers;
 
             bool primaryShouldFightDecision;
 
@@ -1911,7 +1916,7 @@ public static class FightSimulator
 
         return attackerHasEnoughHp
             && !otherPlayerParticipants.Exists(participant => participant.Entity.Hp <= 0)
-            && attackingPlayerPotionsUsed <= GetAllowedAmountOfPotionsUsed(monster);
+            && attackingPlayerPotionsUsed <= GetAllowedAmountOfPotionsUsed(monster, highPrioMonster);
     }
 
     static bool PlayerHasEnoughHpAfterFight(FightSimParticipant attacker)
@@ -1925,7 +1930,8 @@ public static class FightSimulator
         List<PlayerCharacter> otherCharacters,
         GameState gameState,
         List<DropSchema> bankItems,
-        MonsterSchema monster
+        MonsterSchema monster,
+        bool highPrioMonster = false
     )
     {
         /**
@@ -1940,7 +1946,8 @@ public static class FightSimulator
             otherCharacters,
             gameState,
             bankItems,
-            monster
+            monster,
+            highPrioMonster
         );
 
         Dictionary<string, List<EquipmentSlot>> itemsToEquipForCharacters = [];
@@ -1968,7 +1975,8 @@ public static class FightSimulator
         List<PlayerCharacter> otherCharacters,
         GameState gameState,
         List<DropSchema> bankItems,
-        MonsterSchema monster
+        MonsterSchema monster,
+        bool highPrioMonster = false
     )
     {
         List<PlayerCharacter> allCharacters = [.. otherCharacters, mainCharacter];
@@ -2052,7 +2060,8 @@ public static class FightSimulator
                 monster,
                 itemsAvailableToCharacter,
                 null,
-                otherCharactersSim
+                otherCharactersSim,
+                highPrioMonster
             );
 
             fightSimResults.Add(result.SimResult);
@@ -2108,7 +2117,8 @@ public static class FightSimulator
                     monster,
                     [],
                     null,
-                    otherCharactersSim
+                    otherCharactersSim,
+                    highPrioMonster
                 );
 
                 var oldSimResult = fightSimResults.First(simResult =>
@@ -2173,7 +2183,8 @@ public static class FightSimulator
         MonsterSchema monster,
         List<ItemInInventory>? otherItems = null,
         List<string>? itemTypesToSim = null,
-        List<PlayerCharacter>? otherCharacters = null
+        List<PlayerCharacter>? otherCharacters = null,
+        bool highPrioMonster = false
     )
     {
         otherItems ??= [];
@@ -2197,7 +2208,8 @@ public static class FightSimulator
         MonsterSchema monster,
         List<ItemInInventory>? originalAllItems = null,
         List<string>? itemTypesToSim = null,
-        List<PlayerCharacter>? otherCharacters = null
+        List<PlayerCharacter>? otherCharacters = null,
+        bool highPrioMonster = false
     )
     {
         var otherCharacterSchemas = (otherCharacters ?? [])
@@ -2377,7 +2389,9 @@ public static class FightSimulator
                 bestSchemaCandiateWithWeapon,
                 otherCharacterSchemas,
                 monster,
-                gameState
+                gameState,
+                true,
+                highPrioMonster
             );
 
             List<EquipmentSlot> itemsToEquip = [];
@@ -2770,7 +2784,8 @@ public static class FightSimulator
         List<CharacterSchema> otherPlayers,
         MonsterSchema monster,
         GameState gameState,
-        bool playerFullHp = true
+        bool playerFullHp = true,
+        bool highPrioMonster = false
     )
     {
         List<FightOutcome> outcomes = [];
@@ -2834,7 +2849,8 @@ public static class FightSimulator
                     { },
                     monsterClone.Type,
                     participants,
-                    originalSchema.Name
+                    originalSchema.Name,
+                    highPrioMonster
                 )
             );
         }
@@ -3182,13 +3198,13 @@ public static class FightSimulator
         return new DefenderDamageResult { IsDefenderDead = defender.Entity.Hp <= 0 };
     }
 
-    public static int GetAllowedAmountOfPotionsUsed(MonsterSchema monster)
+    public static int GetAllowedAmountOfPotionsUsed(MonsterSchema monster, bool highPrioMonster)
     {
         if (monster.Level == MAX_LEVEL || monster.Type == MonsterType.RaidBoss)
         {
             return MAX_AMOUNT_OF_USED_POTIONS;
         }
-
+        
         int result = (int)
             Math.Min(monster.Level * POTION_USAGE_PER_LEVEL_FACTOR, MAX_AMOUNT_OF_USED_POTIONS);
 
@@ -3196,6 +3212,12 @@ public static class FightSimulator
         {
             result = (int)
                 Math.Round(result * (1 + EXTRA_ALLOWED_POTIONS_FOR_BOSS_FIGHTS_PERCENTAGE));
+        }
+        
+        if (highPrioMonster)
+        {
+            result = (int)
+                Math.Round(result * (1 + EXTRA_ALLOWED_POTIONS_FOR_HIGH_PRIO_FIGHTS_PERCENTAGE));
         }
 
         return result;

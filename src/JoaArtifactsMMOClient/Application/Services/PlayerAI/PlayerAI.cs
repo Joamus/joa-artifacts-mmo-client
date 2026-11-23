@@ -98,8 +98,7 @@ public class PlayerAI
             await CancelTaskIfItShouldNotBeDone();
 
             var job =
-                await GetDepositItemsJobIfNeeded()
-                ?? await WithdrawAllowance()
+                await WithdrawAllowance()
                 ?? DepositUnneededGold()
                 ?? await StartRaid()
                 ?? await GetMonsterJobIfCanCertainlyBeDone(false)
@@ -1001,7 +1000,8 @@ public class PlayerAI
                 FightBossOrchestrator.GetBestCandidatesToFight(Character, gameState),
                 gameState,
                 bankItems,
-                monster
+                monster,
+                true
             );
 
             if (fightSims.Exists(sim => sim.Outcome.ShouldFight))

@@ -298,7 +298,10 @@ public class PlayerActionService
                 Character,
                 gameState,
                 gameState.MonstersDict[monster.Code],
-                availableItems
+                availableItems,
+                null,
+                null,
+                true
             );
 
             if (fightSim.SimResult.Outcome.ShouldFight)
@@ -452,7 +455,10 @@ public class PlayerActionService
                         Character,
                         gameState,
                         matchingMonster,
-                        availableItems
+                        availableItems,
+                        null,
+                        null,
+                        true
                     )
                     .SimResult.Outcome.ShouldFight
             )
@@ -1241,7 +1247,10 @@ public class PlayerActionService
             Character,
             gameState,
             monster,
-            availableItems
+            availableItems,
+            null,
+            null,
+            true
         );
 
         if (fightSim.SimResult.Outcome.ShouldFight)
