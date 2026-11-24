@@ -248,7 +248,7 @@ public class ObtainItem : CharacterJob
         if (firstIteration && !IsItemAllowedToBeCrafted(matchingItem, gameState.ItemsDict))
         {
             return new AppError(
-                $"Item is not qualified to spend task items on - it's too low level"
+                $"Item {matchingItem.Code} is not qualified to spend task items on - it's too low level"
             );
         }
 
@@ -1338,7 +1338,7 @@ public class ObtainItem : CharacterJob
         bool usesTaskItems =
             IsTaskItem(item)
             || (
-                item.Craft is null || item.Craft.Items.All(item => IsTaskItem(allItems[item.Code]))
+                item.Craft is not null && item.Craft.Items.Exists(item => IsTaskItem(allItems[item.Code]))
             );
 
         return !usesTaskItems;
