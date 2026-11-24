@@ -1329,6 +1329,7 @@ public class ObtainItem : CharacterJob
         // the item is "qualified"
         if (
             ALLOWED_LOW_LEVEL_TASK_ITEMS.Contains(item.Code)
+            // Disallow crafting iron tools, I don't think it's worth it, for the crystals
             || (item.Subtype == "tool" && item.Level != 10)
             || item.Level >= MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS
         )
