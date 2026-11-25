@@ -688,13 +688,17 @@ public class ObtainItem : CharacterJob
 
             int priceForAllRequiredItems = buyPrice * requiredAmount;
 
-            if (priceForAllRequiredItems >= character.Schema.Gold)
+            int allowedBudget = await character.GetAllowedBudget();
+
+            if (priceForAllRequiredItems >= allowedBudget)
             {
                 int allowedAmountToWithdraw = await character.GetAllowedWithdrawAmount();
 
+                int totalAllowedAmount = allowedBudget + allowedAmountToWithdraw;
+
                 int amountOfGoldToWithdraw =
-                    character.Schema.Gold + allowedAmountToWithdraw > priceForAllRequiredItems
-                        ? character.Schema.Gold + allowedAmountToWithdraw - priceForAllRequiredItems
+                    totalAllowedAmount > priceForAllRequiredItems
+                        ? totalAllowedAmount - priceForAllRequiredItems
                         : allowedAmountToWithdraw;
 
                 jobs.Add(
@@ -707,7 +711,7 @@ public class ObtainItem : CharacterJob
 
                 int amountThatCanBeBought = Math.Min(
                     requiredAmount,
-                    (amountOfGoldToWithdraw + character.Schema.Gold) / buyPrice
+                    (amountOfGoldToWithdraw + allowedBudget) / buyPrice
                 );
 
                 if (amountThatCanBeBought > 0)
@@ -1149,7 +1153,7 @@ public class ObtainItem : CharacterJob
 
         int amountOfCurrency =
             matchingNpcItem.Currency == "gold"
-                ? character.Schema.Gold
+                ? await character.GetAllowedBudget()
                 : character.GetItemFromInventory(matchingNpcItem.Currency)?.Quantity ?? 0;
 
         int neededCurrency = (int)matchingNpcItem.BuyPrice * requiredAmount;
@@ -1340,7 +1344,8 @@ public class ObtainItem : CharacterJob
         bool usesTaskItems =
             IsTaskItem(item)
             || (
-                item.Craft is not null && item.Craft.Items.Exists(item => IsTaskItem(allItems[item.Code]))
+                item.Craft is not null
+                && item.Craft.Items.Exists(item => IsTaskItem(allItems[item.Code]))
             );
 
         return !usesTaskItems;
