@@ -160,9 +160,11 @@ public static class EffectService
     public static SimpleEffectSchema? GetSkillEffectFromItem(ItemSchema item)
     {
         return item.Effects.FirstOrDefault(effect =>
-            SkillService.GatheringSkills.Exists(skill =>
-                skill.GetDisplayName().FromPascalToSnakeCase() == effect.Code
-            )
+            // SkillService.GatheringSkills.Exists(skill =>
+            //     skill.GetDisplayName().FromPascalToSnakeCase() == effect.Code
+            SkillService.GatheringEffectToSkill(effect.Code)
+                is not null
+            || SkillService.CraftingEffectToSkill(effect.Code) is not null
         );
     }
 

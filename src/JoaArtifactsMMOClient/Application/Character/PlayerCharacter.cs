@@ -1565,12 +1565,17 @@ public class PlayerCharacter
 
     public async Task NpcSellItem(string itemCode, int quantity)
     {
+        int originalQuantity = quantity;
+        int quantityToSell = Math.Min(quantity, 100);
+
         try
         {
             // await ActionLock.WaitAsync();
             await PreTaskHandler();
 
-            string _body = JsonSerializer.Serialize(new { code = itemCode, quantity });
+            string _body = JsonSerializer.Serialize(
+                new { code = itemCode, quantity = quantityToSell }
+            );
             StringContent body = new StringContent(_body, Encoding.UTF8, "application/json");
 
             var response = await ApiRequester.PostAsync($"/my/{Schema.Name}/action/npc/sell", body);
@@ -1581,6 +1586,11 @@ public class PlayerCharacter
                 ApiRequester.getJsonOptions()
             )!;
             await PostTaskHandler(result.Data.Cooldown, result.Data.Character);
+
+            if (originalQuantity > quantityToSell)
+            {
+                await NpcSellItem(itemCode, originalQuantity - quantityToSell);
+            }
         }
         finally
         {

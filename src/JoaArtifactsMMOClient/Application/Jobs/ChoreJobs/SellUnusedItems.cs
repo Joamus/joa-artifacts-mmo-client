@@ -54,113 +54,65 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
         foreach (var npc in npcToItemsDict)
         {
-            bool doneSellingAllItems = false;
-
-            while (!doneSellingAllItems)
+            foreach (var item in npc.Value)
             {
-                bool allAtZero = true;
+                var bankResponse = await gameState.Services.BankItemCache.GetBankItems(
+                    Character,
+                    true
+                );
 
-                foreach (var item in npc.Value)
+                int amountInBank =
+                    bankResponse.FirstOrDefault(bankItem => bankItem.Code == item.Code)?.Quantity
+                    ?? 0;
+
+                int amountToWithdraw = Math.Min(
+                    Character.GetAvailableInventorySpace(),
+                    amountInBank
+                );
+
+                int amountInInventory = Character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
+
+                if (amountToWithdraw > 0)
                 {
-                    var bankResponse = await gameState.Services.BankItemCache.GetBankItems(
-                        Character,
-                        true
-                    );
+                    await Character.NavigateTo(ContentCode.Bank);
 
-                    int amountInBank =
-                        bankResponse
-                            .FirstOrDefault(bankItem => bankItem.Code == item.Code)
-                            ?.Quantity ?? 0;
-
-                    int amountToWithdraw = Math.Min(
-                        Character.GetAvailableInventorySpace(),
-                        amountInBank
-                    );
-
-                    int amountInInventory =
-                        Character.GetItemFromInventory(item.Code)?.Quantity ?? 0;
-
-                    allAtZero = item.Quantity == 0;
-
-                    if (amountToWithdraw > 0)
-                    {
-                        await Character.NavigateTo(ContentCode.Bank);
-
-                        await Character.WithdrawBankItem(
-                            new List<WithdrawOrDepositItemRequest>
+                    await Character.WithdrawBankItem(
+                        new List<WithdrawOrDepositItemRequest>
+                        {
+                            new WithdrawOrDepositItemRequest
                             {
-                                new WithdrawOrDepositItemRequest
-                                {
-                                    Code = item.Code,
-                                    Quantity = amountToWithdraw,
-                                },
-                            }
-                        );
+                                Code = item.Code,
+                                Quantity = amountToWithdraw,
+                            },
+                        }
+                    );
 
-                        item.Quantity -= amountToWithdraw;
-                        amountInInventory += amountToWithdraw;
-                    }
-
-                    if (
-                        amountToWithdraw == 0
-                        && (Character.GetItemFromInventory(item.Code)?.Quantity ?? 0) == 0
-                    )
-                    {
-                        allAtZero = true;
-                    }
-
-                    if (
-                        Character.GetAvailableInventorySpace() == 0 && amountInInventory > 0
-                        || amountInInventory > 0 && amountInBank == 0
-                    )
-                    {
-                        await SellAllItemsToNpc(npc.Key);
-                    }
+                    item.Quantity -= amountToWithdraw;
+                    amountInInventory += amountToWithdraw;
                 }
 
-                if (allAtZero)
+                if (
+                    Character.GetAvailableInventorySpace() == 0 && amountInInventory > 0
+                    || amountInInventory > 0 && amountInBank == 0
+                )
                 {
-                    doneSellingAllItems = true;
+                    await SellItemToNpc(npc.Key, item);
                 }
-
-                await SellAllItemsToNpc(npc.Key);
             }
         }
 
         return new None();
     }
 
-    public async Task SellAllItemsToNpc(string npcCode)
+    public async Task SellItemToNpc(string npcCode, DropSchema item)
     {
         logger.LogInformation(
-            $"{JobName}: [{Character.Schema.Name}] selling all items to \"{npcCode}\""
+            $"{JobName}: [{Character.Schema.Name}] selling item {item.Quantity} x \"{item.Code}\""
         );
 
-        foreach (var item in Character.Schema.Inventory)
-        {
-            if (string.IsNullOrWhiteSpace(item.Code))
-            {
-                continue;
-            }
+        await Character.NavigateTo(npcCode);
 
-            var npcItem = gameState.NpcItemsDict.GetValueOrNull(item.Code)!;
-
-            if (npcItem?.Npc != npcCode)
-            {
-                continue;
-            }
-
-            // var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
-
-            // if (!IsSellableTrashItem(matchingItem, gameState))
-            // {
-            //     continue;
-            // }
-
-            await Character.NavigateTo(npcCode);
-
-            await Character.NpcSellItem(item.Code, item.Quantity);
-        }
+        await Character.NpcSellItem(item.Code, item.Quantity);
     }
 
     public Dictionary<string, NpcSchema> GetActiveNpcs()
@@ -284,7 +236,12 @@ public class SellUnusedItems : CharacterJob, ICharacterChoreJob
 
     public static bool IsSellableTrashItem(ItemSchema item, GameState gameState)
     {
-        if (item.Craft is not null || item.Type != "resource")
+        // It's used for the iron knife, but it's too valuable to keep hoarding
+        if (item.Code == "shell")
+        {
+            return true;
+        }
+        if (item.Craft is not null)
         {
             return false;
         }

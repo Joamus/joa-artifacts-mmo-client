@@ -7,6 +7,7 @@ using Application.Records;
 using Application.Services;
 using Applicaton.Jobs.Chores;
 using Applicaton.Services.FightSimulator;
+using Microsoft.OpenApi.Extensions;
 using OneOf;
 using OneOf.Types;
 
@@ -143,19 +144,23 @@ public class RecycleUnusedItems : CharacterJob, ICharacterChoreJob
                 continue;
             }
 
-            var gatheringEffect = EffectService.GetSkillEffectFromItem(item);
+            var toolEffects = item
+                .Effects.Select(effect =>
+                {
+                    var skill =
+                        SkillService.GatheringEffectToSkill(effect.Code)?.GetDisplayName()
+                        ?? SkillService.CraftingEffectToSkill(effect.Code)?.GetDisplayName()
+                        ?? null;
 
-            if (gatheringEffect is null)
+                    return skill;
+                })
+                .OfType<string>();
+
+            foreach (var effect in toolEffects)
             {
-                continue;
+                toolsByEffect.TryAdd(effect, []);
+                toolsByEffect[effect].Add(item);
             }
-
-            if (toolsByEffect.GetValueOrNull(gatheringEffect!.Code) is null)
-            {
-                toolsByEffect.Add(gatheringEffect.Code, []);
-            }
-
-            toolsByEffect[gatheringEffect.Code].Add(item);
         }
 
         foreach (var item in bankItems)
