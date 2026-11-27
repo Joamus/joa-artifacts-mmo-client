@@ -623,7 +623,9 @@ public class PlayerAI
 
         foreach (var tool in bestTools)
         {
-            var effect = tool.Effects.First(effect => effect.Value < 0);
+            SimpleEffectSchema effect = tool.Effects.First(effect =>
+                SkillService.GatheringEffectToSkill(effect.Code) is not null
+            );
 
             if (skipEffects.Contains(effect.Code))
             {
@@ -659,7 +661,11 @@ public class PlayerAI
 
             if (equippedWeapon is not null)
             {
-                var bestUpgrade = ItemService.GetBestToolIfUpgrade(equippedWeapon, tool);
+                var bestUpgrade = ItemService.GetBestToolIfUpgrade(
+                    equippedWeapon,
+                    tool,
+                    effect.Code
+                );
 
                 if (bestUpgrade is not null)
                 {
@@ -682,7 +688,11 @@ public class PlayerAI
                     continue;
                 }
 
-                var bestUpgrade = ItemService.GetBestToolIfUpgrade(inventoryTool.Item, tool);
+                var bestUpgrade = ItemService.GetBestToolIfUpgrade(
+                    inventoryTool.Item,
+                    tool,
+                    effect.Code
+                );
 
                 if (bestUpgrade is not null)
                 {

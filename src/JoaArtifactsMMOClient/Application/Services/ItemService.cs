@@ -645,7 +645,7 @@ public static class ItemService
         return highestLevelItem;
     }
 
-    public static ItemSchema? GetBestToolIfUpgrade(ItemSchema a, ItemSchema b)
+    public static ItemSchema? GetBestToolIfUpgrade(ItemSchema a, ItemSchema b, string toolEffect)
     {
         List<ItemSchema> items = [a, b];
 
@@ -655,11 +655,11 @@ public static class ItemService
         var highestLevelItem = items[1];
 
         var lowestLevelGatherEffect = lowestLevelItem.Effects.FirstOrDefault(effect =>
-            effect.Value < 0
+            effect.Code == toolEffect
         );
 
         var highestLevelGatherEffect = highestLevelItem.Effects.FirstOrDefault(effect =>
-            effect.Value < 0
+            effect.Code == toolEffect
         );
 
         // We need to ensure that both tools have the same effect, and the higher level item has a better effect.
