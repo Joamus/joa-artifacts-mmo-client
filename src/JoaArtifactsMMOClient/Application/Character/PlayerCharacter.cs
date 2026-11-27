@@ -1986,7 +1986,7 @@ public class PlayerCharacter
     {
         var allowedWithdrawAmount = await GetAllowedWithdrawAmount();
 
-        return allowedWithdrawAmount + Schema.Gold;
+        return allowedWithdrawAmount;
     }
 
     public async Task AcceptOffering(string id)
