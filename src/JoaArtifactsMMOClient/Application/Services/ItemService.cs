@@ -117,6 +117,9 @@ public static class ItemService
                 case "woodcutting_level":
                     playerLevelOfSkill = playerSchema.WoodcuttingLevel;
                     break;
+                case "cooking_level":
+                    playerLevelOfSkill = playerSchema.CookingLevel;
+                    break;
             }
 
             if (
@@ -512,16 +515,13 @@ public static class ItemService
             }),
         ];
 
-        var bankData = await gameState.Services.BankItemCache.GetBankItems(character);
+        var bankData = (
+            await gameState.Services.BankItemCache.GetBankItems(character)
+        ).ToDictionary(item => item.Code);
 
         foreach (var item in allItemCandidates)
         {
-            var matchingItem = gameState.ItemsDict.GetValueOrNull(item.Code)!;
-
-            if (matchingItem.Subtype != "tool")
-            {
-                continue;
-            }
+            var matchingItem = gameState.ItemsDict[item.Code];
 
             if (!CanUseItem(matchingItem, character.Schema, gameState))
             {
@@ -529,7 +529,8 @@ public static class ItemService
             }
 
             var bestEffect = matchingItem.Effects.FirstOrDefault(effect =>
-                skillNames.Contains(effect.Code)
+                SkillService.GatheringEffectToSkill(effect.Code) is not null
+                || SkillService.CraftingEffectToSkill(effect.Code) is not null
             );
 
             if (bestEffect is null)
@@ -538,9 +539,7 @@ public static class ItemService
             }
 
             var currentBestTool = relevantToolsDict.GetValueOrNull(bestEffect.Code);
-            bool isInBank = bankData.Exists(bankItem =>
-                bankItem.Code == item.Code && item.Quantity > 0
-            );
+            bool isInBank = bankData.GetValueOrNull(item.Code)?.Quantity > 0;
 
             if (
                 (character.GetItemFromInventory(item.Code)?.Quantity ?? 0) == 0
@@ -564,7 +563,7 @@ public static class ItemService
                 continue;
             }
 
-            // The gathering effects have an effect express in negative numbers, e.g. 10% lower cooldown when mining will be -10,
+            // The gathering effects have an effect expressed in negative numbers, e.g. 10% lower cooldown when mining will be -10,
             // so we want to find effects with a lower effect, e.g. -20 is better than -10
             if (
                 currentBestTool is null
@@ -668,7 +667,7 @@ public static class ItemService
             lowestLevelGatherEffect is not null
             && highestLevelGatherEffect is not null
             && lowestLevelGatherEffect.Code == highestLevelGatherEffect.Code
-            && highestLevelGatherEffect.Value < lowestLevelGatherEffect.Value
+            && Math.Abs(highestLevelGatherEffect.Value) > Math.Abs(lowestLevelGatherEffect.Value)
         )
         {
             return highestLevelItem;
