@@ -625,6 +625,7 @@ public class PlayerAI
         {
             SimpleEffectSchema effect = tool.Effects.First(effect =>
                 SkillService.GatheringEffectToSkill(effect.Code) is not null
+                || SkillService.CraftingEffectToSkill(effect.Code) is not null
             );
 
             if (skipEffects.Contains(effect.Code))
