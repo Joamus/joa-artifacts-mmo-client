@@ -16,6 +16,7 @@ namespace Application.Jobs;
 public class ObtainItem : CharacterJob
 {
     static readonly List<string> ALLOWED_LOW_LEVEL_TASK_ITEMS = ["satchel"];
+    const int ALLOWED_BUDGET_BEFORE_CAN_SPEND_GOLD_ON_MISC_ITEMS = 1_000_000;
 
     const int MIN_ALLOWED_LEVEL_TO_USE_TASK_ITEMS = 25;
 
@@ -1144,7 +1145,6 @@ public class ObtainItem : CharacterJob
             && !EventService.IsNpcActive(gameState, matchingNpcItem.Npc)
         )
         {
-            // return null;
             return new AppError(
                 $"The item with code {code} is an NPC item, but the NPC from an event that is not active - currency is {matchingNpcItem.Currency}",
                 ErrorStatus.NotFound
@@ -1155,6 +1155,14 @@ public class ObtainItem : CharacterJob
             matchingNpcItem.Currency == "gold"
                 ? await character.GetAllowedBudget()
                 : character.GetItemFromInventory(matchingNpcItem.Currency)?.Quantity ?? 0;
+
+        if (!IsItemWorthBuying(matchingItem, matchingNpcItem.Currency, amountOfCurrency))
+        {
+            return new AppError(
+                $"The item with code {code} can be bought from an NPC, but it's not worth it to do currently",
+                ErrorStatus.NotFound
+            );
+        }
 
         int neededCurrency = (int)matchingNpcItem.BuyPrice * requiredAmount;
 
@@ -1283,6 +1291,26 @@ public class ObtainItem : CharacterJob
         }
 
         return jobs;
+    }
+
+    static bool IsItemWorthBuying(ItemSchema item, string currency, int budget)
+    {
+        if (budget >= ALLOWED_BUDGET_BEFORE_CAN_SPEND_GOLD_ON_MISC_ITEMS && currency == "gold")
+        {
+            return true;
+        }
+
+        if (item.Type == "utility")
+        {
+            return false;
+        }
+
+        if (item.Type == "resource" && PlayerSkill.AllSkills.Contains(item.Subtype))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     static CharacterJob GetFightMonsterOrFightBossJobForItem(

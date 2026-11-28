@@ -2,17 +2,30 @@ namespace Application.Character;
 
 public static class PlayerSkill
 {
-    public static string Mining = "mining";
+    public static List<string> AllSkills { get; } =
+        [
+            Weaponcrafting,
+            Gearcrafting,
+            Jewelrycrafting,
+            Mining,
+            Alchemy,
+            Woodcutting,
+            Fishing,
+            Cooking,
+        ];
 
-    public static string Woodcutting = "woodcutting";
+    public const string Mining = "mining";
 
-    public static string Fishing = "fishing";
+    public const string Woodcutting = "woodcutting";
 
-    public static string Weaponcrafting = "weapon_crafting";
+    public const string Fishing = "fishing";
 
-    public static string Gearcrafting = "gear_crafting";
+    public const string Weaponcrafting = "weapon_crafting";
 
-    public static string Alchemy = "alchemy";
+    public const string Gearcrafting = "gear_crafting";
 
-    public static string Jewelrycrafting = "jewelry_crafting";
+    public const string Alchemy = "alchemy";
+
+    public const string Jewelrycrafting = "jewelry_crafting";
+    public const string Cooking = "cooking";
 }
